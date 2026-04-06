@@ -22,6 +22,27 @@ _LOGGER = logging.getLogger(__name__)
 
 from pathlib import Path
 
+_ALERT_ONLY_HIDDEN_BOOL_KEYS = {
+    "air_control_enabled",
+    "air_control_manual_override",
+    "air_control_output_expanded",
+    "air_isolate_fan_outputs",
+    "air_isolate_humidifier_outputs",
+    "air_aq_downstairs_active",
+    "air_aq_upstairs_active",
+    "air_downstairs_humidifier_active",
+    "air_upstairs_humidifier_active",
+    "humidity_constellation_expanded",
+    "toggle",
+}
+_ALERT_ONLY_HIDDEN_TIMER_KEYS = {
+    "air_aq_upstairs_run",
+    "air_aq_downstairs_run",
+    "air_bathroom_min_run",
+    "air_cooking_min_run",
+    "air_control_pause",
+}
+
 
 async def async_build_entity_mapping(hass: HomeAssistant, entry_id: str) -> Dict[str, str]:
     """Build mapping from v1 placeholder entity IDs to v2 entity IDs."""
@@ -33,6 +54,7 @@ async def async_build_entity_mapping(hass: HomeAssistant, entry_id: str) -> Dict
     zones = _entry_section(entry, "zones", {}) if entry else {}
     humidifiers = _entry_section(entry, "humidifiers", {}) if entry else {}
     alerts = _entry_section(entry, "alerts", []) if entry else []
+    alert_only_mode = bool(_entry_section(entry, "alert_only_mode", False)) if entry else False
 
     def _find_telemetry(room_hint: str, sensor_type: str, level: str | None = None) -> str | None:
         room_hint = room_hint.lower()
@@ -102,9 +124,16 @@ async def async_build_entity_mapping(hass: HomeAssistant, entry_id: str) -> Dict
             return lights[index]
         return None
 
-    def _bool_entity_id(key: str) -> str:
+    def _bool_entity_id(key: str) -> str | None:
+        if alert_only_mode and key in _ALERT_ONLY_HIDDEN_BOOL_KEYS:
+            return None
         unique_id = f"hi_{entry_id}_input_{key}"
-        return registry.async_get_entity_id("switch", DOMAIN, unique_id) or f"switch.hi_{key}"
+        found = registry.async_get_entity_id("switch", DOMAIN, unique_id)
+        if found:
+            return found
+        if alert_only_mode and key in _ALERT_ONLY_HIDDEN_BOOL_KEYS:
+            return None
+        return f"switch.hi_{key}"
 
     def _alert_active_entity(index: int) -> str | None:
         if index >= len(alerts or []):
@@ -116,9 +145,16 @@ async def async_build_entity_mapping(hass: HomeAssistant, entry_id: str) -> Dict
             return found
         return f"switch.hi_{key}"
 
-    def _timer_entity_id(key: str) -> str:
+    def _timer_entity_id(key: str) -> str | None:
+        if alert_only_mode and key in _ALERT_ONLY_HIDDEN_TIMER_KEYS:
+            return None
         unique_id = f"hi_{entry_id}_timer_{key}"
-        return registry.async_get_entity_id("sensor", DOMAIN, unique_id) or f"sensor.hi_{key}"
+        found = registry.async_get_entity_id("sensor", DOMAIN, unique_id)
+        if found:
+            return found
+        if alert_only_mode and key in _ALERT_ONLY_HIDDEN_TIMER_KEYS:
+            return None
+        return f"sensor.hi_{key}"
 
     placeholders = {
         "sensor.house_average_humidity": _entity_id("sensor", "house_avg_humidity"),
@@ -319,6 +355,9 @@ async def async_register_cards(hass: HomeAssistant, entry_id: str, mapping: Dict
             content = re.sub(pattern, entity_id, content)
 
         content = _prune_unresolved_entity_items(content, unresolved)
+        content = _prune_empty_card_lists(content)
+        content = _prune_invalid_conditional_cards(content)
+        content = _prune_empty_card_lists(content)
 
         unresolved_in_card: List[str] = []
         for placeholder in unresolved:
@@ -356,7 +395,10 @@ def _is_optional_placeholder(placeholder: str) -> bool:
             "fan.",
             "humidifier.",
             "light.",
-            "input_boolean.air_alert_",
+            "timer.air_",
+            "input_boolean.air_",
+            "input_boolean.humidity_constellation_",
+            "input_boolean.toggle",
         )
     )
 
@@ -364,8 +406,13 @@ def _is_optional_placeholder(placeholder: str) -> bool:
 def _should_prune_unresolved_entity_line(placeholder: str) -> bool:
     return placeholder.startswith(
         (
-            "light.alert_",
-            "input_boolean.air_alert_",
+            "fan.",
+            "humidifier.",
+            "light.",
+            "timer.air_",
+            "input_boolean.air_",
+            "input_boolean.humidity_constellation_",
+            "input_boolean.toggle",
         )
     )
 
@@ -378,39 +425,263 @@ def _prune_unresolved_entity_items(content: str, unresolved: List[str]) -> str:
     lines = content.splitlines()
     out: List[str] = []
     i = 0
-    entity_pattern = re.compile(r"^([ \t]*)-[ \t]*entity:[ \t]*([^#\s]+)[ \t]*(?:#.*)?$")
+    list_entity_pattern = re.compile(r"^([ \t]*)-[ \t]*entity:[ \t]*([^#\s]+)[ \t]*(?:#.*)?$")
+    entity_line_pattern = re.compile(r"^([ \t]*)entity:[ \t]*([^#\s]+)[ \t]*(?:#.*)?$")
 
     while i < len(lines):
         line = lines[i]
-        match = entity_pattern.match(line)
-        if not match:
+
+        list_match = list_entity_pattern.match(line)
+        if list_match:
+            entity_id = list_match.group(2)
+            if entity_id in prune_set:
+                base_indent = len(list_match.group(1))
+                i = _skip_yaml_block(lines, i + 1, base_indent)
+                continue
             out.append(line)
             i += 1
             continue
 
-        entity_id = match.group(2)
+        entity_match = entity_line_pattern.match(line)
+        if not entity_match:
+            out.append(line)
+            i += 1
+            continue
+
+        entity_id = entity_match.group(2)
         if entity_id not in prune_set:
             out.append(line)
             i += 1
             continue
 
-        # Drop this list item and its child mapping lines.
-        base_indent = len(match.group(1))
+        base_indent = len(entity_match.group(1))
+        parent_start = _find_parent_list_item_index(out, base_indent)
+        if parent_start is not None:
+            parent_indent = len(out[parent_start]) - len(out[parent_start].lstrip(" \t"))
+            out = out[:parent_start]
+            i = _skip_yaml_block(lines, i + 1, parent_indent)
+            continue
+
         i += 1
-        while i < len(lines):
-            nxt = lines[i]
-            if not nxt.strip():
-                i += 1
-                continue
-            indent = len(nxt) - len(nxt.lstrip(" \t"))
-            if indent <= base_indent:
-                break
-            i += 1
 
     result = "\n".join(out)
     if content.endswith("\n"):
         result += "\n"
     return result
+
+
+def _prune_empty_card_lists(content: str) -> str:
+    """Drop card containers that end up with empty cards lists after pruning."""
+    current = content
+    while True:
+        updated = _prune_empty_card_lists_once(current)
+        if updated == current:
+            return updated
+        current = updated
+
+
+def _prune_empty_card_lists_once(content: str) -> str:
+    lines = content.splitlines()
+    out: List[str] = []
+    i = 0
+    card_item_pattern = re.compile(r"^([ \t]*)-[ \t]*type:[ \t]*([^#\s]+)[ \t]*(?:#.*)?$")
+
+    while i < len(lines):
+        line = lines[i]
+        match = card_item_pattern.match(line)
+        if not match:
+            out.append(line)
+            i += 1
+            continue
+
+        base_indent = len(match.group(1))
+        end = i + 1
+        while end < len(lines):
+            nxt = lines[end]
+            if not nxt.strip():
+                end += 1
+                continue
+            nxt_indent = len(nxt) - len(nxt.lstrip(" \t"))
+            if nxt_indent <= base_indent and nxt.lstrip().startswith("- "):
+                break
+            end += 1
+
+        block = lines[i:end]
+        if _block_has_empty_cards_list(block):
+            i = end
+            continue
+
+        out.extend(block)
+        i = end
+
+    result = "\n".join(out)
+    if content.endswith("\n"):
+        result += "\n"
+    return result
+
+
+def _block_has_empty_cards_list(block: List[str]) -> bool:
+    cards_pattern = re.compile(r"^([ \t]*)cards:[ \t]*(?:#.*)?$")
+    for idx, line in enumerate(block):
+        match = cards_pattern.match(line)
+        if not match:
+            continue
+        cards_indent = len(match.group(1))
+        next_idx = idx + 1
+        while next_idx < len(block):
+            nxt = block[next_idx]
+            if not nxt.strip():
+                next_idx += 1
+                continue
+            nxt_indent = len(nxt) - len(nxt.lstrip(" \t"))
+            if nxt_indent <= cards_indent:
+                return True
+            break
+        else:
+            return True
+    return False
+
+
+def _prune_invalid_conditional_cards(content: str) -> str:
+    """Drop conditional cards that become invalid after entity pruning."""
+    current = content
+    while True:
+        updated = _prune_invalid_conditional_cards_once(current)
+        if updated == current:
+            return updated
+        current = updated
+
+
+def _prune_invalid_conditional_cards_once(content: str) -> str:
+    lines = content.splitlines()
+    out: List[str] = []
+    i = 0
+    conditional_pattern = re.compile(r"^([ \t]*)-[ \t]*type:[ \t]*conditional[ \t]*(?:#.*)?$")
+
+    while i < len(lines):
+        line = lines[i]
+        match = conditional_pattern.match(line)
+        if not match:
+            out.append(line)
+            i += 1
+            continue
+
+        base_indent = len(match.group(1))
+        end = i + 1
+        while end < len(lines):
+            nxt = lines[end]
+            if not nxt.strip():
+                end += 1
+                continue
+            nxt_indent = len(nxt) - len(nxt.lstrip(" \t"))
+            if nxt_indent <= base_indent and nxt.lstrip().startswith("- "):
+                break
+            end += 1
+
+        block = lines[i:end]
+        if _is_invalid_conditional_block(block):
+            i = end
+            continue
+
+        out.extend(block)
+        i = end
+
+    result = "\n".join(out)
+    if content.endswith("\n"):
+        result += "\n"
+    return result
+
+
+def _is_invalid_conditional_block(block: List[str]) -> bool:
+    if not block:
+        return True
+
+    base_indent = len(block[0]) - len(block[0].lstrip(" \t"))
+    top_level_key_pattern = re.compile(r"^([ \t]*)([A-Za-z_][A-Za-z0-9_-]*):[ \t]*(?:#.*)?$")
+    top_level_indent = base_indent + 2
+
+    conditions_idx: int | None = None
+    conditions_indent: int | None = None
+    card_idx: int | None = None
+    card_indent: int | None = None
+
+    for idx, line in enumerate(block[1:], start=1):
+        match = top_level_key_pattern.match(line)
+        if not match:
+            continue
+        indent = len(match.group(1))
+        if indent != top_level_indent:
+            continue
+        key = match.group(2)
+        if key == "conditions" and conditions_idx is None:
+            conditions_idx = idx
+            conditions_indent = indent
+        elif key == "card" and card_idx is None:
+            card_idx = idx
+            card_indent = indent
+
+    if conditions_idx is None or conditions_indent is None:
+        return True
+    if card_idx is None or card_indent is None:
+        return True
+
+    has_condition_item = False
+    j = conditions_idx + 1
+    while j < len(block):
+        line = block[j]
+        if not line.strip():
+            j += 1
+            continue
+        indent = len(line) - len(line.lstrip(" \t"))
+        if indent <= conditions_indent:
+            break
+        if line.lstrip().startswith("- "):
+            has_condition_item = True
+            break
+        j += 1
+    if not has_condition_item:
+        return True
+
+    has_card_body = False
+    j = card_idx + 1
+    while j < len(block):
+        line = block[j]
+        if not line.strip():
+            j += 1
+            continue
+        indent = len(line) - len(line.lstrip(" \t"))
+        if indent <= card_indent:
+            break
+        has_card_body = True
+        break
+    return not has_card_body
+
+
+def _find_parent_list_item_index(lines: List[str], entity_indent: int) -> int | None:
+    for idx in range(len(lines) - 1, -1, -1):
+        line = lines[idx]
+        if not line.strip():
+            continue
+        indent = len(line) - len(line.lstrip(" \t"))
+        if indent >= entity_indent:
+            continue
+        if line.lstrip().startswith("- "):
+            return idx
+    return None
+
+
+def _skip_yaml_block(lines: List[str], start_index: int, base_indent: int) -> int:
+    index = start_index
+    while index < len(lines):
+        line = lines[index]
+        if not line.strip():
+            index += 1
+            continue
+        indent = len(line) - len(line.lstrip(" \t"))
+        if indent <= base_indent and line.lstrip().startswith("- "):
+            break
+        index += 1
+    return index
 
 
 def _entry_section(entry: Any, key: str, default: Any) -> Any:
