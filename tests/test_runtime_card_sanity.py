@@ -20,6 +20,7 @@ def _install_homeassistant_stubs() -> None:
     ha = types.ModuleType("homeassistant")
     core = types.ModuleType("homeassistant.core")
     config_entries = types.ModuleType("homeassistant.config_entries")
+    const = types.ModuleType("homeassistant.const")
     helpers = types.ModuleType("homeassistant.helpers")
     event = types.ModuleType("homeassistant.helpers.event")
     entity_registry = types.ModuleType("homeassistant.helpers.entity_registry")
@@ -30,6 +31,10 @@ def _install_homeassistant_stubs() -> None:
     class ConfigEntry:
         pass
 
+    class UnitOfTemperature:
+        CELSIUS = "°C"
+        FAHRENHEIT = "°F"
+
     def async_track_state_change_event(*args, **kwargs):
         return lambda: None
 
@@ -38,6 +43,8 @@ def _install_homeassistant_stubs() -> None:
 
     core.HomeAssistant = HomeAssistant
     config_entries.ConfigEntry = ConfigEntry
+    const.UnitOfTemperature = UnitOfTemperature
+    const.PERCENTAGE = "%"
     event.async_track_state_change_event = async_track_state_change_event
     event.async_track_time_interval = async_track_time_interval
     entity_registry.async_get = lambda hass: None
@@ -45,6 +52,7 @@ def _install_homeassistant_stubs() -> None:
     sys.modules["homeassistant"] = ha
     sys.modules["homeassistant.core"] = core
     sys.modules["homeassistant.config_entries"] = config_entries
+    sys.modules["homeassistant.const"] = const
     sys.modules["homeassistant.helpers"] = helpers
     sys.modules["homeassistant.helpers.event"] = event
     sys.modules["homeassistant.helpers.entity_registry"] = entity_registry
@@ -56,7 +64,7 @@ def _install_package_scaffold() -> None:
     pkg.__path__ = [str(ROOT)]
     sys.modules[PKG] = pkg
 
-    for sub in ("automations", "ui"):
+    for sub in ("automations", "ui", "helpers"):
         mod = types.ModuleType(f"{PKG}.{sub}")
         mod.__path__ = [str(ROOT / sub)]
         sys.modules[f"{PKG}.{sub}"] = mod
@@ -409,6 +417,123 @@ async def _run_runtime_assertions(engine_mod) -> None:
     alert_reason = hass.data["humidity_intelligence"][ENTRY_ID].get("runtime_reason", "")
     assert "Alert response is active" in alert_reason
     assert "All other lanes are paused" in alert_reason
+
+    # Room-scoped humidity danger alert should only trigger for the selected room.
+    entry_room_alert_data = _base_entry_data()
+    entry_room_alert_data["zones"]["zone1"]["enabled"] = False
+    entry_room_alert_data["zones"]["zone2"]["enabled"] = False
+    entry_room_alert_data["aq"] = {}
+    entry_room_alert_data["humidifiers"] = {}
+    entry_room_alert_data["alerts"] = [
+        {
+            "enabled": True,
+            "trigger_type": "humidity_danger",
+            "threshold": 70,
+            "room": "Kitchen",
+            "lights": ["light.alert"],
+            "duration": 10,
+        }
+    ]
+    entry_room_alert = SimpleNamespace(entry_id=ENTRY_ID, data=entry_room_alert_data, options={})
+    hass_room_alert = _FakeHass(
+        entry_room_alert,
+        {
+            "sensor.kitchen_h": _FakeState(82),
+            "sensor.hall_h": _FakeState(45),
+            "sensor.bed_h": _FakeState(50),
+            "sensor.kitchen_t": _FakeState(23),
+            "sensor.hall_t": _FakeState(22),
+            "sensor.bed_t": _FakeState(21),
+            "sensor.l1_iaq": _FakeState(85),
+            "sensor.co_val": _FakeState(4),
+        },
+    )
+    engine_room_alert = HIAutomationEngine(hass_room_alert, entry_room_alert)
+    await engine_room_alert._evaluate()
+    assert hass_room_alert.data["humidity_intelligence"][ENTRY_ID].get("runtime_mode") == "alert"
+    room_alert_reason = hass_room_alert.data["humidity_intelligence"][ENTRY_ID].get("runtime_reason", "")
+    assert (
+        "Humidity Danger @ 70 in Kitchen" in room_alert_reason
+        or "Humidity Danger @ 70.0 in Kitchen" in room_alert_reason
+    )
+
+    # Alerts without target lights should still activate runtime alert mode,
+    # but skip light flash service calls cleanly.
+    entry_room_alert_no_lights_data = _base_entry_data()
+    entry_room_alert_no_lights_data["zones"]["zone1"]["enabled"] = False
+    entry_room_alert_no_lights_data["zones"]["zone2"]["enabled"] = False
+    entry_room_alert_no_lights_data["aq"] = {}
+    entry_room_alert_no_lights_data["humidifiers"] = {}
+    entry_room_alert_no_lights_data["alerts"] = [
+        {
+            "enabled": True,
+            "trigger_type": "humidity_danger",
+            "threshold": 70,
+            "room": "Kitchen",
+            "duration": 10,
+        }
+    ]
+    entry_room_alert_no_lights = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data=entry_room_alert_no_lights_data,
+        options={},
+    )
+    hass_room_alert_no_lights = _FakeHass(
+        entry_room_alert_no_lights,
+        {
+            "sensor.kitchen_h": _FakeState(82),
+            "sensor.hall_h": _FakeState(45),
+            "sensor.bed_h": _FakeState(50),
+            "sensor.kitchen_t": _FakeState(23),
+            "sensor.hall_t": _FakeState(22),
+            "sensor.bed_t": _FakeState(21),
+            "sensor.l1_iaq": _FakeState(85),
+            "sensor.co_val": _FakeState(4),
+        },
+    )
+    engine_room_alert_no_lights = HIAutomationEngine(
+        hass_room_alert_no_lights,
+        entry_room_alert_no_lights,
+    )
+    await engine_room_alert_no_lights._evaluate()
+    assert hass_room_alert_no_lights.data["humidity_intelligence"][ENTRY_ID].get("runtime_mode") == "alert"
+    assert not any(
+        domain == "humidity_intelligence" and service == "flash_lights"
+        for domain, service, *_ in hass_room_alert_no_lights.services.calls
+    )
+
+    entry_room_alert_miss_data = _base_entry_data()
+    entry_room_alert_miss_data["zones"]["zone1"]["enabled"] = False
+    entry_room_alert_miss_data["zones"]["zone2"]["enabled"] = False
+    entry_room_alert_miss_data["aq"] = {}
+    entry_room_alert_miss_data["humidifiers"] = {}
+    entry_room_alert_miss_data["alerts"] = [
+        {
+            "enabled": True,
+            "trigger_type": "humidity_danger",
+            "threshold": 70,
+            "room": "Hallway",
+            "lights": ["light.alert"],
+            "duration": 10,
+        }
+    ]
+    entry_room_alert_miss = SimpleNamespace(entry_id=ENTRY_ID, data=entry_room_alert_miss_data, options={})
+    hass_room_alert_miss = _FakeHass(
+        entry_room_alert_miss,
+        {
+            "sensor.kitchen_h": _FakeState(82),
+            "sensor.hall_h": _FakeState(45),
+            "sensor.bed_h": _FakeState(50),
+            "sensor.kitchen_t": _FakeState(23),
+            "sensor.hall_t": _FakeState(22),
+            "sensor.bed_t": _FakeState(21),
+            "sensor.l1_iaq": _FakeState(85),
+            "sensor.co_val": _FakeState(4),
+        },
+    )
+    engine_room_alert_miss = HIAutomationEngine(hass_room_alert_miss, entry_room_alert_miss)
+    await engine_room_alert_miss._evaluate()
+    assert hass_room_alert_miss.data["humidity_intelligence"][ENTRY_ID].get("runtime_mode") != "alert"
 
     # Zone label and fan-step enforcement: custom UI label should be surfaced,
     # and unsupported percentages should snap to the nearest supported level.
@@ -854,6 +979,89 @@ def _contains_v2_border_pill_sync_logic(yaml_text: str) -> bool:
     )
 
 
+def _has_empty_cards_block(yaml_text: str) -> bool:
+    lines = yaml_text.splitlines()
+    for idx, line in enumerate(lines):
+        if line.strip() != "cards:":
+            continue
+        indent = len(line) - len(line.lstrip(" \t"))
+        next_idx = idx + 1
+        while next_idx < len(lines) and not lines[next_idx].strip():
+            next_idx += 1
+        if next_idx >= len(lines):
+            return True
+        next_indent = len(lines[next_idx]) - len(lines[next_idx].lstrip(" \t"))
+        if next_indent <= indent:
+            return True
+    return False
+
+
+def _has_invalid_conditional_block(yaml_text: str) -> bool:
+    lines = yaml_text.splitlines()
+    for idx, line in enumerate(lines):
+        if line.strip() != "- type: conditional":
+            continue
+
+        base_indent = len(line) - len(line.lstrip(" \t"))
+        end = idx + 1
+        while end < len(lines):
+            nxt = lines[end]
+            if not nxt.strip():
+                end += 1
+                continue
+            nxt_indent = len(nxt) - len(nxt.lstrip(" \t"))
+            if nxt_indent <= base_indent and nxt.lstrip().startswith("- "):
+                break
+            end += 1
+
+        block = lines[idx:end]
+        top_level_indent = base_indent + 2
+        conditions_idx = None
+        card_idx = None
+        for rel, bline in enumerate(block[1:], start=1):
+            stripped = bline.lstrip(" \t")
+            indent = len(bline) - len(stripped)
+            if indent != top_level_indent:
+                continue
+            if stripped.startswith("conditions:") and conditions_idx is None:
+                conditions_idx = rel
+            if stripped.startswith("card:") and card_idx is None:
+                card_idx = rel
+
+        if conditions_idx is None or card_idx is None:
+            return True
+
+        conditions_indent = top_level_indent
+        has_condition_item = False
+        for rel in range(conditions_idx + 1, len(block)):
+            bline = block[rel]
+            if not bline.strip():
+                continue
+            indent = len(bline) - len(bline.lstrip(" \t"))
+            if indent <= conditions_indent:
+                break
+            if bline.lstrip(" \t").startswith("- "):
+                has_condition_item = True
+                break
+        if not has_condition_item:
+            return True
+
+        card_indent = top_level_indent
+        has_card_body = False
+        for rel in range(card_idx + 1, len(block)):
+            bline = block[rel]
+            if not bline.strip():
+                continue
+            indent = len(bline) - len(bline.lstrip(" \t"))
+            if indent <= card_indent:
+                break
+            has_card_body = True
+            break
+        if not has_card_body:
+            return True
+    return False
+
+
 async def _run_card_assertions(register_mod) -> None:
     sys.modules["homeassistant.helpers.entity_registry"].async_get = lambda hass: _FakeRegistry()
 
@@ -922,6 +1130,46 @@ async def _run_card_assertions(register_mod) -> None:
     assert "input_boolean.air_isolate_humidifier_outputs" not in cards.get("v2_mobile", "")
     assert "input_boolean.air_isolate_fan_outputs" not in cards.get("v2_tablet", "")
     assert "input_boolean.air_isolate_humidifier_outputs" not in cards.get("v2_tablet", "")
+    assert not _has_empty_cards_block(cards.get("v2_mobile", ""))
+    assert not _has_empty_cards_block(cards.get("v2_tablet", ""))
+    assert not _has_invalid_conditional_block(cards.get("v2_mobile", ""))
+    assert not _has_invalid_conditional_block(cards.get("v2_tablet", ""))
+
+
+async def _run_alert_only_card_assertions(register_mod) -> None:
+    sys.modules["homeassistant.helpers.entity_registry"].async_get = lambda hass: _FakeRegistry()
+
+    entry = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data={
+            "alert_only_mode": True,
+            "telemetry": [
+                {"entity_id": "sensor.kitchen_h", "sensor_type": "humidity", "level": "level1", "room": "Kitchen"},
+                {"entity_id": "sensor.kitchen_t", "sensor_type": "temperature", "level": "level1", "room": "Kitchen"},
+            ],
+            "zones": {},
+            "humidifiers": {},
+            "alerts": [],
+        },
+        options={},
+    )
+    hass = _FakeHass(entry, {})
+    hass.config_entries = _FakeConfigEntries(entry)
+
+    mapping = await register_mod.async_build_entity_mapping(hass, ENTRY_ID)
+    cards = await register_mod.async_register_cards(hass, ENTRY_ID, mapping)
+    mobile = cards.get("v2_mobile", "")
+    tablet = cards.get("v2_tablet", "")
+
+    assert "entity: input_boolean.air_control_enabled" not in mobile
+    assert "entity: timer.air_control_pause" not in mobile
+    assert "entity: input_boolean.air_control_output_expanded" not in mobile
+    assert "- entity: fan.kitchen_air" not in mobile
+    assert "- entity: humidifier.downstairs_humidifier" not in mobile
+    assert "Monitor + alerts only (no automation output controls configured)." in mobile
+    assert "Monitor + alerts only (no automation output controls configured)." in tablet
+    assert not _has_empty_cards_block(mobile)
+    assert not _has_invalid_conditional_block(mobile)
 
 
 def test_runtime_lane_order_and_service_simulation():
@@ -932,3 +1180,54 @@ def test_runtime_lane_order_and_service_simulation():
 def test_card_render_sanity_and_placeholder_resolution():
     _, register_mod = _load_target_modules()
     asyncio.run(_run_card_assertions(register_mod))
+
+
+def test_card_render_hides_controls_in_alert_only_mode():
+    _, register_mod = _load_target_modules()
+    asyncio.run(_run_alert_only_card_assertions(register_mod))
+
+
+def test_temperature_normalization_respects_source_units():
+    engine_mod, _ = _load_target_modules()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data={}, options={})
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.temp_f": _FakeState(68, {"unit_of_measurement": "°F"}),
+            "sensor.temp_c": _FakeState(20, {"unit_of_measurement": "°C"}),
+            "sensor.temp_no_unit": _FakeState(21),
+        },
+    )
+
+    from_f = engine_mod._get_float(hass, "sensor.temp_f", sensor_type="temperature")
+    from_c = engine_mod._get_float(hass, "sensor.temp_c", sensor_type="temperature")
+    from_missing_unit = engine_mod._get_float(hass, "sensor.temp_no_unit", sensor_type="temperature")
+
+    assert from_f is not None and abs(from_f - 20.0) < 0.05
+    assert from_c is not None and abs(from_c - 20.0) < 0.05
+    assert from_missing_unit is not None and abs(from_missing_unit - 21.0) < 0.05
+
+
+def test_level_average_ignores_unknown_unavailable_and_non_numeric_states():
+    engine_mod, _ = _load_target_modules()
+    entry_data = _base_entry_data()
+    entry_data["telemetry"].extend(
+        [
+            {"entity_id": "sensor.l1_iaq_unavailable", "sensor_type": "iaq", "level": "level1", "room": "Kitchen"},
+            {"entity_id": "sensor.l1_iaq_text", "sensor_type": "iaq", "level": "level1", "room": "Kitchen"},
+            {"entity_id": "sensor.l1_iaq_bad", "sensor_type": "iaq", "level": "level1", "room": "Kitchen"},
+        ]
+    )
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=entry_data, options={})
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.l1_iaq": _FakeState("unknown"),
+            "sensor.l1_iaq_unavailable": _FakeState("unavailable"),
+            "sensor.l1_iaq_text": _FakeState("57.2"),
+            "sensor.l1_iaq_bad": _FakeState("not_a_number"),
+        },
+    )
+
+    engine = engine_mod.HIAutomationEngine(hass, entry)
+    assert engine._level_avg("iaq", "level1") == 57.2
