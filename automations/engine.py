@@ -14,6 +14,7 @@ from homeassistant.helpers.event import async_track_state_change_event, async_tr
 from ..const import (
     ALERT_THRESHOLD_BOUNDS,
     ALERT_TRIGGER_DEFS,
+    ROOM_SCOPED_ALERT_TRIGGERS,
     DOMAIN,
     ENGINE_INTERVAL_MAX,
     ENGINE_INTERVAL_MIN,
@@ -28,6 +29,7 @@ from ..const import (
     ZONE_OUTPUT_LEVEL_MIN,
 )
 from ..services import SERVICE_FLASH_LIGHTS
+from ..helpers.parsing import hass_temperature_unit, parse_numeric, parse_temperature
 
 CO_EMERGENCY_START = 15
 CO_EMERGENCY_CLEAR = 10
@@ -46,6 +48,7 @@ class HIAutomationEngine:
         self.humidifiers = self._cfg("humidifiers", {})
         self.aq = self._cfg("aq", {})
         self.alerts = self._cfg("alerts", [])
+        self.alert_only_mode = bool(self._cfg("alert_only_mode", False))
         self._unsub = None
         self._periodic = None
         self._aq_tasks: Dict[str, asyncio.Task] = {}
@@ -68,6 +71,14 @@ class HIAutomationEngine:
             ENGINE_INTERVAL_MAX,
             ENGINE_INTERVAL_MINUTES_DEFAULT,
         )
+        if self.alert_only_mode:
+            self.zones = {}
+            self.humidifiers = {}
+            self.aq = {}
+            _LOGGER.info(
+                "HI entry %s is running in alert-only mode; zone/humidifier/AQ output lanes are disabled.",
+                entry.entry_id,
+            )
 
     def _cfg(self, key: str, default: Any) -> Any:
         if self.entry.options and key in self.entry.options:
@@ -364,13 +375,20 @@ class HIAutomationEngine:
             if last and datetime.now() - last < timedelta(seconds=30):
                 continue
             self._last_alert[idx] = datetime.now()
+            lights = alert.get("lights", []) or []
+            if not lights:
+                _LOGGER.debug(
+                    "Alert %s triggered with no target lights configured; skipping flash service call.",
+                    idx + 1,
+                )
+                continue
             try:
                 await self.hass.services.async_call(
                     DOMAIN,
                     SERVICE_FLASH_LIGHTS,
                     {
                         "power_entity": alert.get("power_entity"),
-                        "lights": alert.get("lights", []),
+                        "lights": lights,
                         "color": (255, 0, 0) if alert.get("flash_mode") == "red" else (255, 255, 255),
                         "duration": alert.get("duration", 10),
                     },
@@ -382,17 +400,22 @@ class HIAutomationEngine:
 
     def _alert_triggered(self, alert: Dict[str, Any]) -> bool:
         ttype = alert.get("trigger_type")
+        room_scope = self._alert_room_scope(alert)
         if ttype == "custom_binary":
             entity_id = alert.get("custom_trigger")
             if entity_id:
                 return self.hass.states.is_state(entity_id, "on")
         if ttype == "condensation_danger":
+            if room_scope:
+                return self._room_condensation_danger(room_scope)
             return self.hass.states.is_state("binary_sensor.hi_condensation_danger", "on")
         if ttype == "mould_danger":
+            if room_scope:
+                return self._room_mould_danger(room_scope)
             return self.hass.states.is_state("binary_sensor.hi_mould_danger", "on")
         if ttype == "humidity_danger":
             threshold = _safe_alert_threshold("humidity_danger", alert.get("threshold"), 75.0)
-            values = self._collect_values("humidity")
+            values = self._collect_values("humidity", room_scope=room_scope)
             return any(val >= threshold for val in values)
         if ttype == "co_emergency":
             threshold = _safe_alert_threshold("co_emergency", alert.get("threshold"), float(CO_EMERGENCY_START))
@@ -728,7 +751,55 @@ class HIAutomationEngine:
             default_threshold = 75.0 if trigger_type == "humidity_danger" else float(CO_EMERGENCY_START)
             threshold = _safe_alert_threshold(trigger_type, threshold, default_threshold)
             threshold_suffix = f" @ {threshold}"
-        return f"Alert {idx + 1}: {trigger_label}{threshold_suffix}"
+        room_scope = self._alert_room_scope(alert)
+        room_suffix = f" in {room_scope}" if room_scope else ""
+        return f"Alert {idx + 1}: {trigger_label}{threshold_suffix}{room_suffix}"
+
+    def _alert_room_scope(self, alert: Dict[str, Any]) -> Optional[str]:
+        trigger_type = str(alert.get("trigger_type") or "")
+        if trigger_type not in ROOM_SCOPED_ALERT_TRIGGERS:
+            return None
+        raw = str(alert.get("room") or "").strip()
+        if not raw:
+            return None
+        raw_key = raw.lower()
+        for item in self.telemetry:
+            room = str(item.get("room") or "").strip()
+            if not room:
+                continue
+            if room.lower() == raw_key:
+                return room
+        return raw
+
+    def _room_condensation_danger(self, room: str) -> bool:
+        rh = self._rooms_avg("humidity", [room])
+        temp = self._rooms_avg("temperature", [room])
+        if rh is None or temp is None:
+            _LOGGER.debug(
+                "Room-scoped condensation alert skipped for %s: missing humidity/temperature telemetry.",
+                room,
+            )
+            return False
+        dp = _dew_point(temp, rh)
+        if dp is None:
+            return False
+        spread = temp - dp
+        return spread <= 2
+
+    def _room_mould_danger(self, room: str) -> bool:
+        rh = self._rooms_avg("humidity", [room])
+        temp = self._rooms_avg("temperature", [room])
+        if rh is None or temp is None:
+            _LOGGER.debug(
+                "Room-scoped mould alert skipped for %s: missing humidity/temperature telemetry.",
+                room,
+            )
+            return False
+        dp = _dew_point(temp, rh)
+        if dp is None:
+            return False
+        spread = temp - dp
+        return _mould_level(rh, spread) >= 3
 
     def _build_runtime_reason(
         self,
@@ -1046,12 +1117,17 @@ class HIAutomationEngine:
             outputs.extend(cfg.get("outputs", []))
         return list(set(outputs))
 
-    def _collect_values(self, sensor_type: str) -> List[float]:
+    def _collect_values(self, sensor_type: str, room_scope: Optional[str] = None) -> List[float]:
         values: List[float] = []
+        room_filter = room_scope.lower().strip() if room_scope else None
         for item in self.telemetry:
             if item.get("sensor_type") != sensor_type:
                 continue
-            val = _get_float(self.hass, item.get("entity_id"))
+            if room_filter:
+                item_room = str(item.get("room") or "").strip().lower()
+                if item_room != room_filter:
+                    continue
+            val = _get_float(self.hass, item.get("entity_id"), sensor_type=sensor_type)
             if val is not None:
                 values.append(val)
         return values
@@ -1063,7 +1139,7 @@ class HIAutomationEngine:
                 continue
             if level and item.get("level") != level:
                 continue
-            val = _get_float(self.hass, item.get("entity_id"))
+            val = _get_float(self.hass, item.get("entity_id"), sensor_type=sensor_type)
             if val is not None:
                 vals.append(val)
         if not vals:
@@ -1081,7 +1157,7 @@ class HIAutomationEngine:
             room = (item.get("room") or "").lower()
             if room not in room_set:
                 continue
-            val = _get_float(self.hass, item.get("entity_id"))
+            val = _get_float(self.hass, item.get("entity_id"), sensor_type=sensor_type)
             if val is not None:
                 vals.append(val)
         if not vals:
@@ -1092,8 +1168,8 @@ class HIAutomationEngine:
         spreads: List[float] = []
         rooms = _room_map(self.telemetry)
         for room, sensors in rooms.items():
-            rh = _get_float(self.hass, sensors.get("humidity"))
-            temp = _get_float(self.hass, sensors.get("temperature"))
+            rh = _get_float(self.hass, sensors.get("humidity"), sensor_type="humidity")
+            temp = _get_float(self.hass, sensors.get("temperature"), sensor_type="temperature")
             if rh is None or temp is None:
                 continue
             dp = _dew_point(temp, rh)
@@ -1106,8 +1182,8 @@ class HIAutomationEngine:
         rooms = _room_map(self.telemetry)
         level = 0
         for room, sensors in rooms.items():
-            rh = _get_float(self.hass, sensors.get("humidity"))
-            temp = _get_float(self.hass, sensors.get("temperature"))
+            rh = _get_float(self.hass, sensors.get("humidity"), sensor_type="humidity")
+            temp = _get_float(self.hass, sensors.get("temperature"), sensor_type="temperature")
             if rh is None or temp is None:
                 continue
             dp = _dew_point(temp, rh)
@@ -1119,16 +1195,28 @@ class HIAutomationEngine:
         return level
 
 
-def _get_float(hass: HomeAssistant, entity_id: Optional[str]) -> Optional[float]:
+def _get_float(
+    hass: HomeAssistant,
+    entity_id: Optional[str],
+    *,
+    sensor_type: Optional[str] = None,
+) -> Optional[float]:
     if not entity_id:
         return None
     state = hass.states.get(entity_id)
-    if state is None or state.state in ("unknown", "unavailable"):
+    if state is None:
         return None
-    try:
-        return float(state.state)
-    except ValueError:
+    raw_state = str(state.state).strip()
+    if raw_state.lower() in ("unknown", "unavailable"):
         return None
+    if sensor_type == "temperature":
+        value_c, _reason = parse_temperature(
+            state.state,
+            state.attributes.get("unit_of_measurement"),
+            hass_temperature_unit(hass),
+        )
+        return value_c
+    return parse_numeric(raw_state)
 
 
 def _room_map(telemetry: List[Dict[str, Any]]) -> Dict[str, Dict[str, str]]:
