@@ -664,17 +664,36 @@ card:
                 on('input_boolean.air_upstairs_humidifier_active');
               const fanIso = on('input_boolean.air_isolate_fan_outputs');
               const humIso = on('input_boolean.air_isolate_humidifier_outputs');
-
-              const showReason = danger || modeAlert || condAlert || mouldAlert || hasTemp || humidifying || fanIso || humIso || mode === 'manual_override' || mode === 'paused' || mode === 'away' || mode === 'global_gate';
-              if (!showReason) return `<div class="cv-reason"></div>`;
+              const alertOnlyUi =
+                !states['input_boolean.air_control_enabled'] &&
+                !states['input_boolean.air_control_output_expanded'] &&
+                !states['timer.air_control_pause'];
 
               let r = (states['sensor.air_control_reason']?.state || '').trim();
               const greenNoise = /\b(normal|all clear|idle|default|ok|okay|comfortable)\b/i.test(r);
-              if (greenNoise && !danger && !modeAlert && !hasTemp) r = '';
+              if (greenNoise && !danger && !modeAlert && !hasTemp && !alertOnlyUi) r = '';
+
+              const showReason =
+                danger ||
+                modeAlert ||
+                condAlert ||
+                mouldAlert ||
+                hasTemp ||
+                humidifying ||
+                fanIso ||
+                humIso ||
+                mode === 'manual_override' ||
+                mode === 'paused' ||
+                mode === 'away' ||
+                mode === 'global_gate' ||
+                !!r ||
+                alertOnlyUi;
+              if (!showReason) return `<div class="cv-reason"></div>`;
 
               const lines = [];
               if (on('input_boolean.air_co_emergency_active') || mode === 'co_emergency') {
-                lines.push('Stage: CO emergency override (all purifiers forced to 100%).');
+                if (alertOnlyUi) lines.push('Stage: CO emergency monitoring active (no automation output controls configured).');
+                else lines.push('Stage: CO emergency override (all purifiers forced to 100%).');
               } else if (activeAlertNames.length) {
                 lines.push(`Stage: Alert lane active (${activeAlertNames.join(', ')}).`);
               } else if (mode === 'global_gate' || mode === 'away') {
@@ -689,6 +708,8 @@ card:
                 lines.push('Stage: Air-quality assist running.');
               } else if (humidifying) {
                 lines.push('Stage: Humidifier assist running.');
+              } else if (alertOnlyUi) {
+                lines.push('Stage: Monitor + alerts only (no automation output controls configured).');
               } else if (mode === 'away') {
                 lines.push('Stage: Presence gate away (system disarmed).');
                 lines.push(`Presence: Alarm=${alarmState}, Justyna=${justynaHome ? 'home' : 'away'}, Senyo=${senyoHome ? 'home' : 'away'}.`);
@@ -701,13 +722,15 @@ card:
               if (condAlert) lines.push(`Risk: Condensation ${cap(condRaw)} in ${condRoom}.`);
               if (mouldAlert) lines.push(`Risk: Mould ${cap(mouldRaw)} in ${mouldRoom}.`);
 
-              if (tActive('timer.air_cooking_min_run')) lines.push('Timer: Zone 1 minimum runtime is active.');
-              if (tActive('timer.air_bathroom_min_run')) lines.push('Timer: Zone 2 minimum runtime is active.');
-              if (tActive('timer.air_aq_upstairs_run')) lines.push('Timer: Upstairs AQ run window is active.');
-              if (tActive('timer.air_aq_downstairs_run')) lines.push('Timer: Downstairs AQ run window is active.');
-              if (tActive('timer.air_control_pause')) lines.push('Timer: Pause window is active.');
-              if (fanIso) lines.push('Testing safeguard: Fan outputs are isolated, so fan service calls are suppressed.');
-              if (humIso) lines.push('Testing safeguard: Humidifier outputs are isolated, so humidifier service calls are suppressed.');
+              if (!alertOnlyUi) {
+                if (tActive('timer.air_cooking_min_run')) lines.push('Timer: Zone 1 minimum runtime is active.');
+                if (tActive('timer.air_bathroom_min_run')) lines.push('Timer: Zone 2 minimum runtime is active.');
+                if (tActive('timer.air_aq_upstairs_run')) lines.push('Timer: Upstairs AQ run window is active.');
+                if (tActive('timer.air_aq_downstairs_run')) lines.push('Timer: Downstairs AQ run window is active.');
+                if (tActive('timer.air_control_pause')) lines.push('Timer: Pause window is active.');
+                if (fanIso) lines.push('Testing safeguard: Fan outputs are isolated, so fan service calls are suppressed.');
+                if (humIso) lines.push('Testing safeguard: Humidifier outputs are isolated, so humidifier service calls are suppressed.');
+              }
 
               if (r) lines.push(`Engine: ${r}`);
               if (!lines.length) lines.push('Alert context active.');
@@ -758,6 +781,7 @@ card:
                 <span class="k">${k}</span>
                 <span class="v" style="color:${c};">${v === null ? '—' : v}${unit || ''}</span>
               </span>`;
+            const maybeChip = (k, v, unit, c) => (v === null ? '' : chip(k, v, unit, c));
 
             const iaqU = num('sensor.air_control_upstairs_iaq_average');
             const pmU  = num('sensor.air_control_upstairs_pm25_average');
@@ -772,15 +796,15 @@ card:
 
             return `
               <div class="cv-scroll">
-                ${chip('House IAQ', iaqH, '', cIAQ(iaqH))}
-                ${chip('Upstairs IAQ', iaqU, '', cIAQ(iaqU))}
-                ${chip('Upstairs PM2.5', pmU, '', cPM(pmU))}
-                ${chip('Upstairs VOC', vocU, '', cVOC(vocU))}
-                ${chip('Upstairs CO', coU, '', cCO(coU))}
-                ${chip('Downs.. IAQ', iaqD, '', cIAQ(iaqD))}
-                ${chip('Downs.. PM2.5', pmD, '', cPM(pmD))}
-                ${chip('Downs.. VOC', vocD, '', cVOC(vocD))}
-                ${chip('Downs.. CO', coD, '', cCO(coD))}
+                ${maybeChip('House IAQ', iaqH, '', cIAQ(iaqH))}
+                ${maybeChip('Upstairs IAQ', iaqU, '', cIAQ(iaqU))}
+                ${maybeChip('Upstairs PM2.5', pmU, '', cPM(pmU))}
+                ${maybeChip('Upstairs VOC', vocU, '', cVOC(vocU))}
+                ${maybeChip('Upstairs CO', coU, '', cCO(coU))}
+                ${maybeChip('Downs.. IAQ', iaqD, '', cIAQ(iaqD))}
+                ${maybeChip('Downs.. PM2.5', pmD, '', cPM(pmD))}
+                ${maybeChip('Downs.. VOC', vocD, '', cVOC(vocD))}
+                ${maybeChip('Downs.. CO', coD, '', cCO(coD))}
               </div>`;
           ]]]
         humidity: |
