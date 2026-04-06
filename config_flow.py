@@ -14,6 +14,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import selector
 from homeassistant.helpers.selector import SelectOptionDict
 
+from .helpers.zone_validation import detect_zone_mapping_duplicates, summarize_zone_mapping_duplicates
 from .const import (
     DOMAIN,
     DEFAULT_TIME_END,
@@ -33,6 +34,7 @@ from .const import (
     TRIGGER_DEFS,
     AQ_TRIGGER_DEFS,
     ALERT_TRIGGER_DEFS,
+    ROOM_SCOPED_ALERT_TRIGGERS,
     ALERT_THRESHOLD_BOUNDS,
     HUMIDIFIER_BAND_MIN,
     HUMIDIFIER_BAND_MAX,
@@ -107,6 +109,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._data["engine_interval_minutes"] = user_input.get(
                 "engine_interval_minutes", ENGINE_INTERVAL_MINUTES_DEFAULT
             )
+            self._data["alert_only_mode"] = user_input.get("alert_only_mode", False)
             presence_enabled = user_input.get("enable_presence_gate", False)
             entities = user_input.get("presence_entities", [])
             self._data["presence_gate"] = {
@@ -138,6 +141,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     unit_of_measurement="min",
                 )
             ),
+            vol.Optional("alert_only_mode", default=self._data.get("alert_only_mode", False)): selector.BooleanSelector(),
             vol.Optional("enable_presence_gate", default=False): selector.BooleanSelector(),
             vol.Optional("presence_entities", default=[]): selector.EntitySelector(
                 selector.EntitySelectorConfig(multiple=True)
@@ -488,6 +492,13 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }
             self._zones[zone_key] = zone
             self._data["zones"] = self._zones
+            duplicates = detect_zone_mapping_duplicates(self._telemetry, self._zones)
+            if duplicates:
+                _LOGGER.warning(
+                    "Zone mapping duplicates detected during setup for %s: %s",
+                    zone_key,
+                    summarize_zone_mapping_duplicates(duplicates),
+                )
             if enabled and zone["triggers"]:
                 self._pending_zone_key = zone_key
                 return await self.async_step_zone_thresholds()
@@ -787,38 +798,73 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_alert_add(self, user_input: Optional[Dict[str, Any]] = None):
         """Add a high-priority alert automation."""
-        if user_input is not None:
-            trigger_type = user_input.get("trigger_type")
-            alert: Dict[str, Any] = {
-                "enabled": user_input.get("enabled", False),
-                "trigger_type": trigger_type,
-                "custom_trigger": _sanitize_optional_entity_id(user_input.get("custom_trigger")),
-                "threshold": _safe_alert_threshold(trigger_type, user_input.get("threshold")),
-                "lights": _sanitize_entity_ids(user_input.get("lights", [])),
-                "outputs": _sanitize_entity_ids(user_input.get("outputs", [])),
-                "power_entity": _sanitize_optional_entity_id(user_input.get("power_entity")),
-                "flash_mode": user_input.get("flash_mode"),
-                "duration": user_input.get("duration"),
-            }
-            self._alerts.append(alert)
-            self._data["alerts"] = self._alerts
-            return await self.async_step_alerts()
+        errors: Dict[str, str] = {}
+        telemetry = list(self._telemetry)
 
-        trigger_options = [SelectOptionDict(value=k, label=v["label"]) for k, v in ALERT_TRIGGER_DEFS.items()]
-        default_trigger = trigger_options[0]["value"] if trigger_options else "humidity_danger"
-        threshold_min, threshold_max, threshold_default, threshold_unit = _alert_threshold_bounds(default_trigger)
+        trigger_default = _default_alert_trigger_type()
+        enabled_default = True
+        custom_trigger_default: Optional[str] = None
+        room_default = ""
+        lights_default: List[str] = []
+        outputs_default: List[str] = []
+        power_entity_default: Optional[str] = None
+        flash_mode_default = _default_alert_flash_mode()
+        duration_default = 10
+        threshold_default_value: Any = _safe_alert_threshold(trigger_default, None)
+
+        if user_input is not None:
+            enabled_default = bool(user_input.get("enabled", True))
+            trigger_default = _normalize_alert_trigger_type(user_input.get("trigger_type"))
+            custom_trigger_default = _sanitize_optional_entity_id(user_input.get("custom_trigger"))
+            room_default = _sanitize_optional_room_scope(user_input.get("room")) or ""
+            lights_default = _sanitize_entity_ids(user_input.get("lights", []))
+            outputs_default = _sanitize_entity_ids(user_input.get("outputs", []))
+            power_entity_default = _sanitize_optional_entity_id(user_input.get("power_entity"))
+            flash_mode_default = _normalize_alert_flash_mode(user_input.get("flash_mode"))
+            duration_default = _safe_alert_duration(user_input.get("duration", 10))
+            threshold_default_value = _safe_alert_threshold(trigger_default, user_input.get("threshold"))
+
+            try:
+                if trigger_default == "custom_binary" and not custom_trigger_default:
+                    errors["custom_trigger"] = "custom_trigger_required"
+
+                room_scope, room_error = _resolve_alert_room_scope(telemetry, trigger_default, room_default)
+                if room_error:
+                    errors["room"] = room_error
+
+                if not errors:
+                    alert: Dict[str, Any] = {
+                        "enabled": enabled_default,
+                        "trigger_type": trigger_default,
+                        "custom_trigger": custom_trigger_default,
+                        "threshold": threshold_default_value,
+                        "room": room_scope,
+                        "lights": lights_default,
+                        "outputs": outputs_default,
+                        "power_entity": power_entity_default,
+                        "flash_mode": flash_mode_default,
+                        "duration": duration_default,
+                    }
+                    self._alerts.append(alert)
+                    self._data["alerts"] = self._alerts
+                    return await self.async_step_alerts()
+            except Exception:
+                _LOGGER.exception("Failed to add alert during initial config flow")
+                errors["base"] = "alert_save_failed"
+
+        threshold_min, threshold_max, _, threshold_unit = _alert_threshold_bounds(trigger_default)
         schema = vol.Schema({
-            vol.Optional("enabled", default=True): selector.BooleanSelector(),
-            vol.Required("trigger_type", default=default_trigger): selector.SelectSelector(
+            vol.Optional("enabled", default=enabled_default): selector.BooleanSelector(),
+            vol.Required("trigger_type", default=trigger_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=trigger_options,
+                    options=_alert_trigger_options(),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
-            vol.Optional("custom_trigger"): selector.EntitySelector(
+            _optional_entity_selector_key("custom_trigger", custom_trigger_default): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="binary_sensor", multiple=False)
             ),
-            vol.Optional("threshold", default=threshold_default): selector.NumberSelector(
+            vol.Optional("threshold", default=threshold_default_value): selector.NumberSelector(
                 selector.NumberSelectorConfig(
                     min=threshold_min,
                     max=threshold_max,
@@ -826,22 +872,30 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     unit_of_measurement=threshold_unit,
                 )
             ),
-            vol.Optional("lights", default=[]): selector.EntitySelector(
+            vol.Optional("room", default=room_default): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=_alert_room_options(telemetry),
+                    multiple=False,
+                    custom_value=True,
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            ),
+            vol.Optional("lights", default=lights_default): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="light", multiple=True)
             ),
-            vol.Optional("outputs", default=[]): selector.EntitySelector(
+            vol.Optional("outputs", default=outputs_default): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["fan", "switch"], multiple=True)
             ),
-            vol.Optional("power_entity"): selector.EntitySelector(
+            _optional_entity_selector_key("power_entity", power_entity_default): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["switch", "light"], multiple=False)
             ),
-            vol.Optional("flash_mode", default=ALERT_FLASH_MODES[0]["value"]): selector.SelectSelector(
+            vol.Optional("flash_mode", default=flash_mode_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in ALERT_FLASH_MODES],
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
-            vol.Optional("duration", default=10): selector.NumberSelector(
+            vol.Optional("duration", default=duration_default): selector.NumberSelector(
                 selector.NumberSelectorConfig(
                     min=ALERT_DURATION_MIN,
                     max=ALERT_DURATION_MAX,
@@ -851,7 +905,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
             ),
         })
-        return self.async_show_form(step_id="alert_add", data_schema=schema)
+        return self.async_show_form(step_id="alert_add", data_schema=schema, errors=errors)
 
     async def async_step_alerts_done(self, user_input: Optional[Dict[str, Any]] = None):
         return await self.async_step_ui_install()
@@ -1006,6 +1060,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 "end": user_input.get("end_time"),
                 "outside_action": user_input.get("outside_action", OUTSIDE_WINDOW_ACTIONS[0]["value"]),
             }
+            self._options["alert_only_mode"] = user_input.get("alert_only_mode", self._section("alert_only_mode", False))
             self._options["engine_interval_minutes"] = user_input.get(
                 "engine_interval_minutes",
                 self._section("engine_interval_minutes", ENGINE_INTERVAL_MINUTES_DEFAULT),
@@ -1053,6 +1108,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                     unit_of_measurement="min",
                 )
             ),
+            vol.Optional("alert_only_mode", default=self._section("alert_only_mode", False)): selector.BooleanSelector(),
             vol.Optional("enable_presence_gate", default=presence_gate.get("enabled", False)): selector.BooleanSelector(),
             vol.Optional("presence_entities", default=default_presence_entities): selector.EntitySelector(
                 selector.EntitySelectorConfig(multiple=True)
@@ -1179,6 +1235,11 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 telemetry.append(entry)
                 self._options["telemetry"] = telemetry
                 self._sync_slope_after_telemetry_add(entry)
+                _LOGGER.info(
+                    "Added telemetry sensor via options flow: %s (%s)",
+                    entry.get("entity_id"),
+                    entry.get("sensor_type"),
+                )
                 return await self.async_step_options_telemetry()
 
         default_room, default_level = _suggest_room_and_level(
@@ -1244,6 +1305,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 removed_entity_id = _sanitize_optional_entity_id(removed.get("entity_id"))
                 if removed_entity_id:
                     self._purge_deleted_telemetry_associations(removed_entity_id, telemetry)
+                    _LOGGER.info("Removed telemetry sensor via options flow: %s", removed_entity_id)
                 return await self.async_step_options_telemetry()
             elif action == "edit":
                 self._pending_telemetry_index = idx
@@ -1284,23 +1346,41 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         idx = self._pending_telemetry_index if self._pending_telemetry_index is not None else 0
         idx = max(0, min(idx, len(telemetry) - 1))
         current = telemetry[idx]
+        errors: Dict[str, str] = {}
 
         if user_input is not None:
-            telemetry[idx] = {
-                **current,
-                "entity_id": _sanitize_optional_entity_id(user_input.get("entity_id")) or _sanitize_optional_entity_id(current.get("entity_id")),
-                "friendly_name": user_input.get("friendly_name", current.get("friendly_name", "")),
-                "level": user_input.get("level", current.get("level")),
-                "room": user_input.get("room", current.get("room")),
-            }
-            self._options["telemetry"] = telemetry
-            return await self.async_step_options_telemetry()
+            selected_entity = _sanitize_optional_entity_id(user_input.get("entity_id"))
+            if selected_entity and any(i != idx and item.get("entity_id") == selected_entity for i, item in enumerate(telemetry)):
+                errors["entity_id"] = "duplicate_entity"
+            else:
+                telemetry[idx] = {
+                    **current,
+                    "entity_id": selected_entity or _sanitize_optional_entity_id(current.get("entity_id")),
+                    "sensor_type": user_input.get("sensor_type", current.get("sensor_type", SENSOR_TYPES[0]["value"])),
+                    "friendly_name": user_input.get("friendly_name", current.get("friendly_name", "")),
+                    "level": user_input.get("level", current.get("level")),
+                    "room": user_input.get("room", current.get("room")),
+                }
+                self._options["telemetry"] = telemetry
+                _LOGGER.info(
+                    "Updated telemetry sensor via options flow: %s (%s)",
+                    telemetry[idx].get("entity_id"),
+                    telemetry[idx].get("sensor_type"),
+                )
+                return await self.async_step_options_telemetry()
 
         level_options = [SelectOptionDict(value=o["value"], label=o["label"]) for o in LEVELS]
+        sensor_type_options = [SelectOptionDict(value=o["value"], label=o["label"]) for o in SENSOR_TYPES]
         entity_default = _sanitize_optional_entity_id(current.get("entity_id"))
         schema = vol.Schema({
             vol.Optional("entity_id", default=entity_default): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="sensor", multiple=False)
+            ),
+            vol.Optional("sensor_type", default=current.get("sensor_type", SENSOR_TYPES[0]["value"])): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=sensor_type_options,
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
             ),
             vol.Optional("friendly_name", default=current.get("friendly_name", "")): selector.TextSelector(
                 selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
@@ -1318,6 +1398,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="options_telemetry_edit",
             data_schema=schema,
+            errors=errors,
             description_placeholders={
                 "sensor_position": str(idx + 1),
                 "sensor_total": str(len(telemetry)),
@@ -1328,11 +1409,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
     async def async_step_options_zones(self, user_input: Optional[Dict[str, Any]] = None):
         """Choose a zone to edit."""
         zones = dict(self._section("zones", {}))
-        zone_keys = [key for key in ("zone1", "zone2") if key in zones]
-
-        if not zone_keys:
-            schema = vol.Schema({vol.Optional("noop", default=True): selector.BooleanSelector()})
-            return self.async_show_form(step_id="options_zones", data_schema=schema)
+        zone_keys = ["zone1", "zone2"]
 
         if user_input is not None:
             action = user_input.get("action", "done")
@@ -1360,10 +1437,20 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_options_zone_edit(self, user_input: Optional[Dict[str, Any]] = None):
         zones = dict(self._section("zones", {}))
-        zone_key = self._pending_zone_key or ("zone1" if "zone1" in zones else "zone2")
-        zone = zones.get(zone_key)
-        if not zone:
-            return await self.async_step_options_zones()
+        zone_key = self._pending_zone_key or "zone1"
+        configured_levels = _configured_levels(self._section("telemetry", []))
+        default_level = configured_levels[0] if configured_levels else LEVELS[0]["value"]
+        zone = zones.get(zone_key) or {
+            "enabled": False,
+            "level": default_level,
+            "rooms": [],
+            "triggers": [],
+            "outputs": [],
+            "output_level": ZONE_OUTPUT_LEVEL_DEFAULT,
+            "boost_output_level": ZONE_OUTPUT_LEVEL_BOOST_DEFAULT,
+            "ui_label": _default_zone_ui_label(zone_key),
+            "thresholds": {},
+        }
 
         selected_triggers = [
             trig for trig in (zone.get("triggers", []) or []) if trig in TRIGGER_DEFS
@@ -1405,6 +1492,13 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 "thresholds": thresholds,
             }
             self._options["zones"] = zones
+            duplicates = detect_zone_mapping_duplicates(self._section("telemetry", []), zones)
+            if duplicates:
+                _LOGGER.warning(
+                    "Zone mapping duplicates detected in options for %s: %s",
+                    zone_key,
+                    summarize_zone_mapping_duplicates(duplicates),
+                )
             return await self.async_step_options_zones()
 
         room_options = [SelectOptionDict(value=room, label=room) for room in _rooms_all(self._section("telemetry", []))]
@@ -1488,14 +1582,11 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
     async def async_step_options_humidifiers(self, user_input: Optional[Dict[str, Any]] = None):
         """Choose a humidifier lane to edit."""
         humidifiers = dict(self._section("humidifiers", {}))
-        levels = sorted(humidifiers.keys())
+        configured_levels = set(_configured_levels(self._section("telemetry", [])))
+        known_levels = {item["value"] for item in LEVELS}
+        levels = sorted(set(humidifiers.keys()).union(configured_levels).union(known_levels))
         if not levels:
-            schema = vol.Schema({vol.Optional("noop", default=True): selector.BooleanSelector()})
-            return self.async_show_form(
-                step_id="options_humidifiers",
-                data_schema=schema,
-                description_placeholders={"configured_humidifiers": "No humidifier lanes are configured yet."},
-            )
+            levels = [LEVELS[0]["value"]]
 
         if user_input is not None:
             action = user_input.get("action", "done")
@@ -1505,7 +1596,17 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 self._pending_humidifier_level = action
                 return await self.async_step_options_humidifier_edit()
 
-        options = [SelectOptionDict(value=level, label=_level_choice_label(level)) for level in levels]
+        options = [
+            SelectOptionDict(
+                value=level,
+                label=(
+                    f"{_level_choice_label(level)}"
+                    if level in humidifiers
+                    else f"{_level_choice_label(level)} (not configured - select to add)"
+                ),
+            )
+            for level in levels
+        ]
         options.append(SelectOptionDict(value="done", label="Done"))
         schema = vol.Schema({
             vol.Required("action", default=levels[0]): selector.SelectSelector(
@@ -1524,11 +1625,17 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
     async def async_step_options_humidifier_edit(self, user_input: Optional[Dict[str, Any]] = None):
         humidifiers = dict(self._section("humidifiers", {}))
         level = self._pending_humidifier_level or (sorted(humidifiers.keys())[0] if humidifiers else None)
-        if not level or level not in humidifiers:
+        if not level:
             return await self.async_step_options_humidifiers()
-        cfg = humidifiers[level]
+        cfg = humidifiers.get(level, {"enabled": False, "band_adjust": 0, "outputs": []})
+        lane_existed = level in humidifiers
 
         if user_input is not None:
+            if user_input.get("remove_lane", False):
+                humidifiers.pop(level, None)
+                self._options["humidifiers"] = humidifiers
+                _LOGGER.info("Removed humidifier lane for %s via options flow", level)
+                return await self.async_step_options_humidifiers()
             humidifiers[level] = {
                 **cfg,
                 "enabled": user_input.get("enabled", cfg.get("enabled", True)),
@@ -1536,9 +1643,14 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 "outputs": _sanitize_entity_ids(user_input.get("outputs", cfg.get("outputs", []))),
             }
             self._options["humidifiers"] = humidifiers
+            if lane_existed:
+                _LOGGER.info("Updated humidifier lane for %s via options flow", level)
+            else:
+                _LOGGER.info("Added humidifier lane for %s via options flow", level)
             return await self.async_step_options_humidifiers()
 
         schema = vol.Schema({
+            vol.Optional("remove_lane", default=False): selector.BooleanSelector(),
             vol.Optional("enabled", default=cfg.get("enabled", True)): selector.BooleanSelector(),
             vol.Optional("band_adjust", default=cfg.get("band_adjust", 0)): selector.NumberSelector(
                 selector.NumberSelectorConfig(
@@ -1562,14 +1674,12 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
     async def async_step_options_aq(self, user_input: Optional[Dict[str, Any]] = None):
         """Choose an AQ lane to edit."""
         aq = dict(self._section("aq", {}))
-        levels = sorted(aq.keys())
+        configured_levels = set(_levels_with_aq(self._section("telemetry", [])))
+        telemetry_levels = set(_configured_levels(self._section("telemetry", [])))
+        known_levels = {item["value"] for item in LEVELS}
+        levels = sorted(set(aq.keys()).union(configured_levels).union(telemetry_levels).union(known_levels))
         if not levels:
-            schema = vol.Schema({vol.Optional("noop", default=True): selector.BooleanSelector()})
-            return self.async_show_form(
-                step_id="options_aq",
-                data_schema=schema,
-                description_placeholders={"configured_aq": "No AQ lanes are configured yet."},
-            )
+            levels = _configured_levels(self._section("telemetry", [])) or [LEVELS[0]["value"]]
 
         if user_input is not None:
             action = user_input.get("action", "done")
@@ -1579,7 +1689,17 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 self._pending_aq_level = action
                 return await self.async_step_options_aq_edit()
 
-        options = [SelectOptionDict(value=level, label=_level_choice_label(level)) for level in levels]
+        options = [
+            SelectOptionDict(
+                value=level,
+                label=(
+                    f"{_level_choice_label(level)}"
+                    if level in aq
+                    else f"{_level_choice_label(level)} (not configured - select to add)"
+                ),
+            )
+            for level in levels
+        ]
         options.append(SelectOptionDict(value="done", label="Done"))
         schema = vol.Schema({
             vol.Required("action", default=levels[0]): selector.SelectSelector(
@@ -1598,11 +1718,24 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
     async def async_step_options_aq_edit(self, user_input: Optional[Dict[str, Any]] = None):
         aq = dict(self._section("aq", {}))
         level = self._pending_aq_level or (sorted(aq.keys())[0] if aq else None)
-        if not level or level not in aq:
+        if not level:
             return await self.async_step_options_aq()
-        cfg = aq[level]
+        cfg = aq.get(level, {
+            "enabled": False,
+            "triggers": [],
+            "outputs": [],
+            "run_duration": 30,
+            "output_level": ZONE_OUTPUT_LEVEL_DEFAULT,
+            "thresholds": {},
+        })
+        lane_existed = level in aq
 
         if user_input is not None:
+            if user_input.get("remove_lane", False):
+                aq.pop(level, None)
+                self._options["aq"] = aq
+                _LOGGER.info("Removed AQ lane for %s via options flow", level)
+                return await self.async_step_options_aq()
             selected_triggers = user_input.get("triggers", cfg.get("triggers", [])) or []
             thresholds = dict(cfg.get("thresholds", {}))
             for trig in selected_triggers:
@@ -1622,10 +1755,15 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 "thresholds": thresholds,
             }
             self._options["aq"] = aq
+            if lane_existed:
+                _LOGGER.info("Updated AQ lane for %s via options flow", level)
+            else:
+                _LOGGER.info("Added AQ lane for %s via options flow", level)
             return await self.async_step_options_aq()
 
         selected_triggers = cfg.get("triggers", []) or []
         schema_fields: Dict[Any, Any] = {
+            vol.Optional("remove_lane", default=False): selector.BooleanSelector(),
             vol.Optional("enabled", default=cfg.get("enabled", False)): selector.BooleanSelector(),
             vol.Optional("triggers", default=selected_triggers): selector.SelectSelector(
                 selector.SelectSelectorConfig(
@@ -1683,14 +1821,13 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
     async def async_step_options_alerts(self, user_input: Optional[Dict[str, Any]] = None):
         """Choose an alert to edit."""
         alerts = list(self._section("alerts", []))
-        if not alerts:
-            schema = vol.Schema({vol.Optional("noop", default=True): selector.BooleanSelector()})
-            return self.async_show_form(step_id="options_alerts", data_schema=schema)
 
         if user_input is not None:
             action = user_input.get("action", "done")
             if action == "done":
                 return await self.async_step_init()
+            if action == "add":
+                return await self.async_step_options_alert_add()
             try:
                 idx = int(action)
             except (TypeError, ValueError):
@@ -1699,13 +1836,15 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 self._pending_alert_index = idx
                 return await self.async_step_options_alert_edit()
 
-        options = [
+        options = [SelectOptionDict(value="add", label="Add alert")]
+        options.extend([
             SelectOptionDict(value=str(idx), label=_alert_option_label(idx, alert))
             for idx, alert in enumerate(alerts)
-        ]
+        ])
         options.append(SelectOptionDict(value="done", label="Done"))
+        default_action = "0" if alerts else "add"
         schema = vol.Schema({
-            vol.Required("action", default="0"): selector.SelectSelector(
+            vol.Required("action", default=default_action): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=options,
                     mode=selector.SelectSelectorMode.DROPDOWN,
@@ -1718,6 +1857,120 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             description_placeholders={"configured_alerts": _render_alerts_summary(alerts)},
         )
 
+    async def async_step_options_alert_add(self, user_input: Optional[Dict[str, Any]] = None):
+        """Add a new alert from options."""
+        alerts = list(self._section("alerts", []))
+        if len(alerts) >= MAX_ALERTS:
+            return await self.async_step_options_alerts()
+        errors: Dict[str, str] = {}
+        telemetry = list(self._section("telemetry", []))
+
+        trigger_default = _default_alert_trigger_type()
+        enabled_default = True
+        custom_trigger_default: Optional[str] = None
+        room_default = ""
+        lights_default: List[str] = []
+        outputs_default: List[str] = []
+        power_entity_default: Optional[str] = None
+        flash_mode_default = _default_alert_flash_mode()
+        duration_default = 10
+        threshold_default_value: Any = _safe_alert_threshold(trigger_default, None)
+
+        if user_input is not None:
+            enabled_default = bool(user_input.get("enabled", True))
+            trigger_default = _normalize_alert_trigger_type(user_input.get("trigger_type"))
+            custom_trigger_default = _sanitize_optional_entity_id(user_input.get("custom_trigger"))
+            room_default = _sanitize_optional_room_scope(user_input.get("room")) or ""
+            lights_default = _sanitize_entity_ids(user_input.get("lights", []))
+            outputs_default = _sanitize_entity_ids(user_input.get("outputs", []))
+            power_entity_default = _sanitize_optional_entity_id(user_input.get("power_entity"))
+            flash_mode_default = _normalize_alert_flash_mode(user_input.get("flash_mode"))
+            duration_default = _safe_alert_duration(user_input.get("duration", 10))
+            threshold_default_value = _safe_alert_threshold(trigger_default, user_input.get("threshold"))
+
+            try:
+                if trigger_default == "custom_binary" and not custom_trigger_default:
+                    errors["custom_trigger"] = "custom_trigger_required"
+
+                room_scope, room_error = _resolve_alert_room_scope(telemetry, trigger_default, room_default)
+                if room_error:
+                    errors["room"] = room_error
+
+                if not errors:
+                    alert = {
+                        "enabled": enabled_default,
+                        "trigger_type": trigger_default,
+                        "custom_trigger": custom_trigger_default,
+                        "threshold": threshold_default_value,
+                        "room": room_scope,
+                        "lights": lights_default,
+                        "outputs": outputs_default,
+                        "power_entity": power_entity_default,
+                        "flash_mode": flash_mode_default,
+                        "duration": duration_default,
+                    }
+                    alerts.append(alert)
+                    self._options["alerts"] = alerts
+                    return await self.async_step_options_alerts()
+            except Exception:
+                _LOGGER.exception("Failed to add alert in options flow")
+                errors["base"] = "alert_save_failed"
+
+        threshold_min, threshold_max, _, threshold_unit = _alert_threshold_bounds(trigger_default)
+        schema = vol.Schema({
+            vol.Optional("enabled", default=enabled_default): selector.BooleanSelector(),
+            vol.Required("trigger_type", default=trigger_default): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=_alert_trigger_options(),
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            ),
+            _optional_entity_selector_key("custom_trigger", custom_trigger_default): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="binary_sensor", multiple=False)
+            ),
+            vol.Optional("threshold", default=threshold_default_value): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=threshold_min,
+                    max=threshold_max,
+                    step=1,
+                    unit_of_measurement=threshold_unit,
+                )
+            ),
+            vol.Optional("room", default=room_default): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=_alert_room_options(telemetry),
+                    multiple=False,
+                    custom_value=True,
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            ),
+            vol.Optional("lights", default=lights_default): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="light", multiple=True)
+            ),
+            vol.Optional("outputs", default=outputs_default): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["fan", "switch"], multiple=True)
+            ),
+            _optional_entity_selector_key("power_entity", power_entity_default): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["switch", "light"], multiple=False)
+            ),
+            vol.Optional("flash_mode", default=flash_mode_default): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in ALERT_FLASH_MODES],
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            ),
+            vol.Optional("duration", default=duration_default): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=ALERT_DURATION_MIN,
+                    max=ALERT_DURATION_MAX,
+                    step=ALERT_DURATION_STEP,
+                    mode=selector.NumberSelectorMode.SLIDER,
+                    unit_of_measurement="s",
+                )
+            ),
+        })
+        return self.async_show_form(step_id="options_alert_add", data_schema=schema, errors=errors)
+
     async def async_step_options_alert_edit(self, user_input: Optional[Dict[str, Any]] = None):
         alerts = list(self._section("alerts", []))
         if not alerts:
@@ -1726,51 +1979,82 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         idx = self._pending_alert_index if self._pending_alert_index is not None else 0
         idx = max(0, min(idx, len(alerts) - 1))
         alert = alerts[idx]
-        trigger_type = alert.get("trigger_type")
-        threshold_min, threshold_max, threshold_default, threshold_unit = _alert_threshold_bounds(trigger_type)
-        default_threshold = _safe_alert_threshold(
-            trigger_type,
-            alert.get("threshold", threshold_default),
-        )
+        telemetry = list(self._section("telemetry", []))
+        errors: Dict[str, str] = {}
+
+        trigger_default = _normalize_alert_trigger_type(alert.get("trigger_type"))
+        enabled_default = bool(alert.get("enabled", True))
+        custom_trigger_default = _sanitize_optional_entity_id(alert.get("custom_trigger"))
+        room_default = _sanitize_optional_room_scope(alert.get("room")) or ""
+        lights_default = _sanitize_entity_ids(alert.get("lights", []))
+        outputs_default = _sanitize_entity_ids(alert.get("outputs", []))
+        power_entity_default = _sanitize_optional_entity_id(alert.get("power_entity"))
+        flash_mode_default = _normalize_alert_flash_mode(alert.get("flash_mode"))
+        duration_default = _safe_alert_duration(alert.get("duration", 10))
+        threshold_default = _safe_alert_threshold(trigger_default, alert.get("threshold"))
 
         if user_input is not None:
-            selected_trigger_type = user_input.get("trigger_type", alert.get("trigger_type"))
-            alerts[idx] = {
-                **alert,
-                "enabled": user_input.get("enabled", alert.get("enabled", True)),
-                "trigger_type": selected_trigger_type,
-                "custom_trigger": _sanitize_optional_entity_id(
-                    user_input.get("custom_trigger", alert.get("custom_trigger"))
-                ),
-                "threshold": _safe_alert_threshold(
-                    selected_trigger_type,
-                    user_input.get("threshold", alert.get("threshold")),
-                ),
-                "lights": _sanitize_entity_ids(user_input.get("lights", alert.get("lights", []))),
-                "outputs": _sanitize_entity_ids(user_input.get("outputs", alert.get("outputs", []))),
-                "power_entity": _sanitize_optional_entity_id(
-                    user_input.get("power_entity", alert.get("power_entity"))
-                ),
-                "flash_mode": user_input.get("flash_mode", alert.get("flash_mode")),
-                "duration": user_input.get("duration", alert.get("duration", 10)),
-            }
-            self._options["alerts"] = alerts
-            return await self.async_step_options_alerts()
+            trigger_default = _normalize_alert_trigger_type(user_input.get("trigger_type", trigger_default))
+            enabled_default = bool(user_input.get("enabled", enabled_default))
+            custom_trigger_default = _sanitize_optional_entity_id(
+                user_input.get("custom_trigger", custom_trigger_default)
+            )
+            room_default = _sanitize_optional_room_scope(user_input.get("room", room_default)) or ""
+            lights_default = _sanitize_entity_ids(user_input.get("lights", lights_default))
+            outputs_default = _sanitize_entity_ids(user_input.get("outputs", outputs_default))
+            power_entity_default = _sanitize_optional_entity_id(
+                user_input.get("power_entity", power_entity_default)
+            )
+            flash_mode_default = _normalize_alert_flash_mode(
+                user_input.get("flash_mode", flash_mode_default)
+            )
+            duration_default = _safe_alert_duration(user_input.get("duration", duration_default))
+            threshold_default = _safe_alert_threshold(
+                trigger_default,
+                user_input.get("threshold", threshold_default),
+            )
 
-        custom_trigger_default = _sanitize_optional_entity_id(alert.get("custom_trigger"))
-        power_entity_default = _sanitize_optional_entity_id(alert.get("power_entity"))
+            try:
+                if trigger_default == "custom_binary" and not custom_trigger_default:
+                    errors["custom_trigger"] = "custom_trigger_required"
+
+                room_scope, room_error = _resolve_alert_room_scope(telemetry, trigger_default, room_default)
+                if room_error:
+                    errors["room"] = room_error
+
+                if not errors:
+                    alerts[idx] = {
+                        **alert,
+                        "enabled": enabled_default,
+                        "trigger_type": trigger_default,
+                        "custom_trigger": custom_trigger_default,
+                        "threshold": threshold_default,
+                        "room": room_scope,
+                        "lights": lights_default,
+                        "outputs": outputs_default,
+                        "power_entity": power_entity_default,
+                        "flash_mode": flash_mode_default,
+                        "duration": duration_default,
+                    }
+                    self._options["alerts"] = alerts
+                    return await self.async_step_options_alerts()
+            except Exception:
+                _LOGGER.exception("Failed to edit alert %s in options flow", idx + 1)
+                errors["base"] = "alert_save_failed"
+
+        threshold_min, threshold_max, _, threshold_unit = _alert_threshold_bounds(trigger_default)
         schema = vol.Schema({
-            vol.Optional("enabled", default=alert.get("enabled", True)): selector.BooleanSelector(),
-            vol.Optional("trigger_type", default=alert.get("trigger_type")): selector.SelectSelector(
+            vol.Optional("enabled", default=enabled_default): selector.BooleanSelector(),
+            vol.Optional("trigger_type", default=trigger_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=[SelectOptionDict(value=k, label=v["label"]) for k, v in ALERT_TRIGGER_DEFS.items()],
+                    options=_alert_trigger_options(),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
             _optional_entity_selector_key("custom_trigger", custom_trigger_default): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="binary_sensor", multiple=False)
             ),
-            vol.Optional("threshold", default=default_threshold): selector.NumberSelector(
+            vol.Optional("threshold", default=threshold_default): selector.NumberSelector(
                 selector.NumberSelectorConfig(
                     min=threshold_min,
                     max=threshold_max,
@@ -1778,22 +2062,30 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                     unit_of_measurement=threshold_unit,
                 )
             ),
-            vol.Optional("lights", default=_sanitize_entity_ids(alert.get("lights", []))): selector.EntitySelector(
+            vol.Optional("room", default=room_default): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=_alert_room_options(telemetry),
+                    multiple=False,
+                    custom_value=True,
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            ),
+            vol.Optional("lights", default=lights_default): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="light", multiple=True)
             ),
-            vol.Optional("outputs", default=_sanitize_entity_ids(alert.get("outputs", []))): selector.EntitySelector(
+            vol.Optional("outputs", default=outputs_default): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["fan", "switch"], multiple=True)
             ),
             _optional_entity_selector_key("power_entity", power_entity_default): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["switch", "light"], multiple=False)
             ),
-            vol.Optional("flash_mode", default=alert.get("flash_mode")): selector.SelectSelector(
+            vol.Optional("flash_mode", default=flash_mode_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in ALERT_FLASH_MODES],
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
-            vol.Optional("duration", default=alert.get("duration", 10)): selector.NumberSelector(
+            vol.Optional("duration", default=duration_default): selector.NumberSelector(
                 selector.NumberSelectorConfig(
                     min=ALERT_DURATION_MIN,
                     max=ALERT_DURATION_MAX,
@@ -1806,6 +2098,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="options_alert_edit",
             data_schema=schema,
+            errors=errors,
             description_placeholders={"alert_label": _alert_option_label(idx, alert)},
         )
 
@@ -1921,7 +2214,10 @@ def _sanitize_optional_entity_id(value: Any) -> Optional[str]:
 def _sanitize_entity_ids(values: Any) -> List[str]:
     if not values:
         return []
-    raw = values if isinstance(values, list) else [values]
+    if isinstance(values, (list, tuple, set)):
+        raw = list(values)
+    else:
+        raw = [values]
     result: List[str] = []
     seen = set()
     for item in raw:
@@ -1990,6 +2286,106 @@ def _safe_alert_threshold(trigger_type: Any, value: Any) -> Any:
     return round(parsed, 2)
 
 
+def _default_alert_trigger_type() -> str:
+    if ALERT_TRIGGER_DEFS:
+        return next(iter(ALERT_TRIGGER_DEFS.keys()))
+    return "humidity_danger"
+
+
+def _normalize_alert_trigger_type(value: Any) -> str:
+    text = str(value or "").strip()
+    if text in ALERT_TRIGGER_DEFS:
+        return text
+    return _default_alert_trigger_type()
+
+
+def _alert_trigger_options() -> List[SelectOptionDict]:
+    return [SelectOptionDict(value=k, label=v["label"]) for k, v in ALERT_TRIGGER_DEFS.items()]
+
+
+def _default_alert_flash_mode() -> str:
+    if ALERT_FLASH_MODES:
+        return str(ALERT_FLASH_MODES[0]["value"])
+    return "red"
+
+
+def _normalize_alert_flash_mode(value: Any) -> str:
+    text = str(value or "").strip()
+    valid = {str(item["value"]) for item in ALERT_FLASH_MODES}
+    if text in valid:
+        return text
+    return _default_alert_flash_mode()
+
+
+def _safe_alert_duration(value: Any, default: int = 10) -> int:
+    try:
+        parsed = int(float(value))
+    except (TypeError, ValueError):
+        parsed = int(default)
+    return max(ALERT_DURATION_MIN, min(ALERT_DURATION_MAX, parsed))
+
+
+def _sanitize_optional_room_scope(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    return text
+
+
+def _alert_room_options(telemetry: List[Dict[str, Any]]) -> List[SelectOptionDict]:
+    return [SelectOptionDict(value=room, label=room) for room in _rooms_all(telemetry)]
+
+
+def _resolve_alert_room_scope(
+    telemetry: List[Dict[str, Any]],
+    trigger_type: str,
+    room_value: Any,
+) -> Tuple[Optional[str], Optional[str]]:
+    room_scope = _sanitize_optional_room_scope(room_value)
+    if not room_scope:
+        return None, None
+
+    if trigger_type not in ROOM_SCOPED_ALERT_TRIGGERS:
+        return None, None
+
+    room_lookup = {}
+    for room in _rooms_all(telemetry):
+        key = room.lower().strip()
+        if key and key not in room_lookup:
+            room_lookup[key] = room
+    resolved_room = room_lookup.get(room_scope.lower().strip())
+    if not resolved_room:
+        return None, "room_unknown"
+
+    if trigger_type == "humidity_danger":
+        if not _telemetry_room_has_sensor_type(telemetry, resolved_room, "humidity"):
+            return None, "room_missing_humidity"
+    elif trigger_type in {"condensation_danger", "mould_danger"}:
+        has_humidity = _telemetry_room_has_sensor_type(telemetry, resolved_room, "humidity")
+        has_temperature = _telemetry_room_has_sensor_type(telemetry, resolved_room, "temperature")
+        if not has_humidity or not has_temperature:
+            return None, "room_missing_temp_humidity"
+
+    return resolved_room, None
+
+
+def _telemetry_room_has_sensor_type(
+    telemetry: List[Dict[str, Any]],
+    room: str,
+    sensor_type: str,
+) -> bool:
+    room_key = room.lower().strip()
+    for item in telemetry:
+        item_room = str(item.get("room") or "").strip().lower()
+        if not item_room or item_room != room_key:
+            continue
+        if item.get("sensor_type") == sensor_type and _sanitize_optional_entity_id(item.get("entity_id")):
+            return True
+    return False
+
+
 def _optional_entity_selector_key(field_name: str, default_value: Any) -> Any:
     entity_id = _sanitize_optional_entity_id(default_value)
     if entity_id is None:
@@ -2010,7 +2406,9 @@ def _render_alerts_summary(alerts: List[Dict[str, Any]]) -> str:
         suffix = ""
         if threshold not in (None, ""):
             suffix = f" @ {threshold}"
-        lines.append(f"- Alert {idx}: {trigger_label}{suffix}")
+        room_scope = _sanitize_optional_room_scope(alert.get("room"))
+        room_suffix = f" in {room_scope}" if room_scope else ""
+        lines.append(f"- Alert {idx}: {trigger_label}{suffix}{room_suffix}")
     return "\n".join(lines)
 
 
@@ -2137,7 +2535,9 @@ def _alert_option_label(idx: int, alert: Dict[str, Any]) -> str:
     trigger = str(alert.get("trigger_type") or "unknown")
     trigger_label = ALERT_TRIGGER_DEFS.get(trigger, {}).get("label", trigger.replace("_", " ").title())
     enabled = "Enabled" if alert.get("enabled", True) else "Disabled"
-    return f"Alert {idx + 1} - {trigger_label} ({enabled})"
+    room_scope = _sanitize_optional_room_scope(alert.get("room"))
+    room_suffix = f" in {room_scope}" if room_scope else ""
+    return f"Alert {idx + 1} - {trigger_label}{room_suffix} ({enabled})"
 
 
 def _suggest_room_and_level(hass: HomeAssistant, entity_id: str | None = None) -> tuple[str, str]:
