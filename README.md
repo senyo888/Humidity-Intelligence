@@ -26,6 +26,7 @@
 - [Configuration Screenshots (Visual Guide)](#configuration-screenshots-visual-guide)
 - [Post-Configuration Workflow](#post-configuration-workflow)
 - [How to Use Services](#how-to-use-services)
+- [Release Notes ](#release-notes)
 - [Design Philosophy](#design-philosophy)
 
 ---
@@ -586,6 +587,32 @@ Safety guidance:
 - run `dump_diagnostics` before purge if you want a snapshot for troubleshooting
 
 ---
+
+## Release Notes 
+
+### v2.0.1 fixes
+
+- fixed Fahrenheit telemetry normalization by converting all internal temperature math to Celsius before averages, spreads, deltas, and thresholds
+- fixed aggregate behavior so IAQ/AQ averages ignore `unknown`, `unavailable`, and non-numeric states and only return unknown when no valid values exist
+- added aggregate exclusion debug logging with explicit reasons (`unknown`, `unavailable`, `non_numeric`, `unit_mismatch`)
+- added zone mapping duplicate warnings in setup/options and new duplicate diagnostics sensor state
+- added `alert_only_mode` (monitor + alerts only) to suppress automation control lanes for users without output hardware
+- improved UI placeholder pruning so optional outputs/controls are hidden when not configured, including alert-only control suppression
+- fixed alert-only card rendering edge case by pruning invalid leftover `conditional` blocks after entity pruning
+- updated Current Air Control reason field behavior for alert-only mode so it reports monitoring/alerts context and does not imply missing output controls
+- options changes that flip `alert_only_mode` now trigger UI card refresh/export regeneration and a notification
+- expanded options flow editing so users can revisit skipped lanes and add/edit alerts later
+- expanded post-configuration lane management so humidifier and AQ lanes can be re-added after removal, and telemetry changes log explicit add/update/remove actions
+- alert target lights are now fully optional end-to-end (config/options/service/runtime); alerts still trigger without flash entities
+- hardened service input validation (safe filename/url path/layout checks), bounded flash parameters, and diagnostics attribute redaction for sensitive keys
+
+### Migration notes
+
+- `alert_only_mode` is now available in Global Gates (setup and options). Disable it later to restore normal control entities/lane behavior.
+- new computed sensor: `HI Zone Mapping Duplicates` (`hi_<entry_id>_zone_mapping_duplicates`) exposes duplicate zone mapping status and details.
+- generated V2 cards now prune unresolved optional control/output entities instead of leaving stale references.
+- if your dashboard uses Manual cards, re-copy/paste the latest exported YAML after changing `alert_only_mode` so the UI and reason panel match the selected mode.
+
 
 ## Design Philosophy
 

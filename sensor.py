@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.event import async_track_state_change_event
@@ -14,6 +15,9 @@ from .const import DOMAIN
 from .sensors.core import build_entities
 from .sensors.slope import build_slope_entities
 from homeassistant.helpers.device_registry import DeviceInfo
+from .helpers.zone_validation import detect_zone_mapping_duplicates, summarize_zone_mapping_duplicates
+
+_LOGGER = logging.getLogger(__name__)
 
 
 TIMER_KEYS = [
@@ -26,10 +30,16 @@ TIMER_KEYS = [
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities) -> None:
+    alert_only_mode = bool(_entry_section(entry, "alert_only_mode", False))
     sensors, binary_sensors, sources = build_entities(hass, entry)
     slope_sensors, slope_sources, slope_map = build_slope_entities(hass, entry)
     diagnostics = HIDiagnosticsSensor(hass, entry.entry_id)
-    timer_sensors = [HITimerSensor(entry.entry_id, key) for key in TIMER_KEYS]
+    timer_sensors = [] if alert_only_mode else [HITimerSensor(entry.entry_id, key) for key in TIMER_KEYS]
+    if alert_only_mode:
+        _LOGGER.info(
+            "HI entry %s sensor platform running in alert-only mode; timer control entities are suppressed.",
+            entry.entry_id,
+        )
     async_add_entities(sensors + slope_sensors + timer_sensors + [diagnostics], update_before_add=True)
 
     hass.data.setdefault(DOMAIN, {}).setdefault(entry.entry_id, {})
@@ -66,10 +76,14 @@ class HIDiagnosticsSensor(SensorEntity):
         data = self.hass.data.get(DOMAIN, {}).get(self.entry_id, {})
         config = data.get("config", {})
         telemetry = config.get("telemetry", []) if isinstance(config, dict) else []
+        zones = config.get("zones", {}) if isinstance(config, dict) else {}
         cards = data.get("cards") or {}
         entity_map = data.get("entity_map") or {}
         unresolved = data.get("unresolved_placeholders") or []
         unresolved_by_card = data.get("unresolved_placeholders_by_card") or {}
+        duplicates = detect_zone_mapping_duplicates(telemetry, zones if isinstance(zones, dict) else {})
+        duplicate_summary = summarize_zone_mapping_duplicates(duplicates)
+        self._attr_native_value = "warning" if duplicates else "ok"
         self._attr_extra_state_attributes = {
             "config": _sanitize_json(config),
             "options": _sanitize_json(data.get("options", {})),
@@ -77,6 +91,8 @@ class HIDiagnosticsSensor(SensorEntity):
             "cards": list(cards.keys()),
             "unresolved_placeholders": _sanitize_json(unresolved),
             "unresolved_placeholders_by_card": _sanitize_json(unresolved_by_card),
+            "zone_mapping_duplicates": _sanitize_json(duplicates),
+            "zone_mapping_duplicate_summary": duplicate_summary,
             "counts": {
                 "telemetry": len(telemetry),
                 "mapped_entities": len([v for v in entity_map.values() if v]),
@@ -164,3 +180,11 @@ def _sanitize_json(value):
     except Exception:
         pass
     return value
+
+
+def _entry_section(entry: ConfigEntry, key: str, default):
+    options = getattr(entry, "options", None) or {}
+    if key in options:
+        return options.get(key, default)
+    data = getattr(entry, "data", None) or {}
+    return data.get(key, default)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import tempfile
 from datetime import timedelta
 from typing import List, Optional, Tuple
@@ -30,38 +31,99 @@ SERVICE_PURGE_FILES = "purge_files"
 SERVICE_PAUSE_CONTROL = "pause_control"
 SERVICE_RESUME_CONTROL = "resume_control"
 
+_ALLOWED_LAYOUTS = {"v2_mobile", "v2_tablet", "v1_mobile", "view_cards_button"}
+_SAFE_FILENAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+_SAFE_DASHBOARD_PATH_RE = re.compile(r"^[a-z0-9_-]{1,64}$")
+_SENSITIVE_ATTR_EXACT = {
+    "access_token",
+    "token",
+    "refresh_token",
+    "password",
+    "api_key",
+    "authorization",
+    "latitude",
+    "longitude",
+    "gps_accuracy",
+}
+_SENSITIVE_ATTR_PARTIAL = (
+    "token",
+    "secret",
+    "password",
+    "api_key",
+    "apikey",
+    "access_key",
+    "authorization",
+    "bearer",
+    "latitude",
+    "longitude",
+    "gps_",
+)
+
+
+def _validate_layout(value: str) -> str:
+    text = str(value).strip()
+    if text not in _ALLOWED_LAYOUTS:
+        raise vol.Invalid(
+            f"Unsupported layout '{text}'. Allowed: {', '.join(sorted(_ALLOWED_LAYOUTS))}"
+        )
+    return text
+
+
+def _validate_safe_filename(value: str) -> str:
+    text = str(value).strip()
+    if not text:
+        raise vol.Invalid("Filename cannot be empty")
+    if "/" in text or "\\" in text or ".." in text:
+        raise vol.Invalid("Filename must not include directory traversal or separators")
+    if not _SAFE_FILENAME_RE.fullmatch(text):
+        raise vol.Invalid("Filename contains invalid characters")
+    return text
+
+
+def _validate_dashboard_url_path(value: str) -> str:
+    text = str(value).strip().lower()
+    if not _SAFE_DASHBOARD_PATH_RE.fullmatch(text):
+        raise vol.Invalid(
+            "Dashboard URL path must use only lowercase letters, numbers, '_' or '-'"
+        )
+    return text
+
+
 SERVICE_FLASH_SCHEMA = vol.Schema({
     vol.Optional("power_entity"): cv.entity_id,
-    vol.Required("lights"): cv.entity_ids,
+    vol.Optional("lights", default=[]): cv.entity_ids,
     vol.Optional("color", default=(255, 0, 0)): vol.All(cv.ensure_list, [vol.Coerce(int)]),
-    vol.Optional("duration", default=10): vol.Coerce(int),
-    vol.Optional("flash_count", default=None): vol.Any(None, vol.Coerce(int)),
+    vol.Optional("duration", default=10): vol.All(vol.Coerce(int), vol.Range(min=1, max=300)),
+    vol.Optional("flash_count", default=None): vol.Any(
+        None,
+        vol.All(vol.Coerce(int), vol.Range(min=1, max=240)),
+    ),
 })
 SERVICE_REFRESH_SCHEMA = vol.Schema({
     vol.Optional("entry_id"): cv.string,
 })
 SERVICE_DUMP_SCHEMA = vol.Schema({
     vol.Optional("entry_id"): cv.string,
-    vol.Optional("filename", default="humidity_intelligence_diagnostics.json"): cv.string,
+    vol.Optional("filename", default="humidity_intelligence_diagnostics.json"): _validate_safe_filename,
 })
 SERVICE_SELF_CHECK_SCHEMA = vol.Schema({
     vol.Optional("entry_id"): cv.string,
 })
 SERVICE_DUMP_CARDS_SCHEMA = vol.Schema({
     vol.Optional("entry_id"): cv.string,
-    vol.Optional("filename"): cv.string,
-    vol.Optional("layout"): cv.string,
+    vol.Optional("filename"): _validate_safe_filename,
+    vol.Optional("layout"): _validate_layout,
 })
 SERVICE_CREATE_DASHBOARD_SCHEMA = vol.Schema({
     vol.Optional("entry_id"): cv.string,
-    vol.Optional("layout", default="v2_mobile"): cv.string,
+    vol.Optional("layout", default="v2_mobile"): _validate_layout,
     vol.Optional("title", default="Humidity Intelligence"): cv.string,
-    vol.Optional("url_path", default="humidity-intelligence"): cv.string,
+    vol.Optional("url_path", default="humidity-intelligence"): _validate_dashboard_url_path,
 })
 SERVICE_VIEW_CARDS_SCHEMA = vol.Schema({
     vol.Optional("entry_id"): cv.string,
-    vol.Optional("filename"): cv.string,
-    vol.Optional("layout"): cv.string,
+    vol.Optional("filename"): _validate_safe_filename,
+    vol.Optional("layout"): _validate_layout,
 })
 SERVICE_PURGE_FILES_SCHEMA = vol.Schema({
     vol.Optional("entry_id"): cv.string,
@@ -87,7 +149,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
         color = tuple(color_list[:3]) if len(color_list) >= 3 else (255, 0, 0)
 
         if not lights:
-            _LOGGER.warning("No lights provided to flash")
+            _LOGGER.debug("No lights provided to flash_lights; skipping light flash.")
             return
 
         if power_entity:
@@ -151,7 +213,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
                         continue
                     state_dump[ent] = {
                         "state": state.state,
-                        "attributes": _to_jsonable(dict(state.attributes)),
+                        "attributes": _redact_sensitive_attributes(dict(state.attributes)),
                     }
                 payload[entry.entry_id] = {
                     "config": _to_jsonable(data.get("config", {})),
@@ -442,6 +504,18 @@ def _to_jsonable(value):
         except Exception:
             pass
     return str(value)
+
+
+def _redact_sensitive_attributes(attributes: dict) -> dict:
+    redacted = {}
+    for key, value in attributes.items():
+        key_text = str(key)
+        key_norm = key_text.lower()
+        if key_norm in _SENSITIVE_ATTR_EXACT or any(part in key_norm for part in _SENSITIVE_ATTR_PARTIAL):
+            redacted[key_text] = "[REDACTED]"
+        else:
+            redacted[key_text] = _to_jsonable(value)
+    return redacted
 
 
 async def _dump_cards_to_file(

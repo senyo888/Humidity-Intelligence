@@ -18,6 +18,7 @@
           "end_time": "End time",
           "outside_action": "Outside window action",
           "engine_interval_minutes": "Control loop interval",
+          "alert_only_mode": "Alert-only mode (monitor + alerts only)",
           "enable_presence_gate": "Enable presence gate",
           "presence_entities": "Presence entities (any helper/entity)"
         }
@@ -216,12 +217,20 @@
       "alert_add": {
         "title": "Add Alert",
         "description": "Configure a high-priority alert automation.\n\nCondensation and mould danger entities are provided by Humidity Intelligence. You do not need custom binary sensors for those triggers, but you may optionally provide one for the Custom trigger type.",
+        "errors": {
+          "alert_save_failed": "Failed to save alert configuration. Check logs and try again.",
+          "custom_trigger_required": "A custom binary sensor is required for Custom trigger type.",
+          "room_unknown": "Selected room is not in configured telemetry.",
+          "room_missing_humidity": "Selected room has no humidity telemetry for room-scoped humidity danger.",
+          "room_missing_temp_humidity": "Selected room needs both humidity and temperature telemetry for this room-scoped trigger."
+        },
         "data": {
           "enabled": "Enable alert",
           "trigger_type": "Trigger type",
           "custom_trigger": "Custom binary sensor",
           "threshold": "Threshold",
-          "lights": "Lights to flash",
+          "room": "Room scope (optional)",
+          "lights": "Lights to flash (optional)",
           "outputs": "CO output devices (optional)",
           "power_entity": "Power entity (optional)",
           "flash_mode": "Flash mode",
@@ -262,6 +271,7 @@
           "end_time": "End time",
           "outside_action": "Outside window action",
           "engine_interval_minutes": "Control loop interval",
+          "alert_only_mode": "Alert-only mode (monitor + alerts only)",
           "enable_presence_gate": "Enable presence gate",
           "presence_entities": "Presence/alarm entities"
         }
@@ -309,8 +319,12 @@
       "options_telemetry_edit": {
         "title": "Edit Telemetry Sensor",
         "description": "Editing sensor {sensor_position} of {sensor_total}.\n\n{selected_sensor}",
+        "errors": {
+          "duplicate_entity": "This sensor has already been added."
+        },
         "data": {
           "entity_id": "Sensor entity",
+          "sensor_type": "Sensor type",
           "friendly_name": "Friendly name (display only)",
           "level": "Level",
           "room": "Room"
@@ -343,7 +357,7 @@
       },
       "options_humidifiers": {
         "title": "Humidifier Options",
-        "description": "Select a humidifier lane to edit.\n\nConfigured humidifier lanes:\n{configured_humidifiers}",
+        "description": "Select a humidifier lane to add, edit, or remove.\n\nConfigured humidifier lanes:\n{configured_humidifiers}",
         "data": {
           "action": "Humidifier lane"
         }
@@ -352,6 +366,7 @@
         "title": "Edit Humidifier Lane",
         "description": "Editing {level_label}.",
         "data": {
+          "remove_lane": "Remove this humidifier lane",
           "enabled": "Enable humidifier lane",
           "band_adjust": "Target band adjustment",
           "outputs": "Humidifier outputs"
@@ -359,7 +374,7 @@
       },
       "options_aq": {
         "title": "Air Quality Options",
-        "description": "Select an AQ lane to edit.\n\nConfigured AQ lanes:\n{configured_aq}",
+        "description": "Select an AQ lane to add, edit, or remove.\n\nConfigured AQ lanes:\n{configured_aq}",
         "data": {
           "action": "AQ lane"
         }
@@ -368,6 +383,7 @@
         "title": "Edit Air Quality Lane",
         "description": "Editing {level_label}.",
         "data": {
+          "remove_lane": "Remove this AQ lane",
           "enabled": "Enable AQ lane",
           "triggers": "AQ triggers",
           "outputs": "AQ output devices",
@@ -387,15 +403,46 @@
           "action": "Alert to edit"
         }
       },
-      "options_alert_edit": {
-        "title": "Edit Alert",
-        "description": "Editing {alert_label}.",
+      "options_alert_add": {
+        "title": "Add Alert",
+        "description": "Configure a new high-priority alert automation.",
+        "errors": {
+          "alert_save_failed": "Failed to save alert configuration. Check logs and try again.",
+          "custom_trigger_required": "A custom binary sensor is required for Custom trigger type.",
+          "room_unknown": "Selected room is not in configured telemetry.",
+          "room_missing_humidity": "Selected room has no humidity telemetry for room-scoped humidity danger.",
+          "room_missing_temp_humidity": "Selected room needs both humidity and temperature telemetry for this room-scoped trigger."
+        },
         "data": {
           "enabled": "Enable alert",
           "trigger_type": "Trigger type",
           "custom_trigger": "Custom trigger entity (optional)",
           "threshold": "Threshold",
-          "lights": "Target lights",
+          "room": "Room scope (optional)",
+          "lights": "Target lights (optional)",
+          "outputs": "CO output devices (optional)",
+          "power_entity": "Power entity (optional)",
+          "flash_mode": "Flash mode",
+          "duration": "Flash duration"
+        }
+      },
+      "options_alert_edit": {
+        "title": "Edit Alert",
+        "description": "Editing {alert_label}.",
+        "errors": {
+          "alert_save_failed": "Failed to save alert configuration. Check logs and try again.",
+          "custom_trigger_required": "A custom binary sensor is required for Custom trigger type.",
+          "room_unknown": "Selected room is not in configured telemetry.",
+          "room_missing_humidity": "Selected room has no humidity telemetry for room-scoped humidity danger.",
+          "room_missing_temp_humidity": "Selected room needs both humidity and temperature telemetry for this room-scoped trigger."
+        },
+        "data": {
+          "enabled": "Enable alert",
+          "trigger_type": "Trigger type",
+          "custom_trigger": "Custom trigger entity (optional)",
+          "threshold": "Threshold",
+          "room": "Room scope (optional)",
+          "lights": "Target lights (optional)",
           "outputs": "CO output devices (optional)",
           "power_entity": "Power entity (optional)",
           "flash_mode": "Flash mode",

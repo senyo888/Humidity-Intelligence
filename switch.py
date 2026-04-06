@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any, Dict, List, Tuple
 
 from homeassistant.core import HomeAssistant
@@ -12,6 +13,8 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.components.switch import SwitchEntity
 
 from .const import ALERT_TRIGGER_DEFS, DOMAIN, MAX_ALERTS, UI_DROPDOWN_AUTO_CLOSE_SECONDS
+
+_LOGGER = logging.getLogger(__name__)
 
 
 BASE_SWITCH_KEYS = [
@@ -27,6 +30,10 @@ BASE_SWITCH_KEYS = [
     "air_upstairs_humidifier_active",
     "humidity_constellation_expanded",
     "toggle",
+]
+
+ALERT_ONLY_BASE_SWITCH_KEYS = [
+    "air_co_emergency_active",
 ]
 
 DEFAULT_ON = {"air_control_enabled"}
@@ -110,8 +117,15 @@ class HIInputSwitch(SwitchEntity, RestoreEntity):
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities) -> None:
     entities: List[HIInputSwitch] = []
-    for key in BASE_SWITCH_KEYS:
+    alert_only_mode = bool(_entry_section(entry, "alert_only_mode", False))
+    base_keys = ALERT_ONLY_BASE_SWITCH_KEYS if alert_only_mode else BASE_SWITCH_KEYS
+    for key in base_keys:
         entities.append(HIInputSwitch(entry.entry_id, key))
+    if alert_only_mode:
+        _LOGGER.info(
+            "HI entry %s switch platform running in alert-only mode; control switches are suppressed.",
+            entry.entry_id,
+        )
     alert_switches: Dict[int, HIInputSwitch] = {}
     for idx, key, name, attrs in _alert_switch_definitions(entry):
         entity = HIInputSwitch(entry.entry_id, key, name=name, attrs=attrs)
@@ -131,6 +145,14 @@ def _resolved_alerts(entry: ConfigEntry) -> List[Dict[str, Any]]:
     if entry.options and "alerts" in entry.options:
         return list(entry.options.get("alerts", []))
     return list(entry.data.get("alerts", []))
+
+
+def _entry_section(entry: ConfigEntry, key: str, default: Any) -> Any:
+    options = getattr(entry, "options", None) or {}
+    if key in options:
+        return options.get(key, default)
+    data = getattr(entry, "data", None) or {}
+    return data.get(key, default)
 
 
 def _alert_switch_definitions(entry: ConfigEntry) -> List[Tuple[int, str, str, Dict[str, Any]]]:

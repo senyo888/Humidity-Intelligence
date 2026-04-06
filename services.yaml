@@ -10,8 +10,8 @@ flash_lights:
           domain: [switch, light]
     lights:
       name: Lights to flash
-      description: One or more lights to flash
-      required: true
+      description: Optional lights to flash
+      required: false
       selector:
         entity:
           domain: light
@@ -23,21 +23,21 @@ flash_lights:
         color_rgb: {}
     duration:
       name: Duration in seconds
-      description: Total flash duration
+      description: Total flash duration (1-300s)
       selector:
         number:
           min: 1
-          max: 120
+          max: 300
           step: 1
           mode: slider
           unit_of_measurement: s
     flash_count:
       name: Number of flashes
-      description: Override flash count (optional)
+      description: Override flash count (optional, 1-240)
       selector:
         number:
           min: 1
-          max: 200
+          max: 240
           step: 1
           mode: slider
 refresh_ui:
@@ -60,7 +60,7 @@ dump_diagnostics:
         text: {}
     filename:
       name: Filename
-      description: Output filename in the HA config folder
+      description: Output filename in the HA config folder (basename only, no slashes)
       selector:
         text: {}
 self_check:
@@ -83,7 +83,7 @@ dump_cards:
         text: {}
     filename:
       name: Filename
-      description: Optional base filename (defaults to humidity_intelligence_cards)
+      description: Optional base filename (defaults to humidity_intelligence_cards; basename only)
       selector:
         text: {}
     layout:
@@ -115,7 +115,7 @@ create_dashboard:
         text: {}
     url_path:
       name: URL path
-      description: Sidebar URL path (no slashes)
+      description: Sidebar URL path (lowercase letters/numbers/_/- only)
       selector:
         text: {}
 view_cards:
@@ -129,7 +129,7 @@ view_cards:
         text: {}
     filename:
       name: Filename
-      description: Optional base filename (defaults to humidity_intelligence_cards)
+      description: Optional base filename (defaults to humidity_intelligence_cards; basename only)
       selector:
         text: {}
     layout:

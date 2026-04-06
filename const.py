@@ -131,6 +131,13 @@ ALERT_TRIGGER_DEFS = {
     "custom_binary": {"label": "Custom binary sensor"},
 }
 
+# Alert trigger types that support room-scoped evaluation.
+ROOM_SCOPED_ALERT_TRIGGERS = (
+    "humidity_danger",
+    "condensation_danger",
+    "mould_danger",
+)
+
 # Safety guardrails for alert thresholds.
 # These are enforced in config/options flow and at runtime as a fallback.
 ALERT_THRESHOLD_BOUNDS = {
