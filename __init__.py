@@ -160,4 +160,39 @@ def _effective_entry_config(entry: ConfigEntry) -> dict:
 
 async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload entry when options change so runtime lanes immediately honor updates."""
+    previous_cfg = (
+        hass.data.get(DOMAIN, {}).get(entry.entry_id, {}).get("config", {}) or {}
+    )
+    prev_alert_only = bool(previous_cfg.get("alert_only_mode", _entry_alert_only_mode(entry)))
+    next_alert_only = _entry_alert_only_mode(entry)
     await hass.config_entries.async_reload(entry.entry_id)
+    if prev_alert_only == next_alert_only:
+        return
+
+    _LOGGER.info(
+        "HI entry %s alert-only mode changed to %s; regenerating UI card exports.",
+        entry.entry_id,
+        next_alert_only,
+    )
+    await _async_refresh_and_dump_cards(hass, entry.entry_id)
+    await hass.services.async_call(
+        "persistent_notification",
+        "create",
+        {
+            "title": "Humidity Intelligence UI Updated",
+            "message": (
+                "Alert-only mode changed. Updated card files were written to "
+                "/config/humidity_intelligence_cards_<layout>.yaml. "
+                "Re-copy/paste the layout YAML into your Manual card to apply control visibility changes."
+            ),
+        },
+        blocking=False,
+    )
+
+
+def _entry_alert_only_mode(entry: ConfigEntry) -> bool:
+    options = getattr(entry, "options", None) or {}
+    if "alert_only_mode" in options:
+        return bool(options.get("alert_only_mode"))
+    data = getattr(entry, "data", None) or {}
+    return bool(data.get("alert_only_mode", False))
