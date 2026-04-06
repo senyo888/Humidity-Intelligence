@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+import logging
 from typing import Any, Deque, Dict, List, Optional, Tuple
 import re
 
@@ -16,7 +17,9 @@ from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.util import slugify
 
 from ..const import DOMAIN, SLOPE_MODE_CALCULATED, SLOPE_MODE_PROVIDED
+from ..helpers.parsing import hass_temperature_unit, parse_temperature
 
+_LOGGER = logging.getLogger(__name__)
 
 WINDOW = timedelta(hours=1)
 SAMPLE_INTERVAL = timedelta(minutes=5)
@@ -141,11 +144,18 @@ def build_slope_entities(hass: HomeAssistant, entry: ConfigEntry) -> Tuple[List[
 
     def _record_state(entity_id: str) -> bool:
         state = hass.states.get(entity_id)
-        if state is None or state.state in ("unknown", "unavailable"):
+        if state is None:
             return False
-        try:
-            value = float(state.state)
-        except ValueError:
+        raw_state = str(state.state).strip().lower()
+        if raw_state in ("unknown", "unavailable"):
+            return False
+        value, reason = parse_temperature(
+            state.state,
+            state.attributes.get("unit_of_measurement"),
+            hass_temperature_unit(hass),
+        )
+        if value is None:
+            _LOGGER.debug("Skipping slope sample for %s due to %s", entity_id, reason or "non_numeric")
             return False
         tracker.record(entity_id, value)
         return True
