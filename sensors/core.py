@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -16,6 +17,10 @@ from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.util import slugify
 
 from ..const import DOMAIN
+from ..helpers.parsing import format_temperature, hass_temperature_unit, parse_numeric, parse_temperature
+from ..helpers.zone_validation import detect_zone_mapping_duplicates, summarize_zone_mapping_duplicates
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -113,9 +118,11 @@ class _CoreComputations:
         self.hass = hass
         self.entry = entry
         self.telemetry = telemetry
+        self.zones: Dict[str, Dict[str, Any]] = _entry_section(entry, "zones", {})
         self.rooms: Dict[str, Dict[str, str]] = {}
         self.room_labels: Dict[str, str] = {}
         self.levels: Dict[str, Dict[str, List[str]]] = {}
+        self._zone_duplicate_signature: Tuple[str, ...] = tuple()
         self._index()
 
     def _index(self) -> None:
@@ -269,6 +276,12 @@ class _CoreComputations:
             self._compute_worst_mould_risk,
             icon="mdi:biohazard",
         ))
+        sensors.append(make(
+            "HI Zone Mapping Duplicates",
+            "zone_mapping_duplicates",
+            self._compute_zone_mapping_duplicates,
+            icon="mdi:alert-outline",
+        ))
 
         for room in sorted(self.rooms.keys(), key=lambda r: r.lower()):
             if "humidity" not in self.rooms.get(room, {}):
@@ -387,7 +400,12 @@ class _CoreComputations:
 
     def _compute_house_avg_temperature(self) -> Tuple[Optional[float], Dict[str, Any]]:
         values = self._collect_values("temperature")
-        return _avg(values), {}
+        avg_c = _avg(values)
+        display_unit = hass_temperature_unit(self.hass)
+        return avg_c, {
+            "display_value": format_temperature(avg_c, display_unit),
+            "display_unit": display_unit,
+        }
 
     def _compute_level_avg_humidity(self, level: str) -> Tuple[Optional[float], Dict[str, Any]]:
         values = self._collect_values("humidity", level)
@@ -395,7 +413,12 @@ class _CoreComputations:
 
     def _compute_level_avg_temperature(self, level: str) -> Tuple[Optional[float], Dict[str, Any]]:
         values = self._collect_values("temperature", level)
-        return _avg(values), {}
+        avg_c = _avg(values)
+        display_unit = hass_temperature_unit(self.hass)
+        return avg_c, {
+            "display_value": format_temperature(avg_c, display_unit),
+            "display_unit": display_unit,
+        }
 
     def _compute_target_low(self) -> Tuple[int, Dict[str, Any]]:
         month = datetime.now().month
@@ -532,6 +555,32 @@ class _CoreComputations:
         _, attrs = self._compute_worst_mould()
         return attrs.get("risk", "Unknown"), {}
 
+    def _compute_zone_mapping_duplicates(self) -> Tuple[str, Dict[str, Any]]:
+        duplicates = detect_zone_mapping_duplicates(
+            self.telemetry,
+            self.zones if isinstance(self.zones, dict) else {},
+        )
+        duplicate_entities = sorted({entity for values in duplicates.values() for entity in values})
+        signature = tuple(duplicate_entities)
+        if duplicate_entities and signature != self._zone_duplicate_signature:
+            _LOGGER.warning(
+                "Zone mapping duplicates detected for entry %s: %s",
+                self.entry.entry_id,
+                summarize_zone_mapping_duplicates(duplicates),
+            )
+        self._zone_duplicate_signature = signature
+        if duplicate_entities:
+            return "detected", {
+                "message": "Zone mapping duplicates detected",
+                "duplicates": duplicates,
+                "duplicate_entities": duplicate_entities,
+            }
+        return "clear", {
+            "message": "No zone mapping duplicates detected",
+            "duplicates": {},
+            "duplicate_entities": [],
+        }
+
     def _compute_condensation_danger(self) -> Tuple[bool, Dict[str, Any]]:
         state, attrs = self._compute_worst_condensation()
         return attrs.get("risk") == "Danger", {"worst_room": state}
@@ -561,17 +610,67 @@ class _CoreComputations:
             for lvl in self.levels.values():
                 entity_ids.extend(lvl.get(sensor_type, []))
         values: List[float] = []
+        exclusions: List[Tuple[str, str]] = []
+        expected_unit: Optional[str] = None
         for entity_id in entity_ids:
-            val = _get_float(self.hass, entity_id)
-            if val is not None:
-                values.append(val)
+            state = self.hass.states.get(entity_id) if entity_id else None
+            if state is None:
+                exclusions.append((entity_id, "missing"))
+                continue
+
+            raw_state = str(state.state).strip()
+            lowered = raw_state.lower()
+            if lowered == "unknown":
+                exclusions.append((entity_id, "unknown"))
+                continue
+            if lowered == "unavailable":
+                exclusions.append((entity_id, "unavailable"))
+                continue
+
+            if sensor_type == "temperature":
+                temp_c, reason = parse_temperature(
+                    state.state,
+                    state.attributes.get("unit_of_measurement"),
+                    hass_temperature_unit(self.hass),
+                )
+                if temp_c is None:
+                    exclusions.append((entity_id, reason or "non_numeric"))
+                    continue
+                values.append(temp_c)
+                continue
+
+            val = parse_numeric(state.state)
+            if val is None:
+                exclusions.append((entity_id, "non_numeric"))
+                continue
+
+            normalized_unit = _normalize_sensor_unit(sensor_type, state.attributes.get("unit_of_measurement"))
+            if normalized_unit is not None:
+                if expected_unit is None:
+                    expected_unit = normalized_unit
+                elif normalized_unit != expected_unit:
+                    exclusions.append((entity_id, "unit_mismatch"))
+                    continue
+
+            values.append(val)
+
+        if exclusions:
+            scope = f"level={level}" if level else "house"
+            excluded_summary = ", ".join(f"{entity}:{reason}" for entity, reason in exclusions)
+            _LOGGER.debug(
+                "Excluded %s telemetry values for %s (%s): %s",
+                sensor_type,
+                self.entry.entry_id,
+                scope,
+                excluded_summary,
+            )
         return values
 
     def _room_metrics(self) -> List[_RoomMetrics]:
         metrics: List[_RoomMetrics] = []
         for room, sensors in self.rooms.items():
             rh = _get_float(self.hass, sensors.get("humidity"))
-            temp = _get_float(self.hass, sensors.get("temperature"))
+            temp = _get_temperature_c(self.hass, sensors.get("temperature"))
             if rh is None or temp is None:
                 cond = "Unknown"
                 mould = "Unknown"
@@ -631,12 +730,29 @@ def _get_float(hass: HomeAssistant, entity_id: Optional[str]) -> Optional[float]
     if not entity_id:
         return None
     state = hass.states.get(entity_id)
-    if state is None or state.state in ("unknown", "unavailable"):
+    if state is None:
         return None
-    try:
-        return float(state.state)
-    except ValueError:
+    raw_state = str(state.state).strip()
+    if raw_state.lower() in ("unknown", "unavailable"):
         return None
+    return parse_numeric(raw_state)
+
+
+def _get_temperature_c(hass: HomeAssistant, entity_id: Optional[str]) -> Optional[float]:
+    if not entity_id:
+        return None
+    state = hass.states.get(entity_id)
+    if state is None:
+        return None
+    raw_state = str(state.state).strip()
+    if raw_state.lower() in ("unknown", "unavailable"):
+        return None
+    value_c, _reason = parse_temperature(
+        state.state,
+        state.attributes.get("unit_of_measurement"),
+        hass_temperature_unit(hass),
+    )
+    return value_c
 
 
 def _avg(values: List[float]) -> Optional[float]:
@@ -691,6 +807,27 @@ def _mould_risk(rh: Optional[float], spread: Optional[float]) -> str:
 
 def _slugify_room(room: str) -> str:
     return slugify(room) if room else "room"
+
+
+_UNIT_ALIASES: Dict[str, Dict[str, str]] = {
+    "humidity": {"%": "%", "percent": "%", "rh": "%", "%rh": "%"},
+    "pm25": {"ug/m3": "ug/m3", "ug/m^3": "ug/m3", "μg/m3": "ug/m3", "µg/m3": "ug/m3"},
+    "voc": {"ppb": "ppb", "ppm": "ppm"},
+    "co2": {"ppm": "ppm"},
+    "co": {"ppm": "ppm"},
+}
+
+
+def _normalize_sensor_unit(sensor_type: str, unit: Any) -> Optional[str]:
+    if unit in (None, ""):
+        return None
+    aliases = _UNIT_ALIASES.get(sensor_type)
+    if aliases is None:
+        return None
+    normalized = str(unit).strip().lower().replace(" ", "")
+    normalized = normalized.replace("³", "3")
+    normalized = normalized.replace("μ", "u").replace("µ", "u")
+    return aliases.get(normalized, normalized)
 
 
 def _entry_section(entry: ConfigEntry, key: str, default: Any) -> Any:
