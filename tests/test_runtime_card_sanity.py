@@ -210,6 +210,7 @@ def _wrap_async_method(obj, method_name: str, trace: list[str]) -> None:
 
 def _base_entry_data():
     return {
+        "target_profile": "winter",
         "telemetry": [
             {"entity_id": "sensor.kitchen_h", "sensor_type": "humidity", "level": "level1", "room": "Kitchen"},
             {"entity_id": "sensor.hall_h", "sensor_type": "humidity", "level": "level1", "room": "Hallway"},
@@ -455,6 +456,47 @@ async def _run_runtime_assertions(engine_mod) -> None:
     assert (
         "Humidity Danger @ 70 in Kitchen" in room_alert_reason
         or "Humidity Danger @ 70.0 in Kitchen" in room_alert_reason
+    )
+
+    # Humidity danger with no explicit threshold should use active profile high-risk.
+    entry_room_alert_dynamic_data = _base_entry_data()
+    entry_room_alert_dynamic_data["zones"]["zone1"]["enabled"] = False
+    entry_room_alert_dynamic_data["zones"]["zone2"]["enabled"] = False
+    entry_room_alert_dynamic_data["aq"] = {}
+    entry_room_alert_dynamic_data["humidifiers"] = {}
+    entry_room_alert_dynamic_data["alerts"] = [
+        {
+            "enabled": True,
+            "trigger_type": "humidity_danger",
+            "room": "Kitchen",
+            "lights": ["light.alert"],
+            "duration": 10,
+        }
+    ]
+    entry_room_alert_dynamic = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data=entry_room_alert_dynamic_data,
+        options={},
+    )
+    hass_room_alert_dynamic = _FakeHass(
+        entry_room_alert_dynamic,
+        {
+            "sensor.kitchen_h": _FakeState(64),  # winter high-risk default is 62
+            "sensor.hall_h": _FakeState(45),
+            "sensor.bed_h": _FakeState(50),
+            "sensor.kitchen_t": _FakeState(23),
+            "sensor.hall_t": _FakeState(22),
+            "sensor.bed_t": _FakeState(21),
+            "sensor.l1_iaq": _FakeState(85),
+            "sensor.co_val": _FakeState(4),
+        },
+    )
+    engine_room_alert_dynamic = HIAutomationEngine(hass_room_alert_dynamic, entry_room_alert_dynamic)
+    await engine_room_alert_dynamic._evaluate()
+    assert hass_room_alert_dynamic.data["humidity_intelligence"][ENTRY_ID].get("runtime_mode") == "alert"
+    assert any(
+        domain == "humidity_intelligence" and service == "flash_lights"
+        for domain, service, *_ in hass_room_alert_dynamic.services.calls
     )
 
     # Alerts without target lights should still activate runtime alert mode,
@@ -738,6 +780,12 @@ async def _run_runtime_assertions(engine_mod) -> None:
     await engine_shared_humid._evaluate()
     assert hass_shared_humid.data["humidity_intelligence"][ENTRY_ID]["hi_input_booleans"]["air_downstairs_humidifier_active"].is_on
     assert hass_shared_humid.data["humidity_intelligence"][ENTRY_ID]["hi_input_booleans"]["air_upstairs_humidifier_active"].is_on
+    humid_reason = hass_shared_humid.data["humidity_intelligence"][ENTRY_ID].get("runtime_reason", "")
+    assert "Humidifier:" in humid_reason
+    assert "status=" not in humid_reason
+    assert "action=" not in humid_reason
+    assert "Trigger:" not in humid_reason
+    assert "Recovery:" not in humid_reason
     # Level1 recovers: its off transition becomes the newest command on shared output.
     hass_shared_humid.states._values["sensor.kitchen_h"] = _FakeState(55)
     hass_shared_humid.states._values["sensor.hall_h"] = _FakeState(55)
@@ -920,6 +968,15 @@ async def _run_runtime_assertions(engine_mod) -> None:
         domain == "humidifier" and service == "turn_off" and data.get("entity_id") == "humidifier.l1"
         for domain, service, data, _ in hass_humid_band.services.calls
     )
+
+    # Runtime reason state must stay within HA state limit and preserve full text.
+    long_reason = "X" * 400
+    await engine_humid_band._set_runtime_reason(long_reason)
+    stored = hass_humid_band.data["humidity_intelligence"][ENTRY_ID]
+    assert isinstance(stored.get("runtime_reason"), str)
+    assert len(stored.get("runtime_reason")) <= 255
+    assert stored.get("runtime_reason_full") == long_reason
+    assert stored.get("runtime_reason_truncated") is True
 
     # Cleanup background AQ tasks.
     for task in list(engine._aq_tasks.values()):

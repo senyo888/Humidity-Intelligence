@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from homeassistant.core import HomeAssistant
@@ -18,6 +17,12 @@ from homeassistant.util import slugify
 
 from ..const import DOMAIN
 from ..helpers.parsing import format_temperature, hass_temperature_unit, parse_numeric, parse_temperature
+from ..helpers.seasonal import (
+    condensation_risk as seasonal_condensation_risk,
+    humidity_state as seasonal_humidity_state,
+    mould_risk as seasonal_mould_risk,
+    resolve_target_profile,
+)
 from ..helpers.zone_validation import detect_zone_mapping_duplicates, summarize_zone_mapping_duplicates
 
 _LOGGER = logging.getLogger(__name__)
@@ -190,6 +195,18 @@ class _CoreComputations:
             self._compute_target_high,
             unit=PERCENTAGE,
             icon="mdi:target",
+        ))
+        sensors.append(make(
+            "HI Active Target Season",
+            "target_season",
+            self._compute_target_season,
+            icon="mdi:calendar",
+        ))
+        sensors.append(make(
+            "HI House Humidity State",
+            "house_humidity_state",
+            self._compute_house_humidity_state,
+            icon="mdi:water-sync",
         ))
         sensors.append(make(
             "HI Worst Room Condensation",
@@ -420,35 +437,93 @@ class _CoreComputations:
             "display_unit": display_unit,
         }
 
-    def _compute_target_low(self) -> Tuple[int, Dict[str, Any]]:
-        month = datetime.now().month
-        if month in (11, 12, 1, 2, 3):
-            return 45, {}
-        if month in (6, 7, 8):
-            return 51, {}
-        return 47, {}
+    def _compute_target_low(self) -> Tuple[float, Dict[str, Any]]:
+        profile = self._active_target_profile()
+        return profile.low, {
+            "season": profile.label,
+            "profile": profile.key,
+            "high_risk": profile.high_risk,
+        }
 
-    def _compute_target_high(self) -> Tuple[int, Dict[str, Any]]:
-        month = datetime.now().month
-        if month in (11, 12, 1, 2, 3):
-            return 55, {}
-        if month in (6, 7, 8):
-            return 60, {}
-        return 58, {}
+    def _compute_target_high(self) -> Tuple[float, Dict[str, Any]]:
+        profile = self._active_target_profile()
+        return profile.high, {
+            "season": profile.label,
+            "profile": profile.key,
+            "high_risk": profile.high_risk,
+        }
+
+    def _compute_target_season(self) -> Tuple[str, Dict[str, Any]]:
+        profile = self._active_target_profile()
+        return profile.label, {
+            "profile": profile.key,
+            "target_low": profile.low,
+            "target_high": profile.high,
+            "high_risk": profile.high_risk,
+        }
+
+    def _compute_house_humidity_state(self) -> Tuple[str, Dict[str, Any]]:
+        profile = self._active_target_profile()
+        humidity = self._compute_house_avg_humidity()[0]
+        state = seasonal_humidity_state(humidity, profile)
+        if humidity is not None:
+            _LOGGER.debug(
+                "HI entry %s humidity badge classification: %s (humidity=%.1f, low=%.1f, high=%.1f, high_risk=%.1f, profile=%s)",
+                self.entry.entry_id,
+                state,
+                humidity,
+                profile.low,
+                profile.high,
+                profile.high_risk,
+                profile.label,
+            )
+        return state, {
+            "humidity": humidity,
+            "target_low": profile.low,
+            "target_high": profile.high,
+            "high_risk": profile.high_risk,
+            "season": profile.label,
+            "profile": profile.key,
+        }
 
     def _compute_worst_condensation(self) -> Tuple[str, Dict[str, Any]]:
+        profile = self._active_target_profile()
         rooms = self._room_metrics()
         worst = max(rooms, key=lambda r: _RISK_ORDER.get(r.condensation_risk, -1), default=None)
         if not worst:
-            return "Unknown", {"risk": "Unknown"}
-        return worst.name, {"risk": worst.condensation_risk}
+            return "Unknown", {
+                "risk": "Unknown",
+                "season": profile.label,
+                "profile": profile.key,
+            }
+        return worst.name, {
+            "risk": worst.condensation_risk,
+            "season": profile.label,
+            "profile": profile.key,
+            "danger_spread_threshold": profile.condensation_danger_spread,
+            "risk_spread_threshold": profile.condensation_risk_spread,
+            "watch_spread_threshold": profile.condensation_watch_spread,
+        }
 
     def _compute_worst_mould(self) -> Tuple[str, Dict[str, Any]]:
+        profile = self._active_target_profile()
         rooms = self._room_metrics()
         worst = max(rooms, key=lambda r: _RISK_ORDER.get(r.mould_risk, -1), default=None)
         if not worst:
-            return "Unknown", {"risk": "Unknown"}
-        return worst.name, {"risk": worst.mould_risk}
+            return "Unknown", {
+                "risk": "Unknown",
+                "season": profile.label,
+                "profile": profile.key,
+            }
+        return worst.name, {
+            "risk": worst.mould_risk,
+            "season": profile.label,
+            "profile": profile.key,
+            "humidity_target_high": profile.high,
+            "humidity_high_risk": profile.high_risk,
+            "spread_danger_threshold": profile.mould_spread_danger,
+            "spread_risk_threshold": profile.mould_spread_risk,
+        }
 
     def _compute_house_iaq_avg(self) -> Tuple[Optional[float], Dict[str, Any]]:
         values = self._collect_values("iaq")
@@ -490,8 +565,13 @@ class _CoreComputations:
         return round(current - mean, 1), {}
 
     def _compute_humidity_danger(self) -> Tuple[bool, Dict[str, Any]]:
+        profile = self._active_target_profile()
         values = self._collect_values("humidity")
-        return any(val >= 75 for val in values), {}
+        return any(val >= profile.high_risk for val in values), {
+            "threshold": profile.high_risk,
+            "season": profile.label,
+            "profile": profile.key,
+        }
 
     def _compute_mode(self) -> Tuple[str, Dict[str, Any]]:
         data = self.hass.data.get(DOMAIN, {}).get(self.entry.entry_id, {})
@@ -520,8 +600,13 @@ class _CoreComputations:
     def _compute_reason(self) -> Tuple[str, Dict[str, Any]]:
         data = self.hass.data.get(DOMAIN, {}).get(self.entry.entry_id, {})
         reason = data.get("runtime_reason")
+        full_reason = data.get("runtime_reason_full")
+        truncated = bool(data.get("runtime_reason_truncated"))
         if isinstance(reason, str) and reason.strip():
-            return reason.strip(), {}
+            attrs: Dict[str, Any] = {"truncated": truncated}
+            if isinstance(full_reason, str) and full_reason.strip():
+                attrs["full_reason"] = full_reason.strip()
+            return reason.strip(), attrs
         return "System is armed and monitoring sensors. No action is needed right now.", {}
 
     def _compute_kitchen_humidity_delta(self) -> Tuple[Optional[float], Dict[str, Any]]:
@@ -549,11 +634,17 @@ class _CoreComputations:
 
     def _compute_worst_condensation_risk(self) -> Tuple[str, Dict[str, Any]]:
         _, attrs = self._compute_worst_condensation()
-        return attrs.get("risk", "Unknown"), {}
+        return attrs.get("risk", "Unknown"), {
+            "season": attrs.get("season"),
+            "profile": attrs.get("profile"),
+        }
 
     def _compute_worst_mould_risk(self) -> Tuple[str, Dict[str, Any]]:
         _, attrs = self._compute_worst_mould()
-        return attrs.get("risk", "Unknown"), {}
+        return attrs.get("risk", "Unknown"), {
+            "season": attrs.get("season"),
+            "profile": attrs.get("profile"),
+        }
 
     def _compute_zone_mapping_duplicates(self) -> Tuple[str, Dict[str, Any]]:
         duplicates = detect_zone_mapping_duplicates(
@@ -583,11 +674,19 @@ class _CoreComputations:
 
     def _compute_condensation_danger(self) -> Tuple[bool, Dict[str, Any]]:
         state, attrs = self._compute_worst_condensation()
-        return attrs.get("risk") == "Danger", {"worst_room": state}
+        return attrs.get("risk") == "Danger", {
+            "worst_room": state,
+            "season": attrs.get("season"),
+            "profile": attrs.get("profile"),
+        }
 
     def _compute_mould_danger(self) -> Tuple[bool, Dict[str, Any]]:
         state, attrs = self._compute_worst_mould()
-        return attrs.get("risk") == "Danger", {"worst_room": state}
+        return attrs.get("risk") == "Danger", {
+            "worst_room": state,
+            "season": attrs.get("season"),
+            "profile": attrs.get("profile"),
+        }
 
     def _compute_room_humidity_delta(self, room: str) -> Tuple[Optional[float], Dict[str, Any]]:
         sensor_id = self.rooms.get(room, {}).get("humidity")
@@ -667,6 +766,7 @@ class _CoreComputations:
         return values
 
     def _room_metrics(self) -> List[_RoomMetrics]:
+        profile = self._active_target_profile()
         metrics: List[_RoomMetrics] = []
         for room, sensors in self.rooms.items():
             rh = _get_float(self.hass, sensors.get("humidity"))
@@ -679,8 +779,8 @@ class _CoreComputations:
             else:
                 dp = _dew_point(temp, rh)
                 spread = temp - dp if dp is not None else None
-                cond = _condensation_risk(spread)
-                mould = _mould_risk(rh, spread)
+                cond = seasonal_condensation_risk(spread, profile)
+                mould = seasonal_mould_risk(rh, spread, profile)
             metrics.append(_RoomMetrics(
                 name=self.room_labels.get(room, room),
                 humidity=rh,
@@ -724,6 +824,14 @@ class _CoreComputations:
     def _find_room_value(self, room_hint: str, sensor_type: str) -> Optional[float]:
         entity_id = self._find_room_entity_id(room_hint, sensor_type)
         return _get_float(self.hass, entity_id)
+
+    def _active_target_profile(self):
+        return resolve_target_profile(self._effective_config())
+
+    def _effective_config(self) -> Dict[str, Any]:
+        data = dict(getattr(self.entry, "data", None) or {})
+        data.update(dict(getattr(self.entry, "options", None) or {}))
+        return data
 
 
 def _get_float(hass: HomeAssistant, entity_id: Optional[str]) -> Optional[float]:
@@ -769,40 +877,6 @@ def _dew_point(temp_c: float, rh: float) -> Optional[float]:
     import math
     gamma = (a * temp_c / (b + temp_c)) + math.log(rh / 100.0)
     return round((b * gamma) / (a - gamma), 1)
-
-
-def _condensation_risk(spread: Optional[float]) -> str:
-    if spread is None:
-        return "Unknown"
-    if spread <= 2:
-        return "Danger"
-    if spread <= 4:
-        return "Risk"
-    if spread <= 6:
-        return "Watch"
-    return "OK"
-
-
-def _mould_risk(rh: Optional[float], spread: Optional[float]) -> str:
-    if rh is None or spread is None:
-        return "Unknown"
-    level = 0
-    if rh >= 75:
-        level += 2
-    elif rh >= 68:
-        level += 1
-    if spread <= 2:
-        level += 2
-    elif spread <= 4:
-        level += 1
-    level = min(level, 3)
-    if level >= 3:
-        return "Danger"
-    if level == 2:
-        return "Risk"
-    if level == 1:
-        return "Watch"
-    return "OK"
 
 
 def _slugify_room(room: str) -> str:

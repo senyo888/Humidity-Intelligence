@@ -11,7 +11,7 @@
       },
       "gates": {
         "title": "Global Gates",
-        "description": "Configure time and presence gates that apply to all automations.",
+        "description": "Configure time and presence gates that apply to all automations. Also select how HI resolves the active humidity target profile (auto seasonal, forced season, or custom band).",
         "data": {
           "enable_time_gate": "Enable time gate",
           "start_time": "Start time",
@@ -19,6 +19,9 @@
           "outside_action": "Outside window action",
           "engine_interval_minutes": "Control loop interval",
           "alert_only_mode": "Alert-only mode (monitor + alerts only)",
+          "target_profile": "Target profile mode",
+          "custom_target_low": "Custom target low (%)",
+          "custom_target_high": "Custom target high (%)",
           "enable_presence_gate": "Enable presence gate",
           "presence_entities": "Presence entities (any helper/entity)"
         }
@@ -126,7 +129,7 @@
       },
       "zone_thresholds": {
         "title": "Zone Thresholds",
-        "description": "Tune thresholds for selected triggers.\n\nHumidity above house average uses the selected rooms' average humidity compared to the whole-house average. The threshold is the delta in % points.\n\nCondensation risk uses dew-point spread:\nspread = temperature - dew_point\nLower spread = higher risk (air is closer to saturation).\nThe threshold is in degC of spread:\n2 degC = Danger\n4 degC = Risk\n6 degC = Watch\n\nMould risk is derived from humidity + dew-point spread and normalized to levels:\nLevel 1 = Watch\nLevel 2 = Risk\nLevel 3 = Danger\nSo a threshold of 2 triggers when risk reaches Risk or Danger.",
+        "description": "Tune thresholds for selected triggers.\n\nHumidity above house average uses the selected rooms' average humidity compared to the whole-house average. The threshold is the delta in % points.\n\nCondensation risk uses dew-point spread:\nspread = temperature - dew_point\nLower spread = higher risk (air is closer to saturation).\nIn v2.0.2, interpretation is season-aware and relative to the active target profile. The configured slider remains deterministic and is mapped to a seasonal spread threshold.\n\nMould risk is derived from humidity relative to the active target band plus dew-point spread, normalized to levels:\nLevel 1 = Watch\nLevel 2 = Risk\nLevel 3 = Danger\nSo a threshold of 2 triggers when risk reaches Risk or Danger for the active profile.",
         "data": {
           "humidity_high": "Humidity above house avg (delta %)",
           "condensation_risk": "Condensation risk (dew-point spread degC)",
@@ -264,7 +267,7 @@
       },
       "options_gates": {
         "title": "Global Gates Options",
-        "description": "Edit global time and presence gates. Presence can use person, device_tracker, alarm panel, or helper entities.",
+        "description": "Edit global time and presence gates. Presence can use person, device_tracker, alarm panel, or helper entities. Target profile mode controls seasonal vs custom humidity interpretation.",
         "data": {
           "enable_time_gate": "Enable time gate",
           "start_time": "Start time",
@@ -272,6 +275,9 @@
           "outside_action": "Outside window action",
           "engine_interval_minutes": "Control loop interval",
           "alert_only_mode": "Alert-only mode (monitor + alerts only)",
+          "target_profile": "Target profile mode",
+          "custom_target_low": "Custom target low (%)",
+          "custom_target_high": "Custom target high (%)",
           "enable_presence_gate": "Enable presence gate",
           "presence_entities": "Presence/alarm entities"
         }

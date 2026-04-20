@@ -15,6 +15,7 @@ from homeassistant.helpers import selector
 from homeassistant.helpers.selector import SelectOptionDict
 
 from .helpers.zone_validation import detect_zone_mapping_duplicates, summarize_zone_mapping_duplicates
+from .helpers.seasonal import resolve_target_profile
 from .const import (
     DOMAIN,
     DEFAULT_TIME_END,
@@ -51,6 +52,12 @@ from .const import (
     COMMON_ROOMS,
     FAN_OUTPUT_LEVEL_AUTO,
     FAN_OUTPUT_LEVEL_STEPS,
+    TARGET_PROFILE_OPTIONS,
+    TARGET_CUSTOM_LOW_MIN,
+    TARGET_CUSTOM_LOW_MAX,
+    TARGET_CUSTOM_HIGH_MIN,
+    TARGET_CUSTOM_HIGH_MAX,
+    TARGET_CUSTOM_STEP,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -100,6 +107,22 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_gates(self, user_input: Optional[Dict[str, Any]] = None):
         """Collect global time and presence gate settings."""
         if user_input is not None:
+            target_profile = _normalize_target_profile(user_input.get("target_profile", "auto"))
+            custom_low = _bounded_float(
+                user_input.get("custom_target_low"),
+                TARGET_CUSTOM_LOW_MIN,
+                TARGET_CUSTOM_LOW_MAX,
+                45.0,
+            )
+            custom_high = _bounded_float(
+                user_input.get("custom_target_high"),
+                TARGET_CUSTOM_HIGH_MIN,
+                TARGET_CUSTOM_HIGH_MAX,
+                55.0,
+            )
+            if custom_high <= custom_low:
+                custom_high = min(float(TARGET_CUSTOM_HIGH_MAX), custom_low + 1.0)
+
             self._data["time_gate"] = {
                 "enabled": user_input.get("enable_time_gate", False),
                 "start": user_input.get("start_time"),
@@ -110,6 +133,9 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 "engine_interval_minutes", ENGINE_INTERVAL_MINUTES_DEFAULT
             )
             self._data["alert_only_mode"] = user_input.get("alert_only_mode", False)
+            self._data["target_profile"] = target_profile
+            self._data["custom_target_low"] = custom_low
+            self._data["custom_target_high"] = custom_high
             presence_enabled = user_input.get("enable_presence_gate", False)
             entities = user_input.get("presence_entities", [])
             self._data["presence_gate"] = {
@@ -142,6 +168,30 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
             ),
             vol.Optional("alert_only_mode", default=self._data.get("alert_only_mode", False)): selector.BooleanSelector(),
+            vol.Optional("target_profile", default=self._data.get("target_profile", "auto")): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in TARGET_PROFILE_OPTIONS],
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            ),
+            vol.Optional("custom_target_low", default=self._data.get("custom_target_low", 45.0)): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=TARGET_CUSTOM_LOW_MIN,
+                    max=TARGET_CUSTOM_LOW_MAX,
+                    step=TARGET_CUSTOM_STEP,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="%",
+                )
+            ),
+            vol.Optional("custom_target_high", default=self._data.get("custom_target_high", 55.0)): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=TARGET_CUSTOM_HIGH_MIN,
+                    max=TARGET_CUSTOM_HIGH_MAX,
+                    step=TARGET_CUSTOM_STEP,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="%",
+                )
+            ),
             vol.Optional("enable_presence_gate", default=False): selector.BooleanSelector(),
             vol.Optional("presence_entities", default=[]): selector.EntitySelector(
                 selector.EntitySelectorConfig(multiple=True)
@@ -810,7 +860,12 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         power_entity_default: Optional[str] = None
         flash_mode_default = _default_alert_flash_mode()
         duration_default = 10
-        threshold_default_value: Any = _safe_alert_threshold(trigger_default, None)
+        humidity_threshold_fallback = _humidity_danger_threshold(self._data)
+        threshold_default_value: Any = _safe_alert_threshold(
+            trigger_default,
+            None,
+            humidity_threshold_fallback,
+        )
 
         if user_input is not None:
             enabled_default = bool(user_input.get("enabled", True))
@@ -822,7 +877,11 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             power_entity_default = _sanitize_optional_entity_id(user_input.get("power_entity"))
             flash_mode_default = _normalize_alert_flash_mode(user_input.get("flash_mode"))
             duration_default = _safe_alert_duration(user_input.get("duration", 10))
-            threshold_default_value = _safe_alert_threshold(trigger_default, user_input.get("threshold"))
+            threshold_default_value = _safe_alert_threshold(
+                trigger_default,
+                user_input.get("threshold"),
+                humidity_threshold_fallback,
+            )
 
             try:
                 if trigger_default == "custom_binary" and not custom_trigger_default:
@@ -964,6 +1023,12 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             return self._options.get(key, default)
         return _entry_section(self._entry, key, default)
 
+    def _effective_config(self) -> Dict[str, Any]:
+        config = dict(getattr(self._entry, "data", None) or {})
+        config.update(dict(getattr(self._entry, "options", None) or {}))
+        config.update(dict(self._options))
+        return config
+
     def _sync_slope_after_telemetry_add(self, telemetry_entry: Dict[str, Any]) -> None:
         """Keep slope source associations in sync when adding temperature telemetry."""
         if telemetry_entry.get("sensor_type") != "temperature":
@@ -1054,6 +1119,34 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         default_away_states = _sanitize_state_values(presence_gate.get("away_states", []))
 
         if user_input is not None:
+            target_profile = _normalize_target_profile(
+                user_input.get("target_profile", self._section("target_profile", "auto"))
+            )
+            custom_low = _bounded_float(
+                user_input.get("custom_target_low"),
+                TARGET_CUSTOM_LOW_MIN,
+                TARGET_CUSTOM_LOW_MAX,
+                _bounded_float(
+                    self._section("custom_target_low", 45.0),
+                    TARGET_CUSTOM_LOW_MIN,
+                    TARGET_CUSTOM_LOW_MAX,
+                    45.0,
+                ),
+            )
+            custom_high = _bounded_float(
+                user_input.get("custom_target_high"),
+                TARGET_CUSTOM_HIGH_MIN,
+                TARGET_CUSTOM_HIGH_MAX,
+                _bounded_float(
+                    self._section("custom_target_high", 55.0),
+                    TARGET_CUSTOM_HIGH_MIN,
+                    TARGET_CUSTOM_HIGH_MAX,
+                    55.0,
+                ),
+            )
+            if custom_high <= custom_low:
+                custom_high = min(float(TARGET_CUSTOM_HIGH_MAX), custom_low + 1.0)
+
             self._options["time_gate"] = {
                 "enabled": user_input.get("enable_time_gate", False),
                 "start": user_input.get("start_time"),
@@ -1065,6 +1158,9 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 "engine_interval_minutes",
                 self._section("engine_interval_minutes", ENGINE_INTERVAL_MINUTES_DEFAULT),
             )
+            self._options["target_profile"] = target_profile
+            self._options["custom_target_low"] = custom_low
+            self._options["custom_target_high"] = custom_high
 
             presence_enabled = user_input.get("enable_presence_gate", False)
             entities = _sanitize_entity_ids(user_input.get("presence_entities", []))
@@ -1109,6 +1205,30 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 )
             ),
             vol.Optional("alert_only_mode", default=self._section("alert_only_mode", False)): selector.BooleanSelector(),
+            vol.Optional("target_profile", default=self._section("target_profile", "auto")): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in TARGET_PROFILE_OPTIONS],
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            ),
+            vol.Optional("custom_target_low", default=self._section("custom_target_low", 45.0)): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=TARGET_CUSTOM_LOW_MIN,
+                    max=TARGET_CUSTOM_LOW_MAX,
+                    step=TARGET_CUSTOM_STEP,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="%",
+                )
+            ),
+            vol.Optional("custom_target_high", default=self._section("custom_target_high", 55.0)): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=TARGET_CUSTOM_HIGH_MIN,
+                    max=TARGET_CUSTOM_HIGH_MAX,
+                    step=TARGET_CUSTOM_STEP,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="%",
+                )
+            ),
             vol.Optional("enable_presence_gate", default=presence_gate.get("enabled", False)): selector.BooleanSelector(),
             vol.Optional("presence_entities", default=default_presence_entities): selector.EntitySelector(
                 selector.EntitySelectorConfig(multiple=True)
@@ -1874,7 +1994,12 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         power_entity_default: Optional[str] = None
         flash_mode_default = _default_alert_flash_mode()
         duration_default = 10
-        threshold_default_value: Any = _safe_alert_threshold(trigger_default, None)
+        humidity_threshold_fallback = _humidity_danger_threshold(self._effective_config())
+        threshold_default_value: Any = _safe_alert_threshold(
+            trigger_default,
+            None,
+            humidity_threshold_fallback,
+        )
 
         if user_input is not None:
             enabled_default = bool(user_input.get("enabled", True))
@@ -1886,7 +2011,11 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             power_entity_default = _sanitize_optional_entity_id(user_input.get("power_entity"))
             flash_mode_default = _normalize_alert_flash_mode(user_input.get("flash_mode"))
             duration_default = _safe_alert_duration(user_input.get("duration", 10))
-            threshold_default_value = _safe_alert_threshold(trigger_default, user_input.get("threshold"))
+            threshold_default_value = _safe_alert_threshold(
+                trigger_default,
+                user_input.get("threshold"),
+                humidity_threshold_fallback,
+            )
 
             try:
                 if trigger_default == "custom_binary" and not custom_trigger_default:
@@ -1991,7 +2120,12 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         power_entity_default = _sanitize_optional_entity_id(alert.get("power_entity"))
         flash_mode_default = _normalize_alert_flash_mode(alert.get("flash_mode"))
         duration_default = _safe_alert_duration(alert.get("duration", 10))
-        threshold_default = _safe_alert_threshold(trigger_default, alert.get("threshold"))
+        humidity_threshold_fallback = _humidity_danger_threshold(self._effective_config())
+        threshold_default = _safe_alert_threshold(
+            trigger_default,
+            alert.get("threshold"),
+            humidity_threshold_fallback,
+        )
 
         if user_input is not None:
             trigger_default = _normalize_alert_trigger_type(user_input.get("trigger_type", trigger_default))
@@ -2012,6 +2146,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             threshold_default = _safe_alert_threshold(
                 trigger_default,
                 user_input.get("threshold", threshold_default),
+                humidity_threshold_fallback,
             )
 
             try:
@@ -2270,12 +2405,26 @@ def _alert_threshold_bounds(trigger_type: Any) -> Tuple[float, float, float, Opt
     )
 
 
-def _safe_alert_threshold(trigger_type: Any, value: Any) -> Any:
+def _humidity_danger_threshold(config: Dict[str, Any]) -> float:
+    try:
+        profile = resolve_target_profile(config or {})
+        return float(profile.high_risk)
+    except Exception:
+        _LOGGER.debug("Falling back to static humidity danger threshold default.", exc_info=True)
+        return float(ALERT_THRESHOLD_BOUNDS.get("humidity_danger", {}).get("default", 75.0))
+
+
+def _safe_alert_threshold(trigger_type: Any, value: Any, fallback: Optional[float] = None) -> Any:
     min_value, max_value, default_value, _ = _alert_threshold_bounds(trigger_type)
     parsed = None
     if value not in (None, ""):
         try:
             parsed = float(value)
+        except (TypeError, ValueError):
+            parsed = None
+    if parsed is None:
+        try:
+            parsed = float(fallback) if fallback is not None else None
         except (TypeError, ValueError):
             parsed = None
     if parsed is None:
@@ -2615,6 +2764,22 @@ def _aq_trigger_options(level: str) -> List[SelectOptionDict]:
         label = f"{trig['label']} ({level})"
         opts.append(SelectOptionDict(value=key, label=label))
     return opts
+
+
+def _normalize_target_profile(value: Any) -> str:
+    raw = str(value or "auto").strip().lower()
+    allowed = {item["value"] for item in TARGET_PROFILE_OPTIONS}
+    if raw in allowed:
+        return raw
+    return "auto"
+
+
+def _bounded_float(value: Any, min_value: float, max_value: float, fallback: float) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        parsed = fallback
+    return max(float(min_value), min(float(max_value), parsed))
 
 
 def _fan_output_level_options() -> List[SelectOptionDict]:

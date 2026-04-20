@@ -52,6 +52,20 @@ OUTSIDE_WINDOW_ACTIONS = [
     {"value": "safe_state", "label": "Force safe state"},
 ]
 
+TARGET_PROFILE_OPTIONS = [
+    {"value": "auto", "label": "Auto (seasonal)"},
+    {"value": "spring", "label": "Spring"},
+    {"value": "summer", "label": "Summer"},
+    {"value": "autumn", "label": "Autumn"},
+    {"value": "winter", "label": "Winter"},
+    {"value": "custom", "label": "Custom"},
+]
+TARGET_CUSTOM_LOW_MIN = 30
+TARGET_CUSTOM_LOW_MAX = 65
+TARGET_CUSTOM_HIGH_MIN = 35
+TARGET_CUSTOM_HIGH_MAX = 75
+TARGET_CUSTOM_STEP = 0.5
+
 # Optional UI dependencies used by the dashboards
 DEPENDENCIES = [
     {

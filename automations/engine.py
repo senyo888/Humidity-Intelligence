@@ -30,11 +30,20 @@ from ..const import (
 )
 from ..services import SERVICE_FLASH_LIGHTS
 from ..helpers.parsing import hass_temperature_unit, parse_numeric, parse_temperature
+from ..helpers.seasonal import (
+    condensation_risk as seasonal_condensation_risk,
+    humidity_state as seasonal_humidity_state,
+    mould_level as seasonal_mould_level,
+    resolve_target_profile,
+)
 
 CO_EMERGENCY_START = 15
 CO_EMERGENCY_CLEAR = 10
 
 _LOGGER = logging.getLogger(__name__)
+
+_MAX_STATE_LENGTH = 255
+_TRUNCATION_SUFFIX = " [full in attribute]"
 
 
 class HIAutomationEngine:
@@ -132,6 +141,35 @@ class HIAutomationEngine:
 
     async def _evaluate(self) -> None:
         try:
+            target_profile = self._active_target_profile()
+            house_humidity = self._level_avg("humidity", None)
+            humidity_class = seasonal_humidity_state(house_humidity, target_profile)
+            _LOGGER.debug(
+                "HI entry %s active target profile: %s (low=%.1f high=%.1f high_risk=%.1f)",
+                self.entry.entry_id,
+                target_profile.label,
+                target_profile.low,
+                target_profile.high,
+                target_profile.high_risk,
+            )
+            _LOGGER.debug(
+                "HI entry %s seasonal adjustments applied: condensation danger<=%.1f risk<=%.1f watch<=%.1f; mould spread danger<=%.1f risk<=%.1f; mould excess risk>=%.1f danger>=%.1f",
+                self.entry.entry_id,
+                target_profile.condensation_danger_spread,
+                target_profile.condensation_risk_spread,
+                target_profile.condensation_watch_spread,
+                target_profile.mould_spread_danger,
+                target_profile.mould_spread_risk,
+                target_profile.mould_excess_risk,
+                target_profile.mould_excess_danger,
+            )
+            _LOGGER.debug(
+                "HI entry %s humidity badge classification: %s (humidity=%s)",
+                self.entry.entry_id,
+                humidity_class,
+                f"{house_humidity:.1f}%" if house_humidity is not None else "unknown",
+            )
+
             control_lock_reason = self._control_lock_reason()
             if control_lock_reason:
                 await self._return_to_normal()
@@ -414,7 +452,8 @@ class HIAutomationEngine:
                 return self._room_mould_danger(room_scope)
             return self.hass.states.is_state("binary_sensor.hi_mould_danger", "on")
         if ttype == "humidity_danger":
-            threshold = _safe_alert_threshold("humidity_danger", alert.get("threshold"), 75.0)
+            profile = self._active_target_profile()
+            threshold = _safe_alert_threshold("humidity_danger", alert.get("threshold"), profile.high_risk)
             values = self._collect_values("humidity", room_scope=room_scope)
             return any(val >= threshold for val in values)
         if ttype == "co_emergency":
@@ -453,6 +492,7 @@ class HIAutomationEngine:
         )
 
     def _zone_trigger_level(self, triggers: List[str], zone: Dict[str, Any], level: Optional[str]) -> Tuple[Optional[str], List[str]]:
+        profile = self._active_target_profile()
         normal_level = _normalize_fan_level(
             zone.get("output_level", ZONE_OUTPUT_LEVEL_DEFAULT),
             ZONE_OUTPUT_LEVEL_DEFAULT,
@@ -491,10 +531,16 @@ class HIAutomationEngine:
             elif trig == "condensation_risk":
                 spread = self._worst_spread()
                 threshold_val = _to_float(threshold)
-                if spread is not None and threshold_val is not None and spread <= threshold_val:
+                if threshold_val is None:
+                    threshold_val = 4.0
+                adjusted_threshold = profile.condensation_risk_spread + (threshold_val - 4.0)
+                adjusted_threshold = max(0.5, min(12.0, adjusted_threshold))
+                if spread is not None and spread <= adjusted_threshold:
                     selected_level = _max_fan_level(selected_level, boost_level)
                     trigger_details.append(
-                        f"Dew-point spread {spread:.1f} degC <= threshold {threshold_val:g} degC"
+                        "Dew-point spread "
+                        f"{spread:.1f} degC <= seasonal threshold {adjusted_threshold:g} degC "
+                        f"(profile {profile.label}, user baseline {threshold_val:g} degC)"
                     )
             elif trig == "mould_risk":
                 risk_level = self._worst_mould_level()
@@ -626,6 +672,7 @@ class HIAutomationEngine:
 
     async def _handle_humidifiers(self) -> List[Dict[str, Any]]:
         active_details: List[Dict[str, Any]] = []
+        profile = self._active_target_profile()
         configured_levels = set(self.humidifiers.keys())
         for level in ("level1", "level2"):
             if level in configured_levels:
@@ -653,35 +700,99 @@ class HIAutomationEngine:
             if recovery_in_band is None:
                 recovery_in_band = float(HUMIDIFIER_RECOVERY_IN_BAND_DEFAULT)
             recovery_in_band = max(1.0, min(8.0, recovery_in_band))
-            low = _target_low() + band_adjust
-            high = _target_high() + band_adjust
+            low = profile.low + band_adjust
+            high = profile.high + band_adjust
+            high_risk = profile.high_risk + band_adjust
             recovery_off = min(high, low + recovery_in_band)
             currently_active = self._bool_is_on(active_key)
+            lane_label = "downstairs" if level == "level1" else "upstairs"
             if avg <= low:
+                action = "hold_on"
                 if not currently_active:
                     await self._set_humidifier_outputs_state(outputs, True)
                     await self._set_bool(active_key, True)
+                    action = "turn_on"
+                _LOGGER.debug(
+                    "HI entry %s humidifier trigger: lane=%s humidity=%.1f start<=%.1f stop>=%.1f target=%.1f-%.1f season=%s action=%s",
+                    self.entry.entry_id,
+                    lane_label,
+                    avg,
+                    low,
+                    recovery_off,
+                    low,
+                    high,
+                    profile.label,
+                    action,
+                )
                 active_details.append({
                     "level": level,
+                    "lane": lane_label,
+                    "season": profile.label,
+                    "profile": profile.key,
+                    "status": "active",
+                    "action": action,
                     "humidity": avg,
                     "low": low,
                     "high": high,
+                    "high_risk": high_risk,
                     "recovery_off": recovery_off,
                     "outputs": outputs,
+                    "trigger_condition": f"{avg:.1f}% <= start threshold {low:.1f}%",
+                    "recovery_behavior": (
+                        f"Stop when humidity recovers to {recovery_off:.1f}% "
+                        f"(inside target band {low:.1f}-{high:.1f}%)."
+                    ),
                 })
             elif avg >= recovery_off:
+                action = "hold_off"
                 if currently_active:
                     await self._set_humidifier_outputs_state(outputs, False)
                     await self._set_bool(active_key, False)
+                    action = "turn_off"
+                _LOGGER.debug(
+                    "HI entry %s humidifier stop: lane=%s humidity=%.1f start<=%.1f stop>=%.1f target=%.1f-%.1f season=%s action=%s",
+                    self.entry.entry_id,
+                    lane_label,
+                    avg,
+                    low,
+                    recovery_off,
+                    low,
+                    high,
+                    profile.label,
+                    action,
+                )
             else:
                 if currently_active:
+                    _LOGGER.debug(
+                        "HI entry %s humidifier recovering: lane=%s humidity=%.1f start<=%.1f stop>=%.1f target=%.1f-%.1f season=%s",
+                        self.entry.entry_id,
+                        lane_label,
+                        avg,
+                        low,
+                        recovery_off,
+                        low,
+                        high,
+                        profile.label,
+                    )
                     active_details.append({
                         "level": level,
+                        "lane": lane_label,
+                        "season": profile.label,
+                        "profile": profile.key,
+                        "status": "recovering",
+                        "action": "hold_on",
                         "humidity": avg,
                         "low": low,
                         "high": high,
+                        "high_risk": high_risk,
                         "recovery_off": recovery_off,
                         "outputs": outputs,
+                        "trigger_condition": (
+                            f"{avg:.1f}% is between start {low:.1f}% and stop {recovery_off:.1f}%"
+                        ),
+                        "recovery_behavior": (
+                            f"Lane stays on until humidity reaches {recovery_off:.1f}% to avoid short-cycling."
+                        ),
                     })
         return active_details
 
@@ -748,7 +859,11 @@ class HIAutomationEngine:
         threshold = alert.get("threshold")
         threshold_suffix = ""
         if threshold not in (None, "") and trigger_type in {"humidity_danger", "co_emergency"}:
-            default_threshold = 75.0 if trigger_type == "humidity_danger" else float(CO_EMERGENCY_START)
+            default_threshold = (
+                self._active_target_profile().high_risk
+                if trigger_type == "humidity_danger"
+                else float(CO_EMERGENCY_START)
+            )
             threshold = _safe_alert_threshold(trigger_type, threshold, default_threshold)
             threshold_suffix = f" @ {threshold}"
         room_scope = self._alert_room_scope(alert)
@@ -784,7 +899,8 @@ class HIAutomationEngine:
         if dp is None:
             return False
         spread = temp - dp
-        return spread <= 2
+        profile = self._active_target_profile()
+        return seasonal_condensation_risk(spread, profile) == "Danger"
 
     def _room_mould_danger(self, room: str) -> bool:
         rh = self._rooms_avg("humidity", [room])
@@ -799,7 +915,8 @@ class HIAutomationEngine:
         if dp is None:
             return False
         spread = temp - dp
-        return _mould_level(rh, spread) >= 3
+        profile = self._active_target_profile()
+        return seasonal_mould_level(rh, spread, profile) >= 3
 
     def _build_runtime_reason(
         self,
@@ -814,32 +931,40 @@ class HIAutomationEngine:
         aq_details: List[Dict[str, Any]],
         humidifier_details: List[Dict[str, Any]],
     ) -> str:
+        base_reason = ""
         if runtime_mode == "alert" and alert_labels:
-            return (
+            base_reason = (
                 f"Alert response is active ({'; '.join(alert_labels)}). "
                 "All other lanes are paused until the alert clears."
             )
-        if runtime_mode == "cooking":
+        elif runtime_mode == "cooking":
             if zone1_detail:
                 zone_label = zone1_detail.get("ui_label") or "Zone 1"
-                return self._format_zone_detail(zone1_detail, str(zone_label))
-            return "Zone 1 extraction is active."
-        if runtime_mode == "bathroom":
+                base_reason = self._format_zone_detail(zone1_detail, str(zone_label))
+            else:
+                base_reason = "Zone 1 extraction is active."
+        elif runtime_mode == "bathroom":
             if zone2_detail:
                 zone_label = zone2_detail.get("ui_label") or "Zone 2"
-                return self._format_zone_detail(zone2_detail, str(zone_label))
-            return "Zone 2 extraction is active."
-        if runtime_mode == "air_quality" and aq_active:
-            return self._format_aq_detail(aq_details)
-        if humidifier_details:
-            return self._format_humidifier_detail(humidifier_details)
-        house_humidity = self._level_avg("humidity", None)
-        if house_humidity is not None:
-            return (
-                f"System is armed and monitoring telemetry. "
-                f"Current house humidity is {house_humidity:.1f}% and no lane currently needs to run."
-            )
-        return "System is armed and monitoring telemetry. No automation lane currently needs to run."
+                base_reason = self._format_zone_detail(zone2_detail, str(zone_label))
+            else:
+                base_reason = "Zone 2 extraction is active."
+        elif runtime_mode == "air_quality" and aq_active:
+            base_reason = self._format_aq_detail(aq_details)
+        else:
+            house_humidity = self._level_avg("humidity", None)
+            if house_humidity is not None:
+                base_reason = (
+                    "System is armed and monitoring telemetry. "
+                    f"Current house humidity is {house_humidity:.1f}% and no lane currently needs to run."
+                )
+            else:
+                base_reason = "System is armed and monitoring telemetry. No automation lane currently needs to run."
+
+        humidifier_reason = self._format_humidifier_detail(humidifier_details) if humidifier_details else ""
+        if humidifier_reason:
+            return f"{base_reason} {humidifier_reason}".strip()
+        return base_reason
 
     def _format_zone_detail(self, detail: Dict[str, Any], zone_label: str) -> str:
         outputs = self._format_output_entities(detail.get("outputs", []))
@@ -865,21 +990,42 @@ class HIAutomationEngine:
         return " ".join(segments)
 
     def _format_humidifier_detail(self, details: List[Dict[str, Any]]) -> str:
-        segments: List[str] = []
-        for item in details:
+        if not details:
+            return ""
+
+        active = [item for item in details if item.get("status") in {"active", "recovering"}]
+        if not active:
+            return ""
+
+        if len(active) >= 2:
+            segments: List[str] = ["Humidifier: downstairs and upstairs lanes are active."]
+        else:
+            lane = "downstairs" if active[0].get("level") == "level1" else "upstairs"
+            status = "recovering" if str(active[0].get("status") or "") == "recovering" else "running"
+            segments = [f"Humidifier: {lane} lane is {status}."]
+
+        for item in active:
             level = "Downstairs" if item.get("level") == "level1" else "Upstairs"
-            humidity = item.get("humidity")
-            low = item.get("low")
-            high = item.get("high")
-            recovery_off = item.get("recovery_off")
-            outputs = self._format_output_entities(item.get("outputs", []))
-            if humidity is None:
-                segments.append(f"{level} humidifier is active on {outputs}.")
+            humidity = _to_float(item.get("humidity"))
+            low = _to_float(item.get("low"))
+            high = _to_float(item.get("high"))
+            recovery_off = _to_float(item.get("recovery_off"))
+            status = str(item.get("status") or "active")
+
+            if humidity is None or low is None or high is None or recovery_off is None:
+                segments.append(f"{level}: humidity data is unavailable.")
                 continue
-            segments.append(
-                f"{level} humidifier is active on {outputs}. "
-                f"Humidity is {humidity:.1f}% (target band {low:.1f}% - {high:.1f}%, off threshold {recovery_off:.1f}%)."
-            )
+
+            if status == "recovering":
+                segments.append(
+                    f"{level}: {humidity:.1f}% (target {low:.1f}-{high:.1f}%). "
+                    f"Holding on until {recovery_off:.1f}% to avoid short-cycling."
+                )
+            else:
+                segments.append(
+                    f"{level}: {humidity:.1f}% is at or below the {low:.1f}% start point "
+                    f"(target {low:.1f}-{high:.1f}%). It will stop at {recovery_off:.1f}%."
+                )
         return " ".join(segments)
 
     def _entity_display_name(self, entity_id: str) -> str:
@@ -989,7 +1135,10 @@ class HIAutomationEngine:
 
     async def _set_runtime_reason(self, reason: str) -> None:
         data = self.hass.data.setdefault(DOMAIN, {}).setdefault(self.entry.entry_id, {})
-        data["runtime_reason"] = reason
+        safe_reason, full_reason = _state_safe_reason(reason)
+        data["runtime_reason"] = safe_reason
+        data["runtime_reason_full"] = full_reason
+        data["runtime_reason_truncated"] = bool(full_reason)
 
     def _bool_is_on(self, key: str) -> bool:
         data = self.hass.data.get(DOMAIN, {}).get(self.entry.entry_id, {})
@@ -1180,6 +1329,7 @@ class HIAutomationEngine:
 
     def _worst_mould_level(self) -> int:
         rooms = _room_map(self.telemetry)
+        profile = self._active_target_profile()
         level = 0
         for room, sensors in rooms.items():
             rh = _get_float(self.hass, sensors.get("humidity"), sensor_type="humidity")
@@ -1190,9 +1340,17 @@ class HIAutomationEngine:
             if dp is None:
                 continue
             spread = temp - dp
-            risk = _mould_level(rh, spread)
+            risk = seasonal_mould_level(rh, spread, profile)
             level = max(level, risk)
         return level
+
+    def _active_target_profile(self):
+        return resolve_target_profile(self._effective_config())
+
+    def _effective_config(self) -> Dict[str, Any]:
+        config = dict(getattr(self.entry, "data", None) or {})
+        config.update(dict(getattr(self.entry, "options", None) or {}))
+        return config
 
 
 def _get_float(
@@ -1237,37 +1395,6 @@ def _dew_point(temp_c: float, rh: float) -> Optional[float]:
     b = 243.12
     gamma = (a * temp_c / (b + temp_c)) + math.log(rh / 100.0)
     return (b * gamma) / (a - gamma)
-
-
-def _mould_level(rh: float, spread: float) -> int:
-    level = 0
-    if rh >= 75:
-        level += 2
-    elif rh >= 68:
-        level += 1
-    if spread <= 2:
-        level += 2
-    elif spread <= 4:
-        level += 1
-    return min(level, 3)
-
-
-def _target_low() -> float:
-    month = datetime.now().month
-    if month in (11, 12, 1, 2, 3):
-        return 45
-    if month in (6, 7, 8):
-        return 51
-    return 47
-
-
-def _target_high() -> float:
-    month = datetime.now().month
-    if month in (11, 12, 1, 2, 3):
-        return 55
-    if month in (6, 7, 8):
-        return 60
-    return 58
 
 
 def _parse_time(value) -> Optional[datetime.time]:
@@ -1472,5 +1599,28 @@ def _safe_alert_threshold(trigger_type: str, value: Any, fallback: float) -> flo
 
     threshold = _to_float(value)
     if threshold is None:
+        threshold = _to_float(fallback)
+    if threshold is None:
         threshold = default_value
     return max(min_value, min(max_value, threshold))
+
+
+def _state_safe_reason(reason: Any) -> Tuple[str, Optional[str]]:
+    text = str(reason or "").strip()
+    if not text:
+        return "", None
+    if len(text) <= _MAX_STATE_LENGTH:
+        return text, None
+
+    # Keep sensor state within HA's state length while preserving full context in attributes.
+    head_limit = _MAX_STATE_LENGTH - len(_TRUNCATION_SUFFIX) - 3
+    if head_limit < 0:
+        head_limit = 0
+    head = text[:head_limit].rstrip()
+    if head.endswith("."):
+        state = f"{head}..{_TRUNCATION_SUFFIX}"
+    else:
+        state = f"{head}...{_TRUNCATION_SUFFIX}"
+    if len(state) > _MAX_STATE_LENGTH:
+        state = state[:_MAX_STATE_LENGTH]
+    return state, text

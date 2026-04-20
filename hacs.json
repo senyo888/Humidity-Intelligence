@@ -2,7 +2,6 @@
   "name": "Humidity Intelligence",
   "render_readme": true,
   "content_in_root": true,
-  "domains": ["sensor", "binary_sensor"],
+  "domains": ["humidity_intelligence"],
   "country": "GB"
 }
-

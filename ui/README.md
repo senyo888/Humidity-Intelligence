@@ -1,8 +1,5 @@
 # Humidity Intelligence V2 UI
 
-<img src="../assets/readme/ui_v2_mobile_aq.png" width="320" alt="HI v2 mobile AQ UI preview">
-
-
 ## Canonical Runtime Presentation Layer
 
 ---
@@ -45,6 +42,19 @@ Difference:
 - tablet: squared top badges
 
 Feature parity is maintained.
+
+---
+
+## UI Preview
+
+### v1 Mobile (Legacy-Compatible Skin)
+<img src="../assets/readme/ui_v1_mobile.png" width="320" alt="HI v1 mobile UI preview">
+
+### v2 Mobile (AQ State Example)
+<img src="../assets/readme/ui_v2_mobile_aq.png" width="320" alt="HI v2 mobile AQ UI preview">
+
+### v2 Tablet (Zone State Example)
+<img src="../assets/readme/ui_v2_tablet_zone_2.png" width="320" alt="HI v2 tablet zone UI preview">
 
 ---
 
@@ -143,6 +153,18 @@ If mismatch occurs:
 
 ---
 
+## v2.0.2 UI Contract Updates
+
+- Humidity badge colors are now target-relative:
+  - `below_target` = blue
+  - `in_target` = green
+  - `above_target` = yellow
+  - `high_risk` = red
+- Target humidity display now includes the active season/profile label (`Spring`, `Summer`, `Autumn`, `Winter`, or `Custom`).
+- Reason window now includes expanded humidifier logic context from runtime telemetry (lane scope, trigger condition, thresholds, and recovery behavior).
+
+---
+
 ## Legacy v1 UI Support
 
 `v1_mobile.yaml` remains compatible with the V2 engine.
@@ -153,21 +175,6 @@ It does not reintroduce:
 - v1 packages
 
 Backend must be fully removed before using V2 runtime
-
----
-
-## UI Preview
-
-### v1 Mobile (Legacy-Compatible Skin)
-<img src="../assets/readme/ui_v1_mobile.png" width="320" alt="HI v1 mobile UI preview">
-
-### v2 Mobile (AQ State Example)
-<img src="../assets/readme/ui_v2_mobile_aq.png" width="320" alt="HI v2 mobile AQ UI preview">
-
-### v2 Tablet (Zone State Example)
-<img src="../assets/readme/ui_v2_tablet_zone_2.png" width="320" alt="HI v2 tablet zone UI preview">
-
----
 
 
 ```
