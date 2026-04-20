@@ -11,6 +11,15 @@
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.x%2B-blue)](https://www.home-assistant.io/)
 [![License](https://img.shields.io/github/license/senyo888/Humidity-Intelligence)](LICENSE)
 
+<details>
+<summary><strong>Quick Demo (GIF)</strong></summary>
+
+<br>
+
+![Humidity Intelligence quick demo](assets/readme/hi_quick_demo.gif)
+
+</details>
+
 ---
 
 ## Contents
