@@ -25,6 +25,8 @@ sensor.house_average_humidity
 sensor.house_average_temperature
 sensor.house_humidity_target_low
 sensor.house_humidity_target_high
+sensor.house_humidity_target_season
+sensor.house_humidity_state
 sensor.house_humidity_drift_7d
 sensor.worst_room_condensation
 sensor.worst_room_condensation_risk
