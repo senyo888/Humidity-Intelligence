@@ -53,37 +53,21 @@ cards:
             - background: rgba(10,12,16,0.62)
             - border: |
                 [[[
-                  const h = parseFloat(entity.state);
-                  const danger =
-                    states['binary_sensor.humidity_danger']?.state === 'on' ||
-                    states['binary_sensor.condensation_danger']?.state === 'on' ||
-                    states['binary_sensor.mould_danger']?.state === 'on';
-
-                  if (danger) return '2px solid rgba(239,68,68,0.85)';
-                  if (isNaN(h)) return '2px solid rgba(148,163,184,0.22)';
-
-                  if (h < 45) return '2px solid rgba(56,189,248,0.75)';
-                  if (h < 49) return '2px solid rgba(125,211,252,0.70)';
-                  if (h < 55) return '2px solid rgba(74,222,128,0.70)';
-                  if (h < 60) return '2px solid rgba(250,204,21,0.75)';
-                  return '2px solid rgba(239,68,68,0.85)';
+                  const state = String(states['sensor.house_humidity_state']?.state || '').toLowerCase();
+                  if (state === 'below_target') return '2px solid rgba(56,189,248,0.75)';
+                  if (state === 'in_target') return '2px solid rgba(74,222,128,0.70)';
+                  if (state === 'above_target') return '2px solid rgba(250,204,21,0.75)';
+                  if (state === 'high_risk') return '2px solid rgba(239,68,68,0.85)';
+                  return '2px solid rgba(148,163,184,0.22)';
                 ]]]
             - box-shadow: |
                 [[[
-                  const h = parseFloat(entity.state);
-                  const danger =
-                    states['binary_sensor.humidity_danger']?.state === 'on' ||
-                    states['binary_sensor.condensation_danger']?.state === 'on' ||
-                    states['binary_sensor.mould_danger']?.state === 'on';
-
-                  if (danger) return '0 0 22px rgba(239,68,68,0.45)';
-                  if (isNaN(h)) return '0 0 16px rgba(148,163,184,0.18)';
-
-                  if (h < 45) return '0 0 20px rgba(56,189,248,0.30)';
-                  if (h < 49) return '0 0 20px rgba(125,211,252,0.26)';
-                  if (h < 55) return '0 0 20px rgba(74,222,128,0.26)';
-                  if (h < 60) return '0 0 20px rgba(250,204,21,0.28)';
-                  return '0 0 22px rgba(239,68,68,0.40)';
+                  const state = String(states['sensor.house_humidity_state']?.state || '').toLowerCase();
+                  if (state === 'below_target') return '0 0 20px rgba(56,189,248,0.30)';
+                  if (state === 'in_target') return '0 0 20px rgba(74,222,128,0.26)';
+                  if (state === 'above_target') return '0 0 20px rgba(250,204,21,0.28)';
+                  if (state === 'high_risk') return '0 0 22px rgba(239,68,68,0.40)';
+                  return '0 0 16px rgba(148,163,184,0.18)';
                 ]]]
           grid:
             - grid-template-areas: "\"i\" \"n\" \"s\""
@@ -100,19 +84,12 @@ cards:
                 ]]]
             - color: |
                 [[[
-                  const h = parseFloat(entity.state);
-                  const danger =
-                    states['binary_sensor.humidity_danger']?.state === 'on' ||
-                    states['binary_sensor.condensation_danger']?.state === 'on' ||
-                    states['binary_sensor.mould_danger']?.state === 'on';
-
-                  if (danger) return '#ef4444';
-                  if (isNaN(h)) return '#94a3b8';
-                  if (h < 45) return '#38bdf8';
-                  if (h < 49) return '#7dd3fc';
-                  if (h < 55) return '#4ade80';
-                  if (h < 60) return '#facc15';
-                  return '#ef4444';
+                  const state = String(states['sensor.house_humidity_state']?.state || '').toLowerCase();
+                  if (state === 'below_target') return '#38bdf8';
+                  if (state === 'in_target') return '#4ade80';
+                  if (state === 'above_target') return '#facc15';
+                  if (state === 'high_risk') return '#ef4444';
+                  return '#94a3b8';
                 ]]]
           name:
             - font-size: |
@@ -132,19 +109,12 @@ cards:
             - letter-spacing: 0.2px
             - color: |
                 [[[
-                  const h = parseFloat(entity.state);
-                  const danger =
-                    states['binary_sensor.humidity_danger']?.state === 'on' ||
-                    states['binary_sensor.condensation_danger']?.state === 'on' ||
-                    states['binary_sensor.mould_danger']?.state === 'on';
-
-                  if (danger) return '#ef4444';
-                  if (isNaN(h)) return '#94a3b8';
-                  if (h < 45) return '#38bdf8';
-                  if (h < 49) return '#7dd3fc';
-                  if (h < 55) return '#4ade80';
-                  if (h < 60) return '#facc15';
-                  return '#ef4444';
+                  const state = String(states['sensor.house_humidity_state']?.state || '').toLowerCase();
+                  if (state === 'below_target') return '#38bdf8';
+                  if (state === 'in_target') return '#4ade80';
+                  if (state === 'above_target') return '#facc15';
+                  if (state === 'high_risk') return '#ef4444';
+                  return '#94a3b8';
                 ]]]
         card_mod:
           style: |
@@ -638,14 +608,15 @@ cards:
         const lowEnt   = states['sensor.house_humidity_target_low'];
         const highEnt  = states['sensor.house_humidity_target_high'];
         const hEnt     = states['sensor.house_average_humidity'];
+        const season   = String(states['sensor.house_humidity_target_season']?.state || 'Seasonal').trim() || 'Seasonal';
 
         const low  = lowEnt  ? parseFloat(lowEnt.state)  : NaN;
         const high = highEnt ? parseFloat(highEnt.state) : NaN;
         const h    = hEnt    ? parseFloat(hEnt.state)    : NaN;
 
         const bandTxt = (isNaN(low) || isNaN(high))
-          ? 'Target humidity: —'
-          : `Target humidity: ${low.toFixed(0)}–${high.toFixed(0)}%`;
+          ? `Target humidity (${season}): —`
+          : `Target humidity (${season}): ${low.toFixed(0)}–${high.toFixed(0)}%`;
 
         let comfort = 'Comfort: —';
         if (!isNaN(h) && !isNaN(low) && !isNaN(high)) {
