@@ -2,15 +2,13 @@
 
 ![Humidity Intelligence banner](assets/header.png)
 
-# Humidity Intelligence – v2 integration
+# Humidity Intelligence V2
 
 ## Deterministic Environmental Control for Home Assistant
 
-![Humidity Intelligence logo](assets/logo.png)
-
 [![Latest Release](https://img.shields.io/github/v/release/senyo888/Humidity-Intelligence?display_name=tag&sort=semver)](https://github.com/senyo888/Humidity-Intelligence/releases)
 [![HACS](https://img.shields.io/badge/HACS-Integration-orange)](https://hacs.xyz)
-[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.2.3%2B-blue)](https://www.home-assistant.io/)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.x%2B-blue)](https://www.home-assistant.io/)
 [![License](https://img.shields.io/github/license/senyo888/Humidity-Intelligence)](LICENSE)
 
 ---
@@ -19,6 +17,7 @@
 
 - [What Humidity Intelligence V2 Is](#what-humidity-intelligence-v2-is)
 - [Why Environmental Stability Matters](#why-environmental-stability-matters)
+- [Season-Aware Environmental Control](#season-aware-environmental-control)
 - [Architecture Overview](#architecture-overview)
 - [Installation](#installation)
 - [Migration Guide - v1 to v2](#migration-guide---v1-to-v2)
@@ -26,7 +25,7 @@
 - [Configuration Screenshots (Visual Guide)](#configuration-screenshots-visual-guide)
 - [Post-Configuration Workflow](#post-configuration-workflow)
 - [How to Use Services](#how-to-use-services)
-- [Release Notes ](#release-notes)
+- [Release Notes](#release-notes)
 - [Design Philosophy](#design-philosophy)
 
 ---
@@ -49,6 +48,8 @@ There is no trigger race condition.
 There is one resolved outcome, every time.
 
 This is environmental control with structure.
+
+Positioning: **environmental stability + seasonal context**.
 
 ---
 
@@ -90,6 +91,27 @@ They emerge as:
 Most homes oscillate between both extremes seasonally.
 
 V2 models that instability structurally.
+
+---
+
+## Season-Aware Environmental Control
+
+`56%` is not always "high."
+
+Humidity Intelligence v2.0.2 evaluates humidity **relative to the active target profile**:
+
+- Winter defaults to a lower comfort band than summer
+- Spring and autumn use intermediate bands
+- Custom target profiles are supported when configured
+
+Interpretation now follows target-relative states:
+
+- `below_target` -> dry for the active profile
+- `in_target` -> stable band for the active profile
+- `above_target` -> elevated for the active profile
+- `high_risk` -> materially above the active profile's safe limit
+
+This keeps stability as the primary goal while making evaluation season-correct and explainable.
 
 ---
 
@@ -149,6 +171,20 @@ The UI reflects runtime truth:
 The UI does not compute logic.
 The engine decides.
 The UI renders.
+
+---
+
+## v2.0.2 Highlights
+
+- target-relative humidity evaluation (no static winter-biased badge thresholds)
+- seasonal profile awareness (Spring/Summer/Autumn/Winter/Custom)
+- improved condensation and mould modelling with seasonal thresholds
+- full humidifier reasoning telemetry (lane, trigger, thresholds, recovery behavior)
+- UI target display now includes active season label
+- Current Air Control reason output now carries expanded humidifier logic context
+
+Upgrade note: **v2.0.2 refines environmental interpretation and UI accuracy.**
+No breaking schema changes are introduced.
 
 ---
 
@@ -441,6 +477,20 @@ When modifying options:
    - reason text
    - output behavior
 
+Post-config sensor/lane management:
+
+1. use `Sensors` to add, edit, or delete any telemetry row (humidity, temperature, IAQ, PM2.5, VOC, CO2, CO)
+2. use `Humidifiers` to add/edit/remove humidifier lanes per level and update output entities
+3. use `Air Quality` to add/edit/remove AQ lanes per level and update triggers/outputs
+4. lane selections marked as `not configured - select to add` can be used to create missing lanes later without reinstalling
+
+Alert-only toggle workflow:
+
+1. toggle `alert_only_mode` in options and save
+2. HI reloads and regenerates exported cards automatically
+3. open the updated `/config/humidity_intelligence_cards_<layout>.yaml`
+4. re-paste YAML into Manual card(s) so control visibility and reason text match mode
+
 ---
 
 ## How to Use Services
@@ -456,17 +506,6 @@ Notes:
 - `entry_id` is optional for most services. If omitted, HI uses all entries or first valid entry based on service behavior.
 - File outputs are written into your HA config folder.
 
-
-## V1 UI
-![Humidity Intelligence V1 UI](assets/ui_v1_mobile.png)
-
-
-## V2 UI Mobile
-![Humidity Intelligence V2 UI_mobile](assets/ui_v2_mobile_aq.png)
-
-## V2 UI Tablet
-![Humidity Intelligence V2 UI_tablet](assets/ui_v2_tablet_zone_2.png)
-  
 ### `create_dashboard`
 Purpose:
 - create a Lovelace dashboard from a rendered HI layout.
@@ -588,7 +627,15 @@ Safety guidance:
 
 ---
 
-## Release Notes 
+## Release Notes
+
+### v2.0.2
+
+- humidity badge semantics corrected to target-relative states (`below_target`, `in_target`, `above_target`, `high_risk`)
+- active target season/profile surfaced in UI target display
+- condensation and mould risk evaluation updated to season-aware deterministic thresholds
+- humidifier telemetry reason expanded with lane scope, trigger condition, measured values vs thresholds, and recovery logic
+- runtime debug logs added for active target profile, seasonal adjustments, humidity badge classification, and humidifier trigger/stop events
 
 ### v2.0.1 fixes
 
@@ -610,9 +657,13 @@ Safety guidance:
 
 - `alert_only_mode` is now available in Global Gates (setup and options). Disable it later to restore normal control entities/lane behavior.
 - new computed sensor: `HI Zone Mapping Duplicates` (`hi_<entry_id>_zone_mapping_duplicates`) exposes duplicate zone mapping status and details.
+- new computed sensors:
+  - `HI Active Target Season` (`hi_<entry_id>_target_season`)
+  - `HI House Humidity State` (`hi_<entry_id>_house_humidity_state`)
 - generated V2 cards now prune unresolved optional control/output entities instead of leaving stale references.
 - if your dashboard uses Manual cards, re-copy/paste the latest exported YAML after changing `alert_only_mode` so the UI and reason panel match the selected mode.
 
+---
 
 ## Design Philosophy
 
@@ -623,4 +674,3 @@ Safety guidance:
 - safe fallback over silent failure
 
 Humidity Intelligence V2 your environmental runtime architecture.
-
