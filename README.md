@@ -47,6 +47,7 @@
 - [Season-Aware Environmental Control](#season-aware-environmental-control)
 - [Architecture Overview](#architecture-overview)
 - [Installation](#installation)
+- [Dependencies](#dependencies)
 - [Migration Guide - v1 to v2](#migration-guide---v1-to-v2)
 - [Full Configuration Flow](#full-configuration-flow)
 - [Configuration Screenshots (Visual Guide)](#configuration-screenshots-visual-guide)
@@ -228,6 +229,61 @@ No breaking schema changes are introduced.
 5. Search for **Humidity Intelligence**
 6. Begin configuration
 
+---
+
+## Dependencies
+
+Humidity Intelligence V2 is designed to run **fully at the backend level**, but the **UI experience depends on a small set of frontend cards**.
+
+You can complete setup without them, but if you want the **full visual system (badges, charts, reason panel, mobile/tablet layouts)**, these are strongly recommended.
+
+### Core Recommendation
+
+Install via HACS before anything else.
+
+### Frontend Dependencies (UI Layer)
+
+The following projects power the visual layer of Humidity Intelligence:
+
+- [card-mod](https://github.com/thomasloven/lovelace-card-mod)  
+  Advanced styling engine used for dynamic visuals, glow states, and conditional UI rendering.
+- [button-card](https://github.com/custom-cards/button-card)  
+  Core building block for badges, status indicators, and interactive UI elements.
+- [mod-card](https://github.com/thomasloven/lovelace-card-mod)  
+  Structural wrapper used to apply styling cleanly across complex card layouts.
+- [apexcharts-card](https://github.com/RomRider/apexcharts-card)  
+  Powers historical graphs, trend analysis, and environmental visualisation.
+
+### Installation Notes
+
+- All dependencies can be installed via HACS (**Frontend** section).
+- After installing, hard refresh your browser or use a new session to avoid caching issues.
+- If you skip these, the system still runs, but UI elements may not render correctly.
+
+### Acknowledgements
+
+Huge respect and thanks to the creators of these projects. Humidity Intelligence builds on top of their work:
+
+- **Thomas Loven** for card-mod and mod-card
+- **Custom Cards Community** for button-card
+- **RomRider** for apexcharts-card
+
+These tools are foundational to the Home Assistant ecosystem, and this project would not hit the same level without them.
+
+### Suggested Setup Approach
+
+If you are unsure:
+
+1. Install HACS
+2. Install the dependencies above
+3. Continue with the configuration flow
+
+Or:
+
+- Skip for now
+- Complete backend setup first
+- Add the UI layer afterwards
+
 
 ---
 
@@ -279,13 +335,12 @@ Follow this sequence on first install.
 ### 1) Dependencies
 
 What to do:
-- review optional frontend dependencies
+- open the Dependencies step in config flow
+- review installed/detected status and repo links
 - continue even if some are not installed
 
-Suggested baseline:
-- install HACS first
-- install card helpers used by your chosen dashboard style
-- if unsure, continue with skip and complete backend setup first
+Reference:
+- see [Dependencies](#dependencies) for install guidance and acknowledgements
 
 
 ### 2) Global Gates
