@@ -736,7 +736,7 @@ Safety guidance:
 - humidifier telemetry reason expanded with lane scope, trigger condition, measured values vs thresholds, and recovery logic
 - runtime debug logs added for active target profile, seasonal adjustments, humidity badge classification, and humidifier trigger/stop events
 
-### v2.0.1 fixes
+### v2.0.1
 
 - fixed Fahrenheit telemetry normalization by converting all internal temperature math to Celsius before averages, spreads, deltas, and thresholds
 - fixed aggregate behavior so IAQ/AQ averages ignore `unknown`, `unavailable`, and non-numeric states and only return unknown when no valid values exist
