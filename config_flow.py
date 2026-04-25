@@ -1098,6 +1098,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_menu(
             step_id="init",
             menu_options=[
+                "options_dependencies",
                 "options_sensors",
                 "options_gates",
                 "options_zones",
@@ -1107,6 +1108,27 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 "options_slope",
                 "options_done",
             ],
+        )
+
+    async def async_step_options_dependencies(self, user_input: Optional[Dict[str, Any]] = None):
+        """Review optional UI dependency status from post-configuration options."""
+        if user_input is not None:
+            self._options["skip_dependencies"] = user_input.get(
+                "skip", self._section("skip_dependencies", False)
+            )
+            return await self.async_step_init()
+
+        dep_lines = await _render_dependency_status(self.hass)
+        schema = vol.Schema({
+            vol.Optional(
+                "skip",
+                default=bool(self._section("skip_dependencies", False)),
+            ): selector.BooleanSelector()
+        })
+        return self.async_show_form(
+            step_id="options_dependencies",
+            data_schema=schema,
+            description_placeholders={"dependencies": dep_lines},
         )
 
     async def async_step_options_gates(self, user_input: Optional[Dict[str, Any]] = None):
@@ -2325,7 +2347,7 @@ async def _render_dependency_status(hass: HomeAssistant) -> str:
             path = custom_components_path / dep["domain"]
             if path.exists():
                 status = "Detected"
-        lines.append(f"- {dep['name']} ({status}) - {url}")
+        lines.append(f"- {dep['name']}: {status} | repo: {url}")
 
     return "\n".join(lines)
 

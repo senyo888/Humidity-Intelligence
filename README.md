@@ -7,8 +7,8 @@
 ## Deterministic Environmental Control for Home Assistant
 
 [![Latest Release](https://img.shields.io/github/v/release/senyo888/Humidity-Intelligence?display_name=tag&sort=semver)](https://github.com/senyo888/Humidity-Intelligence/releases)
-[![HACS](https://img.shields.io/badge/HACS-Integration-orange)](https://hacs.xyz)
-[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.x%2B-blue)](https://www.home-assistant.io/)
+[![HACS](https://img.shields.io/badge/HACS-Custom%20Integration-orange)](https://hacs.xyz)
+[![Home Assistant](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fsenyo888%2FHumidity-Intelligence%2Fmain%2Fmanifest.json&query=%24.homeassistant&prefix=%3E%3D&label=Home%20Assistant&color=blue)](https://www.home-assistant.io/)
 [![License](https://img.shields.io/github/license/senyo888/Humidity-Intelligence)](LICENSE)
 
 <details>
@@ -126,7 +126,7 @@ V2 models that instability structurally.
 
 `56%` is not always "high."
 
-Humidity Intelligence v2.0.2 evaluates humidity **relative to the active target profile**:
+Humidity Intelligence v2.0.3 evaluates humidity **relative to the active target profile**:
 
 - Winter defaults to a lower comfort band than summer
 - Spring and autumn use intermediate bands
@@ -202,16 +202,15 @@ The UI renders.
 
 ---
 
-## v2.0.2 Highlights
+## v2.0.3 Highlights
 
-- target-relative humidity evaluation (no static winter-biased badge thresholds)
-- seasonal profile awareness (Spring/Summer/Autumn/Winter/Custom)
-- improved condensation and mould modelling with seasonal thresholds
-- full humidifier reasoning telemetry (lane, trigger, thresholds, recovery behavior)
-- UI target display now includes active season label
-- Current Air Control reason output now carries expanded humidifier logic context
+- dependency UX refined in setup and post-configuration (Dependencies is now first-class and revisitable)
+- dependency status lines now include direct upstream repository links for fast install/verification
+- options menu order updated to prioritize setup sequence: Dependencies -> Sensors -> Global Gates
+- README dependency guidance expanded and clarified for HACS-first UI setup
+- top badges updated for clearer positioning (`Custom Integration`) and auto-synced Home Assistant compatibility from `manifest.json`
 
-Upgrade note: **v2.0.2 refines environmental interpretation and UI accuracy.**
+Upgrade note: **v2.0.3 focuses on dependency clarity, UI onboarding accuracy, and metadata consistency.**
 No breaking schema changes are introduced.
 
 ---
@@ -710,6 +709,16 @@ Safety guidance:
 ---
 
 ## Release Notes
+
+### v2.0.3
+
+- bumped integration version to `2.0.3`
+- updated minimum Home Assistant version to `2026.4.3` in `manifest.json`
+- dependency status output now includes direct repository links (`card-mod`, `button-card`, `mod-card`, `apexcharts-card`, `HACS`)
+- added post-configuration Dependencies options step so dependency checks are accessible after initial setup
+- reordered options menu for setup flow clarity (`Dependencies`, then `Sensors`, then `Global Gates`)
+- refreshed README dependency section with clearer HACS-first install guidance and acknowledgements
+- updated top badges: HACS badge wording now `Custom Integration`, and Home Assistant badge now auto-reads compatibility from `manifest.json`
 
 ### v2.0.2
 
