@@ -302,6 +302,54 @@ V2 is a structured integration with configuration flow and runtime validation.
 
 Migration is required.
 
+---
+
+### Important - HACS Repository Type Change
+
+V1 was installed as a **Template** in HACS.
+V2 is a **Custom Integration**.
+
+If you skip this step, HACS may continue installing files to:
+
+```text
+/config/custom_templates/
+```
+
+This will break updates and prevent V2 from loading correctly.
+
+### Step 0 - Remove V1 from HACS (Required)
+
+1. Go to **HACS -> Humidity Intelligence**
+2. Open the menu (three dots)
+3. Click **Remove**
+4. Restart Home Assistant
+
+### Step 0.1 - Re-add Repository as Integration
+
+1. Go to **HACS -> Menu -> Custom repositories**
+2. Add:
+
+   ```text
+   https://github.com/senyo888/Humidity-Intelligence
+   ```
+
+3. Set category to:
+
+   ```text
+   Integration
+   ```
+
+4. Install **Humidity Intelligence**
+5. Restart Home Assistant
+
+Correct install path should now be:
+
+```text
+/config/custom_components/humidity_intelligence/
+```
+
+---
+
 ### Step 1 - Remove v1 Backend
 
 Delete:
@@ -333,6 +381,33 @@ The classic four-badge + Comfort Band layout remains compatible on the V2 engine
 - V2 = runtime engine
 
 No forced visual migration.
+
+### Post-Migration Check
+
+After install, verify:
+
+- Integration loads in **Settings -> Devices & Services**
+- no references remain to `/custom_templates/`
+- UI renders correctly
+
+If needed, refresh UI:
+
+```yaml
+service: humidity_intelligence.refresh_ui
+```
+
+### Summary
+
+- V1 = Template system (`custom_templates`)
+- V2 = Integration (`custom_components`)
+- HACS must be reconfigured to recognise the new structure
+
+Skipping this step will result in:
+
+- failed updates
+- incorrect install location
+- integration not loading
+
 
 ---
 
