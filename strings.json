@@ -129,7 +129,7 @@
       },
       "zone_thresholds": {
         "title": "Zone Thresholds",
-        "description": "Tune thresholds for selected triggers.\n\nHumidity above house average uses the selected rooms' average humidity compared to the whole-house average. The threshold is the delta in % points.\n\nCondensation risk uses dew-point spread:\nspread = temperature - dew_point\nLower spread = higher risk (air is closer to saturation).\nIn v2.0.2, interpretation is season-aware and relative to the active target profile. The configured slider remains deterministic and is mapped to a seasonal spread threshold.\n\nMould risk is derived from humidity relative to the active target band plus dew-point spread, normalized to levels:\nLevel 1 = Watch\nLevel 2 = Risk\nLevel 3 = Danger\nSo a threshold of 2 triggers when risk reaches Risk or Danger for the active profile.",
+        "description": "Tune thresholds for selected triggers.\n\nHumidity above house average uses the selected rooms' average humidity compared to the whole-house average. The threshold is the delta in % points.\n\nCondensation risk uses dew-point spread:\nspread = temperature - dew_point\nLower spread = higher risk (air is closer to saturation).\nInterpretation is season-aware and relative to the active target profile. The configured slider remains deterministic and is mapped to a seasonal spread threshold.\n\nMould risk is derived from humidity relative to the active target band plus dew-point spread, normalized to levels:\nLevel 1 = Watch\nLevel 2 = Risk\nLevel 3 = Danger\nSo a threshold of 2 triggers when risk reaches Risk or Danger for the active profile.",
         "data": {
           "humidity_high": "Humidity above house avg (delta %)",
           "condensation_risk": "Condensation risk (dew-point spread degC)",
@@ -254,6 +254,7 @@
       "init": {
         "title": "Options",
         "menu_options": {
+          "options_dependencies": "Dependencies",
           "options_sensors": "Sensors",
           "options_gates": "Global Gates",
           "options_telemetry": "Sensors",
@@ -263,6 +264,13 @@
           "options_alerts": "Alerts",
           "options_slope": "Temperature Slope",
           "options_done": "Finish"
+        }
+      },
+      "options_dependencies": {
+        "title": "Dependency Options",
+        "description": "Optional custom cards used by the Humidity Intelligence dashboards.\n\n{dependencies}\n\nEach line includes the upstream repo link for quick install/verification in HACS and Dashboard resources.",
+        "data": {
+          "skip": "Skip dependency checks in setup"
         }
       },
       "options_gates": {
