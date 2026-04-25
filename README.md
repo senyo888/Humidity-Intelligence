@@ -26,14 +26,23 @@
 <br>
 
 <img src="assets/v2_ui_gallery/IMG_5665.png" width="320" alt="V2 UI gallery image 1">
+
 <img src="assets/v2_ui_gallery/IMG_5672.png" width="320" alt="V2 UI gallery image 2">
+
 <img src="assets/v2_ui_gallery/IMG_5673.png" width="320" alt="V2 UI gallery image 3">
+
 <img src="assets/v2_ui_gallery/IMG_5674.png" width="320" alt="V2 UI gallery image 4">
+
 <img src="assets/v2_ui_gallery/IMG_0323.png" width="320" alt="V2 UI gallery image 5">
+
 <img src="assets/v2_ui_gallery/IMG_0324.png" width="320" alt="V2 UI gallery image 6">
+
 <img src="assets/v2_ui_gallery/IMG_5675.png" width="320" alt="V2 UI gallery image 7">
+
 <img src="assets/v2_ui_gallery/ui_v1_mobile.png" width="320" alt="V2 UI gallery image 8">
+
 <img src="assets/v2_ui_gallery/ui_v2_mobile_aq.png" width="320" alt="V2 UI gallery image 9">
+
 <img src="assets/v2_ui_gallery/ui_v2_tablet_zone_2.png" width="320" alt="V2 UI gallery image 10">
 
 </details>
@@ -712,7 +721,6 @@ Safety guidance:
 
 ### v2.0.3
 
-- bumped integration version to `2.0.3`
 - updated minimum Home Assistant version to `2026.4.3` in `manifest.json`
 - dependency status output now includes direct repository links (`card-mod`, `button-card`, `mod-card`, `apexcharts-card`, `HACS`)
 - added post-configuration Dependencies options step so dependency checks are accessible after initial setup
