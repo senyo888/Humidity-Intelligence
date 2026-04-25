@@ -135,7 +135,7 @@ V2 models that instability structurally.
 
 `56%` is not always "high."
 
-Humidity Intelligence v2.0.3 evaluates humidity **relative to the active target profile**:
+Humidity Intelligence v2 evaluates humidity **relative to the active target profile**:
 
 - Winter defaults to a lower comfort band than summer
 - Spring and autumn use intermediate bands
