@@ -22,7 +22,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Check HACS metadata and layout
         shell: bash
@@ -40,18 +40,39 @@ jobs:
               "name",
               "version",
           }
+          allowed_hacs_keys = {
+              "name",
+              "content_in_root",
+              "zip_release",
+              "filename",
+              "render_readme",
+              "hide_default_branch",
+              "country",
+              "homeassistant",
+              "hacs",
+              "persistent_directory",
+          }
 
           hacs_path = Path("hacs.json")
           readme_path = Path("README.md")
+          brand_icon_path = Path("brand/icon.png")
 
           if not hacs_path.exists():
               raise SystemExit("hacs.json must exist at the repository root.")
           if not readme_path.exists():
               raise SystemExit("README.md must exist at the repository root.")
+          if not brand_icon_path.exists():
+              raise SystemExit("Brand asset missing: brand/icon.png")
 
           hacs = json.loads(hacs_path.read_text(encoding="utf-8"))
           if not hacs.get("name"):
               raise SystemExit("hacs.json must include a name.")
+          extra_hacs_keys = sorted(set(hacs) - allowed_hacs_keys)
+          if extra_hacs_keys:
+              raise SystemExit(
+                  "hacs.json contains unsupported keys: "
+                  + ", ".join(extra_hacs_keys)
+              )
 
           custom_component_dirs = [
               path for path in Path("custom_components").glob("*")
