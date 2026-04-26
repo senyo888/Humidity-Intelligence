@@ -1,0 +1,176 @@
+name: Validate
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install requirements if present
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in requirements.txt requirements-dev.txt; do
+            if [ -f "$file" ]; then
+              python -m pip install --upgrade pip
+              python -m pip install -r "$file"
+            fi
+          done
+
+      - name: Check HACS layout
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          hacs = json.loads(Path("hacs.json").read_text(encoding="utf-8"))
+          required = {"domain", "documentation", "issue_tracker", "codeowners", "name", "version"}
+
+          if hacs.get("content_in_root"):
+              manifest = Path("manifest.json")
+          else:
+              integrations = [path for path in Path("custom_components").glob("*") if path.is_dir()]
+              if len(integrations) != 1:
+                  raise SystemExit("Expected exactly one integration under custom_components/ or content_in_root: true in hacs.json.")
+              manifest = integrations[0] / "manifest.json"
+
+          if not manifest.exists():
+              raise SystemExit(f"Missing integration manifest: {manifest}")
+
+          data = json.loads(manifest.read_text(encoding="utf-8"))
+          missing = sorted(required - set(data))
+          if missing:
+              raise SystemExit(f"{manifest} is missing required keys: {', '.join(missing)}")
+
+          print(f"HACS layout OK: {manifest}")
+          PY
+
+      - name: Compile Python
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -d custom_components ]; then
+            python -m compileall -q custom_components
+          else
+            echo "::warning::custom_components/ not found; compiling repository Python files instead."
+            python -m compileall -q .
+          fi
+
+      - name: Validate JSON metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          paths = [Path("hacs.json")]
+          paths += list(Path("custom_components").glob("*/manifest.json"))
+          if Path("manifest.json").exists():
+              paths.append(Path("manifest.json"))
+
+          for path in dict.fromkeys(paths):
+              if not path.exists():
+                  raise SystemExit(f"Missing required file: {path}")
+              json.loads(path.read_text(encoding="utf-8"))
+              print(f"Valid JSON: {path}")
+          PY
+
+      - name: Validate YAML if PyYAML is available
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          try:
+              import yaml
+          except ImportError:
+              print("PyYAML is not installed; skipping YAML validation.")
+              raise SystemExit(0)
+
+          for path in sorted(list(Path(".").rglob("*.yml")) + list(Path(".").rglob("*.yaml"))):
+              if ".git" in path.parts:
+                  continue
+              yaml.safe_load(path.read_text(encoding="utf-8"))
+              print(f"Valid YAML: {path}")
+          PY
+
+      - name: Install security scanners
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install "bandit[toml]" semgrep
+
+      - name: Bandit SAST
+        shell: bash
+        run: |
+          set -euo pipefail
+          bandit -r . -c pyproject.toml --severity-level medium
+          bandit -r . -c pyproject.toml --severity-level low || true
+
+      - name: Semgrep SAST
+        shell: bash
+        run: |
+          set -euo pipefail
+          semgrep scan --config=p/python .
+
+      - name: Secret pattern scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import re
+          from pathlib import Path
+
+          skip_dirs = {".git", ".pytest_cache", "__pycache__", "assets", "brand"}
+          skip_suffixes = {".gif", ".jpg", ".jpeg", ".png", ".pyc"}
+          patterns = {
+              "AWS access key": re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"),
+              "Google API key": re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b"),
+              "GitHub token": re.compile(r"\b(?:ghp_[0-9A-Za-z]{36}|github_pat_[0-9A-Za-z_]{82})\b"),
+              "Slack token": re.compile(r"\bxox[baprs]-[0-9A-Za-z-]+\b"),
+              "OpenAI key": re.compile(r"\bsk-[A-Za-z0-9_-]{20,}\b"),
+              "Private key": re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |)?PRIVATE KEY-----"),
+              "Assigned secret": re.compile(
+                  r"(?i)\b(?:password|api[_-]?key|secret|token)\s*[:=]\s*['\"][^'\"\s]{8,}['\"]"
+              ),
+          }
+
+          findings = []
+          for path in Path(".").rglob("*"):
+              if not path.is_file():
+                  continue
+              if any(part in skip_dirs for part in path.parts):
+                  continue
+              if path.suffix.lower() in skip_suffixes:
+                  continue
+              try:
+                  text = path.read_text(encoding="utf-8")
+              except UnicodeDecodeError:
+                  continue
+              for line_no, line in enumerate(text.splitlines(), 1):
+                  for label, pattern in patterns.items():
+                      if pattern.search(line):
+                          findings.append(f"{path}:{line_no}: possible {label}")
+
+          if findings:
+              print("\n".join(findings))
+              raise SystemExit("Potential secrets found.")
+          print("No high-confidence secret patterns found.")
+          PY

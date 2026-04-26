@@ -44,6 +44,14 @@ _SENSITIVE_ATTR_EXACT = {
     "latitude",
     "longitude",
     "gps_accuracy",
+    "address",
+    "email",
+    "phone",
+    "device_id",
+    "unique_id",
+    "mac",
+    "ssid",
+    "ip",
 }
 _SENSITIVE_ATTR_PARTIAL = (
     "token",
@@ -57,6 +65,15 @@ _SENSITIVE_ATTR_PARTIAL = (
     "latitude",
     "longitude",
     "gps_",
+    "address",
+    "email",
+    "phone",
+    "device_id",
+    "unique_id",
+    "mac_",
+    "_mac",
+    "ssid",
+    "ip_address",
 )
 
 
@@ -494,14 +511,14 @@ def _to_jsonable(value):
     if hasattr(value, "items"):
         try:
             return {str(k): _to_jsonable(v) for k, v in value.items()}
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             pass
     if isinstance(value, (list, tuple, set)):
         return [_to_jsonable(v) for v in value]
     if hasattr(value, "isoformat"):
         try:
             return value.isoformat()
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             pass
     return str(value)
 

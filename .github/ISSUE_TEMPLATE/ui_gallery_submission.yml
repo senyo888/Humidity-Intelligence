@@ -1,0 +1,40 @@
+name: UI Gallery submission
+description: Submit a reusable dashboard/card example.
+title: "[UI Gallery]: "
+labels: ["ui-gallery"]
+body:
+  - type: input
+    id: card-name
+    attributes:
+      label: Card name
+    validations:
+      required: true
+  - type: input
+    id: folder
+    attributes:
+      label: Folder path
+      placeholder: "/ui-gallery/<card-id>/"
+    validations:
+      required: true
+  - type: textarea
+    id: files
+    attributes:
+      label: Included files
+      description: List the README, YAML file, and preview PNG.
+      placeholder: |
+        README.md
+        card.yaml
+        preview.png
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: No private entity IDs, secrets, addresses, or personal data are included.
+          required: true
+        - label: Canonical backend entities/helpers are preserved.
+          required: true
+        - label: The PR targets `develop`.
+          required: true
