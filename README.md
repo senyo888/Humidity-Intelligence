@@ -26,14 +26,23 @@
 <br>
 
 <img src="assets/v2_ui_gallery/IMG_5665.png" width="320" alt="V2 UI gallery image 1">
+
 <img src="assets/v2_ui_gallery/IMG_5672.png" width="320" alt="V2 UI gallery image 2">
+
 <img src="assets/v2_ui_gallery/IMG_5673.png" width="320" alt="V2 UI gallery image 3">
+
 <img src="assets/v2_ui_gallery/IMG_5674.png" width="320" alt="V2 UI gallery image 4">
+
 <img src="assets/v2_ui_gallery/IMG_0323.png" width="320" alt="V2 UI gallery image 5">
+
 <img src="assets/v2_ui_gallery/IMG_0324.png" width="320" alt="V2 UI gallery image 6">
+
 <img src="assets/v2_ui_gallery/IMG_5675.png" width="320" alt="V2 UI gallery image 7">
+
 <img src="assets/v2_ui_gallery/ui_v1_mobile.png" width="320" alt="V2 UI gallery image 8">
+
 <img src="assets/v2_ui_gallery/ui_v2_mobile_aq.png" width="320" alt="V2 UI gallery image 9">
+
 <img src="assets/v2_ui_gallery/ui_v2_tablet_zone_2.png" width="320" alt="V2 UI gallery image 10">
 
 </details>
@@ -126,7 +135,7 @@ V2 models that instability structurally.
 
 `56%` is not always "high."
 
-Humidity Intelligence v2.0.3 evaluates humidity **relative to the active target profile**:
+Humidity Intelligence v2 evaluates humidity **relative to the active target profile**:
 
 - Winter defaults to a lower comfort band than summer
 - Spring and autumn use intermediate bands
@@ -293,6 +302,54 @@ V2 is a structured integration with configuration flow and runtime validation.
 
 Migration is required.
 
+---
+
+### Important - HACS Repository Type Change
+
+V1 was installed as a **Template** in HACS.
+V2 is a **Custom Integration**.
+
+If you skip this step, HACS may continue installing files to:
+
+```text
+/config/custom_templates/
+```
+
+This will break updates and prevent V2 from loading correctly.
+
+### Step 0 - Remove V1 from HACS (Required)
+
+1. Go to **HACS -> Humidity Intelligence**
+2. Open the menu (three dots)
+3. Click **Remove**
+4. Restart Home Assistant
+
+### Step 0.1 - Re-add Repository as Integration
+
+1. Go to **HACS -> Menu -> Custom repositories**
+2. Add:
+
+   ```text
+   https://github.com/senyo888/Humidity-Intelligence
+   ```
+
+3. Set category to:
+
+   ```text
+   Integration
+   ```
+
+4. Install **Humidity Intelligence**
+5. Restart Home Assistant
+
+Correct install path should now be:
+
+```text
+/config/custom_components/humidity_intelligence/
+```
+
+---
+
 ### Step 1 - Remove v1 Backend
 
 Delete:
@@ -324,6 +381,33 @@ The classic four-badge + Comfort Band layout remains compatible on the V2 engine
 - V2 = runtime engine
 
 No forced visual migration.
+
+### Post-Migration Check
+
+After install, verify:
+
+- Integration loads in **Settings -> Devices & Services**
+- no references remain to `/custom_templates/`
+- UI renders correctly
+
+If needed, refresh UI:
+
+```yaml
+service: humidity_intelligence.refresh_ui
+```
+
+### Summary
+
+- V1 = Template system (`custom_templates`)
+- V2 = Integration (`custom_components`)
+- HACS must be reconfigured to recognise the new structure
+
+Skipping this step will result in:
+
+- failed updates
+- incorrect install location
+- integration not loading
+
 
 ---
 
@@ -712,7 +796,6 @@ Safety guidance:
 
 ### v2.0.3
 
-- bumped integration version to `2.0.3`
 - updated minimum Home Assistant version to `2026.4.3` in `manifest.json`
 - dependency status output now includes direct repository links (`card-mod`, `button-card`, `mod-card`, `apexcharts-card`, `HACS`)
 - added post-configuration Dependencies options step so dependency checks are accessible after initial setup
@@ -728,7 +811,7 @@ Safety guidance:
 - humidifier telemetry reason expanded with lane scope, trigger condition, measured values vs thresholds, and recovery logic
 - runtime debug logs added for active target profile, seasonal adjustments, humidity badge classification, and humidifier trigger/stop events
 
-### v2.0.1 fixes
+### v2.0.1
 
 - fixed Fahrenheit telemetry normalization by converting all internal temperature math to Celsius before averages, spreads, deltas, and thresholds
 - fixed aggregate behavior so IAQ/AQ averages ignore `unknown`, `unavailable`, and non-numeric states and only return unknown when no valid values exist
