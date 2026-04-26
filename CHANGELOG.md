@@ -7,6 +7,7 @@ This project follows a practical changelog format for Home Assistant and HACS us
 ## Unreleased
 
 - Added GitHub community health files, issue forms, validation workflows, and contributor guidance.
+- Added CI SAST/security checks, Bandit configuration, broader diagnostics redaction, and cleanup error logging.
 
 ## 2.0.3
 
