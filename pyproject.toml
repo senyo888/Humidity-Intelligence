@@ -1,0 +1,2 @@
+[tool.bandit]
+exclude_dirs = ["tests", ".pytest_cache"]

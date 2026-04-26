@@ -169,7 +169,7 @@ def _sanitize_json(value):
     if hasattr(value, "isoformat"):
         try:
             return value.isoformat()
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             pass
     if isinstance(value, set):
         return list(value)
@@ -177,7 +177,7 @@ def _sanitize_json(value):
     try:
         if hasattr(value, "keys") and hasattr(value, "__getitem__"):
             return {k: _sanitize_json(value[k]) for k in value.keys()}
-    except Exception:
+    except (KeyError, TypeError, ValueError):
         pass
     return value
 

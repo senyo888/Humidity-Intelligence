@@ -1,0 +1,40 @@
+name: Release check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f README.md
+          test -f hacs.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          manifests = list(Path("custom_components").glob("*/manifest.json"))
+          if Path("manifest.json").exists():
+              manifests.append(Path("manifest.json"))
+
+          if not manifests:
+              raise SystemExit("No manifest.json found.")
+
+          for path in manifests:
+              data = json.loads(path.read_text(encoding="utf-8"))
+              if not data.get("version"):
+                  raise SystemExit(f"{path} has no version.")
+              print(f"{path}: {data['version']}")
+          PY
+
+      - name: Note
+        run: echo "This workflow validates release readiness only; it does not publish."

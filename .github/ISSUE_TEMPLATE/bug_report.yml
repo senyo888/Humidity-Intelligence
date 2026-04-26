@@ -1,0 +1,62 @@
+name: Bug report
+description: Report something that is not working.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please redact private entity IDs, URLs, tokens, addresses, and personal data.
+  - type: input
+    id: hi-version
+    attributes:
+      label: Humidity Intelligence version
+      placeholder: "2.0.3"
+    validations:
+      required: true
+  - type: input
+    id: ha-version
+    attributes:
+      label: Home Assistant version
+      placeholder: "2026.4.3"
+    validations:
+      required: true
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: Install method
+      options:
+        - HACS
+        - Manual
+        - Other / unsure
+    validations:
+      required: true
+  - type: input
+    id: browser-app
+    attributes:
+      label: Browser/app, if relevant
+      placeholder: "Chrome, HA iOS app, etc."
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Include expected behaviour, actual behaviour, and steps to reproduce.
+    validations:
+      required: true
+  - type: dropdown
+    id: refresh-ui
+    attributes:
+      label: Did you run `humidity_intelligence.refresh_ui` after updating?
+      options:
+        - "Yes"
+        - "No"
+        - "Not relevant"
+        - "Unsure"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs, entities, or screenshots
+      description: Paste relevant redacted logs/config and attach screenshots if useful.
+      render: text
