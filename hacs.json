@@ -2,6 +2,6 @@
   "name": "Humidity Intelligence",
   "render_readme": true,
   "content_in_root": true,
-  "domains": ["humidity_intelligence"],
+  "domains": [],
   "country": "GB"
 }
