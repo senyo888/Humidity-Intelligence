@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest an improvement.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: request
+    attributes:
+      label: Request
+      description: What problem would this solve, and what behaviour would you like?
+    validations:
+      required: true
+  - type: textarea
+    id: fit
+    attributes:
+      label: Why it fits Humidity Intelligence
+      description: Explain why this belongs in the integration.
+    validations:
+      required: true
+  - type: checkboxes
+    id: areas
+    attributes:
+      label: Area
+      options:
+        - label: Backend/runtime
+        - label: UI/dashboard
+        - label: Config flow
+        - label: Documentation
+        - label: UI Gallery

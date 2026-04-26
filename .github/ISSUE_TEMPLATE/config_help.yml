@@ -1,0 +1,31 @@
+name: Configuration help
+description: Ask for setup or configuration help.
+title: "[Config help]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please redact private entity IDs, URLs, tokens, addresses, and personal data.
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What are you trying to configure or achieve?
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Current setup
+      description: Which sensors, outputs, zones, or alert-only settings are configured?
+    validations:
+      required: true
+  - type: textarea
+    id: stuck
+    attributes:
+      label: What is unclear or unavailable?
+      description: Include redacted YAML/logs if useful.
+      render: text
+    validations:
+      required: true

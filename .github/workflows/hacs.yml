@@ -1,0 +1,95 @@
+name: HACS
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hacs:
+    name: HACS validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Check HACS metadata and layout
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          required_manifest_keys = {
+              "domain",
+              "documentation",
+              "issue_tracker",
+              "codeowners",
+              "name",
+              "version",
+          }
+
+          hacs_path = Path("hacs.json")
+          readme_path = Path("README.md")
+
+          if not hacs_path.exists():
+              raise SystemExit("hacs.json must exist at the repository root.")
+          if not readme_path.exists():
+              raise SystemExit("README.md must exist at the repository root.")
+
+          hacs = json.loads(hacs_path.read_text(encoding="utf-8"))
+          if not hacs.get("name"):
+              raise SystemExit("hacs.json must include a name.")
+
+          custom_component_dirs = [
+              path for path in Path("custom_components").glob("*")
+              if path.is_dir()
+          ]
+
+          if hacs.get("content_in_root"):
+              manifest_path = Path("manifest.json")
+          else:
+              if len(custom_component_dirs) != 1:
+                  raise SystemExit(
+                      "HACS integration repositories must contain exactly one "
+                      "custom_components/<integration_name>/ directory, unless "
+                      "hacs.json sets content_in_root: true."
+                  )
+              manifest_path = custom_component_dirs[0] / "manifest.json"
+
+          if not manifest_path.exists():
+              raise SystemExit(f"Integration manifest not found: {manifest_path}")
+
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          missing = sorted(required_manifest_keys - set(manifest))
+          if missing:
+              raise SystemExit(
+                  f"{manifest_path} is missing required HACS manifest keys: "
+                  + ", ".join(missing)
+              )
+
+          if custom_component_dirs and len(custom_component_dirs) > 1:
+              raise SystemExit(
+                  "Only one integration directory is allowed under custom_components/."
+              )
+
+          print(f"HACS metadata OK: {hacs_path}")
+          print(f"Integration manifest OK: {manifest_path}")
+          PY
+
+      - name: Run HACS validation
+        uses: hacs/action@main
+        with:
+          category: "integration"
