@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Iterable, List
 
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def list_generated_files(entry: ConfigEntry) -> List[str]:
@@ -43,8 +46,8 @@ def remove_files(hass: HomeAssistant, filenames: Iterable[str]) -> None:
         try:
             if path.exists():
                 path.unlink()
-        except Exception:
-            # swallow any file errors
+        except OSError as err:
+            _LOGGER.debug("Unable to remove generated file %s: %s", path, err)
             continue
 
 
