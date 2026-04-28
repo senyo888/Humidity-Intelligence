@@ -21,7 +21,7 @@
 </details>
 
 <details>
-<summary><strong>V2 UI Gallery (PNG)</strong></summary>
+<summary><strong>V2 UI Examples (PNG)</strong></summary>
 
 <br>
 
