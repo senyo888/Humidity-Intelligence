@@ -1,0 +1,13 @@
+### Example Name
+
+- Style: concise visual description
+- Optimised for: Mobile / Tablet / Wall panel
+- Author: @handle
+- Source template: ui/cards/example.yaml
+- Required custom cards: card-mod, button-card, mod-card, apexcharts-card
+
+[![Example preview](example-folder/preview.png)](example-folder/preview.png)
+
+- [View preview](example-folder/preview.png)
+- [Card YAML](example-folder/card.yaml)
+- [Example notes](example-folder/README.md)

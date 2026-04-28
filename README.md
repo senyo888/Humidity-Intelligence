@@ -51,6 +51,7 @@
 - [Migration Guide - v1 to v2](#migration-guide---v1-to-v2)
 - [Full Configuration Flow](#full-configuration-flow)
 - [Configuration Screenshots (Visual Guide)](#configuration-screenshots-visual-guide)
+- [UI Gallery](#ui-gallery)
 - [Post-Configuration Workflow](#post-configuration-workflow)
 - [How to Use Services](#how-to-use-services)
 - [Release Notes](#release-notes)
@@ -617,6 +618,20 @@ Example service usage:
 <img src="assets/readme/config_add_sensors.png" width="460" alt="Add sensors in options">
 
 </details>
+
+---
+
+## UI Gallery
+
+Reusable default UI examples live in [ui-gallery](ui-gallery/README.md).
+
+Included examples:
+
+- [Default V2 Mobile AQ](ui-gallery/default-v2-mobile-aq/README.md)
+- [Default V2 Tablet Zone 2](ui-gallery/default-v2-tablet-zone-2/README.md)
+- [Default V1 Mobile](ui-gallery/default-v1-mobile/README.md)
+
+For new gallery submissions, follow [ui-gallery/CONTRIBUTING.md](ui-gallery/CONTRIBUTING.md).
 
 ---
 
