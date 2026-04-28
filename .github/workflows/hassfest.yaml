@@ -11,4 +11,30 @@ jobs:
     runs-on: "ubuntu-latest"
     steps:
       - uses: "actions/checkout@v3"
+
+      - name: Stage custom component layout
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p custom_components/humidity_intelligence
+          rsync -a \
+            __init__.py \
+            binary_sensor.py \
+            config_flow.py \
+            const.py \
+            manifest.json \
+            migration.py \
+            sensor.py \
+            services.py \
+            services.yaml \
+            strings.json \
+            switch.py \
+            translations \
+            automations \
+            helpers \
+            sensors \
+            ui \
+            custom_components/humidity_intelligence/
+          rm -f manifest.json
+
       - uses: home-assistant/actions/hassfest@master
