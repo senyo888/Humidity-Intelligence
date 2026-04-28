@@ -8,7 +8,7 @@
 
 [![Latest Release](https://img.shields.io/github/v/release/senyo888/Humidity-Intelligence?display_name=tag&sort=semver)](https://github.com/senyo888/Humidity-Intelligence/releases)
 [![HACS](https://img.shields.io/badge/HACS-Custom%20Integration-orange)](https://hacs.xyz)
-[![Home Assistant](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fsenyo888%2FHumidity-Intelligence%2Fmain%2Fmanifest.json&query=%24.homeassistant&prefix=%3E%3D&label=Home%20Assistant&color=blue)](https://www.home-assistant.io/)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.4.3%2B-blue)](https://www.home-assistant.io/)
 [![License](https://img.shields.io/github/license/senyo888/Humidity-Intelligence)](LICENSE)
 
 <details>
@@ -26,23 +26,14 @@
 <br>
 
 <img src="assets/v2_ui_gallery/IMG_5665.png" width="320" alt="V2 UI gallery image 1">
-
 <img src="assets/v2_ui_gallery/IMG_5672.png" width="320" alt="V2 UI gallery image 2">
-
 <img src="assets/v2_ui_gallery/IMG_5673.png" width="320" alt="V2 UI gallery image 3">
-
 <img src="assets/v2_ui_gallery/IMG_5674.png" width="320" alt="V2 UI gallery image 4">
-
 <img src="assets/v2_ui_gallery/IMG_0323.png" width="320" alt="V2 UI gallery image 5">
-
 <img src="assets/v2_ui_gallery/IMG_0324.png" width="320" alt="V2 UI gallery image 6">
-
 <img src="assets/v2_ui_gallery/IMG_5675.png" width="320" alt="V2 UI gallery image 7">
-
 <img src="assets/v2_ui_gallery/ui_v1_mobile.png" width="320" alt="V2 UI gallery image 8">
-
 <img src="assets/v2_ui_gallery/ui_v2_mobile_aq.png" width="320" alt="V2 UI gallery image 9">
-
 <img src="assets/v2_ui_gallery/ui_v2_tablet_zone_2.png" width="320" alt="V2 UI gallery image 10">
 
 </details>
@@ -135,7 +126,7 @@ V2 models that instability structurally.
 
 `56%` is not always "high."
 
-Humidity Intelligence v2 evaluates humidity **relative to the active target profile**:
+Humidity Intelligence v2.0.3 evaluates humidity **relative to the active target profile**:
 
 - Winter defaults to a lower comfort band than summer
 - Spring and autumn use intermediate bands
@@ -217,7 +208,7 @@ The UI renders.
 - dependency status lines now include direct upstream repository links for fast install/verification
 - options menu order updated to prioritize setup sequence: Dependencies -> Sensors -> Global Gates
 - README dependency guidance expanded and clarified for HACS-first UI setup
-- top badges updated for clearer positioning (`Custom Integration`) and auto-synced Home Assistant compatibility from `manifest.json`
+- top badges updated for clearer positioning (`Custom Integration`) and Home Assistant compatibility
 
 Upgrade note: **v2.0.3 focuses on dependency clarity, UI onboarding accuracy, and metadata consistency.**
 No breaking schema changes are introduced.
@@ -796,12 +787,13 @@ Safety guidance:
 
 ### v2.0.3
 
-- updated minimum Home Assistant version to `2026.4.3` in `manifest.json`
+- bumped integration version to `2.0.3`
+- documented minimum Home Assistant version as `2026.4.3`
 - dependency status output now includes direct repository links (`card-mod`, `button-card`, `mod-card`, `apexcharts-card`, `HACS`)
 - added post-configuration Dependencies options step so dependency checks are accessible after initial setup
 - reordered options menu for setup flow clarity (`Dependencies`, then `Sensors`, then `Global Gates`)
 - refreshed README dependency section with clearer HACS-first install guidance and acknowledgements
-- updated top badges: HACS badge wording now `Custom Integration`, and Home Assistant badge now auto-reads compatibility from `manifest.json`
+- updated top badges: HACS badge wording now `Custom Integration`, and Home Assistant compatibility is shown directly
 
 ### v2.0.2
 
@@ -811,7 +803,7 @@ Safety guidance:
 - humidifier telemetry reason expanded with lane scope, trigger condition, measured values vs thresholds, and recovery logic
 - runtime debug logs added for active target profile, seasonal adjustments, humidity badge classification, and humidifier trigger/stop events
 
-### v2.0.1
+### v2.0.1 fixes
 
 - fixed Fahrenheit telemetry normalization by converting all internal temperature math to Celsius before averages, spreads, deltas, and thresholds
 - fixed aggregate behavior so IAQ/AQ averages ignore `unknown`, `unavailable`, and non-numeric states and only return unknown when no valid values exist

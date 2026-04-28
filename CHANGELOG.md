@@ -8,6 +8,8 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 - Added GitHub community health files, issue forms, validation workflows, and contributor guidance.
 - Added CI SAST/security checks, Bandit configuration, broader diagnostics redaction, and cleanup error logging.
+- Added Hassfest validation workflow for Home Assistant custom integration checks.
+- Updated Hassfest compatibility by staging the root-content HACS layout as `custom_components/humidity_intelligence`, aligning manifest keys, shared flow errors, and Lovelace after-dependency metadata.
 
 ## 2.0.3
 
