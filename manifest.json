@@ -1,13 +1,13 @@
 {
   "domain": "humidity_intelligence",
   "name": "Humidity Intelligence",
-  "version": "2.0.3",
-  "documentation": "https://github.com/senyo888/Humidity-Intelligence",
-  "issue_tracker": "https://github.com/senyo888/Humidity-Intelligence/issues",
-  "config_flow": true,
-  "requirements": [],
   "after_dependencies": ["lovelace"],
   "codeowners": ["@senyo888"],
+  "config_flow": true,
+  "documentation": "https://github.com/senyo888/Humidity-Intelligence",
+  "import_executor": true,
   "iot_class": "calculated",
-  "import_executor": true
+  "issue_tracker": "https://github.com/senyo888/Humidity-Intelligence/issues",
+  "requirements": [],
+  "version": "2.0.3"
 }
