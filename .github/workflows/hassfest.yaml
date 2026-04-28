@@ -37,4 +37,75 @@ jobs:
             custom_components/humidity_intelligence/
           rm -f manifest.json
 
+      - name: Normalize staged Hassfest metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          base = Path("custom_components/humidity_intelligence")
+
+          manifest_path = base / "manifest.json"
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          ordered_manifest = {
+              "domain": manifest.pop("domain"),
+              "name": manifest.pop("name"),
+          }
+          for key in sorted(manifest):
+              ordered_manifest[key] = manifest[key]
+          manifest_path.write_text(
+              json.dumps(ordered_manifest, indent=2, ensure_ascii=False) + "\n",
+              encoding="utf-8",
+          )
+
+          for rel_path in ("strings.json", "translations/en.json"):
+              path = base / rel_path
+              data = json.loads(path.read_text(encoding="utf-8"))
+              for section in ("config", "options"):
+                  root = data.setdefault(section, {})
+                  shared_errors = dict(root.get("error", {}))
+                  for step in root.get("step", {}).values():
+                      if isinstance(step, dict):
+                          shared_errors.update(step.pop("errors", {}) or {})
+                  if shared_errors:
+                      root["error"] = shared_errors
+
+              text = json.dumps(data, indent=2, ensure_ascii=False)
+              text = text.replace(
+                  "humidity_intelligence_cards_<layout>.yaml",
+                  "humidity_intelligence_cards_layout.yaml",
+              )
+              path.write_text(text + "\n", encoding="utf-8")
+          PY
+
+      - name: Verify staged Hassfest metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          base = Path("custom_components/humidity_intelligence")
+          manifest = json.loads((base / "manifest.json").read_text(encoding="utf-8"))
+          keys = list(manifest)
+          expected = ["domain", "name"] + sorted(keys[2:])
+          if keys != expected:
+              raise SystemExit(f"Manifest keys are not sorted for Hassfest: {keys}")
+
+          for rel_path in ("strings.json", "translations/en.json"):
+              path = base / rel_path
+              text = path.read_text(encoding="utf-8")
+              data = json.loads(text)
+              if "<layout>" in text:
+                  raise SystemExit(f"{rel_path} still contains <layout>")
+              for section in ("config", "options"):
+                  for step_name, step in data.get(section, {}).get("step", {}).items():
+                      if isinstance(step, dict) and "errors" in step:
+                          raise SystemExit(f"{rel_path} has nested errors at {section}.{step_name}")
+          print("Staged Hassfest metadata is normalized.")
+          PY
+
       - uses: home-assistant/actions/hassfest@master
