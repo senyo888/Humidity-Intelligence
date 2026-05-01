@@ -594,6 +594,10 @@ card:
             if (aqD) out.push(chip('AQ Downstairs', '#a855f7'));
             if (aqU) out.push(chip('AQ Upstairs', '#a855f7'));
             if (coE) out.push(chip('CO EMERGENCY', '#ef4444', true));
+            const alertContext = String(states['sensor.active_alert_context']?.state || '').trim();
+            if (alertContext && alertContext !== 'None' && alertContext !== 'unknown' && alertContext !== 'unavailable') {
+              out.push(chip(alertContext, '#ef4444', true));
+            }
             activeAlertNames.forEach((name) => out.push(chip(String(name).replace(/^HI\\s+/i, ''), '#ef4444')));
             if (timeGateActive) out.push(chip('Time Gate', '#f59e0b'));
             if (presenceGateActive) out.push(chip('Presence Gate', '#f59e0b'));

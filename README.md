@@ -127,7 +127,7 @@ V2 models that instability structurally.
 
 `56%` is not always "high."
 
-Humidity Intelligence v2.0.3 evaluates humidity **relative to the active target profile**:
+Humidity Intelligence evaluates humidity **relative to the active target profile**:
 
 - Winter defaults to a lower comfort band than summer
 - Spring and autumn use intermediate bands
@@ -168,11 +168,16 @@ and does not control hardware.
 Canonical runtime order:
 
 1. CO Emergency: highest priority automation
-2. Alert Lane: best use is for when physical intervention is required
-3. Zone 1: level humidity stabilisation automation
-4. Zone 2: lower priority humidity level stabilisation automation
-5. Air Quality: background automation with VOC PM25 & IAQ threshold triggers.
-6. Normal
+2. Humidity Danger
+3. Mould Danger
+4. Mould Risk
+5. Condensation Danger
+6. Condensation Risk
+7. Zone 1 / Zone 2
+8. Air Quality
+9. Normal
+
+Alert lanes resolve the originating sensor to a configured room/zone, then use that zone's boost fan level as the single deterministic control path. If multiple alerts are active, HI resolves by alert hierarchy first and zone priority second (`Zone 1` before `Zone 2`).
 
 Humidifier lanes operate independently where safe.
 
@@ -203,15 +208,15 @@ The UI renders.
 
 ---
 
-## v2.0.3 Highlights
+## v2.0.4 Highlights
 
-- dependency UX refined in setup and post-configuration (Dependencies is now first-class and revisitable)
-- dependency status lines now include direct upstream repository links for fast install/verification
-- options menu order updated to prioritize setup sequence: Dependencies -> Sensors -> Global Gates
-- README dependency guidance expanded and clarified for HACS-first UI setup
-- top badges updated for clearer positioning (`Custom Integration`) and Home Assistant compatibility
+- humidity, mould, and condensation alerts now resolve originating room/sensor to the mapped zone
+- alert control uses the resolved zone's boost fan level as the single deterministic output path
+- alert reason text and UI chips expose alert type, severity, room, zone, and degraded mapping warnings
+- multiple simultaneous alerts resolve by alert hierarchy first and zone priority second
+- HI UI mapping can refresh automatically shortly after Home Assistant startup
 
-Upgrade note: **v2.0.3 focuses on dependency clarity, UI onboarding accuracy, and metadata consistency.**
+Upgrade note: **v2.0.4 focuses on alert attribution, zone-bound boost behavior, and startup UI refresh reliability.**
 No breaking schema changes are introduced.
 
 ---
@@ -411,7 +416,7 @@ Follow this sequence on first install.
 
 What to do:
 - open the Dependencies step in config flow
-- review installed/detected status and repo links
+- review installed/detected status and direct resource links where shown
 - continue even if some are not installed
 
 Reference:
@@ -538,18 +543,19 @@ Example:
 ### 8) Alerts and CO Emergency
 
 What to do:
-- configure alert triggers, outputs, and flash behavior
+- configure alert triggers, originating room/sensor scope, and flash behavior
 - configure CO emergency thresholds and outputs
 
 Suggested baseline:
 - keep thresholds realistic and bounded
 - use dedicated lights for alerts when possible
 - use optional `power_entity` when wiring requires separate power enable
+- assign alert rooms to zones; humidity, mould, and condensation alerts use the mapped zone boost level
+- check the reason panel and `HI Active Alert Context` for originating sensor, room, resolved zone, and degraded mapping warnings
 
 Example alert:
-- trigger type: custom binary sensor
-- trigger entity: `binary_sensor.bathroom_moisture_alert`
-- threshold: `80`
+- trigger type: mould risk
+- room: `Bathroom`
 - lights: `light.bathroom_alert`
 - power entity: `switch.bathroom_light_power` (optional)
 
@@ -717,6 +723,7 @@ data:
 ### `refresh_ui`
 Purpose:
 - rebuild placeholder mapping and refresh rendered UI output after config changes.
+- runs automatically shortly after Home Assistant startup when `auto_refresh_ui_on_startup` is enabled in options.
 
 Example:
 ```yaml
@@ -800,15 +807,30 @@ Safety guidance:
 
 ## Release Notes
 
+### v2.0.4
+
+- added alert-to-zone binding for humidity, mould, and condensation alerts so the originating room resolves to its configured zone boost level
+- added mould risk and condensation risk alert trigger types alongside existing danger triggers
+- enforced alert hierarchy: CO emergency, humidity danger, mould danger, mould risk, condensation danger, condensation risk, zones, AQ, normal
+- added deterministic multi-alert conflict reporting in the reason panel and debug logs
+- added `HI Active Alert Context` telemetry for UI chips and diagnostics
+- added degraded-mode handling when alert sensor, room, zone, or output mapping is incomplete
+- added `auto_refresh_ui_on_startup` option, enabled by default, to refresh HI UI mapping shortly after Home Assistant startup without blocking startup
+- removed the HACS URL from dependency flow output while keeping HACS detection
+- bumped integration version to `2.0.4`
+
 ### v2.0.3
 
 - bumped integration version to `2.0.3`
 - documented minimum Home Assistant version as `2026.4.3`
-- dependency status output now includes direct repository links (`card-mod`, `button-card`, `mod-card`, `apexcharts-card`, `HACS`)
+- dependency status output now includes direct repository links (`card-mod`, `button-card`, `mod-card`, `apexcharts-card`)
 - added post-configuration Dependencies options step so dependency checks are accessible after initial setup
 - reordered options menu for setup flow clarity (`Dependencies`, then `Sensors`, then `Global Gates`)
 - refreshed README dependency section with clearer HACS-first install guidance and acknowledgements
 - updated top badges: HACS badge wording now `Custom Integration`, and Home Assistant compatibility is shown directly
+
+<details>
+<summary>Previous Releases</summary>
 
 ### v2.0.2
 
@@ -843,6 +865,8 @@ Safety guidance:
   - `HI House Humidity State` (`hi_<entry_id>_house_humidity_state`)
 - generated V2 cards now prune unresolved optional control/output entities instead of leaving stale references.
 - if your dashboard uses Manual cards, re-copy/paste the latest exported YAML after changing `alert_only_mode` so the UI and reason panel match the selected mode.
+
+</details>
 
 ---
 

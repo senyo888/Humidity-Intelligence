@@ -42,7 +42,7 @@ flash_lights:
           mode: slider
 refresh_ui:
   name: Refresh UI Mapping
-  description: Rebuild entity mapping and re-render dashboard YAML cards
+  description: Rebuild entity mapping and re-render dashboard YAML cards. HI can also run this automatically shortly after Home Assistant startup when the startup refresh option is enabled.
   fields:
     entry_id:
       name: Entry ID

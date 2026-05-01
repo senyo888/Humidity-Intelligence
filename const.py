@@ -14,6 +14,9 @@ ENGINE_INTERVAL_MINUTES_DEFAULT = 5
 ENGINE_INTERVAL_MIN = 1
 ENGINE_INTERVAL_MAX = 30
 ENGINE_INTERVAL_STEP = 1
+CONF_AUTO_REFRESH_UI_ON_STARTUP = "auto_refresh_ui_on_startup"
+DEFAULT_AUTO_REFRESH_UI_ON_STARTUP = True
+STARTUP_UI_REFRESH_DELAY_SECONDS = 5
 
 # Supported sensor types for telemetry input
 SENSOR_TYPES = [
@@ -70,7 +73,6 @@ TARGET_CUSTOM_STEP = 0.5
 DEPENDENCIES = [
     {
         "name": "HACS",
-        "url": "https://hacs.xyz/",
         "domain": "hacs",
     },
     {
@@ -139,8 +141,10 @@ AQ_TRIGGER_DEFS = {
 # Alert trigger types
 ALERT_TRIGGER_DEFS = {
     "condensation_danger": {"label": "Condensation Danger"},
+    "condensation_risk": {"label": "Condensation Risk"},
     "humidity_danger": {"label": "Humidity Danger"},
     "mould_danger": {"label": "Mould Danger"},
+    "mould_risk": {"label": "Mould Risk"},
     "co_emergency": {"label": "CO Emergency"},
     "custom_binary": {"label": "Custom binary sensor"},
 }
@@ -149,7 +153,9 @@ ALERT_TRIGGER_DEFS = {
 ROOM_SCOPED_ALERT_TRIGGERS = (
     "humidity_danger",
     "condensation_danger",
+    "condensation_risk",
     "mould_danger",
+    "mould_risk",
 )
 
 # Safety guardrails for alert thresholds.

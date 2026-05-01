@@ -184,6 +184,7 @@ async def async_build_entity_mapping(hass: HomeAssistant, entry_id: str) -> Dict
         "sensor.air_control_upstairs_co_average": _entity_id("sensor", "level2_co_average"),
         "sensor.air_control_mode": _entity_id("sensor", "air_control_mode"),
         "sensor.air_control_reason": _entity_id("sensor", "air_control_reason"),
+        "sensor.active_alert_context": _entity_id("sensor", "active_alert_context"),
         "sensor.air_control_kitchen_humidity_delta": _entity_id("sensor", "air_control_kitchen_humidity_delta"),
         "sensor.air_control_bathroom_humidity_delta": _entity_id("sensor", "air_control_bathroom_humidity_delta"),
         "sensor.air_control_kitchen_slope_delta": _entity_id("sensor", "air_control_kitchen_slope_delta"),

@@ -19,6 +19,7 @@
           "outside_action": "Outside window action",
           "engine_interval_minutes": "Control loop interval",
           "alert_only_mode": "Alert-only mode (monitor + alerts only)",
+          "auto_refresh_ui_on_startup": "Refresh HI UI mapping on Home Assistant startup",
           "target_profile": "Target profile mode",
           "custom_target_low": "Custom target low (%)",
           "custom_target_high": "Custom target high (%)",
@@ -29,9 +30,6 @@
       "presence_states": {
         "title": "Presence States",
         "description": "Select which states mean someone is present. All other states (including unknown/unavailable) are treated as away.\n\nTip: open Developer Tools -> States to inspect the exact state values for your entities.",
-        "errors": {
-          "overlap": "A state cannot be both present and away."
-        },
         "data": {
           "present_states": "Present states",
           "away_states": "Away states (optional)"
@@ -47,9 +45,6 @@
       "telemetry_add": {
         "title": "Add Sensor",
         "description": "Add a humidity, temperature or air-quality sensor.\n\nExisting sensors:\n{existing}",
-        "errors": {
-          "duplicate_entity": "This sensor has already been added."
-        },
         "data": {
           "entity_id": "Sensor entity",
           "sensor_type": "Sensor type",
@@ -69,9 +64,6 @@
       "telemetry_edit": {
         "title": "Edit Sensor",
         "description": "Update the selected sensor entry.",
-        "errors": {
-          "duplicate_entity": "This sensor has already been added."
-        },
         "data": {
           "entity_id": "Sensor entity",
           "sensor_type": "Sensor type",
@@ -109,7 +101,7 @@
           "triggers": "Triggers",
           "outputs": "Outputs",
           "output_level": "Normal fan run level (Auto/33/66/100)",
-          "boost_output_level": "Boost fan run level (Auto/33/66/100)",
+          "boost_output_level": "Boost fan run level (Auto/33/66/100) - used during zone automation AND any alert triggered within this zone",
           "ui_label": "Current Air Control label for Zone 1"
         }
       },
@@ -123,7 +115,7 @@
           "triggers": "Triggers",
           "outputs": "Outputs",
           "output_level": "Normal fan run level (Auto/33/66/100)",
-          "boost_output_level": "Boost fan run level (Auto/33/66/100)",
+          "boost_output_level": "Boost fan run level (Auto/33/66/100) - used during zone automation AND any alert triggered within this zone",
           "ui_label": "Current Air Control label for Zone 2"
         }
       },
@@ -210,7 +202,7 @@
       },
       "alerts": {
         "title": "Alerts and Emergencies",
-        "description": "Define high-priority alerts with flashing lights.\n\nConfigured alerts:\n{configured_alerts}",
+        "description": "Define high-priority alerts with flashing lights. Alerts trigger zone boost behaviour based on originating sensor.\n\nConfigured alerts:\n{configured_alerts}",
         "menu_options": {
           "alert_add": "Add alert",
           "alerts_done": "Finish",
@@ -220,13 +212,6 @@
       "alert_add": {
         "title": "Add Alert",
         "description": "Configure a high-priority alert automation.\n\nCondensation and mould danger entities are provided by Humidity Intelligence. You do not need custom binary sensors for those triggers, but you may optionally provide one for the Custom trigger type.",
-        "errors": {
-          "alert_save_failed": "Failed to save alert configuration. Check logs and try again.",
-          "custom_trigger_required": "A custom binary sensor is required for Custom trigger type.",
-          "room_unknown": "Selected room is not in configured telemetry.",
-          "room_missing_humidity": "Selected room has no humidity telemetry for room-scoped humidity danger.",
-          "room_missing_temp_humidity": "Selected room needs both humidity and temperature telemetry for this room-scoped trigger."
-        },
         "data": {
           "enabled": "Enable alert",
           "trigger_type": "Trigger type",
@@ -242,11 +227,20 @@
       },
       "ui_install": {
         "title": "UI Cards",
-        "description": "Select which UI layouts to export now. HI will write one file per layout to /config/humidity_intelligence_cards_<layout>.yaml and post a notification with the file path.\n\nConfigured alerts:\n{configured_alerts}\n\nWarning: The backend logic will work without UI dependencies, but the UI cards may render incorrectly unless the required custom cards are installed (card-mod, button-card, mod-card, apexcharts-card).\n\nTo load a card: open File Editor → /config/humidity_intelligence_cards_<layout>.yaml → copy the YAML → Dashboard → Edit → Add card → Manual → paste YAML.",
+        "description": "Select which UI layouts to export now. HI will write one file per layout to /config/humidity_intelligence_cards_layout.yaml and post a notification with the file path.\n\nConfigured alerts:\n{configured_alerts}\n\nWarning: The backend logic will work without UI dependencies, but the UI cards may render incorrectly unless the required custom cards are installed (card-mod, button-card, mod-card, apexcharts-card).\n\nTo load a card: open File Editor → /config/humidity_intelligence_cards_layout.yaml → copy the YAML → Dashboard → Edit → Add card → Manual → paste YAML.",
         "data": {
           "ui_layouts": "UI layouts to export"
         }
       }
+    },
+    "error": {
+      "overlap": "A state cannot be both present and away.",
+      "duplicate_entity": "This sensor has already been added.",
+      "alert_save_failed": "Failed to save alert configuration. Check logs and try again.",
+      "custom_trigger_required": "A custom binary sensor is required for Custom trigger type.",
+      "room_unknown": "Selected room is not in configured telemetry.",
+      "room_missing_humidity": "Selected room has no humidity telemetry for room-scoped humidity danger.",
+      "room_missing_temp_humidity": "Selected room needs both humidity and temperature telemetry for this room-scoped trigger."
     }
   },
   "options": {
@@ -268,7 +262,7 @@
       },
       "options_dependencies": {
         "title": "Dependency Options",
-        "description": "Optional custom cards used by the Humidity Intelligence dashboards.\n\n{dependencies}\n\nEach line includes the upstream repo link for quick install/verification in HACS and Dashboard resources.",
+        "description": "Optional custom cards used by the Humidity Intelligence dashboards.\n\n{dependencies}\n\nCustom card lines include upstream repo links for quick install/verification in HACS and Dashboard resources.",
         "data": {
           "skip": "Skip dependency checks in setup"
         }
@@ -283,6 +277,7 @@
           "outside_action": "Outside window action",
           "engine_interval_minutes": "Control loop interval",
           "alert_only_mode": "Alert-only mode (monitor + alerts only)",
+          "auto_refresh_ui_on_startup": "Refresh HI UI mapping on Home Assistant startup",
           "target_profile": "Target profile mode",
           "custom_target_low": "Custom target low (%)",
           "custom_target_high": "Custom target high (%)",
@@ -293,9 +288,6 @@
       "options_presence_states": {
         "title": "Presence States Options",
         "description": "Set which states mean Present vs Away for selected presence/alarm entities.\n\nTip: use Developer Tools -> States to confirm exact state values.",
-        "errors": {
-          "overlap": "A state cannot be both present and away."
-        },
         "data": {
           "present_states": "Present states",
           "away_states": "Away states (optional)"
@@ -311,9 +303,6 @@
       "options_telemetry_add": {
         "title": "Add Telemetry Sensor",
         "description": "Add a sensor and knit it into HI telemetry.\n\nConfigured telemetry:\n{telemetry_summary}",
-        "errors": {
-          "duplicate_entity": "This sensor has already been added."
-        },
         "data": {
           "entity_id": "Sensor entity",
           "sensor_type": "Sensor type",
@@ -333,9 +322,6 @@
       "options_telemetry_edit": {
         "title": "Edit Telemetry Sensor",
         "description": "Editing sensor {sensor_position} of {sensor_total}.\n\n{selected_sensor}",
-        "errors": {
-          "duplicate_entity": "This sensor has already been added."
-        },
         "data": {
           "entity_id": "Sensor entity",
           "sensor_type": "Sensor type",
@@ -361,7 +347,7 @@
           "triggers": "Zone triggers",
           "outputs": "Output devices",
           "output_level": "Normal fan run level (Auto/33/66/100)",
-          "boost_output_level": "Boost fan run level (Auto/33/66/100)",
+          "boost_output_level": "Boost fan run level (Auto/33/66/100) - used during zone automation AND any alert triggered within this zone",
           "ui_label": "Current Air Control label",
           "threshold_humidity_high": "Humidity above house average (delta %)",
           "threshold_condensation_risk": "Condensation risk threshold (dew-point spread degC)",
@@ -412,7 +398,7 @@
       },
       "options_alerts": {
         "title": "Alert Options",
-        "description": "Select an alert to edit.\n\nConfigured alerts:\n{configured_alerts}",
+        "description": "Select an alert to edit. Alerts trigger zone boost behaviour based on originating sensor.\n\nConfigured alerts:\n{configured_alerts}",
         "data": {
           "action": "Alert to edit"
         }
@@ -420,13 +406,6 @@
       "options_alert_add": {
         "title": "Add Alert",
         "description": "Configure a new high-priority alert automation.",
-        "errors": {
-          "alert_save_failed": "Failed to save alert configuration. Check logs and try again.",
-          "custom_trigger_required": "A custom binary sensor is required for Custom trigger type.",
-          "room_unknown": "Selected room is not in configured telemetry.",
-          "room_missing_humidity": "Selected room has no humidity telemetry for room-scoped humidity danger.",
-          "room_missing_temp_humidity": "Selected room needs both humidity and temperature telemetry for this room-scoped trigger."
-        },
         "data": {
           "enabled": "Enable alert",
           "trigger_type": "Trigger type",
@@ -443,13 +422,6 @@
       "options_alert_edit": {
         "title": "Edit Alert",
         "description": "Editing {alert_label}.",
-        "errors": {
-          "alert_save_failed": "Failed to save alert configuration. Check logs and try again.",
-          "custom_trigger_required": "A custom binary sensor is required for Custom trigger type.",
-          "room_unknown": "Selected room is not in configured telemetry.",
-          "room_missing_humidity": "Selected room has no humidity telemetry for room-scoped humidity danger.",
-          "room_missing_temp_humidity": "Selected room needs both humidity and temperature telemetry for this room-scoped trigger."
-        },
         "data": {
           "enabled": "Enable alert",
           "trigger_type": "Trigger type",
@@ -472,6 +444,15 @@
           "slope_sensors": "Provided slope sensor entities"
         }
       }
+    },
+    "error": {
+      "overlap": "A state cannot be both present and away.",
+      "duplicate_entity": "This sensor has already been added.",
+      "alert_save_failed": "Failed to save alert configuration. Check logs and try again.",
+      "custom_trigger_required": "A custom binary sensor is required for Custom trigger type.",
+      "room_unknown": "Selected room is not in configured telemetry.",
+      "room_missing_humidity": "Selected room has no humidity telemetry for room-scoped humidity danger.",
+      "room_missing_temp_humidity": "Selected room needs both humidity and temperature telemetry for this room-scoped trigger."
     }
   }
 }

@@ -264,6 +264,12 @@ class _CoreComputations:
             icon="mdi:comment-text",
         ))
         sensors.append(make(
+            "HI Active Alert Context",
+            "active_alert_context",
+            self._compute_active_alert_context,
+            icon="mdi:alert-decagram",
+        ))
+        sensors.append(make(
             "HI Air Control Kitchen Humidity Delta",
             "air_control_kitchen_humidity_delta",
             self._compute_kitchen_humidity_delta,
@@ -609,6 +615,12 @@ class _CoreComputations:
             return reason.strip(), attrs
         return "System is armed and monitoring sensors. No action is needed right now.", {}
 
+    def _compute_active_alert_context(self) -> Tuple[str, Dict[str, Any]]:
+        data = self.hass.data.get(DOMAIN, {}).get(self.entry.entry_id, {})
+        context = str(data.get("active_alert_context") or "None").strip() or "None"
+        telemetry = data.get("alert_telemetry") or []
+        return context, {"alert_telemetry": _sanitize_json(telemetry)}
+
     def _compute_kitchen_humidity_delta(self) -> Tuple[Optional[float], Dict[str, Any]]:
         kitchen = self._find_room_value("kitchen", "humidity")
         house = self._compute_house_avg_humidity()[0]
@@ -867,6 +879,16 @@ def _avg(values: List[float]) -> Optional[float]:
     if not values:
         return None
     return round(sum(values) / len(values), 1)
+
+
+def _sanitize_json(value):
+    if isinstance(value, dict):
+        return {k: _sanitize_json(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_sanitize_json(v) for v in value]
+    if isinstance(value, set):
+        return list(value)
+    return value
 
 
 def _dew_point(temp_c: float, rh: float) -> Optional[float]:

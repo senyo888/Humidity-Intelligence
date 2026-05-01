@@ -79,6 +79,7 @@ class HIDiagnosticsSensor(SensorEntity):
         zones = config.get("zones", {}) if isinstance(config, dict) else {}
         cards = data.get("cards") or {}
         entity_map = data.get("entity_map") or {}
+        alert_telemetry = data.get("alert_telemetry") or []
         unresolved = data.get("unresolved_placeholders") or []
         unresolved_by_card = data.get("unresolved_placeholders_by_card") or {}
         duplicates = detect_zone_mapping_duplicates(telemetry, zones if isinstance(zones, dict) else {})
@@ -93,6 +94,7 @@ class HIDiagnosticsSensor(SensorEntity):
             "unresolved_placeholders_by_card": _sanitize_json(unresolved_by_card),
             "zone_mapping_duplicates": _sanitize_json(duplicates),
             "zone_mapping_duplicate_summary": duplicate_summary,
+            "alert_telemetry": _sanitize_json(alert_telemetry),
             "counts": {
                 "telemetry": len(telemetry),
                 "mapped_entities": len([v for v in entity_map.values() if v]),

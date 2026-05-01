@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 
-from .const import DOMAIN
-from .services import async_register_services, async_unregister_services
+from .const import (
+    CONF_AUTO_REFRESH_UI_ON_STARTUP,
+    DEFAULT_AUTO_REFRESH_UI_ON_STARTUP,
+    DOMAIN,
+    STARTUP_UI_REFRESH_DELAY_SECONDS,
+)
+from .services import SERVICE_REFRESH_UI, async_register_services, async_unregister_services
 from .helpers.cleanup import list_generated_files, remove_files, remove_dashboard
 from .ui.register import async_register_cards, async_build_entity_mapping
 from .automations import async_setup_entry as async_setup_automations
@@ -34,10 +41,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
     effective_config = _effective_entry_config(entry)
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = {
+    entry_data = hass.data[DOMAIN].setdefault(entry.entry_id, {})
+    entry_data.update({
         "config": effective_config,
         "options": entry.options,
-    }
+    })
 
     await async_register_services(hass)
 
@@ -55,6 +63,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][entry.entry_id]["cards"] = cards
     hass.data[DOMAIN][entry.entry_id]["entity_map"] = mapping
     hass.async_create_task(_async_refresh_and_dump_cards(hass, entry.entry_id))
+    _async_register_startup_ui_refresh(hass, entry)
 
     ui_layouts = entry.data.get("ui_layouts") or []
     if ui_layouts and not entry.data.get("ui_install_done"):
@@ -103,6 +112,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_unload_platforms(entry, ["sensor", "binary_sensor", "switch"])
     await async_unload_automations(hass, entry)
     data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
+    if unsub := data.get("startup_ui_refresh_unsub"):
+        unsub()
+    if task := data.get("startup_ui_refresh_task"):
+        task.cancel()
     if unsub := data.get("core_unsub"):
         unsub()
     if unsub := data.get("slope_unsub"):
@@ -152,6 +165,97 @@ async def _async_refresh_and_dump_cards(hass: HomeAssistant, entry_id: str) -> N
             "Failed startup refresh/dump for Humidity Intelligence entry %s",
             entry_id,
         )
+
+
+def _async_register_startup_ui_refresh(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Refresh HI UI mapping once Home Assistant has finished startup."""
+    if not _entry_auto_refresh_ui_on_startup(entry):
+        _LOGGER.debug(
+            "HI entry %s startup UI refresh skipped: option disabled.",
+            entry.entry_id,
+        )
+        return
+
+    if _hass_already_started(hass):
+        _LOGGER.debug(
+            "HI entry %s startup UI refresh skipped: Home Assistant is already running.",
+            entry.entry_id,
+        )
+        return
+
+    data = hass.data.setdefault(DOMAIN, {}).setdefault(entry.entry_id, {})
+    if data.get("startup_ui_refresh_unsub") or data.get("startup_ui_refresh_task"):
+        _LOGGER.debug(
+            "HI entry %s startup UI refresh skipped: listener/task already exists.",
+            entry.entry_id,
+        )
+        return
+
+    def _handle_started(_event) -> None:
+        data.pop("startup_ui_refresh_unsub", None)
+        task = hass.async_create_task(
+            _async_delayed_startup_ui_refresh(hass, entry.entry_id)
+        )
+        data["startup_ui_refresh_task"] = task
+
+        def _clear_task(_task: asyncio.Task) -> None:
+            data.pop("startup_ui_refresh_task", None)
+
+        task.add_done_callback(_clear_task)
+        _LOGGER.debug(
+            "HI entry %s startup UI refresh scheduled after Home Assistant started.",
+            entry.entry_id,
+        )
+
+    data["startup_ui_refresh_unsub"] = hass.bus.async_listen_once(
+        EVENT_HOMEASSISTANT_STARTED,
+        _handle_started,
+    )
+    _LOGGER.debug(
+        "HI entry %s startup UI refresh listener registered.",
+        entry.entry_id,
+    )
+
+
+async def _async_delayed_startup_ui_refresh(hass: HomeAssistant, entry_id: str) -> None:
+    """Run the startup UI refresh after a short availability delay."""
+    try:
+        await asyncio.sleep(STARTUP_UI_REFRESH_DELAY_SECONDS)
+        if not hass.config_entries.async_get_entry(entry_id):
+            _LOGGER.debug(
+                "HI entry %s startup UI refresh skipped: config entry is no longer loaded.",
+                entry_id,
+            )
+            return
+
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_REFRESH_UI,
+            {"entry_id": entry_id},
+            blocking=True,
+        )
+        _LOGGER.debug("HI entry %s startup UI refresh completed.", entry_id)
+    except asyncio.CancelledError:
+        _LOGGER.debug("HI entry %s startup UI refresh cancelled.", entry_id)
+        raise
+    except Exception:
+        _LOGGER.exception("HI entry %s startup UI refresh failed.", entry_id)
+
+
+def _entry_auto_refresh_ui_on_startup(entry: ConfigEntry) -> bool:
+    """Resolve startup UI refresh option with a default-on fallback."""
+    return bool(
+        _effective_entry_config(entry).get(
+            CONF_AUTO_REFRESH_UI_ON_STARTUP,
+            DEFAULT_AUTO_REFRESH_UI_ON_STARTUP,
+        )
+    )
+
+
+def _hass_already_started(hass: HomeAssistant) -> bool:
+    """Return true when setup is running after the startup event has passed."""
+    state = getattr(hass, "state", None)
+    return state == "running" or getattr(state, "value", None) == "running"
 
 
 def _effective_entry_config(entry: ConfigEntry) -> dict:

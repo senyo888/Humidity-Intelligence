@@ -37,6 +37,8 @@ from .const import (
     ALERT_TRIGGER_DEFS,
     ROOM_SCOPED_ALERT_TRIGGERS,
     ALERT_THRESHOLD_BOUNDS,
+    CONF_AUTO_REFRESH_UI_ON_STARTUP,
+    DEFAULT_AUTO_REFRESH_UI_ON_STARTUP,
     HUMIDIFIER_BAND_MIN,
     HUMIDIFIER_BAND_MAX,
     HUMIDIFIER_BAND_STEP,
@@ -133,6 +135,10 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 "engine_interval_minutes", ENGINE_INTERVAL_MINUTES_DEFAULT
             )
             self._data["alert_only_mode"] = user_input.get("alert_only_mode", False)
+            self._data[CONF_AUTO_REFRESH_UI_ON_STARTUP] = user_input.get(
+                CONF_AUTO_REFRESH_UI_ON_STARTUP,
+                DEFAULT_AUTO_REFRESH_UI_ON_STARTUP,
+            )
             self._data["target_profile"] = target_profile
             self._data["custom_target_low"] = custom_low
             self._data["custom_target_high"] = custom_high
@@ -168,6 +174,13 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
             ),
             vol.Optional("alert_only_mode", default=self._data.get("alert_only_mode", False)): selector.BooleanSelector(),
+            vol.Optional(
+                CONF_AUTO_REFRESH_UI_ON_STARTUP,
+                default=self._data.get(
+                    CONF_AUTO_REFRESH_UI_ON_STARTUP,
+                    DEFAULT_AUTO_REFRESH_UI_ON_STARTUP,
+                ),
+            ): selector.BooleanSelector(),
             vol.Optional("target_profile", default=self._data.get("target_profile", "auto")): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in TARGET_PROFILE_OPTIONS],
@@ -1176,6 +1189,13 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 "outside_action": user_input.get("outside_action", OUTSIDE_WINDOW_ACTIONS[0]["value"]),
             }
             self._options["alert_only_mode"] = user_input.get("alert_only_mode", self._section("alert_only_mode", False))
+            self._options[CONF_AUTO_REFRESH_UI_ON_STARTUP] = user_input.get(
+                CONF_AUTO_REFRESH_UI_ON_STARTUP,
+                self._section(
+                    CONF_AUTO_REFRESH_UI_ON_STARTUP,
+                    DEFAULT_AUTO_REFRESH_UI_ON_STARTUP,
+                ),
+            )
             self._options["engine_interval_minutes"] = user_input.get(
                 "engine_interval_minutes",
                 self._section("engine_interval_minutes", ENGINE_INTERVAL_MINUTES_DEFAULT),
@@ -1227,6 +1247,13 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 )
             ),
             vol.Optional("alert_only_mode", default=self._section("alert_only_mode", False)): selector.BooleanSelector(),
+            vol.Optional(
+                CONF_AUTO_REFRESH_UI_ON_STARTUP,
+                default=self._section(
+                    CONF_AUTO_REFRESH_UI_ON_STARTUP,
+                    DEFAULT_AUTO_REFRESH_UI_ON_STARTUP,
+                ),
+            ): selector.BooleanSelector(),
             vol.Optional("target_profile", default=self._section("target_profile", "auto")): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in TARGET_PROFILE_OPTIONS],
@@ -2339,7 +2366,7 @@ async def _render_dependency_status(hass: HomeAssistant) -> str:
 
     for dep in DEPENDENCIES:
         status = "Unknown (verify manually)"
-        url = dep["url"]
+        url = dep.get("url")
         resource = dep.get("resource")
         if resource and any(resource in str(v) for v in resources.values()):
             status = "Installed"
@@ -2347,7 +2374,8 @@ async def _render_dependency_status(hass: HomeAssistant) -> str:
             path = custom_components_path / dep["domain"]
             if path.exists():
                 status = "Detected"
-        lines.append(f"- {dep['name']}: {status} | repo: {url}")
+        suffix = f" | repo: {url}" if url else ""
+        lines.append(f"- {dep['name']}: {status}{suffix}")
 
     return "\n".join(lines)
 
@@ -2533,7 +2561,7 @@ def _resolve_alert_room_scope(
     if trigger_type == "humidity_danger":
         if not _telemetry_room_has_sensor_type(telemetry, resolved_room, "humidity"):
             return None, "room_missing_humidity"
-    elif trigger_type in {"condensation_danger", "mould_danger"}:
+    elif trigger_type in {"condensation_danger", "condensation_risk", "mould_danger", "mould_risk"}:
         has_humidity = _telemetry_room_has_sensor_type(telemetry, resolved_room, "humidity")
         has_temperature = _telemetry_room_has_sensor_type(telemetry, resolved_room, "temperature")
         if not has_humidity or not has_temperature:

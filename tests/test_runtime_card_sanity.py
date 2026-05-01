@@ -417,7 +417,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
     assert hass.data["humidity_intelligence"][ENTRY_ID]["hi_input_booleans"]["air_alert_1_active"].is_on
     alert_reason = hass.data["humidity_intelligence"][ENTRY_ID].get("runtime_reason", "")
     assert "Alert response is active" in alert_reason
-    assert "All other lanes are paused" in alert_reason
+    assert "resolved zone" in alert_reason or "Degraded mode" in alert_reason
 
     # Room-scoped humidity danger alert should only trigger for the selected room.
     entry_room_alert_data = _base_entry_data()
@@ -453,9 +453,46 @@ async def _run_runtime_assertions(engine_mod) -> None:
     await engine_room_alert._evaluate()
     assert hass_room_alert.data["humidity_intelligence"][ENTRY_ID].get("runtime_mode") == "alert"
     room_alert_reason = hass_room_alert.data["humidity_intelligence"][ENTRY_ID].get("runtime_reason", "")
-    assert (
-        "Humidity Danger @ 70 in Kitchen" in room_alert_reason
-        or "Humidity Danger @ 70.0 in Kitchen" in room_alert_reason
+    assert "Humidity Danger" in room_alert_reason
+    assert "Kitchen" in room_alert_reason
+    assert "sensor.kitchen_h" in room_alert_reason
+
+    entry_zone_alert_data = _base_entry_data()
+    entry_zone_alert_data["aq"] = {}
+    entry_zone_alert_data["humidifiers"] = {}
+    entry_zone_alert_data["alerts"] = [
+        {
+            "enabled": True,
+            "trigger_type": "humidity_danger",
+            "threshold": 70,
+            "room": "Kitchen",
+            "lights": [],
+        }
+    ]
+    entry_zone_alert = SimpleNamespace(entry_id=ENTRY_ID, data=entry_zone_alert_data, options={})
+    hass_zone_alert = _FakeHass(
+        entry_zone_alert,
+        {
+            "sensor.kitchen_h": _FakeState(72),
+            "sensor.hall_h": _FakeState(45),
+            "sensor.bed_h": _FakeState(45),
+            "sensor.kitchen_t": _FakeState(23),
+            "sensor.hall_t": _FakeState(22),
+            "sensor.bed_t": _FakeState(21),
+            "sensor.l1_iaq": _FakeState(85),
+            "sensor.co_val": _FakeState(4),
+        },
+    )
+    engine_zone_alert = HIAutomationEngine(hass_zone_alert, entry_zone_alert)
+    await engine_zone_alert._evaluate()
+    assert hass_zone_alert.data["humidity_intelligence"][ENTRY_ID].get("runtime_mode") == "alert"
+    assert hass_zone_alert.data["humidity_intelligence"][ENTRY_ID].get("active_alert_context") == "Humidity Danger - Kitchen (Zone 1)"
+    assert any(
+        domain == "fan"
+        and service == "set_percentage"
+        and data.get("entity_id") == "fan.zone1"
+        and data.get("percentage") == 100
+        for domain, service, data, _ in hass_zone_alert.services.calls
     )
 
     # Humidity danger with no explicit threshold should use active profile high-risk.
@@ -1263,6 +1300,25 @@ def test_temperature_normalization_respects_source_units():
     assert from_f is not None and abs(from_f - 20.0) < 0.05
     assert from_c is not None and abs(from_c - 20.0) < 0.05
     assert from_missing_unit is not None and abs(from_missing_unit - 21.0) < 0.05
+
+
+def test_startup_ui_refresh_contract_is_wired():
+    init_source = (ROOT / "__init__.py").read_text()
+    const_source = (ROOT / "const.py").read_text()
+    config_source = (ROOT / "config_flow.py").read_text()
+    strings_source = (ROOT / "strings.json").read_text()
+    services_source = (ROOT / "services.yaml").read_text()
+
+    assert "EVENT_HOMEASSISTANT_STARTED" in init_source
+    assert ".async_listen_once(" in init_source
+    assert "SERVICE_REFRESH_UI" in init_source
+    assert "STARTUP_UI_REFRESH_DELAY_SECONDS" in init_source
+    assert "blocking=True" in init_source
+    assert "auto_refresh_ui_on_startup" in const_source
+    assert "CONF_AUTO_REFRESH_UI_ON_STARTUP" in config_source
+    assert "DEFAULT_AUTO_REFRESH_UI_ON_STARTUP" in config_source
+    assert "auto_refresh_ui_on_startup" in strings_source
+    assert "automatically shortly after Home Assistant startup" in services_source
 
 
 def test_level_average_ignores_unknown_unavailable_and_non_numeric_states():
