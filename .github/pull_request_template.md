@@ -23,5 +23,9 @@
 ## UI Gallery submissions
 
 - [ ] Uses `/ui-gallery/<card-id>/`.
-- [ ] Includes `README.md`, YAML, and `preview.png`.
+- [ ] Includes `README.md`, `preview.png`, and `card.yaml` or `dashboard.yaml`.
+- [ ] Top-level `ui-gallery/README.md` is updated.
+- [ ] Example follows `ui-gallery/reference.txt` format.
+- [ ] Required custom cards are documented.
 - [ ] Preserves canonical Humidity Intelligence backend entities/helpers.
+- [ ] Screenshots and YAML contain no private entity IDs, secrets, addresses, device IDs, tokens, internal URLs, or personal data.
