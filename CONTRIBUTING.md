@@ -39,7 +39,9 @@ Each Gallery submission should include:
 - `card.yaml` or `dashboard.yaml`
 - `preview.png`
 
-Gallery examples must preserve canonical Humidity Intelligence backend entities/helpers. Do not publish private entity IDs, secrets, addresses, personal data, or screenshots that reveal sensitive home information.
+Use [ui-gallery/CONTRIBUTING.md](ui-gallery/CONTRIBUTING.md) and [ui-gallery/reference.txt](ui-gallery/reference.txt) for the required gallery format.
+
+Gallery examples must preserve canonical Humidity Intelligence backend entities/helpers. Do not publish private entity IDs, secrets, addresses, personal data, or screenshots that reveal sensitive home information. Add or update the matching entry in [ui-gallery/README.md](ui-gallery/README.md) when adding a gallery example.
 
 ## Privacy and redaction
 

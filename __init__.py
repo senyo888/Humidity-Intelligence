@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import config_validation as cv
 
 from .const import DOMAIN
 from .services import async_register_services, async_unregister_services
@@ -14,6 +15,8 @@ from .automations import async_setup_entry as async_setup_automations
 from .automations import async_unload_entry as async_unload_automations
 
 _LOGGER = logging.getLogger(__name__)
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
