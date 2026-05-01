@@ -495,6 +495,180 @@ async def _run_runtime_assertions(engine_mod) -> None:
         for domain, service, data, _ in hass_zone_alert.services.calls
     )
 
+    # New v2.0.4 risk alerts should bind to the originating room's zone boost.
+    entry_condensation_risk_data = _base_entry_data()
+    entry_condensation_risk_data["aq"] = {}
+    entry_condensation_risk_data["humidifiers"] = {}
+    entry_condensation_risk_data["alerts"] = [
+        {
+            "enabled": True,
+            "trigger_type": "condensation_risk",
+            "room": "Bedroom",
+            "lights": [],
+        }
+    ]
+    entry_condensation_risk = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data=entry_condensation_risk_data,
+        options={},
+    )
+    hass_condensation_risk = _FakeHass(
+        entry_condensation_risk,
+        {
+            "sensor.kitchen_h": _FakeState(45),
+            "sensor.hall_h": _FakeState(45),
+            "sensor.bed_h": _FakeState(90),
+            "sensor.kitchen_t": _FakeState(22),
+            "sensor.hall_t": _FakeState(22),
+            "sensor.bed_t": _FakeState(20),
+            "sensor.l1_iaq": _FakeState(85),
+            "sensor.co_val": _FakeState(4),
+        },
+    )
+    engine_condensation_risk = HIAutomationEngine(hass_condensation_risk, entry_condensation_risk)
+    await engine_condensation_risk._evaluate()
+    assert hass_condensation_risk.data["humidity_intelligence"][ENTRY_ID].get("active_alert_context") == (
+        "Condensation Risk - Bedroom (Zone 2)"
+    )
+    assert any(
+        domain == "fan"
+        and service == "set_percentage"
+        and data.get("entity_id") == "fan.zone2"
+        and data.get("percentage") == 100
+        for domain, service, data, _ in hass_condensation_risk.services.calls
+    )
+
+    # Alert hierarchy should beat zone priority: mould risk in Zone 2 outranks
+    # condensation risk in Zone 1.
+    entry_alert_hierarchy_data = _base_entry_data()
+    entry_alert_hierarchy_data["aq"] = {}
+    entry_alert_hierarchy_data["humidifiers"] = {}
+    entry_alert_hierarchy_data["alerts"] = [
+        {
+            "enabled": True,
+            "trigger_type": "condensation_risk",
+            "room": "Kitchen",
+            "lights": [],
+        },
+        {
+            "enabled": True,
+            "trigger_type": "mould_risk",
+            "room": "Bedroom",
+            "lights": [],
+        },
+    ]
+    entry_alert_hierarchy = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data=entry_alert_hierarchy_data,
+        options={},
+    )
+    hass_alert_hierarchy = _FakeHass(
+        entry_alert_hierarchy,
+        {
+            "sensor.kitchen_h": _FakeState(90),
+            "sensor.hall_h": _FakeState(45),
+            "sensor.bed_h": _FakeState(75),
+            "sensor.kitchen_t": _FakeState(20),
+            "sensor.hall_t": _FakeState(22),
+            "sensor.bed_t": _FakeState(20),
+            "sensor.l1_iaq": _FakeState(85),
+            "sensor.co_val": _FakeState(4),
+        },
+    )
+    engine_alert_hierarchy = HIAutomationEngine(hass_alert_hierarchy, entry_alert_hierarchy)
+    await engine_alert_hierarchy._evaluate()
+    hierarchy_data = hass_alert_hierarchy.data["humidity_intelligence"][ENTRY_ID]
+    assert hierarchy_data.get("active_alert_context") == "Mould Risk - Bedroom (Zone 2)"
+    assert "Conflict detected" in hierarchy_data.get("runtime_reason_full", "")
+    assert any(
+        domain == "fan"
+        and service == "set_percentage"
+        and data.get("entity_id") == "fan.zone2"
+        and data.get("percentage") == 100
+        for domain, service, data, _ in hass_alert_hierarchy.services.calls
+    )
+
+    # Same-priority alerts should resolve by zone priority: Zone 1 before Zone 2.
+    entry_zone_priority_data = _base_entry_data()
+    entry_zone_priority_data["aq"] = {}
+    entry_zone_priority_data["humidifiers"] = {}
+    entry_zone_priority_data["alerts"] = [
+        {
+            "enabled": True,
+            "trigger_type": "mould_risk",
+            "room": "Kitchen",
+            "lights": [],
+        },
+        {
+            "enabled": True,
+            "trigger_type": "mould_risk",
+            "room": "Bedroom",
+            "lights": [],
+        },
+    ]
+    entry_zone_priority = SimpleNamespace(entry_id=ENTRY_ID, data=entry_zone_priority_data, options={})
+    hass_zone_priority = _FakeHass(
+        entry_zone_priority,
+        {
+            "sensor.kitchen_h": _FakeState(75),
+            "sensor.hall_h": _FakeState(45),
+            "sensor.bed_h": _FakeState(75),
+            "sensor.kitchen_t": _FakeState(20),
+            "sensor.hall_t": _FakeState(22),
+            "sensor.bed_t": _FakeState(20),
+            "sensor.l1_iaq": _FakeState(85),
+            "sensor.co_val": _FakeState(4),
+        },
+    )
+    engine_zone_priority = HIAutomationEngine(hass_zone_priority, entry_zone_priority)
+    await engine_zone_priority._evaluate()
+    assert hass_zone_priority.data["humidity_intelligence"][ENTRY_ID].get("active_alert_context") == (
+        "Mould Risk - Kitchen (Zone 1)"
+    )
+    assert any(
+        domain == "fan"
+        and service == "set_percentage"
+        and data.get("entity_id") == "fan.zone1"
+        and data.get("percentage") == 100
+        for domain, service, data, _ in hass_zone_priority.services.calls
+    )
+
+    # Unknown/unavailable source telemetry should not trigger blind boost.
+    entry_alert_degraded_data = _base_entry_data()
+    entry_alert_degraded_data["aq"] = {}
+    entry_alert_degraded_data["humidifiers"] = {}
+    entry_alert_degraded_data["alerts"] = [
+        {
+            "enabled": True,
+            "trigger_type": "condensation_risk",
+            "room": "Bedroom",
+            "lights": [],
+        }
+    ]
+    entry_alert_degraded = SimpleNamespace(entry_id=ENTRY_ID, data=entry_alert_degraded_data, options={})
+    hass_alert_degraded = _FakeHass(
+        entry_alert_degraded,
+        {
+            "sensor.kitchen_h": _FakeState(45),
+            "sensor.hall_h": _FakeState(45),
+            "sensor.bed_h": _FakeState("unavailable"),
+            "sensor.kitchen_t": _FakeState(22),
+            "sensor.hall_t": _FakeState(22),
+            "sensor.bed_t": _FakeState("unknown"),
+            "sensor.l1_iaq": _FakeState(85),
+            "sensor.co_val": _FakeState(4),
+        },
+    )
+    engine_alert_degraded = HIAutomationEngine(hass_alert_degraded, entry_alert_degraded)
+    await engine_alert_degraded._evaluate()
+    degraded_data = hass_alert_degraded.data["humidity_intelligence"][ENTRY_ID]
+    assert degraded_data.get("runtime_mode") != "alert"
+    assert degraded_data.get("active_alert_context") == "None"
+    assert not any(
+        domain == "fan" and service == "set_percentage"
+        for domain, service, _data, _ in hass_alert_degraded.services.calls
+    )
+
     # Humidity danger with no explicit threshold should use active profile high-risk.
     entry_room_alert_dynamic_data = _base_entry_data()
     entry_room_alert_dynamic_data["zones"]["zone1"]["enabled"] = False
@@ -1311,6 +1485,7 @@ def test_startup_ui_refresh_contract_is_wired():
 
     assert "EVENT_HOMEASSISTANT_STARTED" in init_source
     assert ".async_listen_once(" in init_source
+    assert "@callback" in init_source
     assert "SERVICE_REFRESH_UI" in init_source
     assert "STARTUP_UI_REFRESH_DELAY_SECONDS" in init_source
     assert "blocking=True" in init_source

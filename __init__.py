@@ -6,7 +6,7 @@ import asyncio
 import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv
 
 from .const import (
@@ -191,6 +191,7 @@ def _async_register_startup_ui_refresh(hass: HomeAssistant, entry: ConfigEntry) 
         )
         return
 
+    @callback
     def _handle_started(_event) -> None:
         data.pop("startup_ui_refresh_unsub", None)
         task = hass.async_create_task(
