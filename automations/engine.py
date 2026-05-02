@@ -49,6 +49,13 @@ _ALERT_PRIORITY = {
     "custom_binary": 60,
     "co_emergency": 0,
 }
+_BUILT_IN_ZONE_ALERT_TRIGGERS = (
+    "humidity_danger",
+    "mould_danger",
+    "mould_risk",
+    "condensation_danger",
+    "condensation_risk",
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -450,6 +457,15 @@ class HIAutomationEngine:
                 )
             except Exception:
                 _LOGGER.exception("Alert flash service call failed for alert index %s", idx)
+        inferred_details = self._inferred_alert_details(active_details)
+        if inferred_details:
+            _LOGGER.debug(
+                "HI inferred %s built-in alert candidate(s) for entry %s.",
+                len(inferred_details),
+                self.entry.entry_id,
+            )
+            any_active = True
+            active_details.extend(inferred_details)
         active_details.sort(
             key=lambda item: (
                 item.get("priority", 999),
@@ -462,6 +478,35 @@ class HIAutomationEngine:
 
     def _alert_triggered(self, alert: Dict[str, Any]) -> bool:
         return self._alert_detail(0, alert) is not None
+
+    def _inferred_alert_details(self, configured_details: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Build alert candidates from HI's own risk model without duplicating explicit rows."""
+        active_keys = {
+            (str(detail.get("trigger_type") or ""), str(detail.get("room") or "").lower())
+            for detail in configured_details
+        }
+        inferred: List[Dict[str, Any]] = []
+        base_index = len(self.alerts)
+        for offset, trigger_type in enumerate(_BUILT_IN_ZONE_ALERT_TRIGGERS):
+            detail = self._alert_detail(
+                base_index + offset,
+                {
+                    "enabled": True,
+                    "trigger_type": trigger_type,
+                    "room": None,
+                    "threshold": None,
+                    "_inferred": True,
+                },
+            )
+            if not detail:
+                continue
+            key = (str(detail.get("trigger_type") or ""), str(detail.get("room") or "").lower())
+            if key in active_keys:
+                continue
+            detail["source"] = "built_in_risk_model"
+            detail["label"] = f"Built-in {detail.get('label')}"
+            inferred.append(detail)
+        return inferred
 
     def _alert_detail(self, idx: int, alert: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         ttype = alert.get("trigger_type")
@@ -555,6 +600,7 @@ class HIAutomationEngine:
             "outputs": outputs,
             "boost_level": boost_level,
             "priority": _alert_priority(trigger_type),
+            "source": "configured_alert" if not alert.get("_inferred") else "built_in_risk_model",
             "degraded": bool(degraded_reasons),
             "degraded_reasons": degraded_reasons,
         }
@@ -568,6 +614,17 @@ class HIAutomationEngine:
         selected = details[0]
         data["active_alert_context"] = selected.get("companion") or selected.get("label") or "Alert"
         data["alert_telemetry"] = details
+        _LOGGER.debug(
+            "HI alert resolved for entry %s: selected=%s; source=%s; sensor=%s; room=%s; zone=%s; outputs=%s; boost=%s",
+            self.entry.entry_id,
+            selected.get("companion") or selected.get("label"),
+            selected.get("source"),
+            selected.get("sensor"),
+            selected.get("room"),
+            selected.get("zone"),
+            selected.get("outputs"),
+            selected.get("boost_level"),
+        )
         if len(details) > 1:
             _LOGGER.debug(
                 "HI alert conflict resolved for entry %s: selected=%s; candidates=%s",

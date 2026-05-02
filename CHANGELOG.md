@@ -6,6 +6,8 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+- Fixed built-in humidity, mould, and condensation alert candidates so they enter the alert lane, resolve to the mapped zone boost level, and populate `HI Active Alert Context` even when no matching explicit alert row is configured.
+- Fixed V2 alert chip detection so generated cards recognise real alert switch entity IDs and the active alert context companion chip.
 - Changed Humidity Danger alerts to use the active target profile high-risk threshold instead of any saved static humidity threshold.
 - Updated alert metadata/reason text so Humidity Danger reports its active profile threshold source while CO Emergency keeps its configured ppm threshold.
 - Fixed CO emergency evaluation so it remains the absolute top-priority lane before gates, pause, manual override, and normal control locks.

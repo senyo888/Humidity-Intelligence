@@ -190,6 +190,8 @@ Canonical runtime order:
 
 Alert lanes resolve the originating sensor to a configured room/zone, then use that zone's boost fan level as the single deterministic control path. If multiple alerts are active, HI resolves by alert hierarchy first and zone priority second (`Zone 1` before `Zone 2`).
 
+Built-in humidity, mould, and condensation risk states are treated as alert candidates when they can be traced back to telemetry. This keeps zone boost behavior and the companion alert chip aligned even if a matching explicit alert row has not been added.
+
 Humidity Danger alerts follow the active target profile's high-risk threshold at runtime. Legacy saved humidity threshold values are ignored for that alert type, so seasonal/custom profile changes immediately affect alert evaluation.
 
 Humidifier lanes operate independently where safe.
@@ -829,6 +831,8 @@ Safety guidance:
 - enforced alert hierarchy: CO emergency, humidity danger, mould danger, mould risk, condensation danger, condensation risk, zones, AQ, normal
 - added deterministic multi-alert conflict reporting in the reason panel and debug logs
 - changed humidity danger alert evaluation to use the active profile high-risk threshold instead of any legacy saved static threshold
+- fixed built-in humidity, mould, and condensation alert candidates so they enter the alert lane, resolve zone boost, and populate the companion alert chip without requiring a duplicate explicit alert row
+- fixed V2 alert chip detection for generated alert switch entity IDs and active alert context fallback
 - added `HI Active Alert Context` telemetry for UI chips and diagnostics
 - added degraded-mode handling when alert sensor, room, zone, or output mapping is incomplete
 - added `auto_refresh_ui_on_startup` option, enabled by default, to refresh HI UI mapping shortly after Home Assistant startup without blocking startup

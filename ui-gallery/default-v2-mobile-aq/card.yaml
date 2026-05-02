@@ -540,10 +540,14 @@ card:
             const uHum = states['input_boolean.air_upstairs_humidifier_active']?.state === 'on';
             const fanIso = states['input_boolean.air_isolate_fan_outputs']?.state === 'on';
             const humIso = states['input_boolean.air_isolate_humidifier_outputs']?.state === 'on';
-            const activeAlertIds = Object.keys(states).filter((id) => {
-              if (!/^(?:switch|input_boolean)\\.hi_air_alert_\\d+_active(?:_\\d+)?$/.test(id)) return false;
-              return states[id]?.state === 'on';
-            });
+            const isAlertActiveEntity = (id) => {
+              const stateObj = states[id];
+              if (stateObj?.state !== 'on') return false;
+              const attrs = stateObj.attributes || {};
+              if (attrs.alert_index !== undefined && attrs.trigger_type) return true;
+              return /^(?:switch|input_boolean)\\.(?:hi_)?(?:air_)?alert_\\d+.*_active(?:_\\d+)?$/.test(id);
+            };
+            const activeAlertIds = Object.keys(states).filter(isAlertActiveEntity);
             const activeAlertNames = activeAlertIds.map(
               (id) => states[id]?.attributes?.friendly_name || id
             );
@@ -594,6 +598,13 @@ card:
             if (aqD) out.push(chip('AQ Downstairs', '#a855f7'));
             if (aqU) out.push(chip('AQ Upstairs', '#a855f7'));
             if (coE) out.push(chip('CO EMERGENCY', '#ef4444', true));
+            const alertContextId =
+              Object.keys(states).find((id) => id === 'sensor.active_alert_context') ||
+              Object.keys(states).find((id) => /^sensor\\..*active_alert_context$/.test(id));
+            const alertContext = String(states[alertContextId]?.state || '').trim();
+            if (alertContext && alertContext !== 'None' && alertContext !== 'unknown' && alertContext !== 'unavailable') {
+              out.push(chip(alertContext, '#ef4444', true));
+            }
             activeAlertNames.forEach((name) => out.push(chip(String(name).replace(/^HI\\s+/i, ''), '#ef4444')));
             if (timeGateActive) out.push(chip('Time Gate', '#f59e0b'));
             if (presenceGateActive) out.push(chip('Presence Gate', '#f59e0b'));
@@ -616,10 +627,14 @@ card:
               const alarmState = txt('alarm_control_panel.senyo1_sky_com') || 'unknown';
               const justynaHome = isHome('person.justyna') || isHome('device_tracker.justyna');
               const senyoHome = isHome('person.senyo') || isHome('device_tracker.senyos_phone');
-              const activeAlertIds = Object.keys(states).filter((id) => {
-                if (!/^(?:switch|input_boolean)\\.hi_air_alert_\\d+_active(?:_\\d+)?$/.test(id)) return false;
-                return states[id]?.state === 'on';
-              });
+              const isAlertActiveEntity = (id) => {
+                const stateObj = states[id];
+                if (stateObj?.state !== 'on') return false;
+                const attrs = stateObj.attributes || {};
+                if (attrs.alert_index !== undefined && attrs.trigger_type) return true;
+                return /^(?:switch|input_boolean)\\.(?:hi_)?(?:air_)?alert_\\d+.*_active(?:_\\d+)?$/.test(id);
+              };
+              const activeAlertIds = Object.keys(states).filter(isAlertActiveEntity);
               const activeAlertNames = activeAlertIds.map(
                 (id) => states[id]?.attributes?.friendly_name || id
               );
@@ -891,8 +906,11 @@ card:
               [[[
                 const mode = (states['sensor.air_control_mode']?.state || 'normal').toLowerCase();
                 const anyAlertActive = Object.keys(states).some((id) => {
-                  if (!/^(?:switch|input_boolean)\\.hi_air_alert_\\d+_active(?:_\\d+)?$/.test(id)) return false;
-                  return states[id]?.state === 'on';
+                  const stateObj = states[id];
+                  if (stateObj?.state !== 'on') return false;
+                  const attrs = stateObj.attributes || {};
+                  if (attrs.alert_index !== undefined && attrs.trigger_type) return true;
+                  return /^(?:switch|input_boolean)\\.(?:hi_)?(?:air_)?alert_\\d+.*_active(?:_\\d+)?$/.test(id);
                 });
                 const red =
                   states['binary_sensor.humidity_danger']?.state === 'on' ||
