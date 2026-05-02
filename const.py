@@ -158,10 +158,9 @@ ROOM_SCOPED_ALERT_TRIGGERS = (
     "mould_risk",
 )
 
-# Safety guardrails for alert thresholds.
-# These are enforced in config/options flow and at runtime as a fallback.
+# Safety guardrails for static alert thresholds.
+# Humidity Danger follows the active target profile high-risk threshold at runtime.
 ALERT_THRESHOLD_BOUNDS = {
-    "humidity_danger": {"min": 55, "max": 90, "default": 75, "unit": "%"},
     "co_emergency": {"min": 10, "max": 100, "default": 15, "unit": "ppm"},
 }
 

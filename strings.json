@@ -202,7 +202,7 @@
       },
       "alerts": {
         "title": "Alerts and Emergencies",
-        "description": "Define high-priority alerts with flashing lights. Alerts trigger zone boost behaviour based on originating sensor.\n\nConfigured alerts:\n{configured_alerts}",
+        "description": "Define high-priority alerts with flashing lights. Alerts trigger zone boost behaviour based on originating sensor. Humidity Danger follows the active profile high-risk threshold instead of a saved static value; CO Emergency keeps its configured ppm threshold.\n\nConfigured alerts:\n{configured_alerts}",
         "menu_options": {
           "alert_add": "Add alert",
           "alerts_done": "Finish",
@@ -211,7 +211,7 @@
       },
       "alert_add": {
         "title": "Add Alert",
-        "description": "Configure a high-priority alert automation.\n\nCondensation and mould danger entities are provided by Humidity Intelligence. You do not need custom binary sensors for those triggers, but you may optionally provide one for the Custom trigger type.",
+        "description": "Configure a high-priority alert automation.\n\nHumidity Danger uses the active profile high-risk threshold at runtime. Condensation and mould danger entities are provided by Humidity Intelligence. You do not need custom binary sensors for those triggers, but you may optionally provide one for the Custom trigger type.",
         "data": {
           "enabled": "Enable alert",
           "trigger_type": "Trigger type",
@@ -398,14 +398,14 @@
       },
       "options_alerts": {
         "title": "Alert Options",
-        "description": "Select an alert to edit. Alerts trigger zone boost behaviour based on originating sensor.\n\nConfigured alerts:\n{configured_alerts}",
+        "description": "Select an alert to edit. Alerts trigger zone boost behaviour based on originating sensor. Humidity Danger follows the active profile high-risk threshold instead of a saved static value; CO Emergency keeps its configured ppm threshold.\n\nConfigured alerts:\n{configured_alerts}",
         "data": {
           "action": "Alert to edit"
         }
       },
       "options_alert_add": {
         "title": "Add Alert",
-        "description": "Configure a new high-priority alert automation.",
+        "description": "Configure a new high-priority alert automation. Humidity Danger uses the active profile high-risk threshold at runtime.",
         "data": {
           "enabled": "Enable alert",
           "trigger_type": "Trigger type",

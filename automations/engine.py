@@ -180,6 +180,21 @@ class HIAutomationEngine:
                 f"{house_humidity:.1f}%" if house_humidity is not None else "unknown",
             )
 
+            # Absolute top-priority lane: CO emergency must bypass gates,
+            # pause, manual override, and normal control locks.
+            if self._co_emergency_active and self._co_clear_ready():
+                self._co_emergency_active = False
+                self._co_below_since = None
+            if self._co_emergency_triggered():
+                await self._apply_co_emergency()
+                await self._set_runtime_reason(
+                    self._with_isolation_notice(
+                        "CO emergency protection is active, so all configured ventilation outputs are forced to 100%."
+                    )
+                )
+                return
+            await self._set_bool("air_co_emergency_active", self._co_emergency_active)
+
             control_lock_reason = self._control_lock_reason()
             if control_lock_reason:
                 await self._return_to_normal()
@@ -215,20 +230,6 @@ class HIAutomationEngine:
                     )
                 )
                 return
-
-            # Top-priority lane: CO emergency.
-            if self._co_emergency_triggered():
-                await self._apply_co_emergency()
-                await self._set_runtime_reason(
-                    self._with_isolation_notice(
-                        "CO emergency protection is active, so all configured ventilation outputs are forced to 100%."
-                    )
-                )
-                return
-            if self._co_emergency_active and self._co_clear_ready():
-                self._co_emergency_active = False
-                self._co_below_since = None
-            await self._set_bool("air_co_emergency_active", self._co_emergency_active)
 
             # Alert lane is high priority and suppresses all lower lanes.
             alert_active, alert_details = await self._handle_alerts()
@@ -492,12 +493,14 @@ class HIAutomationEngine:
             return None
         if ttype == "humidity_danger":
             profile = self._active_target_profile()
-            threshold = _safe_alert_threshold("humidity_danger", alert.get("threshold"), profile.high_risk)
+            threshold = float(profile.high_risk)
             match = self._matching_humidity_sensor(threshold, room_scope)
             if match:
                 sensor, room, value = match
                 detail = self._build_alert_detail(idx, alert, sensor=sensor, room=room)
-                detail["measured"] = f"{value:.1f}% >= {threshold:g}%"
+                detail["measured"] = f"{value:.1f}% >= active {profile.label} high-risk threshold {threshold:g}%"
+                detail["threshold"] = threshold
+                detail["threshold_source"] = f"active profile ({profile.label})"
                 return detail
             return None
         if ttype == "co_emergency":
@@ -989,11 +992,12 @@ class HIAutomationEngine:
         )
         threshold = alert.get("threshold")
         threshold_suffix = ""
-        if threshold not in (None, "") and trigger_type in {"humidity_danger", "co_emergency"}:
+        if trigger_type == "humidity_danger":
+            profile = self._active_target_profile()
+            threshold_suffix = f" @ active {profile.label} high-risk {profile.high_risk:g}"
+        elif threshold not in (None, "") and trigger_type == "co_emergency":
             default_threshold = (
-                self._active_target_profile().high_risk
-                if trigger_type == "humidity_danger"
-                else float(CO_EMERGENCY_START)
+                float(CO_EMERGENCY_START)
             )
             threshold = _safe_alert_threshold(trigger_type, threshold, default_threshold)
             threshold_suffix = f" @ {threshold}"
@@ -1233,6 +1237,14 @@ class HIAutomationEngine:
             )
         else:
             segments.append("Degraded mode: no zone boost was applied because the alert could not be safely mapped to configured zone outputs.")
+        if selected.get("threshold_source") and selected.get("threshold") is not None:
+            threshold = selected.get("threshold")
+            unit = "%" if selected.get("trigger_type") == "humidity_danger" else ""
+            segments.append(
+                f"Threshold source: {selected['threshold_source']}; threshold {threshold:g}{unit}."
+            )
+        if selected.get("measured"):
+            segments.append(f"Trigger detail: {selected['measured']}.")
         if len(details) > 1:
             candidates = "; ".join(
                 str(item.get("companion") or item.get("label")) for item in details

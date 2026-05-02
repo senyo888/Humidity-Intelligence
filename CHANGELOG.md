@@ -6,6 +6,9 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+- Changed Humidity Danger alerts to use the active target profile high-risk threshold instead of any saved static humidity threshold.
+- Updated alert metadata/reason text so Humidity Danger reports its active profile threshold source while CO Emergency keeps its configured ppm threshold.
+- Fixed CO emergency evaluation so it remains the absolute top-priority lane before gates, pause, manual override, and normal control locks.
 - Added GitHub community health files, issue forms, validation workflows, and contributor guidance.
 - Added CI SAST/security checks, Bandit configuration, broader diagnostics redaction, and cleanup error logging.
 - Added Hassfest validation workflow for Home Assistant custom integration checks.

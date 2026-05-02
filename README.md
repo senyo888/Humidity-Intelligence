@@ -179,6 +179,8 @@ Canonical runtime order:
 
 Alert lanes resolve the originating sensor to a configured room/zone, then use that zone's boost fan level as the single deterministic control path. If multiple alerts are active, HI resolves by alert hierarchy first and zone priority second (`Zone 1` before `Zone 2`).
 
+Humidity Danger alerts follow the active target profile's high-risk threshold at runtime. Legacy saved humidity threshold values are ignored for that alert type, so seasonal/custom profile changes immediately affect alert evaluation.
+
 Humidifier lanes operate independently where safe.
 
 Each evaluation cycle:
@@ -214,6 +216,7 @@ The UI renders.
 - alert control uses the resolved zone's boost fan level as the single deterministic output path
 - alert reason text and UI chips expose alert type, severity, room, zone, and degraded mapping warnings
 - multiple simultaneous alerts resolve by alert hierarchy first and zone priority second
+- humidity danger alerts follow the active profile high-risk threshold instead of a saved static threshold
 - HI UI mapping can refresh automatically shortly after Home Assistant startup
 
 Upgrade note: **v2.0.4 focuses on alert attribution, zone-bound boost behavior, and startup UI refresh reliability.**
@@ -544,13 +547,14 @@ Example:
 
 What to do:
 - configure alert triggers, originating room/sensor scope, and flash behavior
-- configure CO emergency thresholds and outputs
+- configure CO emergency thresholds and outputs; humidity danger uses the active profile high-risk threshold automatically
 
 Suggested baseline:
 - keep thresholds realistic and bounded
 - use dedicated lights for alerts when possible
 - use optional `power_entity` when wiring requires separate power enable
 - assign alert rooms to zones; humidity, mould, and condensation alerts use the mapped zone boost level
+- avoid tuning humidity danger as a fixed number; change the target profile/custom band when the house-wide high-risk line needs moving
 - check the reason panel and `HI Active Alert Context` for originating sensor, room, resolved zone, and degraded mapping warnings
 
 Example alert:
@@ -813,6 +817,7 @@ Safety guidance:
 - added mould risk and condensation risk alert trigger types alongside existing danger triggers
 - enforced alert hierarchy: CO emergency, humidity danger, mould danger, mould risk, condensation danger, condensation risk, zones, AQ, normal
 - added deterministic multi-alert conflict reporting in the reason panel and debug logs
+- changed humidity danger alert evaluation to use the active profile high-risk threshold instead of any legacy saved static threshold
 - added `HI Active Alert Context` telemetry for UI chips and diagnostics
 - added degraded-mode handling when alert sensor, room, zone, or output mapping is incomplete
 - added `auto_refresh_ui_on_startup` option, enabled by default, to refresh HI UI mapping shortly after Home Assistant startup without blocking startup

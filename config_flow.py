@@ -15,7 +15,6 @@ from homeassistant.helpers import selector
 from homeassistant.helpers.selector import SelectOptionDict
 
 from .helpers.zone_validation import detect_zone_mapping_duplicates, summarize_zone_mapping_duplicates
-from .helpers.seasonal import resolve_target_profile
 from .const import (
     DOMAIN,
     DEFAULT_TIME_END,
@@ -873,11 +872,10 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         power_entity_default: Optional[str] = None
         flash_mode_default = _default_alert_flash_mode()
         duration_default = 10
-        humidity_threshold_fallback = _humidity_danger_threshold(self._data)
-        threshold_default_value: Any = _safe_alert_threshold(
+        threshold_default_value: Any = _alert_threshold_value(
             trigger_default,
             None,
-            humidity_threshold_fallback,
+            self._data,
         )
 
         if user_input is not None:
@@ -890,10 +888,10 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             power_entity_default = _sanitize_optional_entity_id(user_input.get("power_entity"))
             flash_mode_default = _normalize_alert_flash_mode(user_input.get("flash_mode"))
             duration_default = _safe_alert_duration(user_input.get("duration", 10))
-            threshold_default_value = _safe_alert_threshold(
+            threshold_default_value = _alert_threshold_value(
                 trigger_default,
                 user_input.get("threshold"),
-                humidity_threshold_fallback,
+                self._data,
             )
 
             try:
@@ -924,8 +922,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("Failed to add alert during initial config flow")
                 errors["base"] = "alert_save_failed"
 
-        threshold_min, threshold_max, _, threshold_unit = _alert_threshold_bounds(trigger_default)
-        schema = vol.Schema({
+        schema_fields: Dict[Any, Any] = {
             vol.Optional("enabled", default=enabled_default): selector.BooleanSelector(),
             vol.Required("trigger_type", default=trigger_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
@@ -936,14 +933,18 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             _optional_entity_selector_key("custom_trigger", custom_trigger_default): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="binary_sensor", multiple=False)
             ),
-            vol.Optional("threshold", default=threshold_default_value): selector.NumberSelector(
+        }
+        if _alert_uses_static_threshold(trigger_default):
+            threshold_min, threshold_max, _, threshold_unit = _alert_threshold_bounds(trigger_default)
+            schema_fields[vol.Optional("threshold", default=threshold_default_value)] = selector.NumberSelector(
                 selector.NumberSelectorConfig(
                     min=threshold_min,
                     max=threshold_max,
                     step=1,
                     unit_of_measurement=threshold_unit,
                 )
-            ),
+            )
+        schema_fields.update({
             vol.Optional("room", default=room_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=_alert_room_options(telemetry),
@@ -977,6 +978,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
             ),
         })
+        schema = vol.Schema(schema_fields)
         return self.async_show_form(step_id="alert_add", data_schema=schema, errors=errors)
 
     async def async_step_alerts_done(self, user_input: Optional[Dict[str, Any]] = None):
@@ -2043,11 +2045,10 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         power_entity_default: Optional[str] = None
         flash_mode_default = _default_alert_flash_mode()
         duration_default = 10
-        humidity_threshold_fallback = _humidity_danger_threshold(self._effective_config())
-        threshold_default_value: Any = _safe_alert_threshold(
+        threshold_default_value: Any = _alert_threshold_value(
             trigger_default,
             None,
-            humidity_threshold_fallback,
+            self._effective_config(),
         )
 
         if user_input is not None:
@@ -2060,10 +2061,10 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             power_entity_default = _sanitize_optional_entity_id(user_input.get("power_entity"))
             flash_mode_default = _normalize_alert_flash_mode(user_input.get("flash_mode"))
             duration_default = _safe_alert_duration(user_input.get("duration", 10))
-            threshold_default_value = _safe_alert_threshold(
+            threshold_default_value = _alert_threshold_value(
                 trigger_default,
                 user_input.get("threshold"),
-                humidity_threshold_fallback,
+                self._effective_config(),
             )
 
             try:
@@ -2094,8 +2095,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 _LOGGER.exception("Failed to add alert in options flow")
                 errors["base"] = "alert_save_failed"
 
-        threshold_min, threshold_max, _, threshold_unit = _alert_threshold_bounds(trigger_default)
-        schema = vol.Schema({
+        schema_fields: Dict[Any, Any] = {
             vol.Optional("enabled", default=enabled_default): selector.BooleanSelector(),
             vol.Required("trigger_type", default=trigger_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
@@ -2106,14 +2106,18 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             _optional_entity_selector_key("custom_trigger", custom_trigger_default): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="binary_sensor", multiple=False)
             ),
-            vol.Optional("threshold", default=threshold_default_value): selector.NumberSelector(
+        }
+        if _alert_uses_static_threshold(trigger_default):
+            threshold_min, threshold_max, _, threshold_unit = _alert_threshold_bounds(trigger_default)
+            schema_fields[vol.Optional("threshold", default=threshold_default_value)] = selector.NumberSelector(
                 selector.NumberSelectorConfig(
                     min=threshold_min,
                     max=threshold_max,
                     step=1,
                     unit_of_measurement=threshold_unit,
                 )
-            ),
+            )
+        schema_fields.update({
             vol.Optional("room", default=room_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=_alert_room_options(telemetry),
@@ -2147,6 +2151,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 )
             ),
         })
+        schema = vol.Schema(schema_fields)
         return self.async_show_form(step_id="options_alert_add", data_schema=schema, errors=errors)
 
     async def async_step_options_alert_edit(self, user_input: Optional[Dict[str, Any]] = None):
@@ -2169,11 +2174,10 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         power_entity_default = _sanitize_optional_entity_id(alert.get("power_entity"))
         flash_mode_default = _normalize_alert_flash_mode(alert.get("flash_mode"))
         duration_default = _safe_alert_duration(alert.get("duration", 10))
-        humidity_threshold_fallback = _humidity_danger_threshold(self._effective_config())
-        threshold_default = _safe_alert_threshold(
+        threshold_default = _alert_threshold_value(
             trigger_default,
             alert.get("threshold"),
-            humidity_threshold_fallback,
+            self._effective_config(),
         )
 
         if user_input is not None:
@@ -2192,10 +2196,10 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 user_input.get("flash_mode", flash_mode_default)
             )
             duration_default = _safe_alert_duration(user_input.get("duration", duration_default))
-            threshold_default = _safe_alert_threshold(
+            threshold_default = _alert_threshold_value(
                 trigger_default,
                 user_input.get("threshold", threshold_default),
-                humidity_threshold_fallback,
+                self._effective_config(),
             )
 
             try:
@@ -2226,8 +2230,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 _LOGGER.exception("Failed to edit alert %s in options flow", idx + 1)
                 errors["base"] = "alert_save_failed"
 
-        threshold_min, threshold_max, _, threshold_unit = _alert_threshold_bounds(trigger_default)
-        schema = vol.Schema({
+        schema_fields: Dict[Any, Any] = {
             vol.Optional("enabled", default=enabled_default): selector.BooleanSelector(),
             vol.Optional("trigger_type", default=trigger_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
@@ -2238,14 +2241,18 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             _optional_entity_selector_key("custom_trigger", custom_trigger_default): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="binary_sensor", multiple=False)
             ),
-            vol.Optional("threshold", default=threshold_default): selector.NumberSelector(
+        }
+        if _alert_uses_static_threshold(trigger_default):
+            threshold_min, threshold_max, _, threshold_unit = _alert_threshold_bounds(trigger_default)
+            schema_fields[vol.Optional("threshold", default=threshold_default)] = selector.NumberSelector(
                 selector.NumberSelectorConfig(
                     min=threshold_min,
                     max=threshold_max,
                     step=1,
                     unit_of_measurement=threshold_unit,
                 )
-            ),
+            )
+        schema_fields.update({
             vol.Optional("room", default=room_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=_alert_room_options(telemetry),
@@ -2279,6 +2286,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 )
             ),
         })
+        schema = vol.Schema(schema_fields)
         return self.async_show_form(
             step_id="options_alert_edit",
             data_schema=schema,
@@ -2455,13 +2463,16 @@ def _alert_threshold_bounds(trigger_type: Any) -> Tuple[float, float, float, Opt
     )
 
 
-def _humidity_danger_threshold(config: Dict[str, Any]) -> float:
-    try:
-        profile = resolve_target_profile(config or {})
-        return float(profile.high_risk)
-    except Exception:
-        _LOGGER.debug("Falling back to static humidity danger threshold default.", exc_info=True)
-        return float(ALERT_THRESHOLD_BOUNDS.get("humidity_danger", {}).get("default", 75.0))
+def _alert_uses_static_threshold(trigger_type: Any) -> bool:
+    """Return True for alert triggers that store their own numeric threshold."""
+    return str(trigger_type or "") in ALERT_THRESHOLD_BOUNDS
+
+
+def _alert_threshold_value(trigger_type: Any, value: Any, _config: Dict[str, Any]) -> Any:
+    """Normalize static thresholds while leaving profile-driven alerts unsaved."""
+    if not _alert_uses_static_threshold(trigger_type):
+        return None
+    return _safe_alert_threshold(trigger_type, value, None)
 
 
 def _safe_alert_threshold(trigger_type: Any, value: Any, fallback: Optional[float] = None) -> Any:
@@ -2603,8 +2614,10 @@ def _render_alerts_summary(alerts: List[Dict[str, Any]]) -> str:
         trigger_label = trigger_def.get("label", trigger.replace("_", " ").title())
         threshold = alert.get("threshold")
         suffix = ""
-        if threshold not in (None, ""):
-            suffix = f" @ {threshold}"
+        if trigger == "humidity_danger":
+            suffix = " @ active profile high-risk"
+        elif _alert_uses_static_threshold(trigger) and threshold not in (None, ""):
+            suffix = f" @ {_safe_alert_threshold(trigger, threshold, None)}"
         room_scope = _sanitize_optional_room_scope(alert.get("room"))
         room_suffix = f" in {room_scope}" if room_scope else ""
         lines.append(f"- Alert {idx}: {trigger_label}{suffix}{room_suffix}")
