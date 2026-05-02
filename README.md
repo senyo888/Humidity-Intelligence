@@ -11,38 +11,10 @@
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.4.3%2B-blue)](https://www.home-assistant.io/)
 [![License](https://img.shields.io/github/license/senyo888/Humidity-Intelligence)](LICENSE)
 
-<details>
-<summary><strong>Quick Demo (GIF)</strong></summary>
-
-<br>
-
-![Humidity Intelligence quick demo](assets/readme/hi_quick_demo.gif)
-
-</details>
-
-<details>
-<summary><strong>V2 UI Examples (PNG)</strong></summary>
-
-<br>
-
-<img src="assets/v2_ui_gallery/IMG_5665.png" width="320" alt="V2 UI gallery image 1">
-<img src="assets/v2_ui_gallery/IMG_5672.png" width="320" alt="V2 UI gallery image 2">
-<img src="assets/v2_ui_gallery/IMG_5673.png" width="320" alt="V2 UI gallery image 3">
-<img src="assets/v2_ui_gallery/IMG_5674.png" width="320" alt="V2 UI gallery image 4">
-<img src="assets/v2_ui_gallery/IMG_0323.png" width="320" alt="V2 UI gallery image 5">
-<img src="assets/v2_ui_gallery/IMG_0324.png" width="320" alt="V2 UI gallery image 6">
-<img src="assets/v2_ui_gallery/IMG_5675.png" width="320" alt="V2 UI gallery image 7">
-<img src="assets/v2_ui_gallery/ui_v1_mobile.png" width="320" alt="V2 UI gallery image 8">
-<img src="assets/v2_ui_gallery/ui_v2_mobile_aq.png" width="320" alt="V2 UI gallery image 9">
-<img src="assets/v2_ui_gallery/ui_v2_tablet_zone_2.png" width="320" alt="V2 UI gallery image 10">
-
-</details>
-
----
-
 ## Contents
 
 - [What Humidity Intelligence V2 Is](#what-humidity-intelligence-v2-is)
+- [Support Humidity Intelligence](#support-humidity-intelligence)
 - [Why Environmental Stability Matters](#why-environmental-stability-matters)
 - [Season-Aware Environmental Control](#season-aware-environmental-control)
 - [Architecture Overview](#architecture-overview)
@@ -79,6 +51,45 @@ There is one resolved outcome, every time.
 This is environmental control with structure.
 
 Positioning: **environmental stability + seasonal context**.
+
+<details>
+<summary><strong>Quick Demo (GIF)</strong></summary>
+
+<br>
+
+![Humidity Intelligence quick demo](assets/readme/hi_quick_demo.gif)
+
+</details>
+
+<details>
+<summary><strong>V2 UI Examples (PNG)</strong></summary>
+
+<br>
+
+<img src="assets/v2_ui_gallery/IMG_5665.png" width="320" alt="V2 UI gallery image 1">
+<img src="assets/v2_ui_gallery/IMG_5672.png" width="320" alt="V2 UI gallery image 2">
+<img src="assets/v2_ui_gallery/IMG_5673.png" width="320" alt="V2 UI gallery image 3">
+<img src="assets/v2_ui_gallery/IMG_5674.png" width="320" alt="V2 UI gallery image 4">
+<img src="assets/v2_ui_gallery/IMG_0323.png" width="320" alt="V2 UI gallery image 5">
+<img src="assets/v2_ui_gallery/IMG_0324.png" width="320" alt="V2 UI gallery image 6">
+<img src="assets/v2_ui_gallery/IMG_5675.png" width="320" alt="V2 UI gallery image 7">
+<img src="assets/v2_ui_gallery/ui_v1_mobile.png" width="320" alt="V2 UI gallery image 8">
+<img src="assets/v2_ui_gallery/ui_v2_mobile_aq.png" width="320" alt="V2 UI gallery image 9">
+<img src="assets/v2_ui_gallery/ui_v2_tablet_zone_2.png" width="320" alt="V2 UI gallery image 10">
+
+</details>
+
+---
+
+## Support Humidity Intelligence
+
+### ⭐ Enjoying Humidity Intelligence?
+
+If you're finding Humidity Intelligence useful, insightful, or just interesting to explore, consider giving the repository a star.
+
+It helps others discover the project, supports ongoing development, and shows that this kind of deterministic, explainable approach to Home Assistant has community value.
+
+[Star Humidity Intelligence on GitHub](https://github.com/senyo888/Humidity-Intelligence)
 
 ---
 
