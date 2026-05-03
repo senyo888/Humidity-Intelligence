@@ -16,6 +16,8 @@ ENGINE_INTERVAL_MAX = 30
 ENGINE_INTERVAL_STEP = 1
 CONF_AUTO_REFRESH_UI_ON_STARTUP = "auto_refresh_ui_on_startup"
 DEFAULT_AUTO_REFRESH_UI_ON_STARTUP = True
+CONF_ALERT_HANDLING_ENABLED = "alert_handling_enabled"
+DEFAULT_ALERT_HANDLING_ENABLED = True
 STARTUP_UI_REFRESH_DELAY_SECONDS = 5
 
 # Supported sensor types for telemetry input
@@ -140,13 +142,12 @@ AQ_TRIGGER_DEFS = {
 
 # Alert trigger types
 ALERT_TRIGGER_DEFS = {
-    "condensation_danger": {"label": "Condensation Danger"},
-    "condensation_risk": {"label": "Condensation Risk"},
     "humidity_danger": {"label": "Humidity Danger"},
-    "mould_danger": {"label": "Mould Danger"},
+    "condensation_risk": {"label": "Condensation Risk"},
     "mould_risk": {"label": "Mould Risk"},
+    "condensation_danger": {"label": "Condensation Danger"},
+    "mould_danger": {"label": "Mould Danger"},
     "co_emergency": {"label": "CO Emergency"},
-    "custom_binary": {"label": "Custom binary sensor"},
 }
 
 # Alert trigger types that support room-scoped evaluation.

@@ -6,6 +6,10 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+- Removed custom trigger entities and custom binary sensor alert configuration so alerts remain internally calculated from HI telemetry, risk logic, and room/zone resolution; legacy custom alert rows are stripped from config-flow saves.
+- Removed CO output-device selection from the main alert flow; CO Emergency now uses configured CO telemetry and existing configured ventilation outputs.
+- Added clearer zone boost guidance and warnings when boost levels are not higher than normal zone fan levels.
+- Added an alert handling setting for internally calculated humidity, mould, and condensation alert handling while keeping CO Emergency independent.
 - Fixed alert boost hold behavior so selected alert zone outputs are not returned to auto while the alert lane is active.
 - Changed alert conflict handling to keep the current actionable alert boost until that originating alert clears, unless a higher-priority alert appears.
 - Changed unmapped/degraded alert handling so unsafe alert candidates are reported in the reason text while automation continues to the next eligible priority.

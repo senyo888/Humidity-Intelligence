@@ -257,8 +257,8 @@ def _base_entry_data():
         "alerts": [
             {
                 "enabled": True,
-                "trigger_type": "custom_binary",
-                "custom_trigger": "binary_sensor.test_alert",
+                "trigger_type": "humidity_danger",
+                "room": "Kitchen",
                 "power_entity": "switch.alert_power",
                 "lights": ["light.alert"],
                 "flash_mode": "red",
@@ -284,7 +284,6 @@ async def _run_runtime_assertions(engine_mod) -> None:
             "sensor.bed_t": _FakeState(21),
             "sensor.l1_iaq": _FakeState(40),
             "sensor.co_val": _FakeState(16),
-            "binary_sensor.test_alert": _FakeState("on"),
         },
     )
     engine_co = HIAutomationEngine(hass_co, entry)
@@ -296,15 +295,15 @@ async def _run_runtime_assertions(engine_mod) -> None:
     assert co_trace == []
     assert hass_co.data["humidity_intelligence"][ENTRY_ID].get("runtime_mode") == "co_emergency"
 
-    # CO emergency should respect configured threshold/output entities (from alert config)
-    # and stand down non-selected outputs.
+    # CO emergency should respect configured threshold, but use existing configured
+    # ventilation outputs instead of alert-specific output overrides.
     entry_co_cfg_data = _base_entry_data()
     entry_co_cfg_data["alerts"] = [
         {
             "enabled": True,
             "trigger_type": "co_emergency",
             "threshold": 20,
-            "outputs": ["fan.zone1"],
+            "outputs": ["fan.legacy_co_only"],
             "lights": ["light.alert"],
             "power_entity": "switch.alert_power",
             "flash_mode": "red",
@@ -328,15 +327,13 @@ async def _run_runtime_assertions(engine_mod) -> None:
     engine_co_cfg = HIAutomationEngine(hass_co_cfg, entry_co_cfg)
     await engine_co_cfg._evaluate()
     assert hass_co_cfg.data["humidity_intelligence"][ENTRY_ID].get("runtime_mode") == "co_emergency"
-    assert any(
-        domain == "fan" and service == "set_percentage" and data.get("entity_id") == "fan.zone1"
+    co_percentage_outputs = {
+        data.get("entity_id")
         for domain, service, data, _ in hass_co_cfg.services.calls
-    )
-    # Non-selected outputs should be returned to auto while CO lane is active.
-    assert any(
-        domain == "fan" and service == "set_preset_mode" and data.get("entity_id") in {"fan.zone2", "fan.aq1"}
-        for domain, service, data, _ in hass_co_cfg.services.calls
-    )
+        if domain == "fan" and service == "set_percentage"
+    }
+    assert {"fan.zone1", "fan.zone2", "fan.aq1"} <= co_percentage_outputs
+    assert "fan.legacy_co_only" not in co_percentage_outputs
 
     # Safe-threshold enforcement: CO emergency threshold is clamped to minimum safe value.
     # With threshold configured as 1 and CO at 8, emergency should not trigger.
@@ -350,7 +347,6 @@ async def _run_runtime_assertions(engine_mod) -> None:
             "enabled": True,
             "trigger_type": "co_emergency",
             "threshold": 1,  # below safe floor, should clamp up.
-            "outputs": ["fan.zone1"],
             "lights": ["light.alert"],
             "power_entity": "switch.alert_power",
             "flash_mode": "red",
@@ -382,13 +378,12 @@ async def _run_runtime_assertions(engine_mod) -> None:
         {
             "sensor.kitchen_h": _FakeState(90),
             "sensor.hall_h": _FakeState(40),
-            "sensor.bed_h": _FakeState(90),
+            "sensor.bed_h": _FakeState(45),
             "sensor.kitchen_t": _FakeState(23),
             "sensor.hall_t": _FakeState(22),
             "sensor.bed_t": _FakeState(21),
             "sensor.l1_iaq": _FakeState(70),
             "sensor.co_val": _FakeState(4),
-            "binary_sensor.test_alert": _FakeState("on"),
         },
     )
     engine = HIAutomationEngine(hass, entry2)
@@ -403,12 +398,15 @@ async def _run_runtime_assertions(engine_mod) -> None:
     calls = hass.services.calls
     assert any(domain == "humidity_intelligence" and service == "flash_lights" for domain, service, *_ in calls)
     assert not hass.data["humidity_intelligence"][ENTRY_ID]["hi_input_booleans"]["air_downstairs_humidifier_active"].is_on
-    assert not any(
-        domain == "fan" and service == "set_percentage" and data.get("entity_id") in {"fan.zone1", "fan.zone2"}
+    assert any(
+        domain == "fan"
+        and service == "set_percentage"
+        and data.get("entity_id") == "fan.zone1"
+        and data.get("percentage") == 100
         for domain, service, data, _ in calls
     )
     assert not any(
-        domain == "fan" and service == "set_percentage" and data.get("entity_id") == "fan.aq1"
+        domain == "fan" and service == "set_percentage" and data.get("entity_id") in {"fan.zone2", "fan.aq1"}
         for domain, service, data, _ in calls
     )
 
@@ -421,15 +419,12 @@ async def _run_runtime_assertions(engine_mod) -> None:
 
     # Room-scoped humidity danger alert should only trigger for the selected room.
     entry_room_alert_data = _base_entry_data()
-    entry_room_alert_data["zones"]["zone1"]["enabled"] = False
-    entry_room_alert_data["zones"]["zone2"]["enabled"] = False
     entry_room_alert_data["aq"] = {}
     entry_room_alert_data["humidifiers"] = {}
     entry_room_alert_data["alerts"] = [
         {
             "enabled": True,
             "trigger_type": "humidity_danger",
-            "threshold": 70,
             "room": "Kitchen",
             "lights": ["light.alert"],
             "duration": 10,
@@ -456,6 +451,14 @@ async def _run_runtime_assertions(engine_mod) -> None:
     assert "Humidity Danger" in room_alert_reason
     assert "Kitchen" in room_alert_reason
     assert "sensor.kitchen_h" in room_alert_reason
+    assert "resolved zone: Zone 1" in room_alert_reason
+    assert any(
+        domain == "fan"
+        and service == "set_percentage"
+        and data.get("entity_id") == "fan.zone1"
+        and data.get("percentage") == 100
+        for domain, service, data, _ in hass_room_alert.services.calls
+    )
 
     entry_zone_alert_data = _base_entry_data()
     entry_zone_alert_data["aq"] = {}
@@ -464,7 +467,6 @@ async def _run_runtime_assertions(engine_mod) -> None:
         {
             "enabled": True,
             "trigger_type": "humidity_danger",
-            "threshold": 70,
             "room": "Kitchen",
             "lights": [],
         }
@@ -497,6 +499,9 @@ async def _run_runtime_assertions(engine_mod) -> None:
 
     # New v2.0.4 risk alerts should bind to the originating room's zone boost.
     entry_condensation_risk_data = _base_entry_data()
+    entry_condensation_risk_data["target_profile"] = "custom"
+    entry_condensation_risk_data["custom_target_low"] = 40
+    entry_condensation_risk_data["custom_target_high"] = 79
     entry_condensation_risk_data["aq"] = {}
     entry_condensation_risk_data["humidifiers"] = {}
     entry_condensation_risk_data["alerts"] = [
@@ -517,7 +522,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
         {
             "sensor.kitchen_h": _FakeState(45),
             "sensor.hall_h": _FakeState(45),
-            "sensor.bed_h": _FakeState(90),
+            "sensor.bed_h": _FakeState(77),
             "sensor.kitchen_t": _FakeState(22),
             "sensor.hall_t": _FakeState(22),
             "sensor.bed_t": _FakeState(20),
@@ -541,6 +546,9 @@ async def _run_runtime_assertions(engine_mod) -> None:
     # Alert hierarchy should beat zone priority: mould risk in Zone 2 outranks
     # condensation risk in Zone 1.
     entry_alert_hierarchy_data = _base_entry_data()
+    entry_alert_hierarchy_data["target_profile"] = "custom"
+    entry_alert_hierarchy_data["custom_target_low"] = 40
+    entry_alert_hierarchy_data["custom_target_high"] = 79
     entry_alert_hierarchy_data["aq"] = {}
     entry_alert_hierarchy_data["humidifiers"] = {}
     entry_alert_hierarchy_data["alerts"] = [
@@ -565,9 +573,9 @@ async def _run_runtime_assertions(engine_mod) -> None:
     hass_alert_hierarchy = _FakeHass(
         entry_alert_hierarchy,
         {
-            "sensor.kitchen_h": _FakeState(90),
+            "sensor.kitchen_h": _FakeState(77),
             "sensor.hall_h": _FakeState(45),
-            "sensor.bed_h": _FakeState(75),
+            "sensor.bed_h": _FakeState(83),
             "sensor.kitchen_t": _FakeState(20),
             "sensor.hall_t": _FakeState(22),
             "sensor.bed_t": _FakeState(20),
@@ -590,6 +598,9 @@ async def _run_runtime_assertions(engine_mod) -> None:
 
     # Same-priority alerts should resolve by zone priority: Zone 1 before Zone 2.
     entry_zone_priority_data = _base_entry_data()
+    entry_zone_priority_data["target_profile"] = "custom"
+    entry_zone_priority_data["custom_target_low"] = 40
+    entry_zone_priority_data["custom_target_high"] = 79
     entry_zone_priority_data["aq"] = {}
     entry_zone_priority_data["humidifiers"] = {}
     entry_zone_priority_data["alerts"] = [
@@ -610,9 +621,9 @@ async def _run_runtime_assertions(engine_mod) -> None:
     hass_zone_priority = _FakeHass(
         entry_zone_priority,
         {
-            "sensor.kitchen_h": _FakeState(75),
+            "sensor.kitchen_h": _FakeState(83),
             "sensor.hall_h": _FakeState(45),
-            "sensor.bed_h": _FakeState(75),
+            "sensor.bed_h": _FakeState(83),
             "sensor.kitchen_t": _FakeState(20),
             "sensor.hall_t": _FakeState(22),
             "sensor.bed_t": _FakeState(20),
@@ -669,10 +680,77 @@ async def _run_runtime_assertions(engine_mod) -> None:
         for domain, service, _data, _ in hass_alert_degraded.services.calls
     )
 
+    # Disabled alert handling should skip non-CO internally calculated alerts.
+    entry_alert_disabled_data = _base_entry_data()
+    entry_alert_disabled_data["alert_handling_enabled"] = False
+    entry_alert_disabled = SimpleNamespace(entry_id=ENTRY_ID, data=entry_alert_disabled_data, options={})
+    hass_alert_disabled = _FakeHass(
+        entry_alert_disabled,
+        {
+            "sensor.kitchen_h": _FakeState(90),
+            "sensor.hall_h": _FakeState(45),
+            "sensor.bed_h": _FakeState(45),
+            "sensor.kitchen_t": _FakeState(23),
+            "sensor.hall_t": _FakeState(22),
+            "sensor.bed_t": _FakeState(21),
+            "sensor.l1_iaq": _FakeState(85),
+            "sensor.co_val": _FakeState(4),
+        },
+    )
+    engine_alert_disabled = HIAutomationEngine(hass_alert_disabled, entry_alert_disabled)
+    alert_active, alert_details = await engine_alert_disabled._handle_alerts()
+    assert alert_active is False
+    assert alert_details == []
+
+    # Unmapped alert candidates should be reported, skipped for boost, and
+    # allow the next eligible lane to run.
+    entry_unmapped_alert_data = _base_entry_data()
+    entry_unmapped_alert_data["zones"]["zone1"]["rooms"] = ["Hallway"]
+    entry_unmapped_alert_data["zones"]["zone2"]["rooms"] = ["Bedroom"]
+    entry_unmapped_alert_data["humidifiers"] = {}
+    entry_unmapped_alert_data["alerts"] = [
+        {
+            "enabled": True,
+            "trigger_type": "humidity_danger",
+            "room": "Kitchen",
+            "lights": [],
+        }
+    ]
+    entry_unmapped_alert = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data=entry_unmapped_alert_data,
+        options={},
+    )
+    hass_unmapped_alert = _FakeHass(
+        entry_unmapped_alert,
+        {
+            "sensor.kitchen_h": _FakeState(90),
+            "sensor.hall_h": _FakeState(45),
+            "sensor.bed_h": _FakeState(45),
+            "sensor.kitchen_t": _FakeState(23),
+            "sensor.hall_t": _FakeState(22),
+            "sensor.bed_t": _FakeState(21),
+            "sensor.l1_iaq": _FakeState(70),
+            "sensor.co_val": _FakeState(4),
+        },
+    )
+    engine_unmapped_alert = HIAutomationEngine(hass_unmapped_alert, entry_unmapped_alert)
+    await engine_unmapped_alert._evaluate()
+    unmapped_data = hass_unmapped_alert.data["humidity_intelligence"][ENTRY_ID]
+    unmapped_reason = unmapped_data.get("runtime_reason_full", "")
+    assert unmapped_data.get("runtime_mode") == "air_quality"
+    assert "Skipped alert candidate" in unmapped_reason
+    assert "No enabled zone maps room 'Kitchen'" in unmapped_reason
+    assert not any(
+        domain == "fan"
+        and service == "set_percentage"
+        and data.get("entity_id") in {"fan.zone1", "fan.zone2"}
+        and data.get("percentage") == 100
+        for domain, service, data, _ in hass_unmapped_alert.services.calls
+    )
+
     # Humidity danger with no explicit threshold should use active profile high-risk.
     entry_room_alert_dynamic_data = _base_entry_data()
-    entry_room_alert_dynamic_data["zones"]["zone1"]["enabled"] = False
-    entry_room_alert_dynamic_data["zones"]["zone2"]["enabled"] = False
     entry_room_alert_dynamic_data["aq"] = {}
     entry_room_alert_dynamic_data["humidifiers"] = {}
     entry_room_alert_dynamic_data["alerts"] = [
@@ -705,6 +783,16 @@ async def _run_runtime_assertions(engine_mod) -> None:
     engine_room_alert_dynamic = HIAutomationEngine(hass_room_alert_dynamic, entry_room_alert_dynamic)
     await engine_room_alert_dynamic._evaluate()
     assert hass_room_alert_dynamic.data["humidity_intelligence"][ENTRY_ID].get("runtime_mode") == "alert"
+    dynamic_reason = hass_room_alert_dynamic.data["humidity_intelligence"][ENTRY_ID].get("runtime_reason_full", "")
+    assert "Threshold source: active profile" in dynamic_reason
+    assert "sensor.kitchen_h" in dynamic_reason
+    assert any(
+        domain == "fan"
+        and service == "set_percentage"
+        and data.get("entity_id") == "fan.zone1"
+        and data.get("percentage") == 100
+        for domain, service, data, _ in hass_room_alert_dynamic.services.calls
+    )
     assert any(
         domain == "humidity_intelligence" and service == "flash_lights"
         for domain, service, *_ in hass_room_alert_dynamic.services.calls
@@ -713,15 +801,12 @@ async def _run_runtime_assertions(engine_mod) -> None:
     # Alerts without target lights should still activate runtime alert mode,
     # but skip light flash service calls cleanly.
     entry_room_alert_no_lights_data = _base_entry_data()
-    entry_room_alert_no_lights_data["zones"]["zone1"]["enabled"] = False
-    entry_room_alert_no_lights_data["zones"]["zone2"]["enabled"] = False
     entry_room_alert_no_lights_data["aq"] = {}
     entry_room_alert_no_lights_data["humidifiers"] = {}
     entry_room_alert_no_lights_data["alerts"] = [
         {
             "enabled": True,
             "trigger_type": "humidity_danger",
-            "threshold": 70,
             "room": "Kitchen",
             "duration": 10,
         }
@@ -764,7 +849,6 @@ async def _run_runtime_assertions(engine_mod) -> None:
         {
             "enabled": True,
             "trigger_type": "humidity_danger",
-            "threshold": 70,
             "room": "Hallway",
             "lights": ["light.alert"],
             "duration": 10,
@@ -774,7 +858,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
     hass_room_alert_miss = _FakeHass(
         entry_room_alert_miss,
         {
-            "sensor.kitchen_h": _FakeState(82),
+            "sensor.kitchen_h": _FakeState(50),
             "sensor.hall_h": _FakeState(45),
             "sensor.bed_h": _FakeState(50),
             "sensor.kitchen_t": _FakeState(23),
@@ -791,7 +875,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
     # Zone label and fan-step enforcement: custom UI label should be surfaced,
     # and unsupported percentages should snap to the nearest supported level.
     entry_label_data = _base_entry_data()
-    entry_label_data["alerts"][0]["enabled"] = False
+    entry_label_data["alert_handling_enabled"] = False
     entry_label_data["zones"]["zone1"]["ui_label"] = "Kitchen Extract"
     entry_label_data["zones"]["zone1"]["output_level"] = 64
     entry_label_data["zones"]["zone2"]["enabled"] = False
@@ -808,7 +892,6 @@ async def _run_runtime_assertions(engine_mod) -> None:
             "sensor.bed_t": _FakeState(21),
             "sensor.l1_iaq": _FakeState(85),
             "sensor.co_val": _FakeState(4),
-            "binary_sensor.test_alert": _FakeState("off"),
         },
     )
     engine_label = HIAutomationEngine(hass_label, entry_label)
@@ -828,7 +911,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
     entry3_data = _base_entry_data()
     entry3_data["zones"]["zone1"]["enabled"] = False
     entry3_data["zones"]["zone2"]["enabled"] = False
-    entry3_data["alerts"][0]["enabled"] = False
+    entry3_data["alert_handling_enabled"] = False
     # Overlap AQ output with a zone output to ensure AQ is not immediately reset to auto.
     entry3_data["aq"]["level1"]["outputs"] = ["fan.zone1"]
     entry3 = SimpleNamespace(entry_id=ENTRY_ID, data=entry3_data, options={})
@@ -843,7 +926,6 @@ async def _run_runtime_assertions(engine_mod) -> None:
             "sensor.bed_t": _FakeState(21),
             "sensor.l1_iaq": _FakeState(70),
             "sensor.co_val": _FakeState(4),
-            "binary_sensor.test_alert": _FakeState("off"),
         },
     )
     engine_aq = HIAutomationEngine(hass_aq, entry3)
@@ -870,7 +952,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
     entry_aq_auto_data = _base_entry_data()
     entry_aq_auto_data["zones"]["zone1"]["enabled"] = False
     entry_aq_auto_data["zones"]["zone2"]["enabled"] = False
-    entry_aq_auto_data["alerts"][0]["enabled"] = False
+    entry_aq_auto_data["alert_handling_enabled"] = False
     entry_aq_auto_data["aq"]["level1"]["output_level"] = "auto"
     entry_aq_auto = SimpleNamespace(entry_id=ENTRY_ID, data=entry_aq_auto_data, options={})
     hass_aq_auto = _FakeHass(
@@ -884,7 +966,6 @@ async def _run_runtime_assertions(engine_mod) -> None:
             "sensor.bed_t": _FakeState(21),
             "sensor.l1_iaq": _FakeState(70),
             "sensor.co_val": _FakeState(4),
-            "binary_sensor.test_alert": _FakeState("off"),
         },
     )
     engine_aq_auto = HIAutomationEngine(hass_aq_auto, entry_aq_auto)
@@ -902,7 +983,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
     entry_shared_aq_data = _base_entry_data()
     entry_shared_aq_data["zones"]["zone1"]["enabled"] = False
     entry_shared_aq_data["zones"]["zone2"]["enabled"] = False
-    entry_shared_aq_data["alerts"][0]["enabled"] = False
+    entry_shared_aq_data["alert_handling_enabled"] = False
     entry_shared_aq_data["telemetry"].append(
         {"entity_id": "sensor.l2_iaq", "sensor_type": "iaq", "level": "level2", "room": "Bedroom"}
     )
@@ -937,7 +1018,6 @@ async def _run_runtime_assertions(engine_mod) -> None:
             "sensor.l1_iaq": _FakeState(70),   # level1 triggers first
             "sensor.l2_iaq": _FakeState(90),   # level2 idle initially
             "sensor.co_val": _FakeState(4),
-            "binary_sensor.test_alert": _FakeState("off"),
         },
     )
     engine_shared_aq = HIAutomationEngine(hass_shared_aq, entry_shared_aq)
@@ -966,7 +1046,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
     entry_shared_humid_data = _base_entry_data()
     entry_shared_humid_data["zones"]["zone1"]["enabled"] = False
     entry_shared_humid_data["zones"]["zone2"]["enabled"] = False
-    entry_shared_humid_data["alerts"][0]["enabled"] = False
+    entry_shared_humid_data["alert_handling_enabled"] = False
     entry_shared_humid_data["aq"] = {}
     entry_shared_humid_data["humidifiers"] = {
         "level1": {"enabled": True, "outputs": ["humidifier.shared"], "band_adjust": 0},
@@ -984,7 +1064,6 @@ async def _run_runtime_assertions(engine_mod) -> None:
             "sensor.bed_t": _FakeState(21),
             "sensor.l1_iaq": _FakeState(90),
             "sensor.co_val": _FakeState(4),
-            "binary_sensor.test_alert": _FakeState("off"),
         },
     )
     engine_shared_humid = HIAutomationEngine(hass_shared_humid, entry_shared_humid)
@@ -1012,7 +1091,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
 
     # Testing isolation toggles suppress output service calls while logic state still updates.
     entry_isolated_data = _base_entry_data()
-    entry_isolated_data["alerts"][0]["enabled"] = False
+    entry_isolated_data["alert_handling_enabled"] = False
     entry_isolated_data["zones"]["zone2"]["enabled"] = False
     entry_isolated_data["aq"] = {}
     entry_isolated = SimpleNamespace(entry_id=ENTRY_ID, data=entry_isolated_data, options={})
@@ -1027,7 +1106,6 @@ async def _run_runtime_assertions(engine_mod) -> None:
             "sensor.bed_t": _FakeState(21),
             "sensor.l1_iaq": _FakeState(90),
             "sensor.co_val": _FakeState(4),
-            "binary_sensor.test_alert": _FakeState("off"),
         },
     )
     hass_isolated.data["humidity_intelligence"][ENTRY_ID]["hi_input_booleans"]["air_isolate_fan_outputs"].is_on = True
@@ -1046,7 +1124,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
     entry4_data = _base_entry_data()
     entry4_data["zones"]["zone1"]["enabled"] = False
     entry4_data["zones"]["zone2"]["enabled"] = False
-    entry4_data["alerts"][0]["enabled"] = False
+    entry4_data["alert_handling_enabled"] = False
     entry4_data["aq"] = {
         "level1": {
             "enabled": False,
@@ -1069,7 +1147,6 @@ async def _run_runtime_assertions(engine_mod) -> None:
             "sensor.bed_t": _FakeState(21),
             "sensor.l1_iaq": _FakeState(85),
             "sensor.co_val": _FakeState(4),
-            "binary_sensor.test_alert": _FakeState("off"),
         },
     )
     hass_stale.data["humidity_intelligence"][ENTRY_ID]["hi_input_booleans"]["air_aq_upstairs_active"].is_on = True
@@ -1083,7 +1160,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
 
     # Global gate should publish dedicated runtime mode for UI chip/border sync.
     entry_gate_data = _base_entry_data()
-    entry_gate_data["alerts"][0]["enabled"] = False
+    entry_gate_data["alert_handling_enabled"] = False
     entry_gate_data["zones"]["zone1"]["enabled"] = False
     entry_gate_data["zones"]["zone2"]["enabled"] = False
     entry_gate_data["aq"] = {}
@@ -1107,7 +1184,6 @@ async def _run_runtime_assertions(engine_mod) -> None:
             "sensor.l1_iaq": _FakeState(85),
             "sensor.co_val": _FakeState(4),
             "binary_sensor.home_presence": _FakeState("off"),
-            "binary_sensor.test_alert": _FakeState("off"),
         },
     )
     engine_gate = HIAutomationEngine(hass_gate, entry_gate)
@@ -1121,7 +1197,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
     entry5_data = _base_entry_data()
     entry5_data["zones"]["zone1"]["enabled"] = False
     entry5_data["zones"]["zone2"]["enabled"] = False
-    entry5_data["alerts"][0]["enabled"] = False
+    entry5_data["alert_handling_enabled"] = False
     entry5_data["aq"] = {}
     entry5_data["humidifiers"]["level1"]["enabled"] = False
     entry5 = SimpleNamespace(entry_id=ENTRY_ID, data=entry5_data, options={})
@@ -1136,7 +1212,6 @@ async def _run_runtime_assertions(engine_mod) -> None:
             "sensor.bed_t": _FakeState(21),
             "sensor.l1_iaq": _FakeState(85),
             "sensor.co_val": _FakeState(4),
-            "binary_sensor.test_alert": _FakeState("off"),
         },
     )
     hass_humid.data["humidity_intelligence"][ENTRY_ID]["hi_input_booleans"]["air_downstairs_humidifier_active"].is_on = True
@@ -1153,7 +1228,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
     entry6_data = _base_entry_data()
     entry6_data["zones"]["zone1"]["enabled"] = False
     entry6_data["zones"]["zone2"]["enabled"] = False
-    entry6_data["alerts"][0]["enabled"] = False
+    entry6_data["alert_handling_enabled"] = False
     entry6_data["aq"] = {}
     entry6 = SimpleNamespace(entry_id=ENTRY_ID, data=entry6_data, options={})
     hass_humid_band = _FakeHass(
@@ -1167,7 +1242,6 @@ async def _run_runtime_assertions(engine_mod) -> None:
             "sensor.bed_t": _FakeState(21),
             "sensor.l1_iaq": _FakeState(85),
             "sensor.co_val": _FakeState(4),
-            "binary_sensor.test_alert": _FakeState("off"),
         },
     )
     # Simulate humidifier already running; at 50% in winter, it should now shut off at low+4.
@@ -1494,6 +1568,24 @@ def test_startup_ui_refresh_contract_is_wired():
     assert "DEFAULT_AUTO_REFRESH_UI_ON_STARTUP" in config_source
     assert "auto_refresh_ui_on_startup" in strings_source
     assert "automatically shortly after Home Assistant startup" in services_source
+
+
+def test_alert_configuration_contract_uses_internal_sources():
+    const_source = (ROOT / "const.py").read_text()
+    config_source = (ROOT / "config_flow.py").read_text()
+    strings_source = (ROOT / "strings.json").read_text()
+    translation_source = (ROOT / "translations" / "en.json").read_text()
+
+    for source in (const_source, config_source, strings_source, translation_source):
+        assert '"custom_binary"' not in source
+        assert '"custom_trigger"' not in source
+        assert "custom_trigger_required" not in source
+
+    assert "Internal HI alert source" in strings_source
+    assert "Visual Indicator Rule" in strings_source
+    assert "alert_handling_enabled" in strings_source
+    assert "Boost settings should normally be higher" in config_source
+    assert "existing configured ventilation outputs" in strings_source
 
 
 def test_level_average_ignores_unknown_unavailable_and_non_numeric_states():

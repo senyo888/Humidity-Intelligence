@@ -196,6 +196,10 @@ Built-in humidity, mould, and condensation risk states are treated as alert cand
 
 Humidity Danger alerts follow the active target profile's high-risk threshold at runtime. Legacy saved humidity threshold values are ignored for that alert type, so seasonal/custom profile changes immediately affect alert evaluation.
 
+Custom trigger entities and custom binary sensors are not part of the alert flow. Optional alert configuration is for enabling HI alert handling and adding visual indicator rules only; the alert source remains HI's deterministic intelligence layer.
+
+Boost settings should normally be higher than the standard zone fan level. Zone control handles normal correction; boost is reserved for danger escalation such as condensation, mould risk, or humidity danger.
+
 Humidifier lanes operate independently where safe.
 
 Each evaluation cycle:
@@ -507,17 +511,20 @@ What to do:
 - assign each zone to a level and room set
 - configure output entities
 - choose triggers and thresholds
-- set output stage and UI label
+- set normal output stage, boost output stage, and UI label
+- keep boost higher than the normal zone fan level where possible
 
 Example baseline:
 - Zone 1 label: `Cooking`
 - Zone 1 level: `level1`
-- Zone 1 output level: `66`
+- Zone 1 normal output level: `66`
+- Zone 1 boost output level: `100`
 - Zone 1 trigger: humidity delta high
 - Zone 2 label: `Bathroom`
 - zone 2 trigger: humidity delta high, temp slope delta...
 - Zone 2 level: `level2`
-- Zone 2 output level: `100`
+- Zone 2 normal output level: `66`
+- Zone 2 boost output level: `100`
 
 Example:
 - Zone 1 outputs: `fan.kitchen_air`, `fan.living_room_air`
@@ -561,27 +568,30 @@ Example:
 ### 8) Alerts and CO Emergency
 
 What to do:
-- configure alert triggers, originating room/sensor scope, and flash behavior
-- configure CO emergency thresholds and outputs; humidity danger uses the active profile high-risk threshold automatically
+- enable or disable HI-calculated humidity, mould, and condensation alert handling
+- configure optional visual indicator rules for internally calculated alert sources
+- configure CO emergency thresholds; CO uses configured CO telemetry and existing ventilation outputs
+- set zone boost levels in the Zone pages because alert boost is zone-bound
 
 Suggested baseline:
-- keep thresholds realistic and bounded
+- keep CO thresholds realistic and bounded
+- keep zone boost levels higher than normal zone fan levels
 - use dedicated lights for alerts when possible
-- use optional `power_entity` when wiring requires separate power enable
+- use optional `power_entity` only for visual indicator hardware that needs separate power enable
 - assign alert rooms to zones; humidity, mould, and condensation alerts use the mapped zone boost level
 - avoid tuning humidity danger as a fixed number; change the target profile/custom band when the house-wide high-risk line needs moving
 - check the reason panel and `HI Active Alert Context` for originating sensor, room, resolved zone, and degraded mapping warnings
 
-Example alert:
-- trigger type: mould risk
+Example visual indicator rule:
+- internal alert source: mould risk
 - room: `Bathroom`
 - lights: `light.bathroom_alert`
 - power entity: `switch.bathroom_light_power` (optional)
 
 Example CO:
-- trigger type: CO emergency
+- internal alert source: CO emergency
 - threshold: `15`
-- outputs: purifier/fan entities on both levels
+- outputs: existing configured zone/AQ ventilation outputs
 
 ### 9) UI Deployment
 
@@ -833,6 +843,9 @@ Safety guidance:
 - enforced alert hierarchy: CO emergency, humidity danger, mould danger, mould risk, condensation danger, condensation risk, zones, AQ, normal
 - added deterministic multi-alert conflict reporting in the reason panel and debug logs
 - changed humidity danger alert evaluation to use the active profile high-risk threshold instead of any legacy saved static threshold
+- removed custom trigger entities and custom binary sensors from alert configuration; alerts are internally calculated from HI telemetry and risk logic
+- removed CO output-device selection from the main alert flow; CO emergency uses configured CO telemetry and existing ventilation outputs
+- clarified zone boost guidance so boost levels are presented as danger/alert escalation and should normally exceed normal zone fan levels
 - fixed alert boost hold behavior so selected zone outputs are not returned to auto while the alert lane remains active
 - changed unmapped/degraded alert candidates to report in reason text and continue to the next eligible priority instead of blocking automation
 - fixed built-in humidity, mould, and condensation alert candidates so they enter the alert lane, resolve zone boost, and populate the companion alert chip without requiring a duplicate explicit alert row

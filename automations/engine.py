@@ -21,6 +21,8 @@ from ..const import (
     ENGINE_INTERVAL_MINUTES_DEFAULT,
     FAN_OUTPUT_LEVEL_AUTO,
     FAN_OUTPUT_LEVEL_STEPS,
+    CONF_ALERT_HANDLING_ENABLED,
+    DEFAULT_ALERT_HANDLING_ENABLED,
     HUMIDIFIER_RECOVERY_IN_BAND_DEFAULT,
     STARTUP_SENSOR_RECHECK_SECONDS,
     ZONE_OUTPUT_LEVEL_BOOST_DEFAULT,
@@ -46,7 +48,6 @@ _ALERT_PRIORITY = {
     "mould_risk": 30,
     "condensation_danger": 40,
     "condensation_risk": 50,
-    "custom_binary": 60,
     "co_emergency": 0,
 }
 _BUILT_IN_ZONE_ALERT_TRIGGERS = (
@@ -74,6 +75,9 @@ class HIAutomationEngine:
         self.humidifiers = self._cfg("humidifiers", {})
         self.aq = self._cfg("aq", {})
         self.alerts = self._cfg("alerts", [])
+        self.alert_handling_enabled = bool(
+            self._cfg(CONF_ALERT_HANDLING_ENABLED, DEFAULT_ALERT_HANDLING_ENABLED)
+        )
         self.alert_only_mode = bool(self._cfg("alert_only_mode", False))
         self._unsub = None
         self._periodic = None
@@ -422,6 +426,14 @@ class HIAutomationEngine:
         active_details: List[Dict[str, Any]] = []
         for idx in range(max(len(self.alerts), 5)):
             await self._set_bool(self._alert_switch_key(idx), False)
+        if not self.alert_handling_enabled:
+            self._active_alert_identity = None
+            self._record_alert_resolution([])
+            _LOGGER.debug(
+                "HI alert handling is disabled for entry %s; non-CO alert lane skipped.",
+                self.entry.entry_id,
+            )
+            return False, []
         for idx, alert in enumerate(self.alerts):
             if not alert.get("enabled", True):
                 continue
@@ -551,11 +563,6 @@ class HIAutomationEngine:
     def _alert_detail(self, idx: int, alert: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         ttype = alert.get("trigger_type")
         room_scope = self._alert_room_scope(alert)
-        if ttype == "custom_binary":
-            entity_id = alert.get("custom_trigger")
-            if entity_id and self.hass.states.is_state(entity_id, "on"):
-                return self._build_alert_detail(idx, alert, sensor=entity_id, room=room_scope)
-            return None
         if ttype == "condensation_danger":
             room, sensor = self._matching_condensation_room("Danger", room_scope)
             if room:
@@ -1488,7 +1495,6 @@ class HIAutomationEngine:
 
     def _co_emergency_settings(self) -> Tuple[float, float, List[str]]:
         start_threshold = float(CO_EMERGENCY_START)
-        configured_outputs: List[str] = []
         configured_thresholds: List[float] = []
 
         for alert in self.alerts:
@@ -1498,11 +1504,6 @@ class HIAutomationEngine:
                 continue
             threshold = _safe_alert_threshold("co_emergency", alert.get("threshold"), float(CO_EMERGENCY_START))
             configured_thresholds.append(threshold)
-            for entity_id in alert.get("outputs", []) or []:
-                if not isinstance(entity_id, str):
-                    continue
-                if entity_id.startswith("fan.") or entity_id.startswith("switch."):
-                    configured_outputs.append(entity_id)
 
         if configured_thresholds:
             start_threshold = min(configured_thresholds)
@@ -1510,16 +1511,6 @@ class HIAutomationEngine:
         clear_threshold = max(0.0, start_threshold - 5.0)
         if clear_threshold >= start_threshold:
             clear_threshold = max(0.0, start_threshold - 1.0)
-
-        if configured_outputs:
-            seen: set[str] = set()
-            outputs: List[str] = []
-            for entity_id in configured_outputs:
-                if entity_id in seen:
-                    continue
-                seen.add(entity_id)
-                outputs.append(entity_id)
-            return start_threshold, clear_threshold, outputs
 
         return start_threshold, clear_threshold, self._all_fan_outputs()
 
