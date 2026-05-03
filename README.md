@@ -188,7 +188,9 @@ Canonical runtime order:
 8. Air Quality
 9. Normal
 
-Alert lanes resolve the originating sensor to a configured room/zone, then use that zone's boost fan level as the single deterministic control path. If multiple alerts are active, HI resolves by alert hierarchy first and zone priority second (`Zone 1` before `Zone 2`).
+Alert lanes resolve the originating sensor to a configured room/zone, then use that zone's boost fan level as the single deterministic control path. Once an actionable alert is selected, HI holds that boost path until the originating alert clears unless a higher-priority alert appears.
+
+If an alert candidate cannot be mapped to a safe zone output, HI does not boost blindly. The reason panel reports the unmapped/degraded alert and automation continues to the next eligible priority.
 
 Built-in humidity, mould, and condensation risk states are treated as alert candidates when they can be traced back to telemetry. This keeps zone boost behavior and the companion alert chip aligned even if a matching explicit alert row has not been added.
 
@@ -831,6 +833,8 @@ Safety guidance:
 - enforced alert hierarchy: CO emergency, humidity danger, mould danger, mould risk, condensation danger, condensation risk, zones, AQ, normal
 - added deterministic multi-alert conflict reporting in the reason panel and debug logs
 - changed humidity danger alert evaluation to use the active profile high-risk threshold instead of any legacy saved static threshold
+- fixed alert boost hold behavior so selected zone outputs are not returned to auto while the alert lane remains active
+- changed unmapped/degraded alert candidates to report in reason text and continue to the next eligible priority instead of blocking automation
 - fixed built-in humidity, mould, and condensation alert candidates so they enter the alert lane, resolve zone boost, and populate the companion alert chip without requiring a duplicate explicit alert row
 - fixed V2 alert chip detection for generated alert switch entity IDs and active alert context fallback
 - added `HI Active Alert Context` telemetry for UI chips and diagnostics

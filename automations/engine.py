@@ -81,6 +81,7 @@ class HIAutomationEngine:
         self._aq_trigger_active: Dict[str, bool] = {}
         self._startup_recheck_task: Optional[asyncio.Task] = None
         self._last_alert: Dict[int, datetime] = {}
+        self._active_alert_identity: Optional[Tuple[str, str, str]] = None
         self._co_emergency_active = False
         self._co_below_since: Optional[datetime] = None
         configured_interval = None
@@ -418,7 +419,6 @@ class HIAutomationEngine:
         await self._set_runtime_mode("co_emergency", "CO EMERGENCY")
 
     async def _handle_alerts(self) -> Tuple[bool, List[Dict[str, Any]]]:
-        any_active = False
         active_details: List[Dict[str, Any]] = []
         for idx in range(max(len(self.alerts), 5)):
             await self._set_bool(self._alert_switch_key(idx), False)
@@ -430,7 +430,6 @@ class HIAutomationEngine:
             await self._set_bool(self._alert_switch_key(idx), triggered)
             if not triggered:
                 continue
-            any_active = True
             active_details.append(detail)
             last = self._last_alert.get(idx)
             if last and datetime.now() - last < timedelta(seconds=30):
@@ -464,7 +463,6 @@ class HIAutomationEngine:
                 len(inferred_details),
                 self.entry.entry_id,
             )
-            any_active = True
             active_details.extend(inferred_details)
         active_details.sort(
             key=lambda item: (
@@ -473,11 +471,53 @@ class HIAutomationEngine:
                 item.get("index", 999),
             )
         )
+        selected_alert = self._select_alert_detail(active_details)
+        if selected_alert:
+            active_details = [selected_alert] + [
+                detail for detail in active_details if detail is not selected_alert
+            ]
         self._record_alert_resolution(active_details)
-        return any_active, active_details
+        return selected_alert is not None, active_details
 
     def _alert_triggered(self, alert: Dict[str, Any]) -> bool:
         return self._alert_detail(0, alert) is not None
+
+    def _select_alert_detail(self, details: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Select the actionable alert to control outputs, holding it until it clears."""
+        actionable = [detail for detail in details if _alert_can_control(detail)]
+        if not actionable:
+            if details:
+                _LOGGER.debug(
+                    "HI alert candidate(s) found for entry %s but none can safely control outputs; automation will continue to the next lane.",
+                    self.entry.entry_id,
+                )
+            self._active_alert_identity = None
+            return None
+
+        best = actionable[0]
+        current = None
+        if self._active_alert_identity:
+            for detail in actionable:
+                if _alert_identity(detail) == self._active_alert_identity:
+                    current = detail
+                    break
+
+        selected = best
+        if current and int(best.get("priority", 999)) >= int(current.get("priority", 999)):
+            selected = current
+            if selected is not best:
+                selected["held_until_clear"] = True
+                _LOGGER.debug(
+                    "HI holding alert selection for entry %s until clear: selected=%s; best_candidate=%s",
+                    self.entry.entry_id,
+                    selected.get("companion") or selected.get("label"),
+                    best.get("companion") or best.get("label"),
+                )
+        else:
+            selected.pop("held_until_clear", None)
+
+        self._active_alert_identity = _alert_identity(selected)
+        return selected
 
     def _inferred_alert_details(self, configured_details: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Build alert candidates from HI's own risk model without duplicating explicit rows."""
@@ -994,7 +1034,10 @@ class HIAutomationEngine:
         )
 
     async def _deactivate_non_alert_activity(self, exclude_zone_outputs: Optional[List[str]] = None) -> None:
-        await self._deactivate_aq_activity(set_fan_auto=True)
+        await self._deactivate_aq_activity(
+            set_fan_auto=True,
+            exclude_outputs=exclude_zone_outputs,
+        )
         await self._set_zone_outputs_auto(exclude=exclude_zone_outputs)
         await self._deactivate_humidifier_activity(turn_off_outputs=True)
 
@@ -1006,7 +1049,13 @@ class HIAutomationEngine:
         await self._set_bool("air_downstairs_humidifier_active", False)
         await self._set_bool("air_upstairs_humidifier_active", False)
 
-    async def _deactivate_aq_activity(self, *, set_fan_auto: bool) -> None:
+    async def _deactivate_aq_activity(
+        self,
+        *,
+        set_fan_auto: bool,
+        exclude_outputs: Optional[List[str]] = None,
+    ) -> None:
+        excluded = set(exclude_outputs or [])
         for level, task in list(self._aq_tasks.items()):
             if task and not task.done():
                 task.cancel()
@@ -1015,6 +1064,7 @@ class HIAutomationEngine:
         for cfg in self.aq.values():
             outputs = cfg.get("outputs", [])
             if set_fan_auto:
+                outputs = [entity_id for entity_id in outputs if entity_id not in excluded]
                 await self._set_fan_outputs_auto(outputs)
         self._aq_trigger_active = {}
         await self._set_bool("air_aq_upstairs_active", False)
@@ -1256,9 +1306,16 @@ class HIAutomationEngine:
             else:
                 base_reason = "System is armed and monitoring telemetry. No automation lane currently needs to run."
 
+        notices: List[str] = []
         humidifier_reason = self._format_humidifier_detail(humidifier_details) if humidifier_details else ""
         if humidifier_reason:
-            return f"{base_reason} {humidifier_reason}".strip()
+            notices.append(humidifier_reason)
+        if runtime_mode != "alert":
+            alert_notice = self._format_nonblocking_alert_notice(alert_labels)
+            if alert_notice:
+                notices.append(alert_notice)
+        if notices:
+            return f"{base_reason} {' '.join(notices)}".strip()
         return base_reason
 
     def _format_zone_detail(self, detail: Dict[str, Any], zone_label: str) -> str:
@@ -1292,6 +1349,14 @@ class HIAutomationEngine:
             segments.append(
                 f"Selected {zone} boost level {run_level} on {outputs} because alerts override zone, AQ, and normal lanes."
             )
+            if selected.get("held_until_clear"):
+                segments.append(
+                    "Boost selection is being held until this originating alert clears; equal-priority candidates wait their turn."
+                )
+            else:
+                segments.append(
+                    "Boost selection will be held while this originating alert remains active, then the next priority is evaluated."
+                )
         else:
             segments.append("Degraded mode: no zone boost was applied because the alert could not be safely mapped to configured zone outputs.")
         if selected.get("threshold_source") and selected.get("threshold") is not None:
@@ -1306,13 +1371,53 @@ class HIAutomationEngine:
             candidates = "; ".join(
                 str(item.get("companion") or item.get("label")) for item in details
             )
-            segments.append(
-                f"Conflict detected across active alerts; resolved deterministically by alert hierarchy then zone priority. Candidates: {candidates}."
-            )
+            if any(not _alert_can_control(item) for item in details[1:] if isinstance(item, dict)):
+                segments.append(
+                    f"Conflict detected across active alerts; selected the next actionable mapped alert after skipping degraded candidates. Candidates: {candidates}."
+                )
+            elif selected.get("held_until_clear"):
+                segments.append(
+                    f"Conflict detected across active alerts; held the existing actionable alert until clear. Candidates: {candidates}."
+                )
+            else:
+                segments.append(
+                    f"Conflict detected across active alerts; resolved deterministically by alert hierarchy then zone priority. Candidates: {candidates}."
+                )
         if selected.get("degraded_reasons"):
             segments.append("Mapping issues: " + "; ".join(selected.get("degraded_reasons", [])))
+        skipped_notice = self._format_skipped_alert_notice(details[1:])
+        if skipped_notice:
+            segments.append(skipped_notice)
         segments.append("Overridden logic: zone automation, AQ, and normal lanes are paused until the selected alert clears.")
         return " ".join(segments)
+
+    def _format_nonblocking_alert_notice(self, details: List[Any]) -> str:
+        if not details or not isinstance(details[0], dict):
+            return ""
+        skipped_notice = self._format_skipped_alert_notice(
+            [detail for detail in details if not _alert_can_control(detail)]
+        )
+        if not skipped_notice:
+            return ""
+        return (
+            f"{skipped_notice} Automation continued to the next eligible priority "
+            "instead of applying a blind boost."
+        )
+
+    def _format_skipped_alert_notice(self, details: List[Dict[str, Any]]) -> str:
+        skipped = [detail for detail in details if not _alert_can_control(detail)]
+        if not skipped:
+            return ""
+        parts = []
+        for detail in skipped[:3]:
+            label = str(detail.get("companion") or detail.get("label") or "Alert")
+            reasons = detail.get("degraded_reasons") or []
+            if reasons:
+                parts.append(f"{label} ({'; '.join(str(reason) for reason in reasons)})")
+            else:
+                parts.append(f"{label} (no mapped zone boost output)")
+        suffix = "" if len(skipped) <= 3 else f"; plus {len(skipped) - 3} more"
+        return f"Skipped alert candidate(s): {'; '.join(parts)}{suffix}."
 
     def _format_aq_detail(self, details: List[Dict[str, Any]]) -> str:
         if not details:
@@ -1802,6 +1907,23 @@ def _fan_level_text(level: Any) -> str:
     if normalized == FAN_OUTPUT_LEVEL_AUTO:
         return "Auto"
     return f"{normalized}%"
+
+
+def _alert_can_control(detail: Dict[str, Any]) -> bool:
+    return bool(
+        detail
+        and not detail.get("degraded")
+        and detail.get("outputs")
+        and detail.get("boost_level")
+    )
+
+
+def _alert_identity(detail: Dict[str, Any]) -> Tuple[str, str, str]:
+    return (
+        str(detail.get("trigger_type") or ""),
+        str(detail.get("sensor") or ""),
+        str(detail.get("room") or ""),
+    )
 
 
 def _alert_priority(trigger_type: str) -> int:

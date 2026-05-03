@@ -6,6 +6,9 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+- Fixed alert boost hold behavior so selected alert zone outputs are not returned to auto while the alert lane is active.
+- Changed alert conflict handling to keep the current actionable alert boost until that originating alert clears, unless a higher-priority alert appears.
+- Changed unmapped/degraded alert handling so unsafe alert candidates are reported in the reason text while automation continues to the next eligible priority.
 - Fixed built-in humidity, mould, and condensation alert candidates so they enter the alert lane, resolve to the mapped zone boost level, and populate `HI Active Alert Context` even when no matching explicit alert row is configured.
 - Fixed V2 alert chip detection so generated cards recognise real alert switch entity IDs and the active alert context companion chip.
 - Changed Humidity Danger alerts to use the active target profile high-risk threshold instead of any saved static humidity threshold.
