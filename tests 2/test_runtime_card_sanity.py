@@ -1560,6 +1560,7 @@ def test_startup_ui_refresh_contract_is_wired():
     assert "EVENT_HOMEASSISTANT_STARTED" in init_source
     assert ".async_listen_once(" in init_source
     assert "@callback" in init_source
+    assert "task = hass.create_task(" in init_source
     assert "SERVICE_REFRESH_UI" in init_source
     assert "STARTUP_UI_REFRESH_DELAY_SECONDS" in init_source
     assert "blocking=True" in init_source

@@ -194,7 +194,9 @@ def _async_register_startup_ui_refresh(hass: HomeAssistant, entry: ConfigEntry) 
     @callback
     def _handle_started(_event) -> None:
         data.pop("startup_ui_refresh_unsub", None)
-        task = hass.async_create_task(
+        # EVENT_HOMEASSISTANT_STARTED can be fired from outside the event-loop
+        # thread during startup; use the thread-safe task creator here.
+        task = hass.create_task(
             _async_delayed_startup_ui_refresh(hass, entry.entry_id)
         )
         data["startup_ui_refresh_task"] = task
