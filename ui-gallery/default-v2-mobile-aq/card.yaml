@@ -1,3 +1,26 @@
+# Humidity Intelligence V2 Mobile Dashboard YAML
+#
+# What this is:
+# - Example Lovelace card YAML for the V2 mobile dashboard.
+# - In a live installation, prefer the YAML exported by humidity_intelligence.dump_cards.
+# - Paste the exported YAML into a Home Assistant Dashboard Manual card.
+# - Do not paste this into configuration.yaml.
+#
+# How to use after an upgrade or UI-changing option update:
+# 1. Call the service humidity_intelligence.dump_cards.
+# 2. Open /config/humidity_intelligence_cards_v2_mobile.yaml.
+# 3. Replace the old Manual card YAML with the full contents of that file.
+# 4. Save the dashboard and hard-refresh the browser/app if the old UI remains cached.
+#
+# Required custom cards:
+# - mod-card
+# - card-mod
+# - button-card
+# - apexcharts-card
+#
+# The integration replaces placeholder entity IDs when card YAML is exported.
+# Edit entity IDs manually only if you are deliberately overriding the generated mapping.
+
 type: custom:mod-card
 card_mod:
   style: |

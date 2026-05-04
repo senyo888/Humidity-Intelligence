@@ -238,6 +238,7 @@ The UI renders.
 - humidity danger alerts follow the active profile high-risk threshold instead of a saved static threshold
 - HI UI mapping can refresh automatically shortly after Home Assistant startup
 - dashboard YAML must be re-exported and pasted into existing Manual cards to see the new alert chips/reason-panel UI
+- V2 exported YAML now includes a short header explaining where to paste it, when to re-run `dump_cards`, and which custom cards are required
 
 Upgrade note: **v2.0.4 focuses on alert attribution, zone-bound boost behavior, and startup UI refresh reliability.**
 No breaking schema changes are introduced.
@@ -861,6 +862,7 @@ Safety guidance:
 - added single-flight automation evaluation and stopped internal status helper switches from retriggering evaluation when alert state changes
 - clarified global gate target-profile labels and added explicit alert visual rule removal in setup/options
 - added upgrade guidance that users must run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual dashboard cards to see v2.0.4 UI changes
+- added user-friendly headers to V2 card YAML exports with Manual-card paste instructions and dependency reminders
 - changed unmapped/degraded alert candidates to report in reason text and continue to the next eligible priority instead of blocking automation
 - fixed built-in humidity, mould, and condensation alert candidates so they enter the alert lane, resolve zone boost, and populate the companion alert chip without requiring a duplicate explicit alert row
 - fixed V2 alert chip detection for generated alert switch entity IDs and active alert context fallback

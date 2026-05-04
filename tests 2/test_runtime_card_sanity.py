@@ -1491,6 +1491,10 @@ async def _run_card_assertions(register_mod) -> None:
     cards = await register_mod.async_register_cards(hass, ENTRY_ID, mapping)
 
     assert hass.data["humidity_intelligence"][ENTRY_ID].get("unresolved_placeholders_by_card", {}) == {}
+    assert cards.get("v2_mobile", "").startswith("# Humidity Intelligence V2 Mobile Dashboard YAML")
+    assert cards.get("v2_tablet", "").startswith("# Humidity Intelligence V2 Tablet Dashboard YAML")
+    assert "Call the service humidity_intelligence.dump_cards" in cards.get("v2_mobile", "")
+    assert "Dashboard Manual card" in cards.get("v2_tablet", "")
 
     room_placeholders = [
         "sensor.bedroom_humidity",
