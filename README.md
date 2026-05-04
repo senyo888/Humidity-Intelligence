@@ -853,7 +853,7 @@ Safety guidance:
 - added `HI Active Alert Context` telemetry for UI chips and diagnostics
 - added degraded-mode handling when alert sensor, room, zone, or output mapping is incomplete
 - added `auto_refresh_ui_on_startup` option, enabled by default, to refresh HI UI mapping shortly after Home Assistant startup without blocking startup
-- fixed startup UI refresh scheduling to use Home Assistant's thread-safe task creator
+- fixed startup UI refresh scheduling/cleanup to use Home Assistant's thread-safe task creator without assuming a task handle is returned
 - removed the HACS URL from dependency flow output while keeping HACS detection
 - bumped integration version to `2.0.4`
 

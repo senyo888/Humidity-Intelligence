@@ -114,7 +114,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
     if unsub := data.get("startup_ui_refresh_unsub"):
         unsub()
-    if task := data.get("startup_ui_refresh_task"):
+    data.pop("startup_ui_refresh_scheduled", None)
+    task = data.pop("startup_ui_refresh_task", None)
+    if isinstance(task, asyncio.Task):
         task.cancel()
     if unsub := data.get("core_unsub"):
         unsub()
@@ -184,7 +186,7 @@ def _async_register_startup_ui_refresh(hass: HomeAssistant, entry: ConfigEntry) 
         return
 
     data = hass.data.setdefault(DOMAIN, {}).setdefault(entry.entry_id, {})
-    if data.get("startup_ui_refresh_unsub") or data.get("startup_ui_refresh_task"):
+    if data.get("startup_ui_refresh_unsub") or data.get("startup_ui_refresh_scheduled"):
         _LOGGER.debug(
             "HI entry %s startup UI refresh skipped: listener/task already exists.",
             entry.entry_id,
@@ -194,17 +196,20 @@ def _async_register_startup_ui_refresh(hass: HomeAssistant, entry: ConfigEntry) 
     @callback
     def _handle_started(_event) -> None:
         data.pop("startup_ui_refresh_unsub", None)
+        data["startup_ui_refresh_scheduled"] = True
+
+        async def _run_startup_ui_refresh() -> None:
+            try:
+                await _async_delayed_startup_ui_refresh(hass, entry.entry_id)
+            finally:
+                data.pop("startup_ui_refresh_scheduled", None)
+                data.pop("startup_ui_refresh_task", None)
+
         # EVENT_HOMEASSISTANT_STARTED can be fired from outside the event-loop
-        # thread during startup; use the thread-safe task creator here.
-        task = hass.create_task(
-            _async_delayed_startup_ui_refresh(hass, entry.entry_id)
-        )
-        data["startup_ui_refresh_task"] = task
-
-        def _clear_task(_task: asyncio.Task) -> None:
-            data.pop("startup_ui_refresh_task", None)
-
-        task.add_done_callback(_clear_task)
+        # thread during startup; create_task may return None on some HA builds.
+        task = hass.create_task(_run_startup_ui_refresh())
+        if isinstance(task, asyncio.Task):
+            data["startup_ui_refresh_task"] = task
         _LOGGER.debug(
             "HI entry %s startup UI refresh scheduled after Home Assistant started.",
             entry.entry_id,
@@ -224,6 +229,12 @@ async def _async_delayed_startup_ui_refresh(hass: HomeAssistant, entry_id: str) 
     """Run the startup UI refresh after a short availability delay."""
     try:
         await asyncio.sleep(STARTUP_UI_REFRESH_DELAY_SECONDS)
+        if entry_id not in hass.data.get(DOMAIN, {}):
+            _LOGGER.debug(
+                "HI entry %s startup UI refresh skipped: integration data is no longer loaded.",
+                entry_id,
+            )
+            return
         if not hass.config_entries.async_get_entry(entry_id):
             _LOGGER.debug(
                 "HI entry %s startup UI refresh skipped: config entry is no longer loaded.",
