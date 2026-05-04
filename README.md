@@ -451,6 +451,7 @@ What to do:
 - set time gate window (optional)
 - select presence/alarm entities (optional)
 - define explicit present and away state values
+- set HI target profile mode and HI custom target band when not using seasonal auto mode
 
 Example baseline:
 - time gate enabled: `06:00` to `23:30`
@@ -569,7 +570,7 @@ Example:
 
 What to do:
 - enable or disable HI-calculated humidity, mould, and condensation alert handling
-- configure optional visual indicator rules for internally calculated alert sources
+- add, edit, or remove optional alert visual rules for internally calculated alert sources
 - configure CO emergency thresholds; CO uses configured CO telemetry and existing ventilation outputs
 - set zone boost levels in the Zone pages because alert boost is zone-bound
 
@@ -849,6 +850,7 @@ Safety guidance:
 - fixed alert boost hold behavior so selected zone outputs are not returned to auto while the alert lane remains active
 - fixed alert helper switch churn so active alerts no longer flip their UI helper switches off/on during every evaluation cycle
 - added single-flight automation evaluation and stopped internal status helper switches from retriggering evaluation when alert state changes
+- clarified global gate target-profile labels and added explicit alert visual rule removal in setup/options
 - changed unmapped/degraded alert candidates to report in reason text and continue to the next eligible priority instead of blocking automation
 - fixed built-in humidity, mould, and condensation alert candidates so they enter the alert lane, resolve zone boost, and populate the companion alert chip without requiring a duplicate explicit alert row
 - fixed V2 alert chip detection for generated alert switch entity IDs and active alert context fallback

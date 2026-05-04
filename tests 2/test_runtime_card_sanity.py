@@ -1633,6 +1633,11 @@ def test_alert_configuration_contract_uses_internal_sources():
 
     assert "Internal HI alert source" in strings_source
     assert "Visual Indicator Rule" in strings_source
+    assert "HI target profile mode" in strings_source
+    assert "HI custom target low" in strings_source
+    assert "alert_remove" in config_source
+    assert "options_alert_remove" in config_source
+    assert "Remove alert visual rule" in strings_source
     assert "alert_handling_enabled" in strings_source
     assert "Boost settings should normally be higher" in config_source
     assert "existing configured ventilation outputs" in strings_source

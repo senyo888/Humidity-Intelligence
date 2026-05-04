@@ -6,6 +6,7 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+- Clarified Global Gates target-profile labels as HI target/custom targets and added explicit alert visual rule removal in setup and options flows.
 - Fixed alert helper switch churn so active alerts no longer flip their UI helper switches off/on during every evaluation cycle.
 - Added single-flight automation evaluation and stopped internal status helper switches from retriggering evaluation, preventing alert-clear dogpiles when humidity returns to normal.
 - Fixed startup UI refresh scheduling to use Home Assistant's thread-safe task creator, preventing unsafe `hass.async_create_task` calls during startup.

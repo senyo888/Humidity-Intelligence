@@ -856,17 +856,19 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_alerts(self, user_input: Optional[Dict[str, Any]] = None):
         """Menu for alert/emergency automations."""
-        if len(self._alerts) >= MAX_ALERTS:
-            return await self.async_step_alerts_done()
         alert_summary = _render_alerts_summary(self._alerts)
+        menu_options = ["alert_settings"]
+        if len(self._alerts) < MAX_ALERTS:
+            menu_options.append("alert_add")
+        if self._alerts:
+            menu_options.append("alert_remove")
+        menu_options.extend([
+            "alerts_done",
+            "alerts_back",
+        ])
         return self.async_show_menu(
             step_id="alerts",
-            menu_options=[
-                "alert_settings",
-                "alert_add",
-                "alerts_done",
-                "alerts_back",
-            ],
+            menu_options=menu_options,
             description_placeholders={"configured_alerts": alert_summary},
         )
 
@@ -995,6 +997,42 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         })
         schema = vol.Schema(schema_fields)
         return self.async_show_form(step_id="alert_add", data_schema=schema, errors=errors)
+
+    async def async_step_alert_remove(self, user_input: Optional[Dict[str, Any]] = None):
+        """Remove a visual indicator rule during initial setup."""
+        if not self._alerts:
+            return await self.async_step_alerts()
+
+        if user_input is not None:
+            remove_alert = str(user_input.get("remove_alert", "cancel"))
+            if remove_alert != "cancel":
+                try:
+                    idx = int(remove_alert)
+                except (TypeError, ValueError):
+                    idx = -1
+                if 0 <= idx < len(self._alerts):
+                    self._alerts.pop(idx)
+                    self._data["alerts"] = self._alerts
+            return await self.async_step_alerts()
+
+        options = [
+            SelectOptionDict(value=str(idx), label=_alert_option_label(idx, alert))
+            for idx, alert in enumerate(self._alerts)
+        ]
+        options.append(SelectOptionDict(value="cancel", label="Cancel"))
+        schema = vol.Schema({
+            vol.Required("remove_alert", default="0"): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=options,
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            )
+        })
+        return self.async_show_form(
+            step_id="alert_remove",
+            data_schema=schema,
+            description_placeholders={"configured_alerts": _render_alerts_summary(self._alerts)},
+        )
 
     async def async_step_alerts_done(self, user_input: Optional[Dict[str, Any]] = None):
         return await self.async_step_ui_install()
@@ -2027,6 +2065,8 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 return await self.async_step_options_alert_settings()
             if action == "add":
                 return await self.async_step_options_alert_add()
+            if action == "remove":
+                return await self.async_step_options_alert_remove()
             try:
                 idx = int(action)
             except (TypeError, ValueError):
@@ -2036,7 +2076,9 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 return await self.async_step_options_alert_edit()
 
         options = [SelectOptionDict(value="settings", label="Alert handling settings")]
-        options.append(SelectOptionDict(value="add", label="Add visual indicator rule"))
+        options.append(SelectOptionDict(value="add", label="Add alert visual rule"))
+        if alerts:
+            options.append(SelectOptionDict(value="remove", label="Remove alert visual rule"))
         options.extend([
             SelectOptionDict(value=str(idx), label=_alert_option_label(idx, alert))
             for idx, alert in enumerate(alerts)
@@ -2185,6 +2227,44 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         })
         schema = vol.Schema(schema_fields)
         return self.async_show_form(step_id="options_alert_add", data_schema=schema, errors=errors)
+
+    async def async_step_options_alert_remove(self, user_input: Optional[Dict[str, Any]] = None):
+        """Remove a visual indicator rule from options."""
+        alerts = _sanitize_alert_rules(list(self._section("alerts", [])))
+        self._options["alerts"] = alerts
+        if not alerts:
+            return await self.async_step_options_alerts()
+
+        if user_input is not None:
+            remove_alert = str(user_input.get("remove_alert", "cancel"))
+            if remove_alert != "cancel":
+                try:
+                    idx = int(remove_alert)
+                except (TypeError, ValueError):
+                    idx = -1
+                if 0 <= idx < len(alerts):
+                    alerts.pop(idx)
+                    self._options["alerts"] = alerts
+            return await self.async_step_options_alerts()
+
+        options = [
+            SelectOptionDict(value=str(idx), label=_alert_option_label(idx, alert))
+            for idx, alert in enumerate(alerts)
+        ]
+        options.append(SelectOptionDict(value="cancel", label="Cancel"))
+        schema = vol.Schema({
+            vol.Required("remove_alert", default="0"): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=options,
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            )
+        })
+        return self.async_show_form(
+            step_id="options_alert_remove",
+            data_schema=schema,
+            description_placeholders={"configured_alerts": _render_alerts_summary(alerts)},
+        )
 
     async def async_step_options_alert_edit(self, user_input: Optional[Dict[str, Any]] = None):
         alerts = list(self._section("alerts", []))

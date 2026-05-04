@@ -11,7 +11,7 @@
       },
       "gates": {
         "title": "Global Gates",
-        "description": "Configure time and presence gates that apply to all automations. Also select how HI resolves the active humidity target profile (auto seasonal, forced season, or custom band).",
+        "description": "Configure time and presence gates that apply to all automations. Also select how HI resolves the active HI target profile (auto seasonal, forced season, or custom band).",
         "data": {
           "enable_time_gate": "Enable time gate",
           "start_time": "Start time",
@@ -20,9 +20,9 @@
           "engine_interval_minutes": "Control loop interval",
           "alert_only_mode": "Alert-only mode (monitor + alerts only)",
           "auto_refresh_ui_on_startup": "Refresh HI UI mapping on Home Assistant startup",
-          "target_profile": "Target profile mode",
-          "custom_target_low": "Custom target low (%)",
-          "custom_target_high": "Custom target high (%)",
+          "target_profile": "HI target profile mode",
+          "custom_target_low": "HI custom target low (%)",
+          "custom_target_high": "HI custom target high (%)",
           "enable_presence_gate": "Enable presence gate",
           "presence_entities": "Presence entities (any helper/entity)"
         }
@@ -205,7 +205,8 @@
         "description": "Alerts are calculated internally from HI telemetry, worst-room detection, active target profiles, and CO readings. Humidity, mould, and condensation alerts resolve the affected room/sensor, map that room to a configured zone, and apply that zone's boost fan level. CO Emergency remains the highest-priority safety lane and uses configured CO telemetry plus existing configured ventilation outputs.\n\nConfigured visual indicator rules:\n{configured_alerts}",
         "menu_options": {
           "alert_settings": "Alert handling settings",
-          "alert_add": "Add visual indicator rule",
+          "alert_add": "Add alert visual rule",
+          "alert_remove": "Remove alert visual rule",
           "alerts_done": "Finish",
           "alerts_back": "Back"
         }
@@ -218,7 +219,7 @@
         }
       },
       "alert_add": {
-        "title": "Add Visual Indicator Rule",
+        "title": "Add Alert Visual Rule",
         "description": "Configure optional visual indicators for an internally calculated HI alert. The selected alert source is calculated by HI, not by a custom trigger entity. Fan boost behavior is controlled by the affected room's mapped zone boost setting.",
         "data": {
           "enabled": "Enable visual indicator rule",
@@ -229,6 +230,13 @@
           "power_entity": "Visual indicator power entity (optional)",
           "flash_mode": "Flash mode",
           "duration": "Duration"
+        }
+      },
+      "alert_remove": {
+        "title": "Remove Alert Visual Rule",
+        "description": "Remove an optional visual indicator rule. Internally calculated HI alert handling remains available even when no visual rule is configured.\n\nConfigured visual indicator rules:\n{configured_alerts}",
+        "data": {
+          "remove_alert": "Alert visual rule to remove"
         }
       },
       "ui_install": {
@@ -274,7 +282,7 @@
       },
       "options_gates": {
         "title": "Global Gates Options",
-        "description": "Edit global time and presence gates. Presence can use person, device_tracker, alarm panel, or helper entities. Target profile mode controls seasonal vs custom humidity interpretation.",
+        "description": "Edit global time and presence gates. Presence can use person, device_tracker, alarm panel, or helper entities. HI target profile mode controls seasonal vs custom humidity interpretation.",
         "data": {
           "enable_time_gate": "Enable time gate",
           "start_time": "Start time",
@@ -283,9 +291,9 @@
           "engine_interval_minutes": "Control loop interval",
           "alert_only_mode": "Alert-only mode (monitor + alerts only)",
           "auto_refresh_ui_on_startup": "Refresh HI UI mapping on Home Assistant startup",
-          "target_profile": "Target profile mode",
-          "custom_target_low": "Custom target low (%)",
-          "custom_target_high": "Custom target high (%)",
+          "target_profile": "HI target profile mode",
+          "custom_target_low": "HI custom target low (%)",
+          "custom_target_high": "HI custom target high (%)",
           "enable_presence_gate": "Enable presence gate",
           "presence_entities": "Presence/alarm entities"
         }
@@ -416,7 +424,7 @@
         }
       },
       "options_alert_add": {
-        "title": "Add Visual Indicator Rule",
+        "title": "Add Alert Visual Rule",
         "description": "Configure optional visual indicators for an internally calculated HI alert. Fan boost is controlled by the affected room's mapped zone boost setting.",
         "data": {
           "enabled": "Enable visual indicator rule",
@@ -427,6 +435,13 @@
           "power_entity": "Visual indicator power entity (optional)",
           "flash_mode": "Flash mode",
           "duration": "Flash duration"
+        }
+      },
+      "options_alert_remove": {
+        "title": "Remove Alert Visual Rule",
+        "description": "Remove an optional visual indicator rule. Internally calculated HI alert handling remains available even when no visual rule is configured.\n\nConfigured visual indicator rules:\n{configured_alerts}",
+        "data": {
+          "remove_alert": "Alert visual rule to remove"
         }
       },
       "options_alert_edit": {
