@@ -237,9 +237,16 @@ The UI renders.
 - multiple simultaneous alerts resolve by alert hierarchy first and zone priority second
 - humidity danger alerts follow the active profile high-risk threshold instead of a saved static threshold
 - HI UI mapping can refresh automatically shortly after Home Assistant startup
+- dashboard YAML must be re-exported and pasted into existing Manual cards to see the new alert chips/reason-panel UI
 
 Upgrade note: **v2.0.4 focuses on alert attribution, zone-bound boost behavior, and startup UI refresh reliability.**
 No breaking schema changes are introduced.
+
+Manual dashboard update:
+1. Call `humidity_intelligence.dump_cards`.
+2. Open the generated `/config/humidity_intelligence_cards_<layout>.yaml` file.
+3. Copy the updated YAML into the relevant Dashboard Manual card.
+4. Save the dashboard and hard-refresh the browser/app if Home Assistant still shows the old card.
 
 ---
 
@@ -741,6 +748,8 @@ data:
 ### `dump_cards`
 Purpose:
 - render and export card YAML to file without dashboard creation.
+- use this after upgrading or changing options when an existing Manual dashboard card needs the latest HI YAML.
+- paste the generated YAML from `/config/humidity_intelligence_cards_<layout>.yaml` back into the relevant Dashboard Manual card.
 
 Example:
 ```yaml
@@ -851,6 +860,7 @@ Safety guidance:
 - fixed alert helper switch churn so active alerts no longer flip their UI helper switches off/on during every evaluation cycle
 - added single-flight automation evaluation and stopped internal status helper switches from retriggering evaluation when alert state changes
 - clarified global gate target-profile labels and added explicit alert visual rule removal in setup/options
+- added upgrade guidance that users must run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual dashboard cards to see v2.0.4 UI changes
 - changed unmapped/degraded alert candidates to report in reason text and continue to the next eligible priority instead of blocking automation
 - fixed built-in humidity, mould, and condensation alert candidates so they enter the alert lane, resolve zone boost, and populate the companion alert chip without requiring a duplicate explicit alert row
 - fixed V2 alert chip detection for generated alert switch entity IDs and active alert context fallback

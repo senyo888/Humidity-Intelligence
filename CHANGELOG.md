@@ -6,6 +6,7 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+- Added README v2.0.4 upgrade guidance to run `humidity_intelligence.dump_cards` and paste the generated YAML into existing Manual dashboard cards for UI changes.
 - Enlarged the HI icon/logo artwork within the required 256x256 canvas so it appears larger in Home Assistant and HACS surfaces.
 - Clarified Global Gates target-profile labels as HI target/custom targets and added explicit alert visual rule removal in setup and options flows.
 - Fixed alert helper switch churn so active alerts no longer flip their UI helper switches off/on during every evaluation cycle.
