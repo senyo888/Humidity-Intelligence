@@ -426,6 +426,17 @@ async def _run_runtime_assertions(engine_mod) -> None:
     await engine._evaluate()
     assert alert_switch.on_calls == 1
     assert alert_switch.off_calls == 0
+    hass.states._values["sensor.kitchen_h"] = _FakeState(45)
+    hass.states._values["sensor.hall_h"] = _FakeState(45)
+    hass.states._values["sensor.bed_h"] = _FakeState(45)
+    hass.states._values["sensor.l1_iaq"] = _FakeState(90)
+    await engine._evaluate()
+    assert alert_switch.on_calls == 1
+    assert alert_switch.off_calls == 1
+    assert hass.data["humidity_intelligence"][ENTRY_ID].get("active_alert_context") == "None"
+    await engine._evaluate()
+    assert alert_switch.on_calls == 1
+    assert alert_switch.off_calls == 1
 
     # Room-scoped humidity danger alert should only trigger for the selected room.
     entry_room_alert_data = _base_entry_data()
@@ -1272,6 +1283,32 @@ async def _run_runtime_assertions(engine_mod) -> None:
     assert len(stored.get("runtime_reason")) <= 255
     assert stored.get("runtime_reason_full") == long_reason
     assert stored.get("runtime_reason_truncated") is True
+
+    # Re-entrant requests caused by helper state changes should be coalesced
+    # instead of recursively running overlapping evaluation cycles.
+    entry_reentry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass_reentry = _FakeHass(entry_reentry, {})
+    engine_reentry = HIAutomationEngine(hass_reentry, entry_reentry)
+    reentry_calls = []
+
+    async def fake_evaluate():
+        reentry_calls.append("run")
+        if len(reentry_calls) == 1:
+            await engine_reentry.async_request_evaluate()
+
+    engine_reentry._evaluate = fake_evaluate
+    await engine_reentry.async_request_evaluate()
+    assert reentry_calls == ["run", "run"]
+
+    # Internal status helpers should not be tracked as evaluation sources; they
+    # are outputs of the engine, not inputs that should retrigger the engine.
+    for key, entity in hass_reentry.data["humidity_intelligence"][ENTRY_ID]["hi_input_booleans"].items():
+        entity.entity_id = f"switch.hi_{key}"
+    sources = engine_reentry._evaluation_sources()
+    assert "switch.hi_air_control_enabled" in sources
+    assert "switch.hi_air_alert_1_active" not in sources
+    assert "switch.hi_air_aq_downstairs_active" not in sources
+    assert "switch.hi_air_downstairs_humidifier_active" not in sources
 
     # Cleanup background AQ tasks.
     for task in list(engine._aq_tasks.values()):

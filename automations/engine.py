@@ -57,6 +57,15 @@ _BUILT_IN_ZONE_ALERT_TRIGGERS = (
     "condensation_danger",
     "condensation_risk",
 )
+_EVALUATION_SWITCH_SOURCE_KEYS = {
+    "air_control_enabled",
+    "air_control_manual_override",
+    "air_isolate_fan_outputs",
+    "air_isolate_humidifier_outputs",
+}
+_EVALUATION_TIMER_SOURCE_KEYS = {
+    "air_control_pause",
+}
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -88,6 +97,8 @@ class HIAutomationEngine:
         self._active_alert_identity: Optional[Tuple[str, str, str]] = None
         self._co_emergency_active = False
         self._co_below_since: Optional[datetime] = None
+        self._evaluate_lock: Optional[asyncio.Lock] = None
+        self._evaluate_pending = False
         configured_interval = None
         if entry.options:
             configured_interval = entry.options.get("engine_interval_minutes")
@@ -124,7 +135,7 @@ class HIAutomationEngine:
             self._periodic_check,
             timedelta(minutes=self.engine_interval_minutes),
         )
-        await self._evaluate()
+        await self.async_request_evaluate()
         self._schedule_startup_recheck()
 
     async def async_stop(self) -> None:
@@ -139,14 +150,32 @@ class HIAutomationEngine:
             task.cancel()
 
     async def _handle_change(self, event) -> None:
-        await self._evaluate()
+        await self.async_request_evaluate()
 
     async def _periodic_check(self, now) -> None:
-        await self._evaluate()
+        await self.async_request_evaluate()
 
     async def async_request_evaluate(self) -> None:
         """Request an immediate evaluation cycle."""
-        await self._evaluate()
+        evaluate_lock = self._get_evaluate_lock()
+        if evaluate_lock.locked():
+            self._evaluate_pending = True
+            _LOGGER.debug(
+                "HI entry %s evaluation already running; queued one follow-up cycle.",
+                self.entry.entry_id,
+            )
+            return
+        async with evaluate_lock:
+            while True:
+                self._evaluate_pending = False
+                await self._evaluate()
+                if not self._evaluate_pending:
+                    break
+
+    def _get_evaluate_lock(self) -> asyncio.Lock:
+        if self._evaluate_lock is None:
+            self._evaluate_lock = asyncio.Lock()
+        return self._evaluate_lock
 
     def _schedule_startup_recheck(self) -> None:
         if self._startup_recheck_task and not self._startup_recheck_task.done():
@@ -155,7 +184,7 @@ class HIAutomationEngine:
         async def _startup_recheck() -> None:
             try:
                 await asyncio.sleep(STARTUP_SENSOR_RECHECK_SECONDS)
-                await self._evaluate()
+                await self.async_request_evaluate()
             except asyncio.CancelledError:
                 return
 
@@ -380,11 +409,15 @@ class HIAutomationEngine:
         data = self.hass.data.get(DOMAIN, {}).get(self.entry.entry_id, {})
         booleans = data.get("hi_input_booleans", {})
         timers = data.get("hi_timers", {})
-        for entity in booleans.values():
+        for key, entity in booleans.items():
+            if key not in _EVALUATION_SWITCH_SOURCE_KEYS:
+                continue
             entity_id = getattr(entity, "entity_id", None)
             if entity_id:
                 sources.append(entity_id)
-        for entity in timers.values():
+        for key, entity in timers.items():
+            if key not in _EVALUATION_TIMER_SOURCE_KEYS:
+                continue
             entity_id = getattr(entity, "entity_id", None)
             if entity_id:
                 sources.append(entity_id)

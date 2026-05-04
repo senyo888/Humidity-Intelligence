@@ -848,6 +848,7 @@ Safety guidance:
 - clarified zone boost guidance so boost levels are presented as danger/alert escalation and should normally exceed normal zone fan levels
 - fixed alert boost hold behavior so selected zone outputs are not returned to auto while the alert lane remains active
 - fixed alert helper switch churn so active alerts no longer flip their UI helper switches off/on during every evaluation cycle
+- added single-flight automation evaluation and stopped internal status helper switches from retriggering evaluation when alert state changes
 - changed unmapped/degraded alert candidates to report in reason text and continue to the next eligible priority instead of blocking automation
 - fixed built-in humidity, mould, and condensation alert candidates so they enter the alert lane, resolve zone boost, and populate the companion alert chip without requiring a duplicate explicit alert row
 - fixed V2 alert chip detection for generated alert switch entity IDs and active alert context fallback
