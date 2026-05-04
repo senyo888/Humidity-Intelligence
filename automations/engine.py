@@ -424,9 +424,11 @@ class HIAutomationEngine:
 
     async def _handle_alerts(self) -> Tuple[bool, List[Dict[str, Any]]]:
         active_details: List[Dict[str, Any]] = []
-        for idx in range(max(len(self.alerts), 5)):
-            await self._set_bool(self._alert_switch_key(idx), False)
+        alert_switch_states = {
+            idx: False for idx in range(max(len(self.alerts), 5))
+        }
         if not self.alert_handling_enabled:
+            await self._sync_alert_activity_switches({})
             self._active_alert_identity = None
             self._record_alert_resolution([])
             _LOGGER.debug(
@@ -439,7 +441,7 @@ class HIAutomationEngine:
                 continue
             detail = self._alert_detail(idx, alert)
             triggered = detail is not None
-            await self._set_bool(self._alert_switch_key(idx), triggered)
+            alert_switch_states[idx] = triggered
             if not triggered:
                 continue
             active_details.append(detail)
@@ -468,6 +470,7 @@ class HIAutomationEngine:
                 )
             except Exception:
                 _LOGGER.exception("Alert flash service call failed for alert index %s", idx)
+        await self._sync_alert_activity_switches(alert_switch_states)
         inferred_details = self._inferred_alert_details(active_details)
         if inferred_details:
             _LOGGER.debug(
@@ -1080,8 +1083,11 @@ class HIAutomationEngine:
         await self._clear_timer("air_aq_downstairs_run")
 
     async def _clear_alert_activity_switches(self) -> None:
+        await self._sync_alert_activity_switches({})
+
+    async def _sync_alert_activity_switches(self, states: Dict[int, bool]) -> None:
         for idx in range(max(len(self.alerts), 5)):
-            await self._set_bool(self._alert_switch_key(idx), False)
+            await self._set_bool(self._alert_switch_key(idx), bool(states.get(idx, False)))
 
     async def _cancel_aq_task(self, level: str) -> None:
         task = self._aq_tasks.pop(level, None)
@@ -1544,6 +1550,8 @@ class HIAutomationEngine:
         booleans = data.get("hi_input_booleans", {})
         entity = booleans.get(key)
         if entity:
+            if bool(getattr(entity, "is_on", False)) == bool(value):
+                return
             if value:
                 await entity.async_turn_on()
             else:

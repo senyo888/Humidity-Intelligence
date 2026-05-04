@@ -6,6 +6,7 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+- Fixed alert helper switch churn so active alerts no longer flip their UI helper switches off/on during every evaluation cycle.
 - Fixed startup UI refresh scheduling to use Home Assistant's thread-safe task creator, preventing unsafe `hass.async_create_task` calls during startup.
 - Fixed startup UI refresh cleanup so Home Assistant builds where `hass.create_task` returns no task handle do not raise during the startup event.
 - Removed custom trigger entities and custom binary sensor alert configuration so alerts remain internally calculated from HI telemetry, risk logic, and room/zone resolution; legacy custom alert rows are stripped from config-flow saves.

@@ -125,11 +125,15 @@ class _FakeServices:
 class _FakeBool:
     def __init__(self, initial=False):
         self.is_on = bool(initial)
+        self.on_calls = 0
+        self.off_calls = 0
 
     async def async_turn_on(self):
+        self.on_calls += 1
         self.is_on = True
 
     async def async_turn_off(self):
+        self.off_calls += 1
         self.is_on = False
 
 
@@ -413,9 +417,15 @@ async def _run_runtime_assertions(engine_mod) -> None:
     # Runtime mode priority should prefer alert while alert lane is active.
     assert hass.data["humidity_intelligence"][ENTRY_ID].get("runtime_mode") == "alert"
     assert hass.data["humidity_intelligence"][ENTRY_ID]["hi_input_booleans"]["air_alert_1_active"].is_on
+    alert_switch = hass.data["humidity_intelligence"][ENTRY_ID]["hi_input_booleans"]["air_alert_1_active"]
+    assert alert_switch.on_calls == 1
+    assert alert_switch.off_calls == 0
     alert_reason = hass.data["humidity_intelligence"][ENTRY_ID].get("runtime_reason", "")
     assert "Alert response is active" in alert_reason
     assert "resolved zone" in alert_reason or "Degraded mode" in alert_reason
+    await engine._evaluate()
+    assert alert_switch.on_calls == 1
+    assert alert_switch.off_calls == 0
 
     # Room-scoped humidity danger alert should only trigger for the selected room.
     entry_room_alert_data = _base_entry_data()

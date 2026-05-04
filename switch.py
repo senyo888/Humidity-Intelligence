@@ -84,12 +84,21 @@ class HIInputSwitch(SwitchEntity, RestoreEntity):
             self._auto_close_task = None
 
     async def async_turn_on(self, **kwargs) -> None:
+        if self._state:
+            if self._supports_auto_close():
+                self._schedule_auto_close()
+            return
         self._state = True
         self.async_write_ha_state()
         if self._supports_auto_close():
             self._schedule_auto_close()
 
     async def async_turn_off(self, **kwargs) -> None:
+        if not self._state:
+            if self._auto_close_task:
+                self._auto_close_task.cancel()
+                self._auto_close_task = None
+            return
         self._state = False
         if self._auto_close_task:
             self._auto_close_task.cancel()
