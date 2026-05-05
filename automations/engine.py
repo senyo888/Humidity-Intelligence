@@ -490,15 +490,18 @@ class HIAutomationEngine:
                 )
                 continue
             try:
+                flash_payload = {
+                    "lights": lights,
+                    "color": (255, 0, 0) if alert.get("flash_mode") == "red" else (255, 255, 255),
+                    "duration": alert.get("duration", 10),
+                }
+                power_entity = alert.get("power_entity")
+                if power_entity:
+                    flash_payload["power_entity"] = power_entity
                 await self.hass.services.async_call(
                     DOMAIN,
                     SERVICE_FLASH_LIGHTS,
-                    {
-                        "power_entity": alert.get("power_entity"),
-                        "lights": lights,
-                        "color": (255, 0, 0) if alert.get("flash_mode") == "red" else (255, 255, 255),
-                        "duration": alert.get("duration", 10),
-                    },
+                    flash_payload,
                     blocking=False,
                 )
             except Exception:

@@ -266,15 +266,15 @@ async def async_register_services(hass: HomeAssistant) -> None:
             for ent in mapping.values():
                 if hass.states.get(ent) is None:
                     missing_entities.append(ent)
-            # basic dependency checks
-            dependencies_ok = {}
+            # Basic frontend dependency checks.
+            frontend_dependencies_ok = {}
             resources = hass.data.get("lovelace_resources") or {}
             for dep in ["card-mod", "button-card", "mod-card", "apexcharts-card"]:
-                dependencies_ok[dep] = any(dep in str(v) for v in resources.values())
+                frontend_dependencies_ok[dep] = any(dep in str(v) for v in resources.values())
 
             report[entry.entry_id] = {
                 "missing_entities": missing_entities,
-                "dependency_resources": dependencies_ok,
+                "frontend_dependency_resources": frontend_dependencies_ok,
                 "telemetry_count": len(entry.data.get("telemetry", [])),
                 "unresolved_placeholders": data.get("unresolved_placeholders", []),
                 "unresolved_placeholders_by_card": data.get("unresolved_placeholders_by_card", {}),

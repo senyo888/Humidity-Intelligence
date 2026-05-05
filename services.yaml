@@ -65,7 +65,7 @@ dump_diagnostics:
         text: {}
 self_check:
   name: Self Check
-  description: Validate entity mapping, dependencies, and telemetry setup
+  description: Validate entity mapping, frontend dependencies, and telemetry setup
   fields:
     entry_id:
       name: Entry ID

@@ -647,10 +647,16 @@ card:
             const vocD = num('sensor.air_control_downstairs_voc_average');
             const coD  = num('sensor.air_control_downstairs_co_average');
             const iaqH = num('sensor.air_control_house_iaq_average');
+            const pmH  = num('sensor.air_control_house_pm25_average');
+            const vocH = num('sensor.air_control_house_voc_average');
+            const coH  = num('sensor.air_control_house_co_average');
 
             return `
               <div class="cv-scroll">
                 ${maybeChip('House IAQ', iaqH, '', cIAQ(iaqH))}
+                ${maybeChip('House PM2.5', pmH, '', cPM(pmH))}
+                ${maybeChip('House VOC', vocH, '', cVOC(vocH))}
+                ${maybeChip('House CO', coH, '', cCO(coH))}
                 ${maybeChip('Upstairs IAQ', iaqU, '', cIAQ(iaqU))}
                 ${maybeChip('Upstairs PM2.5', pmU, '', cPM(pmU))}
                 ${maybeChip('Upstairs VOC', vocU, '', cVOC(vocU))}
@@ -682,10 +688,8 @@ card:
 
             const bhd = num('sensor.air_control_bathroom_humidity_delta');
             const khd = num('sensor.air_control_kitchen_humidity_delta');
-            const ksd = num('sensor.air_control_kitchen_slope_delta');
 
             const s1 = (v) => (v === null ? null : `${v > 0 ? '+' : ''}${v.toFixed(1)}`);
-            const s2 = (v) => (v === null ? null : `${v > 0 ? '+' : ''}${v.toFixed(2)}`);
 
             const roomDelta = Object.keys(states)
               .filter((id) => id.startsWith('sensor.hi_') && id.includes('_humidity_delta'))
@@ -724,13 +728,12 @@ card:
             return `
               <div class="cv-scroll">
                 ${chip('House AVG', hh === null ? null : Math.round(hh), '%', cH(hh))}
-                ${chip('Downstairs AVG', dh === null ? null : Math.round(dh), '%', cH(dh))}
                 ${chip('Upstairs AVG', uh === null ? null : Math.round(uh), '%', cH(uh))}
+                ${chip('Downstairs AVG', dh === null ? null : Math.round(dh), '%', cH(dh))}
                 ${chip('Bathroom', bh === null ? null : Math.round(bh), '%', cH(bh))}
                 ${chip('Kitchen', kh === null ? null : Math.round(kh), '%', cH(kh))}
                 ${chip('Bathroom Δ', s1(bhd), '%', '#94a3b8')}
                 ${chip('Kitchen Δ', s1(khd), '%', '#94a3b8')}
-                ${chip('Kitchen Δ slope', s2(ksd), '', '#94a3b8')}
                 ${roomDeltaChips}
               </div>`;
           ]]]

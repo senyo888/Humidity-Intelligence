@@ -818,6 +818,13 @@ async def _run_runtime_assertions(engine_mod) -> None:
         domain == "humidity_intelligence" and service == "flash_lights"
         for domain, service, *_ in hass_room_alert_dynamic.services.calls
     )
+    dynamic_flash_calls = [
+        data
+        for domain, service, data, _ in hass_room_alert_dynamic.services.calls
+        if domain == "humidity_intelligence" and service == "flash_lights"
+    ]
+    assert dynamic_flash_calls
+    assert all("power_entity" not in data for data in dynamic_flash_calls)
 
     # Alerts without target lights should still activate runtime alert mode,
     # but skip light flash service calls cleanly.
@@ -1489,12 +1496,14 @@ async def _run_card_assertions(register_mod) -> None:
 
     mapping = await register_mod.async_build_entity_mapping(hass, ENTRY_ID)
     cards = await register_mod.async_register_cards(hass, ENTRY_ID, mapping)
+    mobile = cards.get("v2_mobile", "")
+    tablet = cards.get("v2_tablet", "")
 
     assert hass.data["humidity_intelligence"][ENTRY_ID].get("unresolved_placeholders_by_card", {}) == {}
-    assert cards.get("v2_mobile", "").startswith("# Humidity Intelligence V2 Mobile Dashboard YAML")
-    assert cards.get("v2_tablet", "").startswith("# Humidity Intelligence V2 Tablet Dashboard YAML")
-    assert "Call the service humidity_intelligence.dump_cards" in cards.get("v2_mobile", "")
-    assert "Dashboard Manual card" in cards.get("v2_tablet", "")
+    assert mobile.startswith("# Humidity Intelligence V2 Mobile Dashboard YAML")
+    assert tablet.startswith("# Humidity Intelligence V2 Tablet Dashboard YAML")
+    assert "Call the service humidity_intelligence.dump_cards" in mobile
+    assert "Dashboard Manual card" in tablet
 
     room_placeholders = [
         "sensor.bedroom_humidity",
@@ -1508,25 +1517,34 @@ async def _run_card_assertions(register_mod) -> None:
         assert mapping.get(placeholder)
         assert placeholder not in cards.get("v1_mobile", "")
 
-    assert _contains_v2_border_pill_sync_logic(cards.get("v2_mobile", ""))
-    assert _contains_v2_border_pill_sync_logic(cards.get("v2_tablet", ""))
+    for card in (mobile, tablet):
+        assert "Kitchen Δ slope" not in card
+        assert "sensor.air_control_kitchen_slope_delta" not in card
+        assert "House PM2.5" in card
+        assert "House VOC" in card
+        assert "House CO" in card
+        assert card.index("House AVG") < card.index("Upstairs AVG") < card.index("Downstairs AVG")
+        assert card.index("House IAQ") < card.index("Upstairs IAQ") < card.index("Downs.. IAQ")
+
+    assert _contains_v2_border_pill_sync_logic(mobile)
+    assert _contains_v2_border_pill_sync_logic(tablet)
     # Outputs should only include configured alert placeholders.
-    assert "input_boolean.air_alert_2_active" not in cards.get("v2_mobile", "")
-    assert "light.alert_2" not in cards.get("v2_mobile", "")
-    assert "name: Alert 2 Active" not in cards.get("v2_mobile", "")
-    assert "name: Alert light 2" not in cards.get("v2_mobile", "")
-    assert "air_bathroom_alert_77" not in cards.get("v2_mobile", "")
-    assert "air_bathroom_alert_81" not in cards.get("v2_mobile", "")
-    assert "air_bathroom_alert_77" not in cards.get("v2_tablet", "")
-    assert "air_bathroom_alert_81" not in cards.get("v2_tablet", "")
-    assert "input_boolean.air_isolate_fan_outputs" not in cards.get("v2_mobile", "")
-    assert "input_boolean.air_isolate_humidifier_outputs" not in cards.get("v2_mobile", "")
-    assert "input_boolean.air_isolate_fan_outputs" not in cards.get("v2_tablet", "")
-    assert "input_boolean.air_isolate_humidifier_outputs" not in cards.get("v2_tablet", "")
-    assert not _has_empty_cards_block(cards.get("v2_mobile", ""))
-    assert not _has_empty_cards_block(cards.get("v2_tablet", ""))
-    assert not _has_invalid_conditional_block(cards.get("v2_mobile", ""))
-    assert not _has_invalid_conditional_block(cards.get("v2_tablet", ""))
+    assert "input_boolean.air_alert_2_active" not in mobile
+    assert "light.alert_2" not in mobile
+    assert "name: Alert 2 Active" not in mobile
+    assert "name: Alert light 2" not in mobile
+    assert "air_bathroom_alert_77" not in mobile
+    assert "air_bathroom_alert_81" not in mobile
+    assert "air_bathroom_alert_77" not in tablet
+    assert "air_bathroom_alert_81" not in tablet
+    assert "input_boolean.air_isolate_fan_outputs" not in mobile
+    assert "input_boolean.air_isolate_humidifier_outputs" not in mobile
+    assert "input_boolean.air_isolate_fan_outputs" not in tablet
+    assert "input_boolean.air_isolate_humidifier_outputs" not in tablet
+    assert not _has_empty_cards_block(mobile)
+    assert not _has_empty_cards_block(tablet)
+    assert not _has_invalid_conditional_block(mobile)
+    assert not _has_invalid_conditional_block(tablet)
 
 
 async def _run_alert_only_card_assertions(register_mod) -> None:
@@ -1627,6 +1645,7 @@ def test_startup_ui_refresh_contract_is_wired():
 def test_alert_configuration_contract_uses_internal_sources():
     const_source = (ROOT / "const.py").read_text()
     config_source = (ROOT / "config_flow.py").read_text()
+    services_source = (ROOT / "services.py").read_text()
     strings_source = (ROOT / "strings.json").read_text()
     translation_source = (ROOT / "translations" / "en.json").read_text()
 
@@ -1637,6 +1656,12 @@ def test_alert_configuration_contract_uses_internal_sources():
 
     assert "Internal HI alert source" in strings_source
     assert "Visual Indicator Rule" in strings_source
+    assert "Frontend Dependencies" in strings_source
+    assert "Frontend Dependencies" in translation_source
+    assert "frontend dependencies" in strings_source
+    assert "frontend dependencies" in translation_source
+    assert "frontend_dependency_resources" in services_source
+    assert '"dependency_resources"' not in services_source
     assert "HI target profile mode" in strings_source
     assert "HI custom target low" in strings_source
     assert "alert_remove" in config_source

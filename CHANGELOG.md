@@ -6,7 +6,10 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
-- Added user-friendly headers to V2 card YAML exports with Manual-card paste instructions, `dump_cards` refresh guidance, and dependency reminders.
+- Added user-friendly headers to V2 card YAML exports with Manual-card paste instructions, `dump_cards` refresh guidance, and frontend dependency reminders.
+- Fixed alert flash payloads so optional visual-indicator power entities are omitted when unset, avoiding schema errors and repeated debug logs.
+- Refined Air Control UI chips so AQ and humidity rows use House, Upstairs, Downstairs ordering and removed the Kitchen temperature-slope chip from the humidity row.
+- Renamed user-facing dependency wording to Frontend Dependencies across setup, options, services, self-check output, and docs.
 - Added README v2.0.4 upgrade guidance to run `humidity_intelligence.dump_cards` and paste the generated YAML into existing Manual dashboard cards for UI changes.
 - Enlarged the HI icon/logo artwork within the required 256x256 canvas so it appears larger in Home Assistant and HACS surfaces.
 - Clarified Global Gates target-profile labels as HI target/custom targets and added explicit alert visual rule removal in setup and options flows.

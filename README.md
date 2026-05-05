@@ -19,7 +19,7 @@
 - [Season-Aware Environmental Control](#season-aware-environmental-control)
 - [Architecture Overview](#architecture-overview)
 - [Installation](#installation)
-- [Dependencies](#dependencies)
+- [Frontend Dependencies](#frontend-dependencies)
 - [Migration Guide - v1 to v2](#migration-guide---v1-to-v2)
 - [Full Configuration Flow](#full-configuration-flow)
 - [Configuration Screenshots (Visual Guide)](#configuration-screenshots-visual-guide)
@@ -266,7 +266,7 @@ Manual dashboard update:
 
 ---
 
-## Dependencies
+## Frontend Dependencies
 
 Humidity Intelligence V2 is designed to run **fully at the backend level**, but the **UI experience depends on a small set of frontend cards**.
 
@@ -291,7 +291,7 @@ The following projects power the visual layer of Humidity Intelligence:
 
 ### Installation Notes
 
-- All dependencies can be installed via HACS (**Frontend** section).
+- All frontend dependencies can be installed via HACS (**Frontend** section).
 - After installing, hard refresh your browser or use a new session to avoid caching issues.
 - If you skip these, the system still runs, but UI elements may not render correctly.
 
@@ -310,7 +310,7 @@ These tools are foundational to the Home Assistant ecosystem, and this project w
 If you are unsure:
 
 1. Install HACS
-2. Install the dependencies above
+2. Install the frontend dependencies above
 3. Continue with the configuration flow
 
 Or:
@@ -442,15 +442,15 @@ Skipping this step will result in:
 
 Follow this sequence on first install.
 
-### 1) Dependencies
+### 1) Frontend Dependencies
 
 What to do:
-- open the Dependencies step in config flow
+- open the Frontend Dependencies step in config flow
 - review installed/detected status and direct resource links where shown
 - continue even if some are not installed
 
 Reference:
-- see [Dependencies](#dependencies) for install guidance and acknowledgements
+- see [Frontend Dependencies](#frontend-dependencies) for install guidance and acknowledgements
 
 
 ### 2) Global Gates
@@ -632,8 +632,8 @@ Example service usage:
 <details>
 <summary>Open configuration screenshots</summary>
 
-### 1) Dependencies
-<img src="assets/readme/config_dependencies.png" width="760" alt="Dependencies step">
+### 1) Frontend Dependencies
+<img src="assets/readme/config_dependencies.png" width="760" alt="Frontend dependencies step">
 
 ### 2) Global Gates
 <img src="assets/readme/config_global_gate.png" width="460" alt="Global gate settings">
@@ -810,7 +810,7 @@ data: {}
 
 ### `self_check`
 Purpose:
-- run mapping/dependency/telemetry health checks and write report JSON.
+- run mapping, frontend dependency, and telemetry health checks and write report JSON.
 
 Example:
 ```yaml
@@ -862,7 +862,7 @@ Safety guidance:
 - added single-flight automation evaluation and stopped internal status helper switches from retriggering evaluation when alert state changes
 - clarified global gate target-profile labels and added explicit alert visual rule removal in setup/options
 - added upgrade guidance that users must run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual dashboard cards to see v2.0.4 UI changes
-- added user-friendly headers to V2 card YAML exports with Manual-card paste instructions and dependency reminders
+- added user-friendly headers to V2 card YAML exports with Manual-card paste instructions and frontend dependency reminders
 - changed unmapped/degraded alert candidates to report in reason text and continue to the next eligible priority instead of blocking automation
 - fixed built-in humidity, mould, and condensation alert candidates so they enter the alert lane, resolve zone boost, and populate the companion alert chip without requiring a duplicate explicit alert row
 - fixed V2 alert chip detection for generated alert switch entity IDs and active alert context fallback
@@ -870,17 +870,17 @@ Safety guidance:
 - added degraded-mode handling when alert sensor, room, zone, or output mapping is incomplete
 - added `auto_refresh_ui_on_startup` option, enabled by default, to refresh HI UI mapping shortly after Home Assistant startup without blocking startup
 - fixed startup UI refresh scheduling/cleanup to use Home Assistant's thread-safe task creator without assuming a task handle is returned
-- removed the HACS URL from dependency flow output while keeping HACS detection
+- removed the HACS URL from frontend dependency flow output while keeping HACS detection
 - bumped integration version to `2.0.4`
 
 ### v2.0.3
 
 - bumped integration version to `2.0.3`
 - documented minimum Home Assistant version as `2026.4.3`
-- dependency status output now includes direct repository links (`card-mod`, `button-card`, `mod-card`, `apexcharts-card`)
-- added post-configuration Dependencies options step so dependency checks are accessible after initial setup
-- reordered options menu for setup flow clarity (`Dependencies`, then `Sensors`, then `Global Gates`)
-- refreshed README dependency section with clearer HACS-first install guidance and acknowledgements
+- frontend dependency status output now includes direct repository links (`card-mod`, `button-card`, `mod-card`, `apexcharts-card`)
+- added post-configuration Frontend Dependencies options step so frontend dependency checks are accessible after initial setup
+- reordered options menu for setup flow clarity (`Frontend Dependencies`, then `Sensors`, then `Global Gates`)
+- refreshed README frontend dependency section with clearer HACS-first install guidance and acknowledgements
 - updated top badges: HACS badge wording now `Custom Integration`, and Home Assistant compatibility is shown directly
 
 <details>

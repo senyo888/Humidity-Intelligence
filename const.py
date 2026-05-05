@@ -71,7 +71,7 @@ TARGET_CUSTOM_HIGH_MIN = 35
 TARGET_CUSTOM_HIGH_MAX = 75
 TARGET_CUSTOM_STEP = 0.5
 
-# Optional UI dependencies used by the dashboards
+# Optional frontend dependencies used by the dashboards
 DEPENDENCIES = [
     {
         "name": "HACS",

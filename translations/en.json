@@ -3,10 +3,10 @@
   "config": {
     "step": {
       "dependencies": {
-        "title": "Dependencies",
-        "description": "Optional custom cards used by the Humidity Intelligence dashboards.\n\n{dependencies}\n\nIf a status is Unknown, verify manually in HACS and Dashboard resources.\n\nThanks to Home Assistant, HACS, and the community developers that make these cards possible.",
+        "title": "Frontend Dependencies",
+        "description": "Optional frontend custom cards used by the Humidity Intelligence dashboards.\n\n{dependencies}\n\nIf a status is Unknown, verify manually in HACS and Dashboard resources.\n\nThanks to Home Assistant, HACS, and the community developers that make these cards possible.",
         "data": {
-          "skip": "Skip dependency checks and continue"
+          "skip": "Skip frontend dependency checks and continue"
         }
       },
       "gates": {
@@ -241,7 +241,7 @@
       },
       "ui_install": {
         "title": "UI Cards",
-        "description": "Select which UI layouts to export now. HI will write one file per layout to /config/humidity_intelligence_cards_layout.yaml and post a notification with the file path.\n\nConfigured alerts:\n{configured_alerts}\n\nWarning: The backend logic will work without UI dependencies, but the UI cards may render incorrectly unless the required custom cards are installed (card-mod, button-card, mod-card, apexcharts-card).\n\nTo load a card: open File Editor → /config/humidity_intelligence_cards_layout.yaml → copy the YAML → Dashboard → Edit → Add card → Manual → paste YAML.",
+        "description": "Select which UI layouts to export now. HI will write one file per layout to /config/humidity_intelligence_cards_layout.yaml and post a notification with the file path.\n\nConfigured alerts:\n{configured_alerts}\n\nWarning: The backend logic will work without frontend dependencies, but the UI cards may render incorrectly unless the required custom cards are installed (card-mod, button-card, mod-card, apexcharts-card).\n\nTo load a card: open File Editor → /config/humidity_intelligence_cards_layout.yaml → copy the YAML → Dashboard → Edit → Add card → Manual → paste YAML.",
         "data": {
           "ui_layouts": "UI layouts to export"
         }
@@ -261,7 +261,7 @@
       "init": {
         "title": "Options",
         "menu_options": {
-          "options_dependencies": "Dependencies",
+          "options_dependencies": "Frontend Dependencies",
           "options_sensors": "Sensors",
           "options_gates": "Global Gates",
           "options_telemetry": "Sensors",
@@ -274,10 +274,10 @@
         }
       },
       "options_dependencies": {
-        "title": "Dependency Options",
-        "description": "Optional custom cards used by the Humidity Intelligence dashboards.\n\n{dependencies}\n\nCustom card lines include upstream repo links for quick install/verification in HACS and Dashboard resources.",
+        "title": "Frontend Dependency Options",
+        "description": "Optional frontend custom cards used by the Humidity Intelligence dashboards.\n\n{dependencies}\n\nCustom card lines include upstream repo links for quick install/verification in HACS and Dashboard resources.",
         "data": {
-          "skip": "Skip dependency checks in setup"
+          "skip": "Skip frontend dependency checks in setup"
         }
       },
       "options_gates": {

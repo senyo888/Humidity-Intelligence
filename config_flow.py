@@ -86,13 +86,13 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._pending_aq_level: Optional[str] = None
 
     async def async_step_user(self, user_input: Optional[Dict[str, Any]] = None):
-        """Entry point for the flow. Present the dependencies page first."""
+        """Entry point for the flow. Present the frontend dependencies page first."""
         await self.async_set_unique_id(DOMAIN)
         self._abort_if_unique_id_configured()
         return await self.async_step_dependencies()
 
     async def async_step_dependencies(self, user_input: Optional[Dict[str, Any]] = None):
-        """Collect optional dependency information and allow skipping."""
+        """Collect optional frontend dependency information and allow skipping."""
         if user_input is not None:
             self._data["skip_dependencies"] = user_input.get("skip", False)
             return await self.async_step_gates()
@@ -1180,7 +1180,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         )
 
     async def async_step_options_dependencies(self, user_input: Optional[Dict[str, Any]] = None):
-        """Review optional UI dependency status from post-configuration options."""
+        """Review optional frontend dependency status from post-configuration options."""
         if user_input is not None:
             self._options["skip_dependencies"] = user_input.get(
                 "skip", self._section("skip_dependencies", False)
