@@ -106,10 +106,25 @@ def _validate_dashboard_url_path(value: str) -> str:
     return text
 
 
+def _validate_rgb_color(value) -> List[int]:
+    """Accept service/YAML RGB colors and normalize them to a plain list."""
+    if isinstance(value, tuple):
+        values = list(value)
+    else:
+        values = cv.ensure_list(value)
+    values = [vol.Coerce(int)(item) for item in values]
+    if len(values) < 3:
+        raise vol.Invalid("RGB color must include red, green, and blue values")
+    for item in values[:3]:
+        if item < 0 or item > 255:
+            raise vol.Invalid("RGB color values must be between 0 and 255")
+    return values[:3]
+
+
 SERVICE_FLASH_SCHEMA = vol.Schema({
     vol.Optional("power_entity"): cv.entity_id,
     vol.Optional("lights", default=[]): cv.entity_ids,
-    vol.Optional("color", default=(255, 0, 0)): vol.All(cv.ensure_list, [vol.Coerce(int)]),
+    vol.Optional("color", default=[255, 0, 0]): _validate_rgb_color,
     vol.Optional("duration", default=10): vol.All(vol.Coerce(int), vol.Range(min=1, max=300)),
     vol.Optional("flash_count", default=None): vol.Any(
         None,

@@ -492,7 +492,7 @@ class HIAutomationEngine:
             try:
                 flash_payload = {
                     "lights": lights,
-                    "color": (255, 0, 0) if alert.get("flash_mode") == "red" else (255, 255, 255),
+                    "color": [255, 0, 0] if alert.get("flash_mode") == "red" else [255, 255, 255],
                     "duration": alert.get("duration", 10),
                 }
                 power_entity = alert.get("power_entity")

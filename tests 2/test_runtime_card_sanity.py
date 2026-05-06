@@ -825,6 +825,12 @@ async def _run_runtime_assertions(engine_mod) -> None:
     ]
     assert dynamic_flash_calls
     assert all("power_entity" not in data for data in dynamic_flash_calls)
+    assert all(isinstance(data.get("color"), list) for data in dynamic_flash_calls)
+    assert all(len(data.get("color")) == 3 for data in dynamic_flash_calls)
+    assert all(
+        all(isinstance(channel, int) for channel in data.get("color"))
+        for data in dynamic_flash_calls
+    )
 
     # Alerts without target lights should still activate runtime alert mode,
     # but skip light flash service calls cleanly.
