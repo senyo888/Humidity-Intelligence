@@ -40,6 +40,8 @@ from .const import (
     DEFAULT_AUTO_REFRESH_UI_ON_STARTUP,
     CONF_ALERT_HANDLING_ENABLED,
     DEFAULT_ALERT_HANDLING_ENABLED,
+    CONF_SHOW_TEMPERATURE_CHIPS,
+    DEFAULT_SHOW_TEMPERATURE_CHIPS,
     HUMIDIFIER_BAND_MIN,
     HUMIDIFIER_BAND_MAX,
     HUMIDIFIER_BAND_STEP,
@@ -467,7 +469,11 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Configure temperature slope sensors."""
         temp_entities = [t["entity_id"] for t in self._telemetry if t["sensor_type"] == "temperature"]
         if not temp_entities:
-            self._data["slope"] = {"mode": SLOPE_MODE_NONE, "source_entities": []}
+            self._data["slope"] = {
+                "mode": SLOPE_MODE_NONE,
+                "source_entities": [],
+                CONF_SHOW_TEMPERATURE_CHIPS: DEFAULT_SHOW_TEMPERATURE_CHIPS,
+            }
             return await self.async_step_zones()
 
         errors: Dict[str, str] = {}
@@ -475,12 +481,22 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             mode = user_input["slope_mode"]
             slope_sources = user_input.get("slope_sources", [])
             provided_sensors = user_input.get("slope_sensors", [])
+            show_temperature_chips = bool(
+                user_input.get(
+                    CONF_SHOW_TEMPERATURE_CHIPS,
+                    DEFAULT_SHOW_TEMPERATURE_CHIPS,
+                )
+            )
             if mode == SLOPE_MODE_CALCULATED and not slope_sources:
                 errors["slope_sources"] = "required"
             if mode == SLOPE_MODE_PROVIDED and not provided_sensors:
                 errors["slope_sensors"] = "required"
             if not errors:
-                slope_data: Dict[str, Any] = {"mode": mode, "source_entities": []}
+                slope_data: Dict[str, Any] = {
+                    "mode": mode,
+                    "source_entities": [],
+                    CONF_SHOW_TEMPERATURE_CHIPS: show_temperature_chips,
+                }
                 if mode == SLOPE_MODE_CALCULATED:
                     slope_data["source_entities"] = slope_sources
                 elif mode == SLOPE_MODE_PROVIDED:
@@ -506,6 +522,10 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Optional("slope_sensors", default=[]): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="sensor", multiple=True)
             ),
+            vol.Optional(
+                CONF_SHOW_TEMPERATURE_CHIPS,
+                default=DEFAULT_SHOW_TEMPERATURE_CHIPS,
+            ): selector.BooleanSelector(),
         })
         return self.async_show_form(step_id="slope", data_schema=schema, errors=errors)
 
@@ -1151,9 +1171,21 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             source_entities = _sanitize_entity_ids(remaining_temp_sources)
 
         if mode == SLOPE_MODE_CALCULATED and not source_entities:
-            slope = {"mode": SLOPE_MODE_NONE, "source_entities": []}
+            slope = {
+                "mode": SLOPE_MODE_NONE,
+                "source_entities": [],
+                CONF_SHOW_TEMPERATURE_CHIPS: bool(
+                    slope.get(CONF_SHOW_TEMPERATURE_CHIPS, DEFAULT_SHOW_TEMPERATURE_CHIPS)
+                ),
+            }
         elif mode == SLOPE_MODE_PROVIDED and not provided_sensors:
-            slope = {"mode": SLOPE_MODE_NONE, "source_entities": []}
+            slope = {
+                "mode": SLOPE_MODE_NONE,
+                "source_entities": [],
+                CONF_SHOW_TEMPERATURE_CHIPS: bool(
+                    slope.get(CONF_SHOW_TEMPERATURE_CHIPS, DEFAULT_SHOW_TEMPERATURE_CHIPS)
+                ),
+            }
         else:
             slope["source_entities"] = source_entities
             if mode == SLOPE_MODE_PROVIDED:
@@ -2400,12 +2432,18 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         default_mode = slope.get("mode", SLOPE_MODE_CALCULATED if temp_entities else SLOPE_MODE_NONE)
         default_sources = _sanitize_entity_ids(slope.get("source_entities", temp_entities))
         default_provided = _sanitize_entity_ids(slope.get("provided_sensors", []))
+        default_show_temperature_chips = bool(
+            slope.get(CONF_SHOW_TEMPERATURE_CHIPS, DEFAULT_SHOW_TEMPERATURE_CHIPS)
+        )
 
         errors: Dict[str, str] = {}
         if user_input is not None:
             mode = user_input.get("slope_mode", default_mode)
             slope_sources = _sanitize_entity_ids(user_input.get("slope_sources", []))
             provided_sensors = _sanitize_entity_ids(user_input.get("slope_sensors", []))
+            show_temperature_chips = bool(
+                user_input.get(CONF_SHOW_TEMPERATURE_CHIPS, default_show_temperature_chips)
+            )
 
             if mode == SLOPE_MODE_CALCULATED and not slope_sources:
                 errors["slope_sources"] = "required"
@@ -2413,7 +2451,11 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 errors["slope_sensors"] = "required"
 
             if not errors:
-                slope_data: Dict[str, Any] = {"mode": mode, "source_entities": []}
+                slope_data: Dict[str, Any] = {
+                    "mode": mode,
+                    "source_entities": [],
+                    CONF_SHOW_TEMPERATURE_CHIPS: show_temperature_chips,
+                }
                 if mode == SLOPE_MODE_CALCULATED:
                     slope_data["source_entities"] = slope_sources
                 elif mode == SLOPE_MODE_PROVIDED:
@@ -2439,6 +2481,10 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             vol.Optional("slope_sensors", default=default_provided): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="sensor", multiple=True)
             ),
+            vol.Optional(
+                CONF_SHOW_TEMPERATURE_CHIPS,
+                default=default_show_temperature_chips,
+            ): selector.BooleanSelector(),
         })
         return self.async_show_form(
             step_id="options_slope",
@@ -2754,15 +2800,19 @@ def _render_slope_summary(slope: Dict[str, Any]) -> str:
     mode = slope.get("mode", SLOPE_MODE_NONE)
     if mode == SLOPE_MODE_CALCULATED:
         sources = _sanitize_entity_ids(slope.get("source_entities", []))
-        return f"Mode: HI calculates slope. Source sensors: {len(sources)}."
+        chips = "enabled" if slope.get(CONF_SHOW_TEMPERATURE_CHIPS) else "disabled"
+        return f"Mode: HI calculates slope. Source sensors: {len(sources)}. Temperature chip row: {chips}."
     if mode == SLOPE_MODE_PROVIDED:
         provided = _sanitize_entity_ids(slope.get("provided_sensors", []))
         sources = _sanitize_entity_ids(slope.get("source_entities", []))
+        chips = "enabled" if slope.get(CONF_SHOW_TEMPERATURE_CHIPS) else "disabled"
         return (
             f"Mode: Provided slope sensors. "
-            f"Provided sensors: {len(provided)}. Source temperature sensors: {len(sources)}."
+            f"Provided sensors: {len(provided)}. Source temperature sensors: {len(sources)}. "
+            f"Temperature chip row: {chips}."
         )
-    return "Mode: Slope disabled."
+    chips = "enabled" if slope.get(CONF_SHOW_TEMPERATURE_CHIPS) else "disabled"
+    return f"Mode: Slope disabled. Temperature chip row: {chips}."
 
 
 def _render_zones_summary(zones: Dict[str, Dict[str, Any]]) -> str:

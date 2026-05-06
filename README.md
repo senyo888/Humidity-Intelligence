@@ -239,6 +239,7 @@ The UI renders.
 - HI UI mapping can refresh automatically shortly after Home Assistant startup
 - dashboard YAML must be re-exported and pasted into existing Manual cards to see the new alert chips/reason-panel UI
 - V2 exported YAML now includes a short header explaining where to paste it, when to re-run `dump_cards`, and which custom cards are required
+- Air Control humidity chips now use configured zone-room telemetry, and an optional temperature chip row can be enabled from Temperature Slope settings
 
 Upgrade note: **v2.0.4 focuses on alert attribution, zone-bound boost behavior, and startup UI refresh reliability.**
 No breaking schema changes are introduced.
@@ -501,10 +502,12 @@ Example row:
 
 What to do:
 - choose external slope sensors or HI-generated slope
+- optionally enable the Air Control temperature chip row
 
 Suggested baseline:
 - use HI-generated slope if you do not already publish stable slope entities
 - use external slope entities only when they are already validated
+- leave the temperature chip row disabled unless you want temperature and slope telemetry shown under Current Air Control
 
 Example (external):
 - `sensor.kitchen_temp_slope`
@@ -614,6 +617,7 @@ What to do:
 Suggested baseline:
 - start with one dashboard layout (`v2_mobile` or `v2_tablet`)
 - verify Current Air Control, chips, and outputs
+- re-run `humidity_intelligence.dump_cards` after changing the optional temperature chip row
 - then add second layout if needed
 
 Service options:

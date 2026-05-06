@@ -1480,8 +1480,8 @@ async def _run_card_assertions(register_mod) -> None:
                 {"entity_id": "sensor.l2_co", "sensor_type": "co", "level": "level2", "room": "Bedroom"},
             ],
             "zones": {
-                "zone1": {"level": "level1", "outputs": ["fan.zone1"]},
-                "zone2": {"level": "level2", "outputs": ["fan.zone2"]},
+                "zone1": {"level": "level1", "rooms": ["Bathroom", "Kitchen"], "outputs": ["fan.zone1"]},
+                "zone2": {"level": "level2", "rooms": ["Bedroom"], "outputs": ["fan.zone2"]},
             },
             "humidifiers": {
                 "level1": {"outputs": ["humidifier.l1"]},
@@ -1516,13 +1516,24 @@ async def _run_card_assertions(register_mod) -> None:
     for placeholder in room_placeholders:
         assert mapping.get(placeholder)
         assert placeholder not in cards.get("v1_mobile", "")
+    assert mapping.get("sensor.hi_diagnostics")
 
     for card in (mobile, tablet):
         assert "Kitchen Δ slope" not in card
         assert "sensor.air_control_kitchen_slope_delta" not in card
+        assert "sensor.air_control_bathroom_humidity_delta" not in card
+        assert "sensor.air_control_kitchen_humidity_delta" not in card
         assert "House PM2.5" in card
         assert "House VOC" in card
         assert "House CO" in card
+        assert "House Temp" in card
+        assert "Upstairs Temp" in card
+        assert "Downstairs Temp" in card
+        assert "show_temperature_chips" in card
+        assert "slope_map" in card
+        assert "states['sensor.hi_diagnostics']" in card
+        assert "sensor.hi_level2_avg_temperature" in card
+        assert "sensor.hi_level1_avg_temperature" in card
         assert card.index("House AVG") < card.index("Upstairs AVG") < card.index("Downstairs AVG")
         assert card.index("House IAQ") < card.index("Upstairs IAQ") < card.index("Downs.. IAQ")
 
@@ -1662,6 +1673,11 @@ def test_alert_configuration_contract_uses_internal_sources():
     assert "frontend dependencies" in translation_source
     assert "frontend_dependency_resources" in services_source
     assert '"dependency_resources"' not in services_source
+    assert "CONF_SHOW_TEMPERATURE_CHIPS" in const_source
+    assert "DEFAULT_SHOW_TEMPERATURE_CHIPS" in const_source
+    assert "show_temperature_chips" in config_source
+    assert "Show temperature chip row in Air Control" in strings_source
+    assert "Show temperature chip row in Air Control" in translation_source
     assert "HI target profile mode" in strings_source
     assert "HI custom target low" in strings_source
     assert "alert_remove" in config_source

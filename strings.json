@@ -74,11 +74,12 @@
       },
       "slope": {
         "title": "Temperature Slope",
-        "description": "Choose how slope sensors are handled.",
+        "description": "Choose how slope sensors are handled. You can also enable the optional Air Control temperature chip row.",
         "data": {
           "slope_mode": "Slope mode",
           "slope_sources": "Temperature sensors for HI slope",
-          "slope_sensors": "Existing slope sensors"
+          "slope_sensors": "Existing slope sensors",
+          "show_temperature_chips": "Show temperature chip row in Air Control"
         }
       },
       "zones": {
@@ -460,11 +461,12 @@
       },
       "options_slope": {
         "title": "Temperature Slope Options",
-        "description": "Edit how HI handles temperature slope entities.\n\nCurrent slope configuration:\n{configured_slope}",
+        "description": "Edit how HI handles temperature slope entities and the optional Air Control temperature chip row.\n\nCurrent slope configuration:\n{configured_slope}",
         "data": {
           "slope_mode": "Slope mode",
           "slope_sources": "Temperature sensors used as slope sources",
-          "slope_sensors": "Provided slope sensor entities"
+          "slope_sensors": "Provided slope sensor entities",
+          "show_temperature_chips": "Show temperature chip row in Air Control"
         }
       }
     },

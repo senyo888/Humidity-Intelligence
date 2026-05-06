@@ -861,29 +861,41 @@ card:
                 <span class="v" style="color:${c};">${v === null ? '—' : v}${unit || ''}</span>
               </span>`;
 
-            const hh = num('sensor.house_average_humidity');
-            const dh = num('sensor.air_control_downstairs_average_humidity');
-            const uh = num('sensor.air_control_upstairs_average_humidity');
-            const bh = num('sensor.wirelesstag_bathroom_humidity');
-            const kh = num('sensor.wirelesstag_kitchen_humidity');
-
-            const bhd = num('sensor.air_control_bathroom_humidity_delta');
-            const khd = num('sensor.air_control_kitchen_humidity_delta');
-
             const s1 = (v) => (v === null ? null : `${v > 0 ? '+' : ''}${v.toFixed(1)}`);
+
+            const diagAttrs = states['sensor.hi_diagnostics']?.attributes || {};
+            const cfg = diagAttrs.config || {};
+            const telemetry = Array.isArray(cfg.telemetry) ? cfg.telemetry : [];
+            const zones = cfg.zones && typeof cfg.zones === 'object' ? cfg.zones : {};
+            const norm = (v) => String(v || '').trim().toLowerCase();
+            const zoneRooms = [...new Set(Object.values(zones)
+              .flatMap((zone) => zone && zone.enabled !== false && Array.isArray(zone?.rooms) ? zone.rooms : [])
+              .map((room) => String(room || '').trim())
+              .filter(Boolean))]
+              .sort((a, b) => a.localeCompare(b));
+            const zoneTelemetry = (sensorType) => zoneRooms
+              .map((room) => {
+                const match = telemetry.find((item) =>
+                  item?.sensor_type === sensorType &&
+                  norm(item.room) === norm(room) &&
+                  item.entity_id
+                );
+                return match ? { label: room, entity: match.entity_id } : null;
+              })
+              .filter(Boolean);
 
             const roomDelta = Object.keys(states)
               .filter((id) => id.startsWith('sensor.hi_') && id.includes('_humidity_delta'))
               .map((id) => {
                 const value = num(id);
                 if (value === null) return null;
-                const raw = states[id]?.attributes?.room || states[id]?.attributes?.friendly_name || id;
-                const label = String(raw).replace(/HI\\s+/i, '').replace(/Humidity Delta/i, '').trim();
+                const raw = states[id]?.attributes?.room;
+                if (!raw) return null;
+                const label = String(raw).trim();
                 return { id, label, value };
               })
               .filter(Boolean)
-              .sort((a, b) => b.value - a.value)
-              .slice(0, 5);
+              .sort((a, b) => a.label.localeCompare(b.label));
 
             const roomDeltaChips = roomDelta
               .map((item) => chip(`${item.label} Δ`, s1(item.value), '%', '#94a3b8'))
@@ -905,17 +917,90 @@ card:
               if (high !== null && h > high) return '#facc15';
               return '#94a3b8';
             };
+            const hh = num('sensor.house_average_humidity');
+            const dh = num('sensor.air_control_downstairs_average_humidity');
+            const uh = num('sensor.air_control_upstairs_average_humidity');
+            const roomHumidityChips = zoneTelemetry('humidity')
+              .map((item) => {
+                const value = num(item.entity);
+                return chip(item.label, value === null ? null : Math.round(value), '%', cH(value));
+              })
+              .join('');
 
             return `
               <div class="cv-scroll">
                 ${chip('House AVG', hh === null ? null : Math.round(hh), '%', cH(hh))}
                 ${chip('Upstairs AVG', uh === null ? null : Math.round(uh), '%', cH(uh))}
                 ${chip('Downstairs AVG', dh === null ? null : Math.round(dh), '%', cH(dh))}
-                ${chip('Bathroom', bh === null ? null : Math.round(bh), '%', cH(bh))}
-                ${chip('Kitchen', kh === null ? null : Math.round(kh), '%', cH(kh))}
-                ${chip('Bathroom Δ', s1(bhd), '%', '#94a3b8')}
-                ${chip('Kitchen Δ', s1(khd), '%', '#94a3b8')}
+                ${roomHumidityChips}
                 ${roomDeltaChips}
+              </div>`;
+          ]]]
+        temperature: |
+          [[[
+            const num = (id) => {
+              const v = parseFloat(states[id]?.state);
+              return isNaN(v) ? null : v;
+            };
+            const diagAttrs = states['sensor.hi_diagnostics']?.attributes || {};
+            const cfg = diagAttrs.config || {};
+            const slopeCfg = cfg.slope || {};
+            if (!slopeCfg.show_temperature_chips) return '';
+
+            const chip = (k, v, unit, c) => `
+              <span class="cv-chip" style="--cv:${c};">
+                <span class="k">${k}</span>
+                <span class="v" style="color:${c};">${v === null ? '—' : v}${unit || ''}</span>
+              </span>`;
+            const telemetry = Array.isArray(cfg.telemetry) ? cfg.telemetry : [];
+            const zones = cfg.zones && typeof cfg.zones === 'object' ? cfg.zones : {};
+            const norm = (v) => String(v || '').trim().toLowerCase();
+            const zoneRooms = [...new Set(Object.values(zones)
+              .flatMap((zone) => zone && zone.enabled !== false && Array.isArray(zone?.rooms) ? zone.rooms : [])
+              .map((room) => String(room || '').trim())
+              .filter(Boolean))]
+              .sort((a, b) => a.localeCompare(b));
+            const zoneTelemetry = (sensorType) => zoneRooms
+              .map((room) => {
+                const match = telemetry.find((item) =>
+                  item?.sensor_type === sensorType &&
+                  norm(item.room) === norm(room) &&
+                  item.entity_id
+                );
+                return match ? { label: room, entity: match.entity_id } : null;
+              })
+              .filter(Boolean);
+            const tempDisplay = (id) => {
+              const attrs = states[id]?.attributes || {};
+              const display = parseFloat(attrs.display_value);
+              const value = !isNaN(display) ? display : num(id);
+              const unit = attrs.display_unit || attrs.unit_of_measurement || '°C';
+              return { value: value === null ? null : Number(value).toFixed(1), unit };
+            };
+            const signed = (v) => (v === null ? null : `${v > 0 ? '+' : ''}${v.toFixed(2)}`);
+            const tempChip = (label, entity) => {
+              const item = tempDisplay(entity);
+              return chip(label, item.value, item.unit, '#facc15');
+            };
+            const slopeMap = diagAttrs.slope_map || {};
+            const roomTemperatureChips = zoneTelemetry('temperature')
+              .map((item) => tempChip(item.label, item.entity))
+              .join('');
+            const slopeChips = telemetry
+              .filter((item) => item?.sensor_type === 'temperature' && item.entity_id && item.room)
+              .map((item) => ({ label: String(item.room).trim(), entity: slopeMap[item.entity_id] }))
+              .filter((item) => item.label && item.entity)
+              .sort((a, b) => a.label.localeCompare(b.label))
+              .map((item) => chip(`${item.label} slope`, signed(num(item.entity)), '°C/h', '#94a3b8'))
+              .join('');
+
+            return `
+              <div class="cv-scroll">
+                ${tempChip('House Temp', 'sensor.house_average_temperature')}
+                ${tempChip('Upstairs Temp', 'sensor.air_control_upstairs_average_temperature')}
+                ${tempChip('Downstairs Temp', 'sensor.air_control_downstairs_average_temperature')}
+                ${roomTemperatureChips}
+                ${slopeChips}
               </div>`;
           ]]]
       tap_action:
@@ -968,14 +1053,21 @@ card:
           - overflow: hidden
         grid:
           - grid-template-areas: |
-              "i i"
-              "n n"
-              "s s"
-              "l l"
-              "status status"
-              "reason reason"
-              "aq aq"
-              "humidity humidity"
+              [[[
+                const showTemp = !!states['sensor.hi_diagnostics']?.attributes?.config?.slope?.show_temperature_chips;
+                const rows = [
+                  '"i i"',
+                  '"n n"',
+                  '"s s"',
+                  '"l l"',
+                  '"status status"',
+                  '"reason reason"',
+                  '"aq aq"',
+                  '"humidity humidity"',
+                ];
+                if (showTemp) rows.push('"temperature temperature"');
+                return rows.join('\n');
+              ]]]
           - grid-template-columns: 1fr 1fr
           - row-gap: 6px
           - justify-items: center
@@ -1015,6 +1107,15 @@ card:
           humidity:
             - width: 100%
             - justify-self: stretch
+          temperature:
+            - width: 100%
+            - justify-self: stretch
+            - display: |
+                [[[
+                  return states['sensor.hi_diagnostics']?.attributes?.config?.slope?.show_temperature_chips
+                    ? 'block'
+                    : 'none';
+                ]]]
       card_mod:
         style: >
           ha-card{ position:relative; }

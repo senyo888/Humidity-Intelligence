@@ -92,6 +92,7 @@ class HIDiagnosticsSensor(SensorEntity):
             "cards": list(cards.keys()),
             "unresolved_placeholders": _sanitize_json(unresolved),
             "unresolved_placeholders_by_card": _sanitize_json(unresolved_by_card),
+            "slope_map": _sanitize_json(data.get("slope_map", {})),
             "zone_mapping_duplicates": _sanitize_json(duplicates),
             "zone_mapping_duplicate_summary": duplicate_summary,
             "alert_telemetry": _sanitize_json(alert_telemetry),

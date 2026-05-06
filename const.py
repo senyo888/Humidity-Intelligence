@@ -18,6 +18,8 @@ CONF_AUTO_REFRESH_UI_ON_STARTUP = "auto_refresh_ui_on_startup"
 DEFAULT_AUTO_REFRESH_UI_ON_STARTUP = True
 CONF_ALERT_HANDLING_ENABLED = "alert_handling_enabled"
 DEFAULT_ALERT_HANDLING_ENABLED = True
+CONF_SHOW_TEMPERATURE_CHIPS = "show_temperature_chips"
+DEFAULT_SHOW_TEMPERATURE_CHIPS = False
 STARTUP_UI_REFRESH_DELAY_SECONDS = 5
 
 # Supported sensor types for telemetry input
