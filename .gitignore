@@ -20,6 +20,11 @@ __pycache__/
 *.bak
 *.old
 
+# --- Local planning docs ---
+DESIGN_BRIEF.md
+PROJECT_SUMMARY.md
+ROADMAP.md
+
 # --- Node / build (future-safe) ---
 node_modules/
 dist/

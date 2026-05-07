@@ -100,6 +100,13 @@ Do:
 3. regenerate cards if required
 4. verify Current Air Control panel
 
+Temperature chips:
+
+- render only when `show_temperature_chips` is enabled
+- colour against HI runtime comfort sensors
+- use blue below band, green in band, yellow up to `1°C` above band, red above that
+- show room slope chips only for configured temperature slope sources or provided slope sensors
+
 ---
 
 ## Placeholder Mapping Model
@@ -190,4 +197,3 @@ Backend must be fully removed before using V2 runtime
 - reason text remains readable
 
 Humidity Intelligence V2 UI a structured runtime interface for a deterministic environmental engine.
-

@@ -63,6 +63,15 @@ from .const import (
     TARGET_CUSTOM_HIGH_MIN,
     TARGET_CUSTOM_HIGH_MAX,
     TARGET_CUSTOM_STEP,
+    TEMPERATURE_COMFORT_PROFILE_OPTIONS,
+    TEMPERATURE_COMFORT_CUSTOM_LOW_MIN,
+    TEMPERATURE_COMFORT_CUSTOM_LOW_MAX,
+    TEMPERATURE_COMFORT_CUSTOM_HIGH_MIN,
+    TEMPERATURE_COMFORT_CUSTOM_HIGH_MAX,
+    TEMPERATURE_COMFORT_CUSTOM_STEP,
+    DEFAULT_TEMPERATURE_COMFORT_MODE,
+    DEFAULT_TEMPERATURE_COMFORT_CUSTOM_LOW,
+    DEFAULT_TEMPERATURE_COMFORT_CUSTOM_HIGH,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -127,6 +136,20 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
             if custom_high <= custom_low:
                 custom_high = min(float(TARGET_CUSTOM_HIGH_MAX), custom_low + 1.0)
+            temp_comfort_low = _bounded_float(
+                user_input.get("temperature_comfort_custom_low"),
+                TEMPERATURE_COMFORT_CUSTOM_LOW_MIN,
+                TEMPERATURE_COMFORT_CUSTOM_LOW_MAX,
+                DEFAULT_TEMPERATURE_COMFORT_CUSTOM_LOW,
+            )
+            temp_comfort_high = _bounded_float(
+                user_input.get("temperature_comfort_custom_high"),
+                TEMPERATURE_COMFORT_CUSTOM_HIGH_MIN,
+                TEMPERATURE_COMFORT_CUSTOM_HIGH_MAX,
+                DEFAULT_TEMPERATURE_COMFORT_CUSTOM_HIGH,
+            )
+            if temp_comfort_high <= temp_comfort_low:
+                temp_comfort_high = min(float(TEMPERATURE_COMFORT_CUSTOM_HIGH_MAX), temp_comfort_low + 0.5)
 
             self._data["time_gate"] = {
                 "enabled": user_input.get("enable_time_gate", False),
@@ -145,6 +168,11 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._data["target_profile"] = target_profile
             self._data["custom_target_low"] = custom_low
             self._data["custom_target_high"] = custom_high
+            self._data["temperature_comfort_mode"] = _normalize_temperature_comfort_mode(
+                user_input.get("temperature_comfort_mode", DEFAULT_TEMPERATURE_COMFORT_MODE)
+            )
+            self._data["temperature_comfort_custom_low"] = temp_comfort_low
+            self._data["temperature_comfort_custom_high"] = temp_comfort_high
             presence_enabled = user_input.get("enable_presence_gate", False)
             entities = user_input.get("presence_entities", [])
             self._data["presence_gate"] = {
@@ -206,6 +234,39 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     step=TARGET_CUSTOM_STEP,
                     mode=selector.NumberSelectorMode.BOX,
                     unit_of_measurement="%",
+                )
+            ),
+            vol.Optional(
+                "temperature_comfort_mode",
+                default=self._data.get("temperature_comfort_mode", DEFAULT_TEMPERATURE_COMFORT_MODE),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in TEMPERATURE_COMFORT_PROFILE_OPTIONS],
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            ),
+            vol.Optional(
+                "temperature_comfort_custom_low",
+                default=self._data.get("temperature_comfort_custom_low", DEFAULT_TEMPERATURE_COMFORT_CUSTOM_LOW),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=TEMPERATURE_COMFORT_CUSTOM_LOW_MIN,
+                    max=TEMPERATURE_COMFORT_CUSTOM_LOW_MAX,
+                    step=TEMPERATURE_COMFORT_CUSTOM_STEP,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="°C",
+                )
+            ),
+            vol.Optional(
+                "temperature_comfort_custom_high",
+                default=self._data.get("temperature_comfort_custom_high", DEFAULT_TEMPERATURE_COMFORT_CUSTOM_HIGH),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=TEMPERATURE_COMFORT_CUSTOM_HIGH_MIN,
+                    max=TEMPERATURE_COMFORT_CUSTOM_HIGH_MAX,
+                    step=TEMPERATURE_COMFORT_CUSTOM_STEP,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="°C",
                 )
             ),
             vol.Optional("enable_presence_gate", default=False): selector.BooleanSelector(),
@@ -1202,6 +1263,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 "options_dependencies",
                 "options_sensors",
                 "options_gates",
+                "options_thresholds",
                 "options_zones",
                 "options_humidifiers",
                 "options_aq",
@@ -1269,7 +1331,6 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             )
             if custom_high <= custom_low:
                 custom_high = min(float(TARGET_CUSTOM_HIGH_MAX), custom_low + 1.0)
-
             self._options["time_gate"] = {
                 "enabled": user_input.get("enable_time_gate", False),
                 "start": user_input.get("start_time"),
@@ -1291,7 +1352,6 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             self._options["target_profile"] = target_profile
             self._options["custom_target_low"] = custom_low
             self._options["custom_target_high"] = custom_high
-
             presence_enabled = user_input.get("enable_presence_gate", False)
             entities = _sanitize_entity_ids(user_input.get("presence_entities", []))
             pending_presence = {
@@ -1435,6 +1495,119 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 )
             ),
         })
+
+    async def async_step_options_thresholds(self, user_input: Optional[Dict[str, Any]] = None):
+        """Edit post-configuration zone thresholds and temperature comfort bands."""
+        zones = dict(self._section("zones", {}))
+
+        if user_input is not None:
+            temp_comfort_low = _bounded_float(
+                user_input.get("temperature_comfort_custom_low"),
+                TEMPERATURE_COMFORT_CUSTOM_LOW_MIN,
+                TEMPERATURE_COMFORT_CUSTOM_LOW_MAX,
+                _bounded_float(
+                    self._section("temperature_comfort_custom_low", DEFAULT_TEMPERATURE_COMFORT_CUSTOM_LOW),
+                    TEMPERATURE_COMFORT_CUSTOM_LOW_MIN,
+                    TEMPERATURE_COMFORT_CUSTOM_LOW_MAX,
+                    DEFAULT_TEMPERATURE_COMFORT_CUSTOM_LOW,
+                ),
+            )
+            temp_comfort_high = _bounded_float(
+                user_input.get("temperature_comfort_custom_high"),
+                TEMPERATURE_COMFORT_CUSTOM_HIGH_MIN,
+                TEMPERATURE_COMFORT_CUSTOM_HIGH_MAX,
+                _bounded_float(
+                    self._section("temperature_comfort_custom_high", DEFAULT_TEMPERATURE_COMFORT_CUSTOM_HIGH),
+                    TEMPERATURE_COMFORT_CUSTOM_HIGH_MIN,
+                    TEMPERATURE_COMFORT_CUSTOM_HIGH_MAX,
+                    DEFAULT_TEMPERATURE_COMFORT_CUSTOM_HIGH,
+                ),
+            )
+            if temp_comfort_high <= temp_comfort_low:
+                temp_comfort_high = min(float(TEMPERATURE_COMFORT_CUSTOM_HIGH_MAX), temp_comfort_low + 0.5)
+
+            self._options["temperature_comfort_mode"] = _normalize_temperature_comfort_mode(
+                user_input.get(
+                    "temperature_comfort_mode",
+                    self._section("temperature_comfort_mode", DEFAULT_TEMPERATURE_COMFORT_MODE),
+                )
+            )
+            self._options["temperature_comfort_custom_low"] = temp_comfort_low
+            self._options["temperature_comfort_custom_high"] = temp_comfort_high
+
+            for zone_key in ("zone1", "zone2"):
+                zone = dict(zones.get(zone_key) or {})
+                previous_thresholds = dict(zone.get("thresholds", {}))
+                thresholds: Dict[str, Any] = {}
+                for trig, trig_def in TRIGGER_DEFS.items():
+                    field = f"{zone_key}_threshold_{trig}"
+                    if field in user_input:
+                        thresholds[trig] = user_input[field]
+                    elif trig in previous_thresholds:
+                        thresholds[trig] = previous_thresholds[trig]
+                    else:
+                        thresholds[trig] = trig_def["default"]
+                zone["thresholds"] = thresholds
+                zones[zone_key] = zone
+            self._options["zones"] = zones
+            return await self.async_step_init()
+
+        schema_fields: Dict[Any, Any] = {
+            vol.Optional(
+                "temperature_comfort_mode",
+                default=self._section("temperature_comfort_mode", DEFAULT_TEMPERATURE_COMFORT_MODE),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in TEMPERATURE_COMFORT_PROFILE_OPTIONS],
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            ),
+            vol.Optional(
+                "temperature_comfort_custom_low",
+                default=self._section("temperature_comfort_custom_low", DEFAULT_TEMPERATURE_COMFORT_CUSTOM_LOW),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=TEMPERATURE_COMFORT_CUSTOM_LOW_MIN,
+                    max=TEMPERATURE_COMFORT_CUSTOM_LOW_MAX,
+                    step=TEMPERATURE_COMFORT_CUSTOM_STEP,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="°C",
+                )
+            ),
+            vol.Optional(
+                "temperature_comfort_custom_high",
+                default=self._section("temperature_comfort_custom_high", DEFAULT_TEMPERATURE_COMFORT_CUSTOM_HIGH),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=TEMPERATURE_COMFORT_CUSTOM_HIGH_MIN,
+                    max=TEMPERATURE_COMFORT_CUSTOM_HIGH_MAX,
+                    step=TEMPERATURE_COMFORT_CUSTOM_STEP,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="°C",
+                )
+            ),
+        }
+        for zone_key in ("zone1", "zone2"):
+            zone = zones.get(zone_key) or {}
+            for trig, trig_def in TRIGGER_DEFS.items():
+                schema_fields[vol.Optional(
+                    f"{zone_key}_threshold_{trig}",
+                    default=zone.get("thresholds", {}).get(trig, trig_def["default"]),
+                )] = selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=trig_def["min"],
+                        max=trig_def["max"],
+                        step=trig_def.get("step", 1),
+                        mode=selector.NumberSelectorMode.SLIDER,
+                        unit_of_measurement=trig_def.get("unit", "%"),
+                    )
+                )
+
+        return self.async_show_form(
+            step_id="options_thresholds",
+            data_schema=vol.Schema(schema_fields),
+            description_placeholders={"configured_zones": _render_zones_summary(zones)},
+        )
 
     async def async_step_options_sensors(self, user_input: Optional[Dict[str, Any]] = None):
         """Alias step for clearer top-level label in Options menu."""
@@ -1719,11 +1892,8 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             ]
             previous_thresholds = dict(zone.get("thresholds", {}))
             thresholds: Dict[str, Any] = {}
-            for trig in selected_triggers:
-                field = f"threshold_{trig}"
-                if field in user_input:
-                    thresholds[trig] = user_input[field]
-                elif trig in previous_thresholds:
+            for trig in TRIGGER_DEFS:
+                if trig in previous_thresholds:
                     thresholds[trig] = previous_thresholds[trig]
                 else:
                     thresholds[trig] = TRIGGER_DEFS[trig]["default"]
@@ -1820,22 +1990,6 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
             ),
         }
-        for trig in selected_triggers:
-            trig_def = TRIGGER_DEFS.get(trig)
-            if not trig_def:
-                continue
-            schema_fields[vol.Optional(f"threshold_{trig}", default=zone.get("thresholds", {}).get(trig, trig_def["default"]))] = (
-                selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        min=trig_def["min"],
-                        max=trig_def["max"],
-                        step=trig_def.get("step", 1),
-                        mode=selector.NumberSelectorMode.SLIDER,
-                        unit_of_measurement=trig_def.get("unit", "%"),
-                    )
-                )
-            )
-
         return self.async_show_form(
             step_id="options_zone_edit",
             data_schema=vol.Schema(schema_fields),
@@ -3010,6 +3164,14 @@ def _normalize_target_profile(value: Any) -> str:
     if raw in allowed:
         return raw
     return "auto"
+
+
+def _normalize_temperature_comfort_mode(value: Any) -> str:
+    raw = str(value or DEFAULT_TEMPERATURE_COMFORT_MODE).strip().lower()
+    allowed = {item["value"] for item in TEMPERATURE_COMFORT_PROFILE_OPTIONS}
+    if raw in allowed:
+        return raw
+    return DEFAULT_TEMPERATURE_COMFORT_MODE
 
 
 def _bounded_float(value: Any, min_value: float, max_value: float, fallback: float) -> float:

@@ -11,7 +11,7 @@
       },
       "gates": {
         "title": "Global Gates",
-        "description": "Configure time and presence gates that apply to all automations. Also select how HI resolves the active HI target profile (auto seasonal, forced season, or custom band).",
+        "description": "Configure time and presence gates that apply to all automations. Also select how HI resolves the active HI target profile and temperature comfort band.",
         "data": {
           "enable_time_gate": "Enable time gate",
           "start_time": "Start time",
@@ -23,6 +23,9 @@
           "target_profile": "HI target profile mode",
           "custom_target_low": "HI custom target low (%)",
           "custom_target_high": "HI custom target high (%)",
+          "temperature_comfort_mode": "Temperature comfort mode",
+          "temperature_comfort_custom_low": "Custom temperature comfort low (°C)",
+          "temperature_comfort_custom_high": "Custom temperature comfort high (°C)",
           "enable_presence_gate": "Enable presence gate",
           "presence_entities": "Presence entities (any helper/entity)"
         }
@@ -265,6 +268,7 @@
           "options_dependencies": "Frontend Dependencies",
           "options_sensors": "Sensors",
           "options_gates": "Global Gates",
+          "options_thresholds": "Thresholds & Comfort",
           "options_telemetry": "Sensors",
           "options_zones": "Zones",
           "options_humidifiers": "Humidifiers",
@@ -297,6 +301,23 @@
           "custom_target_high": "HI custom target high (%)",
           "enable_presence_gate": "Enable presence gate",
           "presence_entities": "Presence/alarm entities"
+        }
+      },
+      "options_thresholds": {
+        "title": "Thresholds & Comfort",
+        "description": "Edit zone thresholds and temperature comfort bands without changing zone mapping, outputs, or gate behavior.\n\nConfigured zones:\n{configured_zones}",
+        "data": {
+          "temperature_comfort_mode": "Temperature comfort mode",
+          "temperature_comfort_custom_low": "Custom temperature comfort low (°C)",
+          "temperature_comfort_custom_high": "Custom temperature comfort high (°C)",
+          "zone1_threshold_humidity_high": "Zone 1 humidity above house average (delta %)",
+          "zone1_threshold_condensation_risk": "Zone 1 condensation risk threshold (dew-point spread °C)",
+          "zone1_threshold_mould_risk": "Zone 1 mould risk threshold (level 1-3)",
+          "zone1_threshold_air_quality_bad": "Zone 1 air quality bad threshold (IAQ)",
+          "zone2_threshold_humidity_high": "Zone 2 humidity above house average (delta %)",
+          "zone2_threshold_condensation_risk": "Zone 2 condensation risk threshold (dew-point spread °C)",
+          "zone2_threshold_mould_risk": "Zone 2 mould risk threshold (level 1-3)",
+          "zone2_threshold_air_quality_bad": "Zone 2 air quality bad threshold (IAQ)"
         }
       },
       "options_presence_states": {
@@ -362,11 +383,7 @@
           "outputs": "Output devices",
           "output_level": "Normal fan run level (Auto/33/66/100)",
           "boost_output_level": "Boost fan run level (Auto/33/66/100) - danger/alert escalation level for this zone",
-          "ui_label": "Current Air Control label",
-          "threshold_humidity_high": "Humidity above house average (delta %)",
-          "threshold_condensation_risk": "Condensation risk threshold (dew-point spread degC)",
-          "threshold_mould_risk": "Mould risk threshold (level 1-3)",
-          "threshold_air_quality_bad": "Air quality bad threshold (IAQ)"
+          "ui_label": "Current Air Control label"
         }
       },
       "options_humidifiers": {

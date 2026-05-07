@@ -22,6 +22,8 @@ from ..helpers.seasonal import (
     humidity_state as seasonal_humidity_state,
     mould_risk as seasonal_mould_risk,
     resolve_target_profile,
+    resolve_temperature_comfort_profile,
+    temperature_comfort_state,
 )
 from ..helpers.zone_validation import detect_zone_mapping_duplicates, summarize_zone_mapping_duplicates
 
@@ -203,6 +205,28 @@ class _CoreComputations:
             icon="mdi:calendar",
         ))
         sensors.append(make(
+            "HI House Temperature Comfort Low",
+            "house_temperature_comfort_low",
+            self._compute_temperature_comfort_low,
+            unit=UnitOfTemperature.CELSIUS,
+            device_class=SensorDeviceClass.TEMPERATURE,
+            icon="mdi:thermometer-low",
+        ))
+        sensors.append(make(
+            "HI House Temperature Comfort High",
+            "house_temperature_comfort_high",
+            self._compute_temperature_comfort_high,
+            unit=UnitOfTemperature.CELSIUS,
+            device_class=SensorDeviceClass.TEMPERATURE,
+            icon="mdi:thermometer-high",
+        ))
+        sensors.append(make(
+            "HI House Temperature Comfort State",
+            "house_temperature_comfort_state",
+            self._compute_house_temperature_comfort_state,
+            icon="mdi:home-thermometer",
+        ))
+        sensors.append(make(
             "HI House Humidity State",
             "house_humidity_state",
             self._compute_house_humidity_state,
@@ -352,6 +376,12 @@ class _CoreComputations:
                 unit=PERCENTAGE,
                 icon="mdi:target",
             ))
+            sensors.append(make(
+                f"HI {level.capitalize()} Temperature Comfort State",
+                f"{level}_temperature_comfort_state",
+                lambda lvl=level: self._compute_level_temperature_comfort_state(lvl),
+                icon="mdi:home-thermometer",
+            ))
 
             if self.levels.get(level, {}).get("iaq"):
                 sensors.append(make(
@@ -466,6 +496,49 @@ class _CoreComputations:
             "target_low": profile.low,
             "target_high": profile.high,
             "high_risk": profile.high_risk,
+        }
+
+    def _compute_temperature_comfort_low(self) -> Tuple[float, Dict[str, Any]]:
+        profile = self._active_temperature_comfort_profile()
+        return profile.low, {
+            "season": profile.label,
+            "profile": profile.key,
+            "comfort_high": profile.high,
+        }
+
+    def _compute_temperature_comfort_high(self) -> Tuple[float, Dict[str, Any]]:
+        profile = self._active_temperature_comfort_profile()
+        return profile.high, {
+            "season": profile.label,
+            "profile": profile.key,
+            "comfort_low": profile.low,
+            "watch_high": round(profile.high + 1.0, 1),
+        }
+
+    def _compute_house_temperature_comfort_state(self) -> Tuple[str, Dict[str, Any]]:
+        profile = self._active_temperature_comfort_profile()
+        temperature = self._compute_house_avg_temperature()[0]
+        state = temperature_comfort_state(temperature, profile)
+        return state, {
+            "temperature": temperature,
+            "comfort_low": profile.low,
+            "comfort_high": profile.high,
+            "watch_high": round(profile.high + 1.0, 1),
+            "season": profile.label,
+            "profile": profile.key,
+        }
+
+    def _compute_level_temperature_comfort_state(self, level: str) -> Tuple[str, Dict[str, Any]]:
+        profile = self._active_temperature_comfort_profile()
+        temperature = self._compute_level_avg_temperature(level)[0]
+        state = temperature_comfort_state(temperature, profile)
+        return state, {
+            "temperature": temperature,
+            "comfort_low": profile.low,
+            "comfort_high": profile.high,
+            "watch_high": round(profile.high + 1.0, 1),
+            "season": profile.label,
+            "profile": profile.key,
         }
 
     def _compute_house_humidity_state(self) -> Tuple[str, Dict[str, Any]]:
@@ -839,6 +912,9 @@ class _CoreComputations:
 
     def _active_target_profile(self):
         return resolve_target_profile(self._effective_config())
+
+    def _active_temperature_comfort_profile(self):
+        return resolve_temperature_comfort_profile(self._effective_config())
 
     def _effective_config(self) -> Dict[str, Any]:
         data = dict(getattr(self.entry, "data", None) or {})

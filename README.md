@@ -153,6 +153,19 @@ Interpretation now follows target-relative states:
 
 This keeps stability as the primary goal while making evaluation season-correct and explainable.
 
+Temperature comfort uses the same source-of-truth approach for display:
+
+- Automatic mode resolves the active seasonal comfort band
+- Custom mode allows a fixed lower/upper comfort band
+- Temperature chips use HI comfort sensors, not card-only thresholds
+
+Default temperature comfort bands:
+
+- Winter: `19.5°C` to `20.5°C`
+- Spring: `20°C` to `21°C`
+- Summer: `20°C` to `22.5°C`
+- Autumn: `19.5°C` to `21°C`
+
 ---
 
 ## Architecture Overview
@@ -461,6 +474,7 @@ What to do:
 - select presence/alarm entities (optional)
 - define explicit present and away state values
 - set HI target profile mode and HI custom target band when not using seasonal auto mode
+- temperature comfort is tuned later in `Thresholds & Comfort` when post-config adjustments are needed
 
 Example baseline:
 - time gate enabled: `06:00` to `23:30`
@@ -503,11 +517,13 @@ Example row:
 What to do:
 - choose external slope sensors or HI-generated slope
 - optionally enable the Air Control temperature chip row
+- configure temperature comfort in Global Gates before relying on comfort colours
 
 Suggested baseline:
 - use HI-generated slope if you do not already publish stable slope entities
 - use external slope entities only when they are already validated
 - leave the temperature chip row disabled unless you want temperature and slope telemetry shown under Current Air Control
+- use automatic temperature comfort unless your household has a fixed comfort policy
 
 Example (external):
 - `sensor.kitchen_temp_slope`
@@ -524,6 +540,7 @@ What to do:
 - configure output entities
 - choose triggers and thresholds
 - set normal output stage, boost output stage, and UI label
+- tune post-config zone thresholds for humidity delta, air quality, condensation risk, and mould risk
 - keep boost higher than the normal zone fan level where possible
 
 Example baseline:
@@ -699,9 +716,11 @@ When modifying options:
 Post-config sensor/lane management:
 
 1. use `Sensors` to add, edit, or delete any telemetry row (humidity, temperature, IAQ, PM2.5, VOC, CO2, CO)
-2. use `Humidifiers` to add/edit/remove humidifier lanes per level and update output entities
-3. use `Air Quality` to add/edit/remove AQ lanes per level and update triggers/outputs
-4. lane selections marked as `not configured - select to add` can be used to create missing lanes later without reinstalling
+2. use `Global Gates` to edit humidity target profile, custom humidity band, time gate, and presence gate
+3. use `Thresholds & Comfort` to edit per-zone humidity high, AQ, condensation risk, mould risk thresholds, and temperature comfort bands
+4. use `Humidifiers` to add/edit/remove humidifier lanes per level and update output entities
+5. use `Air Quality` to add/edit/remove AQ lanes per level and update triggers/outputs
+6. lane selections marked as `not configured - select to add` can be used to create missing lanes later without reinstalling
 
 Alert-only toggle workflow:
 
@@ -875,6 +894,9 @@ Safety guidance:
 - added `auto_refresh_ui_on_startup` option, enabled by default, to refresh HI UI mapping shortly after Home Assistant startup without blocking startup
 - fixed startup UI refresh scheduling/cleanup to use Home Assistant's thread-safe task creator without assuming a task handle is returned
 - removed the HACS URL from frontend dependency flow output while keeping HACS detection
+- added seasonal/custom temperature comfort configuration and runtime comfort sensors for truth-based temperature chip colouring
+- added post-configuration editing for all zone thresholds: humidity high, air quality, condensation risk, and mould risk
+- fixed temperature slope chip mapping fallback so calculated slope chips use Home Assistant slug-compatible entity IDs and configured slope sources
 - bumped integration version to `2.0.4`
 
 ### v2.0.3

@@ -1476,6 +1476,8 @@ async def _run_card_assertions(register_mod) -> None:
                 {"entity_id": "sensor.bed_h", "sensor_type": "humidity", "level": "level2", "room": "Bedroom"},
                 {"entity_id": "sensor.willow_h", "sensor_type": "humidity", "level": "level2", "room": "Willow Room"},
                 {"entity_id": "sensor.bath_h", "sensor_type": "humidity", "level": "level1", "room": "Bathroom"},
+                {"entity_id": "sensor.kitchen_t", "sensor_type": "temperature", "level": "level1", "room": "Kitchen"},
+                {"entity_id": "sensor.bed_t", "sensor_type": "temperature", "level": "level2", "room": "Bedroom"},
                 {"entity_id": "sensor.l1_iaq", "sensor_type": "iaq", "level": "level1", "room": "Hallway"},
                 {"entity_id": "sensor.l2_iaq", "sensor_type": "iaq", "level": "level2", "room": "Bedroom"},
                 {"entity_id": "sensor.l1_pm25", "sensor_type": "pm25", "level": "level1", "room": "Hallway"},
@@ -1494,6 +1496,12 @@ async def _run_card_assertions(register_mod) -> None:
                 "level2": {"outputs": ["humidifier.l2"]},
             },
             "alerts": [{"lights": ["light.alert1"]}],
+            "temperature_comfort_mode": "auto",
+            "slope": {
+                "mode": "hi_calculates",
+                "source_entities": ["sensor.kitchen_t", "sensor.bed_t"],
+                "show_temperature_chips": True,
+            },
         },
         options={},
     )
@@ -1537,6 +1545,10 @@ async def _run_card_assertions(register_mod) -> None:
         assert "Downstairs Temp" in card
         assert "show_temperature_chips" in card
         assert "slope_map" in card
+        assert "sensor.hi_house_temperature_comfort_low" in card
+        assert "sensor.hi_house_temperature_comfort_high" in card
+        assert "tempColor(tempValueC(entity))" in card
+        assert "slopeEntityFor(item)" in card
         assert "states['sensor.hi_diagnostics']" in card
         assert "sensor.hi_level2_avg_temperature" in card
         assert "sensor.hi_level1_avg_temperature" in card
@@ -1655,6 +1667,9 @@ def test_startup_ui_refresh_contract_is_wired():
     assert "auto_refresh_ui_on_startup" in const_source
     assert "CONF_AUTO_REFRESH_UI_ON_STARTUP" in config_source
     assert "DEFAULT_AUTO_REFRESH_UI_ON_STARTUP" in config_source
+    assert "async_step_options_thresholds" in config_source
+    assert "zone1_threshold_humidity_high" in strings_source
+    assert "temperature_comfort_mode" in strings_source
     assert "auto_refresh_ui_on_startup" in strings_source
     assert "automatically shortly after Home Assistant startup" in services_source
 

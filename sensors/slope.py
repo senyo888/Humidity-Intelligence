@@ -129,7 +129,7 @@ def build_slope_entities(hass: HomeAssistant, entry: ConfigEntry) -> Tuple[List[
 
     for entity_id in sources:
         room_name = room_map.get(entity_id, entity_id)
-        object_id = room_name.lower().replace(" ", "_")
+        object_id = slugify(room_name) or slugify(entity_id) or "temperature"
         unique_id = f"hi_{entry.entry_id}_slope_{object_id}"
         name = f"HI {room_name} Temperature Slope"
         sensor = HISlopeSensor(hass, name, unique_id, entity_id, tracker)

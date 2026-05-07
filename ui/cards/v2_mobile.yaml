@@ -969,6 +969,21 @@ card:
                 return match ? { label: room, entity: match.entity_id } : null;
               })
               .filter(Boolean);
+            const comfortLow = num('sensor.house_temperature_comfort_low');
+            const comfortHigh = num('sensor.house_temperature_comfort_high');
+            const tempValueC = (id) => {
+              const value = num(id);
+              if (value === null) return null;
+              const unit = String(states[id]?.attributes?.unit_of_measurement || '').toLowerCase();
+              return unit.includes('°f') || unit.includes('f') ? (value - 32) * 5 / 9 : value;
+            };
+            const tempColor = (valueC) => {
+              if (valueC === null || comfortLow === null || comfortHigh === null) return '#94a3b8';
+              if (valueC < comfortLow) return '#38bdf8';
+              if (valueC <= comfortHigh) return '#4ade80';
+              if (valueC <= comfortHigh + 1) return '#facc15';
+              return '#ef4444';
+            };
             const tempDisplay = (id) => {
               const attrs = states[id]?.attributes || {};
               const display = parseFloat(attrs.display_value);
@@ -979,15 +994,27 @@ card:
             const signed = (v) => (v === null ? null : `${v > 0 ? '+' : ''}${v.toFixed(2)}`);
             const tempChip = (label, entity) => {
               const item = tempDisplay(entity);
-              return chip(label, item.value, item.unit, '#facc15');
+              return chip(label, item.value, item.unit, tempColor(tempValueC(entity)));
             };
             const slopeMap = diagAttrs.slope_map || {};
+            const slug = (value) => String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+            const sourceSet = new Set([...(Array.isArray(slopeCfg.source_entities) ? slopeCfg.source_entities : [])]);
+            const provided = Array.isArray(slopeCfg.provided_sensors) ? slopeCfg.provided_sensors : [];
+            const slopeEntityFor = (item) => {
+              if (!item?.entity_id || !sourceSet.has(item.entity_id)) return null;
+              if (slopeMap[item.entity_id]) return slopeMap[item.entity_id];
+              const roomKey = slug(item.room || item.friendly_name || item.entity_id);
+              const providedMatch = provided.find((entity) => slug(entity).includes(roomKey));
+              if (providedMatch) return providedMatch;
+              if (slopeCfg.mode === 'hi_calculates' && roomKey) return `sensor.hi_${roomKey}_temperature_slope`;
+              return null;
+            };
             const roomTemperatureChips = zoneTelemetry('temperature')
               .map((item) => tempChip(item.label, item.entity))
               .join('');
             const slopeChips = telemetry
               .filter((item) => item?.sensor_type === 'temperature' && item.entity_id && item.room)
-              .map((item) => ({ label: String(item.room).trim(), entity: slopeMap[item.entity_id] }))
+              .map((item) => ({ label: String(item.room).trim(), entity: slopeEntityFor(item) }))
               .filter((item) => item.label && item.entity)
               .sort((a, b) => a.label.localeCompare(b.label))
               .map((item) => chip(`${item.label} slope`, signed(num(item.entity)), '°C/h', '#94a3b8'))
