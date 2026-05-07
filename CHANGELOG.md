@@ -18,7 +18,10 @@ This project follows a practical changelog format for Home Assistant and HACS us
 - Renamed user-facing dependency wording to Frontend Dependencies across setup, options, services, self-check output, and docs.
 - Added README v2.0.4 upgrade guidance to run `humidity_intelligence.dump_cards` and paste the generated YAML into existing Manual dashboard cards for UI changes.
 - Enlarged the HI icon/logo artwork within the required 256x256 canvas so it appears larger in Home Assistant and HACS surfaces.
-- Clarified Global Gates target-profile labels as HI target/custom targets and added explicit alert visual rule removal in setup and options flows.
+- Clarified Global Gates target-profile labels as `Humidity Intelligence target profile mode` and `Humidity custom target`, and added explicit alert visual rule removal in setup and options flows.
+- Simplified alert chipsets so they render only the alert lane/status chip and the resolved alert source/context chip.
+- Changed humidity/mould/condensation visual alerts to flash 10 times, restore prior light state, wait 30 minutes, and repeat only while the same alert remains active.
+- Expanded diagnostics with target profile mode, active profile/season/custom target, zone/alert mappings, visual alert config, active alert resolution, unavailable entities, and warnings.
 - Fixed alert helper switch churn so active alerts no longer flip their UI helper switches off/on during every evaluation cycle.
 - Added single-flight automation evaluation and stopped internal status helper switches from retriggering evaluation, preventing alert-clear dogpiles when humidity returns to normal.
 - Fixed startup UI refresh scheduling to use Home Assistant's thread-safe task creator, preventing unsafe `hass.async_create_task` calls during startup.

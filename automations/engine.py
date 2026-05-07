@@ -57,6 +57,8 @@ _BUILT_IN_ZONE_ALERT_TRIGGERS = (
     "condensation_danger",
     "condensation_risk",
 )
+HUMIDITY_ALERT_FLASH_COUNT = 10
+HUMIDITY_ALERT_REPEAT_MINUTES = 30
 _EVALUATION_SWITCH_SOURCE_KEYS = {
     "air_control_enabled",
     "air_control_manual_override",
@@ -92,6 +94,8 @@ class HIAutomationEngine:
         self._periodic = None
         self._aq_tasks: Dict[str, asyncio.Task] = {}
         self._aq_trigger_active: Dict[str, bool] = {}
+        self._visual_alert_tasks: Dict[Tuple[str, str, str], asyncio.Task] = {}
+        self._visual_alert_active: set[Tuple[str, str, str]] = set()
         self._startup_recheck_task: Optional[asyncio.Task] = None
         self._last_alert: Dict[int, datetime] = {}
         self._active_alert_identity: Optional[Tuple[str, str, str]] = None
@@ -148,6 +152,10 @@ class HIAutomationEngine:
         self._startup_recheck_task = None
         for task in self._aq_tasks.values():
             task.cancel()
+        for task in self._visual_alert_tasks.values():
+            task.cancel()
+        self._visual_alert_tasks.clear()
+        self._visual_alert_active.clear()
 
     async def _handle_change(self, event) -> None:
         await self.async_request_evaluate()
@@ -227,6 +235,7 @@ class HIAutomationEngine:
                 self._co_emergency_active = False
                 self._co_below_since = None
             if self._co_emergency_triggered():
+                await self._sync_visual_alert_tasks([])
                 await self._apply_co_emergency()
                 await self._set_runtime_reason(
                     self._with_isolation_notice(
@@ -238,12 +247,14 @@ class HIAutomationEngine:
 
             control_lock_reason = self._control_lock_reason()
             if control_lock_reason:
+                await self._sync_visual_alert_tasks([])
                 await self._return_to_normal()
                 await self._set_runtime_reason(self._with_isolation_notice(control_lock_reason))
                 return
 
             gates_ok, gate_reason = self._gate_status()
             if not gates_ok:
+                await self._sync_visual_alert_tasks([])
                 action = self.time_gate.get("outside_action", "safe_state")
                 if action == "safe_state":
                     await self._return_to_normal()
@@ -264,6 +275,7 @@ class HIAutomationEngine:
                     )
                 return
             if self._pause_active():
+                await self._sync_visual_alert_tasks([])
                 await self._return_to_normal()
                 await self._set_runtime_reason(
                     self._with_isolation_notice(
@@ -468,6 +480,7 @@ class HIAutomationEngine:
                 "HI alert handling is disabled for entry %s; non-CO alert lane skipped.",
                 self.entry.entry_id,
             )
+            await self._sync_visual_alert_tasks([])
             return False, []
         for idx, alert in enumerate(self.alerts):
             if not alert.get("enabled", True):
@@ -478,35 +491,8 @@ class HIAutomationEngine:
             if not triggered:
                 continue
             active_details.append(detail)
-            last = self._last_alert.get(idx)
-            if last and datetime.now() - last < timedelta(seconds=30):
-                continue
-            self._last_alert[idx] = datetime.now()
-            lights = alert.get("lights", []) or []
-            if not lights:
-                _LOGGER.debug(
-                    "Alert %s triggered with no target lights configured; skipping flash service call.",
-                    idx + 1,
-                )
-                continue
-            try:
-                flash_payload = {
-                    "lights": lights,
-                    "color": [255, 0, 0] if alert.get("flash_mode") == "red" else [255, 255, 255],
-                    "duration": alert.get("duration", 10),
-                }
-                power_entity = alert.get("power_entity")
-                if power_entity:
-                    flash_payload["power_entity"] = power_entity
-                await self.hass.services.async_call(
-                    DOMAIN,
-                    SERVICE_FLASH_LIGHTS,
-                    flash_payload,
-                    blocking=False,
-                )
-            except Exception:
-                _LOGGER.exception("Alert flash service call failed for alert index %s", idx)
         await self._sync_alert_activity_switches(alert_switch_states)
+        await self._sync_visual_alert_tasks(active_details)
         inferred_details = self._inferred_alert_details(active_details)
         if inferred_details:
             _LOGGER.debug(
@@ -632,6 +618,13 @@ class HIAutomationEngine:
                 detail["measured"] = f"{value:.1f}% >= active {profile.label} high-risk threshold {threshold:g}%"
                 detail["threshold"] = threshold
                 detail["threshold_source"] = f"active profile ({profile.label})"
+                detail["source_summary"] = _alert_source_summary(
+                    trigger_type=ttype,
+                    room=room,
+                    zone=detail.get("zone"),
+                    measured=f"{value:.1f}%",
+                    threshold=f"{threshold:g}% threshold",
+                )
                 return detail
             return None
         if ttype == "co_emergency":
@@ -689,6 +682,23 @@ class HIAutomationEngine:
             "source": "configured_alert" if not alert.get("_inferred") else "built_in_risk_model",
             "degraded": bool(degraded_reasons),
             "degraded_reasons": degraded_reasons,
+            "source_summary": _alert_source_summary(
+                trigger_type=trigger_type,
+                room=room,
+                zone=zone_label,
+                measured=None,
+                threshold=None,
+            ),
+            "visual_alert": {
+                "configured": bool(alert.get("lights")),
+                "lights": list(alert.get("lights", []) or []),
+                "power_entity": alert.get("power_entity"),
+                "flash_mode": alert.get("flash_mode") or "red",
+                "duration": alert.get("duration", 10),
+                "flash_count": HUMIDITY_ALERT_FLASH_COUNT,
+                "repeat_minutes": HUMIDITY_ALERT_REPEAT_MINUTES,
+                "restore_state": True,
+            },
         }
 
     def _record_alert_resolution(self, details: List[Dict[str, Any]]) -> None:
@@ -698,7 +708,7 @@ class HIAutomationEngine:
             data["alert_telemetry"] = []
             return
         selected = details[0]
-        data["active_alert_context"] = selected.get("companion") or selected.get("label") or "Alert"
+        data["active_alert_context"] = selected.get("source_summary") or selected.get("companion") or selected.get("label") or "Alert"
         data["alert_telemetry"] = details
         _LOGGER.debug(
             "HI alert resolved for entry %s: selected=%s; source=%s; sensor=%s; room=%s; zone=%s; outputs=%s; boost=%s",
@@ -732,6 +742,77 @@ class HIAutomationEngine:
                 self.entry.entry_id,
                 "; ".join(selected.get("degraded_reasons", [])),
             )
+
+    async def _sync_visual_alert_tasks(self, active_details: List[Dict[str, Any]]) -> None:
+        active_identities = {
+            _alert_identity(detail)
+            for detail in active_details
+            if self._visual_alert_configured(detail)
+        }
+        self._visual_alert_active = active_identities
+        for identity, task in list(self._visual_alert_tasks.items()):
+            if identity not in active_identities:
+                task.cancel()
+                self._visual_alert_tasks.pop(identity, None)
+        for detail in active_details:
+            if not self._visual_alert_configured(detail):
+                if detail.get("trigger_type") in _BUILT_IN_ZONE_ALERT_TRIGGERS:
+                    _LOGGER.debug(
+                        "Alert %s triggered with no target lights configured; skipping visual flash task.",
+                        int(detail.get("index", 0)) + 1,
+                    )
+                continue
+            identity = _alert_identity(detail)
+            existing = self._visual_alert_tasks.get(identity)
+            if existing and not existing.done():
+                continue
+            task = asyncio.create_task(self._visual_alert_loop(identity, dict(detail)))
+            self._visual_alert_tasks[identity] = task
+            await asyncio.sleep(0)
+
+    def _visual_alert_configured(self, detail: Dict[str, Any]) -> bool:
+        visual = detail.get("visual_alert") if isinstance(detail, dict) else {}
+        return bool(isinstance(visual, dict) and visual.get("lights"))
+
+    async def _visual_alert_loop(
+        self,
+        identity: Tuple[str, str, str],
+        detail: Dict[str, Any],
+    ) -> None:
+        try:
+            while identity in self._visual_alert_active:
+                visual = detail.get("visual_alert") or {}
+                lights = list(visual.get("lights") or [])
+                if not lights:
+                    return
+                flash_payload = {
+                    "lights": lights,
+                    "color": [255, 0, 0] if visual.get("flash_mode") == "red" else [255, 255, 255],
+                    "duration": visual.get("duration", 10),
+                    "flash_count": HUMIDITY_ALERT_FLASH_COUNT,
+                }
+                power_entity = visual.get("power_entity")
+                if power_entity:
+                    flash_payload["power_entity"] = power_entity
+                try:
+                    await self.hass.services.async_call(
+                        DOMAIN,
+                        SERVICE_FLASH_LIGHTS,
+                        flash_payload,
+                        blocking=False,
+                    )
+                except Exception:
+                    _LOGGER.exception(
+                        "Alert flash service call failed for alert identity %s",
+                        identity,
+                    )
+                await asyncio.sleep(timedelta(minutes=HUMIDITY_ALERT_REPEAT_MINUTES).total_seconds())
+        except asyncio.CancelledError:
+            return
+        finally:
+            current = self._visual_alert_tasks.get(identity)
+            if current is asyncio.current_task():
+                self._visual_alert_tasks.pop(identity, None)
 
     async def _handle_zone_by_key(self, zone_key: str) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:
         zone = self.zones.get(zone_key, {})
@@ -2010,6 +2091,25 @@ def _alert_companion_label(
     if zone_label:
         return f"{base} - {zone_label}"
     return base
+
+
+def _alert_source_summary(
+    *,
+    trigger_type: str,
+    room: Optional[str],
+    zone: Optional[str],
+    measured: Optional[str],
+    threshold: Optional[str],
+) -> str:
+    kind, severity = _alert_kind_and_severity(trigger_type)
+    parts = [f"{kind} {severity}".strip()]
+    if room:
+        parts.append(str(room))
+    if zone:
+        parts.append(str(zone))
+    if measured and threshold:
+        parts.append(f"{measured} >= {threshold}")
+    return " · ".join(part for part in parts if part)
 
 
 async def _apply_fan_level(hass: HomeAssistant, entities: List[str], level: Any) -> None:

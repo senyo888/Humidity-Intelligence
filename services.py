@@ -17,6 +17,8 @@ from homeassistant.helpers import config_validation as cv
 
 from .const import DOMAIN
 from .helpers.cleanup import list_all_generated_files, list_generated_files, remove_files, remove_dashboard
+from .helpers.seasonal import resolve_target_profile
+from .helpers.zone_validation import detect_zone_mapping_duplicates, summarize_zone_mapping_duplicates
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -250,6 +252,13 @@ async def async_register_services(hass: HomeAssistant) -> None:
                 payload[entry.entry_id] = {
                     "config": _to_jsonable(data.get("config", {})),
                     "options": _to_jsonable(data.get("options", {})),
+                    "diagnostics_summary": _build_diagnostics_summary(
+                        hass,
+                        data.get("config", {}),
+                        data.get("options", {}),
+                        entity_map,
+                        data,
+                    ),
                     "entity_map": _to_jsonable(entity_map),
                     "cards": list((data.get("cards") or {}).keys()),
                     "states": state_dump,
@@ -548,6 +557,153 @@ def _redact_sensitive_attributes(attributes: dict) -> dict:
         else:
             redacted[key_text] = _to_jsonable(value)
     return redacted
+
+
+def _build_diagnostics_summary(
+    hass: HomeAssistant,
+    config: dict,
+    options: dict,
+    entity_map: dict,
+    runtime_data: dict,
+) -> dict:
+    """Build a support-focused, truth-only diagnostics summary."""
+    effective = dict(config or {})
+    effective.update(dict(options or {}))
+    telemetry = effective.get("telemetry", []) if isinstance(effective, dict) else []
+    zones = effective.get("zones", {}) if isinstance(effective, dict) else {}
+    alerts = effective.get("alerts", []) if isinstance(effective, dict) else []
+    profile = resolve_target_profile(effective)
+    duplicates = detect_zone_mapping_duplicates(telemetry, zones if isinstance(zones, dict) else {})
+    unavailable = _unavailable_configured_entities(hass, effective, entity_map)
+    warnings = []
+    duplicate_summary = summarize_zone_mapping_duplicates(duplicates)
+    if duplicate_summary:
+        warnings.append(duplicate_summary)
+    if unavailable:
+        warnings.append(f"{len(unavailable)} configured/mapped entity references are missing, unknown, or unavailable.")
+    if not telemetry:
+        warnings.append("No telemetry sensors are configured.")
+    if not zones and not effective.get("alert_only_mode"):
+        warnings.append("No control zones are configured.")
+
+    return _to_jsonable({
+        "target_profile": {
+            "mode": effective.get("target_profile", "auto"),
+            "active_profile": profile.key,
+            "active_season": profile.label,
+            "target_low": profile.low,
+            "target_high": profile.high,
+            "high_risk": profile.high_risk,
+            "custom_target_low": effective.get("custom_target_low"),
+            "custom_target_high": effective.get("custom_target_high"),
+        },
+        "temperature_comfort": {
+            "mode": effective.get("temperature_comfort_mode", "auto"),
+            "custom_low": effective.get("temperature_comfort_custom_low"),
+            "custom_high": effective.get("temperature_comfort_custom_high"),
+        },
+        "zone_mappings": _zone_mapping_summary(zones),
+        "zone_mapping_duplicates": duplicates,
+        "alert_mappings": _alert_mapping_summary(alerts),
+        "active_alert_resolution": runtime_data.get("alert_telemetry", []),
+        "visual_alerts": _visual_alert_summary(alerts),
+        "unavailable_or_unknown_entities": unavailable,
+        "warnings": warnings,
+    })
+
+
+def _zone_mapping_summary(zones: dict) -> dict:
+    summary = {}
+    if not isinstance(zones, dict):
+        return summary
+    for key, zone in zones.items():
+        if not isinstance(zone, dict):
+            continue
+        summary[str(key)] = {
+            "enabled": bool(zone.get("enabled")),
+            "level": zone.get("level"),
+            "rooms": list(zone.get("rooms") or []),
+            "outputs": list(zone.get("outputs") or []),
+            "output_level": zone.get("output_level"),
+            "boost_output_level": zone.get("boost_output_level"),
+            "triggers": list(zone.get("triggers") or []),
+            "thresholds": dict(zone.get("thresholds") or {}),
+        }
+    return summary
+
+
+def _alert_mapping_summary(alerts: list) -> list:
+    rows = []
+    for idx, alert in enumerate(alerts or [], start=1):
+        if not isinstance(alert, dict):
+            continue
+        rows.append({
+            "index": idx,
+            "enabled": bool(alert.get("enabled", True)),
+            "trigger_type": alert.get("trigger_type"),
+            "room": alert.get("room"),
+            "threshold": alert.get("threshold"),
+            "visual_lights": list(alert.get("lights") or []),
+            "power_entity": alert.get("power_entity"),
+            "flash_mode": alert.get("flash_mode", "red"),
+            "duration": alert.get("duration", 10),
+        })
+    return rows
+
+
+def _visual_alert_summary(alerts: list) -> list:
+    return [
+        {
+            "index": row["index"],
+            "trigger_type": row["trigger_type"],
+            "room": row["room"],
+            "lights": row["visual_lights"],
+            "power_entity": row["power_entity"],
+            "flash_mode": row["flash_mode"],
+            "flash_count": 10,
+            "repeat_minutes": 30,
+            "restore_state": True,
+        }
+        for row in _alert_mapping_summary(alerts)
+        if row.get("visual_lights")
+    ]
+
+
+def _unavailable_configured_entities(hass: HomeAssistant, config: dict, entity_map: dict) -> list:
+    entity_ids = set()
+    for item in config.get("telemetry", []) or []:
+        if isinstance(item, dict) and item.get("entity_id"):
+            entity_ids.add(item["entity_id"])
+    for entity_id in config.get("presence_gate", {}).get("entities", []) or []:
+        entity_ids.add(entity_id)
+    for section_name in ("zones", "aq", "humidifiers"):
+        section = config.get(section_name, {})
+        if isinstance(section, dict):
+            for row in section.values():
+                if not isinstance(row, dict):
+                    continue
+                for entity_id in row.get("outputs", []) or []:
+                    entity_ids.add(entity_id)
+    for alert in config.get("alerts", []) or []:
+        if not isinstance(alert, dict):
+            continue
+        for entity_id in alert.get("lights", []) or []:
+            entity_ids.add(entity_id)
+        if alert.get("power_entity"):
+            entity_ids.add(alert["power_entity"])
+    for entity_id in (entity_map or {}).values():
+        if entity_id:
+            entity_ids.add(entity_id)
+
+    missing = []
+    for entity_id in sorted(entity_ids):
+        state = hass.states.get(entity_id)
+        if state is None:
+            missing.append({"entity_id": entity_id, "status": "missing"})
+            continue
+        if str(state.state).lower() in {"unknown", "unavailable"}:
+            missing.append({"entity_id": entity_id, "status": str(state.state).lower()})
+    return missing
 
 
 async def _dump_cards_to_file(

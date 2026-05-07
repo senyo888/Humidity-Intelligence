@@ -509,7 +509,9 @@ async def _run_runtime_assertions(engine_mod) -> None:
     engine_zone_alert = HIAutomationEngine(hass_zone_alert, entry_zone_alert)
     await engine_zone_alert._evaluate()
     assert hass_zone_alert.data["humidity_intelligence"][ENTRY_ID].get("runtime_mode") == "alert"
-    assert hass_zone_alert.data["humidity_intelligence"][ENTRY_ID].get("active_alert_context") == "Humidity Danger - Kitchen (Zone 1)"
+    assert hass_zone_alert.data["humidity_intelligence"][ENTRY_ID].get("active_alert_context") == (
+        "Humidity Danger · Kitchen · Zone 1 · 72.0% >= 62% threshold"
+    )
     assert any(
         domain == "fan"
         and service == "set_percentage"
@@ -554,7 +556,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
     engine_condensation_risk = HIAutomationEngine(hass_condensation_risk, entry_condensation_risk)
     await engine_condensation_risk._evaluate()
     assert hass_condensation_risk.data["humidity_intelligence"][ENTRY_ID].get("active_alert_context") == (
-        "Condensation Risk - Bedroom (Zone 2)"
+        "Condensation Risk · Bedroom · Zone 2"
     )
     assert any(
         domain == "fan"
@@ -607,7 +609,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
     engine_alert_hierarchy = HIAutomationEngine(hass_alert_hierarchy, entry_alert_hierarchy)
     await engine_alert_hierarchy._evaluate()
     hierarchy_data = hass_alert_hierarchy.data["humidity_intelligence"][ENTRY_ID]
-    assert hierarchy_data.get("active_alert_context") == "Mould Risk - Bedroom (Zone 2)"
+    assert hierarchy_data.get("active_alert_context") == "Mould Risk · Bedroom · Zone 2"
     assert "Conflict detected" in hierarchy_data.get("runtime_reason_full", "")
     assert any(
         domain == "fan"
@@ -655,7 +657,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
     engine_zone_priority = HIAutomationEngine(hass_zone_priority, entry_zone_priority)
     await engine_zone_priority._evaluate()
     assert hass_zone_priority.data["humidity_intelligence"][ENTRY_ID].get("active_alert_context") == (
-        "Mould Risk - Kitchen (Zone 1)"
+        "Mould Risk · Kitchen · Zone 1"
     )
     assert any(
         domain == "fan"
@@ -824,6 +826,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
         if domain == "humidity_intelligence" and service == "flash_lights"
     ]
     assert dynamic_flash_calls
+    assert all(data.get("flash_count") == 10 for data in dynamic_flash_calls)
     assert all("power_entity" not in data for data in dynamic_flash_calls)
     assert all(isinstance(data.get("color"), list) for data in dynamic_flash_calls)
     assert all(len(data.get("color")) == 3 for data in dynamic_flash_calls)
@@ -831,6 +834,14 @@ async def _run_runtime_assertions(engine_mod) -> None:
         all(isinstance(channel, int) for channel in data.get("color"))
         for data in dynamic_flash_calls
     )
+    await engine_room_alert_dynamic._evaluate()
+    dynamic_flash_calls_after_repeat_eval = [
+        data
+        for domain, service, data, _ in hass_room_alert_dynamic.services.calls
+        if domain == "humidity_intelligence" and service == "flash_lights"
+    ]
+    assert len(dynamic_flash_calls_after_repeat_eval) == len(dynamic_flash_calls)
+    await engine_room_alert_dynamic.async_stop()
 
     # Alerts without target lights should still activate runtime alert mode,
     # but skip light flash service calls cleanly.
@@ -1550,6 +1561,9 @@ async def _run_card_assertions(register_mod) -> None:
         assert "tempColor(tempValueC(entity))" in card
         assert "slopeEntityFor(item)" in card
         assert "states['sensor.hi_diagnostics']" in card
+        assert "CHIPSET_SCROLL_RESET_DELAY_MS = 15000" in card
+        assert "data-scroll-reset-delay-ms" in card
+        assert "activeAlertNames.forEach" not in card
         assert "sensor.hi_level2_avg_temperature" in card
         assert "sensor.hi_level1_avg_temperature" in card
         assert card.index("House AVG") < card.index("Upstairs AVG") < card.index("Downstairs AVG")
@@ -1699,8 +1713,15 @@ def test_alert_configuration_contract_uses_internal_sources():
     assert "show_temperature_chips" in config_source
     assert "Show temperature chip row in Air Control" in strings_source
     assert "Show temperature chip row in Air Control" in translation_source
-    assert "HI target profile mode" in strings_source
-    assert "HI custom target low" in strings_source
+    assert "Humidity Intelligence target profile mode" in strings_source
+    assert "Humidity custom target low" in strings_source
+    assert "HI target profile mode" not in strings_source
+    assert "HI custom target low" not in strings_source
+    assert "diagnostics_summary" in services_source
+    assert "visual_alerts" in services_source
+    assert "active_alert_resolution" in services_source
+    assert "HUMIDITY_ALERT_FLASH_COUNT = 10" in (ROOT / "automations" / "engine.py").read_text()
+    assert "HUMIDITY_ALERT_REPEAT_MINUTES = 30" in (ROOT / "automations" / "engine.py").read_text()
     assert "alert_remove" in config_source
     assert "options_alert_remove" in config_source
     assert "Remove alert visual rule" in strings_source

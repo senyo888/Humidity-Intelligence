@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from homeassistant.components.sensor import SensorEntity
 
 from .const import DOMAIN
+from .services import _build_diagnostics_summary
 from .sensors.core import build_entities
 from .sensors.slope import build_slope_entities
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -88,6 +89,15 @@ class HIDiagnosticsSensor(SensorEntity):
         self._attr_extra_state_attributes = {
             "config": _sanitize_json(config),
             "options": _sanitize_json(data.get("options", {})),
+            "diagnostics_summary": _sanitize_json(
+                _build_diagnostics_summary(
+                    self.hass,
+                    config if isinstance(config, dict) else {},
+                    data.get("options", {}) if isinstance(data.get("options", {}), dict) else {},
+                    entity_map,
+                    data,
+                )
+            ),
             "entity_map": _sanitize_json(entity_map),
             "cards": list(cards.keys()),
             "unresolved_placeholders": _sanitize_json(unresolved),

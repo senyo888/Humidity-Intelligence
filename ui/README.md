@@ -149,6 +149,7 @@ The panel must:
 - match active lane
 - reflect gate border color
 - display correct chip state
+- keep alert chipsets to the lane/status chip plus the resolved alert source/context chip only
 - show readable reason text
 - stay synced with real hardware behavior
 
@@ -169,6 +170,12 @@ If mismatch occurs:
   - `high_risk` = red
 - Target humidity display now includes the active season/profile label (`Spring`, `Summer`, `Autumn`, `Winter`, or `Custom`).
 - Reason window now includes expanded humidifier logic context from runtime telemetry (lane scope, trigger condition, thresholds, and recovery behavior).
+
+## v2.0.4 UI Contract Updates
+
+- Alert chipsets must not add redundant helper-switch chips after the resolved alert context.
+- Chip rows expose a longer scroll reset delay marker (`15000ms`) so mobile/touch layouts are not aggressively snapped back while being read.
+- Alert source chips should use `HI Active Alert Context`, backed by runtime alert telemetry, rather than inventing display-only context.
 
 ---
 

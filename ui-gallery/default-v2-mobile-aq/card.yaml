@@ -617,6 +617,7 @@ card:
             })();
 
             const out = [];
+            const CHIPSET_SCROLL_RESET_DELAY_MS = 15000;
             out.push(chip(modeBadgeLabel, cMode, true));
             if (aqD) out.push(chip('AQ Downstairs', '#a855f7'));
             if (aqU) out.push(chip('AQ Upstairs', '#a855f7'));
@@ -628,7 +629,6 @@ card:
             if (alertContext && alertContext !== 'None' && alertContext !== 'unknown' && alertContext !== 'unavailable') {
               out.push(chip(alertContext, '#ef4444', true));
             }
-            activeAlertNames.forEach((name) => out.push(chip(String(name).replace(/^HI\\s+/i, ''), '#ef4444')));
             if (timeGateActive) out.push(chip('Time Gate', '#f59e0b'));
             if (presenceGateActive) out.push(chip('Presence Gate', '#f59e0b'));
             if (dHum) out.push(chip('Humidifier Downstairs', '#38bdf8'));
@@ -636,7 +636,7 @@ card:
             if (fanIso) out.push(chip('FAN OUTPUTS ISOLATED', '#f59e0b', true));
             if (humIso) out.push(chip('HUMIDIFIER OUTPUTS ISOLATED', '#f59e0b', true));
 
-            return `<div class="cv-scroll">${out.join('')}</div>`;
+            return `<div class="cv-scroll" data-scroll-reset-delay-ms="${CHIPSET_SCROLL_RESET_DELAY_MS}">${out.join('')}</div>`;
           ]]]
         reason: |
           [[[

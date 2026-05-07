@@ -20,9 +20,9 @@
           "engine_interval_minutes": "Control loop interval",
           "alert_only_mode": "Alert-only mode (monitor + alerts only)",
           "auto_refresh_ui_on_startup": "Refresh HI UI mapping on Home Assistant startup",
-          "target_profile": "HI target profile mode",
-          "custom_target_low": "HI custom target low (%)",
-          "custom_target_high": "HI custom target high (%)",
+          "target_profile": "Humidity Intelligence target profile mode",
+          "custom_target_low": "Humidity custom target low (%)",
+          "custom_target_high": "Humidity custom target high (%)",
           "temperature_comfort_mode": "Temperature comfort mode",
           "temperature_comfort_custom_low": "Custom temperature comfort low (°C)",
           "temperature_comfort_custom_high": "Custom temperature comfort high (°C)",
@@ -287,7 +287,7 @@
       },
       "options_gates": {
         "title": "Global Gates Options",
-        "description": "Edit global time and presence gates. Presence can use person, device_tracker, alarm panel, or helper entities. HI target profile mode controls seasonal vs custom humidity interpretation.",
+        "description": "Edit global time and presence gates. Presence can use person, device_tracker, alarm panel, or helper entities. Humidity Intelligence target profile mode controls seasonal vs custom humidity interpretation.",
         "data": {
           "enable_time_gate": "Enable time gate",
           "start_time": "Start time",
@@ -296,9 +296,9 @@
           "engine_interval_minutes": "Control loop interval",
           "alert_only_mode": "Alert-only mode (monitor + alerts only)",
           "auto_refresh_ui_on_startup": "Refresh HI UI mapping on Home Assistant startup",
-          "target_profile": "HI target profile mode",
-          "custom_target_low": "HI custom target low (%)",
-          "custom_target_high": "HI custom target high (%)",
+          "target_profile": "Humidity Intelligence target profile mode",
+          "custom_target_low": "Humidity custom target low (%)",
+          "custom_target_high": "Humidity custom target high (%)",
           "enable_presence_gate": "Enable presence gate",
           "presence_entities": "Presence/alarm entities"
         }

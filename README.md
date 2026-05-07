@@ -473,7 +473,7 @@ What to do:
 - set time gate window (optional)
 - select presence/alarm entities (optional)
 - define explicit present and away state values
-- set HI target profile mode and HI custom target band when not using seasonal auto mode
+- set Humidity Intelligence target profile mode and Humidity custom target band when not using seasonal auto mode
 - temperature comfort is tuned later in `Thresholds & Comfort` when post-config adjustments are needed
 
 Example baseline:
@@ -797,6 +797,8 @@ data: {}
 ### `flash_lights`
 Purpose:
 - run alert flash behavior manually for testing.
+- runtime humidity/mould/condensation visual alert rules flash configured lights 10 times, restore the prior light state, wait 30 minutes, then repeat only if the same alert source is still active.
+- CO emergency remains the top-priority safety lane and is not demoted by humidity visual-alert repeats.
 
 Example:
 ```yaml
@@ -843,7 +845,7 @@ data: {}
 
 ### `dump_diagnostics`
 Purpose:
-- export runtime diagnostics, mapping, and card info to JSON.
+- export runtime diagnostics, mapping, active target profile, visual alert rules, alert source resolution, unavailable entities, and card info to JSON.
 
 Example:
 ```yaml
@@ -897,6 +899,10 @@ Safety guidance:
 - added seasonal/custom temperature comfort configuration and runtime comfort sensors for truth-based temperature chip colouring
 - added post-configuration editing for all zone thresholds: humidity high, air quality, condensation risk, and mould risk
 - fixed temperature slope chip mapping fallback so calculated slope chips use Home Assistant slug-compatible entity IDs and configured slope sources
+- renamed Global Gates labels to `Humidity Intelligence target profile mode` and `Humidity custom target`
+- changed alert chipsets to show only lane/status plus the resolved alert source context, with redundant helper-switch chips removed
+- visual humidity/mould/condensation alerts now flash 10 times, restore prior light state, wait 30 minutes, and repeat only while the same alert remains active
+- diagnostics now include a support-focused summary for target profile mode, active profile/season/custom target, zone mappings, alert mappings, visual alert configuration, active alert resolution, unavailable entities, and configuration warnings
 - bumped integration version to `2.0.4`
 
 ### v2.0.3
