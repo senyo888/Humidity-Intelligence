@@ -22,6 +22,8 @@ from ..helpers.seasonal import (
     humidity_state as seasonal_humidity_state,
     mould_risk as seasonal_mould_risk,
     resolve_target_profile,
+    resolve_temperature_comfort_profile,
+    temperature_comfort_state,
 )
 from ..helpers.zone_validation import detect_zone_mapping_duplicates, summarize_zone_mapping_duplicates
 
@@ -203,6 +205,28 @@ class _CoreComputations:
             icon="mdi:calendar",
         ))
         sensors.append(make(
+            "HI House Temperature Comfort Low",
+            "house_temperature_comfort_low",
+            self._compute_temperature_comfort_low,
+            unit=UnitOfTemperature.CELSIUS,
+            device_class=SensorDeviceClass.TEMPERATURE,
+            icon="mdi:thermometer-low",
+        ))
+        sensors.append(make(
+            "HI House Temperature Comfort High",
+            "house_temperature_comfort_high",
+            self._compute_temperature_comfort_high,
+            unit=UnitOfTemperature.CELSIUS,
+            device_class=SensorDeviceClass.TEMPERATURE,
+            icon="mdi:thermometer-high",
+        ))
+        sensors.append(make(
+            "HI House Temperature Comfort State",
+            "house_temperature_comfort_state",
+            self._compute_house_temperature_comfort_state,
+            icon="mdi:home-thermometer",
+        ))
+        sensors.append(make(
             "HI House Humidity State",
             "house_humidity_state",
             self._compute_house_humidity_state,
@@ -262,6 +286,12 @@ class _CoreComputations:
             "air_control_reason",
             self._compute_reason,
             icon="mdi:comment-text",
+        ))
+        sensors.append(make(
+            "HI Active Alert Context",
+            "active_alert_context",
+            self._compute_active_alert_context,
+            icon="mdi:alert-decagram",
         ))
         sensors.append(make(
             "HI Air Control Kitchen Humidity Delta",
@@ -345,6 +375,12 @@ class _CoreComputations:
                 self._compute_target_high,
                 unit=PERCENTAGE,
                 icon="mdi:target",
+            ))
+            sensors.append(make(
+                f"HI {level.capitalize()} Temperature Comfort State",
+                f"{level}_temperature_comfort_state",
+                lambda lvl=level: self._compute_level_temperature_comfort_state(lvl),
+                icon="mdi:home-thermometer",
             ))
 
             if self.levels.get(level, {}).get("iaq"):
@@ -460,6 +496,49 @@ class _CoreComputations:
             "target_low": profile.low,
             "target_high": profile.high,
             "high_risk": profile.high_risk,
+        }
+
+    def _compute_temperature_comfort_low(self) -> Tuple[float, Dict[str, Any]]:
+        profile = self._active_temperature_comfort_profile()
+        return profile.low, {
+            "season": profile.label,
+            "profile": profile.key,
+            "comfort_high": profile.high,
+        }
+
+    def _compute_temperature_comfort_high(self) -> Tuple[float, Dict[str, Any]]:
+        profile = self._active_temperature_comfort_profile()
+        return profile.high, {
+            "season": profile.label,
+            "profile": profile.key,
+            "comfort_low": profile.low,
+            "watch_high": round(profile.high + 1.0, 1),
+        }
+
+    def _compute_house_temperature_comfort_state(self) -> Tuple[str, Dict[str, Any]]:
+        profile = self._active_temperature_comfort_profile()
+        temperature = self._compute_house_avg_temperature()[0]
+        state = temperature_comfort_state(temperature, profile)
+        return state, {
+            "temperature": temperature,
+            "comfort_low": profile.low,
+            "comfort_high": profile.high,
+            "watch_high": round(profile.high + 1.0, 1),
+            "season": profile.label,
+            "profile": profile.key,
+        }
+
+    def _compute_level_temperature_comfort_state(self, level: str) -> Tuple[str, Dict[str, Any]]:
+        profile = self._active_temperature_comfort_profile()
+        temperature = self._compute_level_avg_temperature(level)[0]
+        state = temperature_comfort_state(temperature, profile)
+        return state, {
+            "temperature": temperature,
+            "comfort_low": profile.low,
+            "comfort_high": profile.high,
+            "watch_high": round(profile.high + 1.0, 1),
+            "season": profile.label,
+            "profile": profile.key,
         }
 
     def _compute_house_humidity_state(self) -> Tuple[str, Dict[str, Any]]:
@@ -608,6 +687,12 @@ class _CoreComputations:
                 attrs["full_reason"] = full_reason.strip()
             return reason.strip(), attrs
         return "System is armed and monitoring sensors. No action is needed right now.", {}
+
+    def _compute_active_alert_context(self) -> Tuple[str, Dict[str, Any]]:
+        data = self.hass.data.get(DOMAIN, {}).get(self.entry.entry_id, {})
+        context = str(data.get("active_alert_context") or "None").strip() or "None"
+        telemetry = data.get("alert_telemetry") or []
+        return context, {"alert_telemetry": _sanitize_json(telemetry)}
 
     def _compute_kitchen_humidity_delta(self) -> Tuple[Optional[float], Dict[str, Any]]:
         kitchen = self._find_room_value("kitchen", "humidity")
@@ -828,6 +913,9 @@ class _CoreComputations:
     def _active_target_profile(self):
         return resolve_target_profile(self._effective_config())
 
+    def _active_temperature_comfort_profile(self):
+        return resolve_temperature_comfort_profile(self._effective_config())
+
     def _effective_config(self) -> Dict[str, Any]:
         data = dict(getattr(self.entry, "data", None) or {})
         data.update(dict(getattr(self.entry, "options", None) or {}))
@@ -867,6 +955,16 @@ def _avg(values: List[float]) -> Optional[float]:
     if not values:
         return None
     return round(sum(values) / len(values), 1)
+
+
+def _sanitize_json(value):
+    if isinstance(value, dict):
+        return {k: _sanitize_json(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_sanitize_json(v) for v in value]
+    if isinstance(value, set):
+        return list(value)
+    return value
 
 
 def _dew_point(temp_c: float, rh: float) -> Optional[float]:

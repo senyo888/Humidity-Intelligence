@@ -84,12 +84,21 @@ class HIInputSwitch(SwitchEntity, RestoreEntity):
             self._auto_close_task = None
 
     async def async_turn_on(self, **kwargs) -> None:
+        if self._state:
+            if self._supports_auto_close():
+                self._schedule_auto_close()
+            return
         self._state = True
         self.async_write_ha_state()
         if self._supports_auto_close():
             self._schedule_auto_close()
 
     async def async_turn_off(self, **kwargs) -> None:
+        if not self._state:
+            if self._auto_close_task:
+                self._auto_close_task.cancel()
+                self._auto_close_task = None
+            return
         self._state = False
         if self._auto_close_task:
             self._auto_close_task.cancel()
@@ -165,7 +174,17 @@ def _alert_switch_definitions(entry: ConfigEntry) -> List[Tuple[int, str, str, D
             trigger_type.replace("_", " ").title(),
         )
         threshold = alert.get("threshold")
-        threshold_suffix = f" @ {threshold}" if threshold not in (None, "") else ""
+        threshold_suffix = ""
+        threshold_source = None
+        if trigger_type == "humidity_danger":
+            threshold = None
+            threshold_suffix = " @ active profile"
+            threshold_source = "active_profile"
+        elif trigger_type == "co_emergency" and threshold not in (None, ""):
+            threshold_suffix = f" @ {threshold}"
+            threshold_source = "static"
+        elif trigger_type != "co_emergency":
+            threshold = None
         name = f"HI Alert {idx} {trigger_label}{threshold_suffix} Active"
         key = f"air_alert_{idx}_active"
         attrs = {
@@ -174,5 +193,7 @@ def _alert_switch_definitions(entry: ConfigEntry) -> List[Tuple[int, str, str, D
             "trigger_label": trigger_label,
             "threshold": threshold,
         }
+        if threshold_source:
+            attrs["threshold_source"] = threshold_source
         defs.append((idx, key, name, attrs))
     return defs

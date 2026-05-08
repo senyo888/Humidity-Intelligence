@@ -1,3 +1,26 @@
+# Humidity Intelligence V2 Mobile Dashboard YAML
+#
+# What this is:
+# - Example Lovelace card YAML for the V2 mobile dashboard.
+# - In a live installation, prefer the YAML exported by humidity_intelligence.dump_cards.
+# - Paste the exported YAML into a Home Assistant Dashboard Manual card.
+# - Do not paste this into configuration.yaml.
+#
+# How to use after an upgrade or UI-changing option update:
+# 1. Call the service humidity_intelligence.dump_cards.
+# 2. Open /config/humidity_intelligence_cards_v2_mobile.yaml.
+# 3. Replace the old Manual card YAML with the full contents of that file.
+# 4. Save the dashboard and hard-refresh the browser/app if the old UI remains cached.
+#
+# Required custom cards:
+# - mod-card
+# - card-mod
+# - button-card
+# - apexcharts-card
+#
+# The integration replaces placeholder entity IDs when card YAML is exported.
+# Edit entity IDs manually only if you are deliberately overriding the generated mapping.
+
 type: custom:mod-card
 card_mod:
   style: |
@@ -540,10 +563,14 @@ card:
             const uHum = states['input_boolean.air_upstairs_humidifier_active']?.state === 'on';
             const fanIso = states['input_boolean.air_isolate_fan_outputs']?.state === 'on';
             const humIso = states['input_boolean.air_isolate_humidifier_outputs']?.state === 'on';
-            const activeAlertIds = Object.keys(states).filter((id) => {
-              if (!/^(?:switch|input_boolean)\\.hi_air_alert_\\d+_active(?:_\\d+)?$/.test(id)) return false;
-              return states[id]?.state === 'on';
-            });
+            const isAlertActiveEntity = (id) => {
+              const stateObj = states[id];
+              if (stateObj?.state !== 'on') return false;
+              const attrs = stateObj.attributes || {};
+              if (attrs.alert_index !== undefined && attrs.trigger_type) return true;
+              return /^(?:switch|input_boolean)\\.(?:hi_)?(?:air_)?alert_\\d+.*_active(?:_\\d+)?$/.test(id);
+            };
+            const activeAlertIds = Object.keys(states).filter(isAlertActiveEntity);
             const activeAlertNames = activeAlertIds.map(
               (id) => states[id]?.attributes?.friendly_name || id
             );
@@ -590,11 +617,18 @@ card:
             })();
 
             const out = [];
+            const CHIPSET_SCROLL_RESET_DELAY_MS = 15000;
             out.push(chip(modeBadgeLabel, cMode, true));
             if (aqD) out.push(chip('AQ Downstairs', '#a855f7'));
             if (aqU) out.push(chip('AQ Upstairs', '#a855f7'));
             if (coE) out.push(chip('CO EMERGENCY', '#ef4444', true));
-            activeAlertNames.forEach((name) => out.push(chip(String(name).replace(/^HI\\s+/i, ''), '#ef4444')));
+            const alertContextId =
+              Object.keys(states).find((id) => id === 'sensor.active_alert_context') ||
+              Object.keys(states).find((id) => /^sensor\\..*active_alert_context$/.test(id));
+            const alertContext = String(states[alertContextId]?.state || '').trim();
+            if (alertContext && alertContext !== 'None' && alertContext !== 'unknown' && alertContext !== 'unavailable') {
+              out.push(chip(alertContext, '#ef4444', true));
+            }
             if (timeGateActive) out.push(chip('Time Gate', '#f59e0b'));
             if (presenceGateActive) out.push(chip('Presence Gate', '#f59e0b'));
             if (dHum) out.push(chip('Humidifier Downstairs', '#38bdf8'));
@@ -602,7 +636,7 @@ card:
             if (fanIso) out.push(chip('FAN OUTPUTS ISOLATED', '#f59e0b', true));
             if (humIso) out.push(chip('HUMIDIFIER OUTPUTS ISOLATED', '#f59e0b', true));
 
-            return `<div class="cv-scroll">${out.join('')}</div>`;
+            return `<div class="cv-scroll" data-scroll-reset-delay-ms="${CHIPSET_SCROLL_RESET_DELAY_MS}">${out.join('')}</div>`;
           ]]]
         reason: |
           [[[
@@ -616,10 +650,14 @@ card:
               const alarmState = txt('alarm_control_panel.senyo1_sky_com') || 'unknown';
               const justynaHome = isHome('person.justyna') || isHome('device_tracker.justyna');
               const senyoHome = isHome('person.senyo') || isHome('device_tracker.senyos_phone');
-              const activeAlertIds = Object.keys(states).filter((id) => {
-                if (!/^(?:switch|input_boolean)\\.hi_air_alert_\\d+_active(?:_\\d+)?$/.test(id)) return false;
-                return states[id]?.state === 'on';
-              });
+              const isAlertActiveEntity = (id) => {
+                const stateObj = states[id];
+                if (stateObj?.state !== 'on') return false;
+                const attrs = stateObj.attributes || {};
+                if (attrs.alert_index !== undefined && attrs.trigger_type) return true;
+                return /^(?:switch|input_boolean)\\.(?:hi_)?(?:air_)?alert_\\d+.*_active(?:_\\d+)?$/.test(id);
+              };
+              const activeAlertIds = Object.keys(states).filter(isAlertActiveEntity);
               const activeAlertNames = activeAlertIds.map(
                 (id) => states[id]?.attributes?.friendly_name || id
               );
@@ -790,10 +828,16 @@ card:
             const vocD = num('sensor.air_control_downstairs_voc_average');
             const coD  = num('sensor.air_control_downstairs_co_average');
             const iaqH = num('sensor.air_control_house_iaq_average');
+            const pmH  = num('sensor.air_control_house_pm25_average');
+            const vocH = num('sensor.air_control_house_voc_average');
+            const coH  = num('sensor.air_control_house_co_average');
 
             return `
               <div class="cv-scroll">
                 ${maybeChip('House IAQ', iaqH, '', cIAQ(iaqH))}
+                ${maybeChip('House PM2.5', pmH, '', cPM(pmH))}
+                ${maybeChip('House VOC', vocH, '', cVOC(vocH))}
+                ${maybeChip('House CO', coH, '', cCO(coH))}
                 ${maybeChip('Upstairs IAQ', iaqU, '', cIAQ(iaqU))}
                 ${maybeChip('Upstairs PM2.5', pmU, '', cPM(pmU))}
                 ${maybeChip('Upstairs VOC', vocU, '', cVOC(vocU))}
@@ -817,31 +861,41 @@ card:
                 <span class="v" style="color:${c};">${v === null ? '—' : v}${unit || ''}</span>
               </span>`;
 
-            const hh = num('sensor.house_average_humidity');
-            const dh = num('sensor.air_control_downstairs_average_humidity');
-            const uh = num('sensor.air_control_upstairs_average_humidity');
-            const bh = num('sensor.wirelesstag_bathroom_humidity');
-            const kh = num('sensor.wirelesstag_kitchen_humidity');
-
-            const bhd = num('sensor.air_control_bathroom_humidity_delta');
-            const khd = num('sensor.air_control_kitchen_humidity_delta');
-            const ksd = num('sensor.air_control_kitchen_slope_delta');
-
             const s1 = (v) => (v === null ? null : `${v > 0 ? '+' : ''}${v.toFixed(1)}`);
-            const s2 = (v) => (v === null ? null : `${v > 0 ? '+' : ''}${v.toFixed(2)}`);
+
+            const diagAttrs = states['sensor.hi_diagnostics']?.attributes || {};
+            const cfg = diagAttrs.config || {};
+            const telemetry = Array.isArray(cfg.telemetry) ? cfg.telemetry : [];
+            const zones = cfg.zones && typeof cfg.zones === 'object' ? cfg.zones : {};
+            const norm = (v) => String(v || '').trim().toLowerCase();
+            const zoneRooms = [...new Set(Object.values(zones)
+              .flatMap((zone) => zone && zone.enabled !== false && Array.isArray(zone?.rooms) ? zone.rooms : [])
+              .map((room) => String(room || '').trim())
+              .filter(Boolean))]
+              .sort((a, b) => a.localeCompare(b));
+            const zoneTelemetry = (sensorType) => zoneRooms
+              .map((room) => {
+                const match = telemetry.find((item) =>
+                  item?.sensor_type === sensorType &&
+                  norm(item.room) === norm(room) &&
+                  item.entity_id
+                );
+                return match ? { label: room, entity: match.entity_id } : null;
+              })
+              .filter(Boolean);
 
             const roomDelta = Object.keys(states)
               .filter((id) => id.startsWith('sensor.hi_') && id.includes('_humidity_delta'))
               .map((id) => {
                 const value = num(id);
                 if (value === null) return null;
-                const raw = states[id]?.attributes?.room || states[id]?.attributes?.friendly_name || id;
-                const label = String(raw).replace(/HI\\s+/i, '').replace(/Humidity Delta/i, '').trim();
+                const raw = states[id]?.attributes?.room;
+                if (!raw) return null;
+                const label = String(raw).trim();
                 return { id, label, value };
               })
               .filter(Boolean)
-              .sort((a, b) => b.value - a.value)
-              .slice(0, 5);
+              .sort((a, b) => a.label.localeCompare(b.label));
 
             const roomDeltaChips = roomDelta
               .map((item) => chip(`${item.label} Δ`, s1(item.value), '%', '#94a3b8'))
@@ -863,18 +917,90 @@ card:
               if (high !== null && h > high) return '#facc15';
               return '#94a3b8';
             };
+            const hh = num('sensor.house_average_humidity');
+            const dh = num('sensor.air_control_downstairs_average_humidity');
+            const uh = num('sensor.air_control_upstairs_average_humidity');
+            const roomHumidityChips = zoneTelemetry('humidity')
+              .map((item) => {
+                const value = num(item.entity);
+                return chip(item.label, value === null ? null : Math.round(value), '%', cH(value));
+              })
+              .join('');
 
             return `
               <div class="cv-scroll">
                 ${chip('House AVG', hh === null ? null : Math.round(hh), '%', cH(hh))}
-                ${chip('Downstairs AVG', dh === null ? null : Math.round(dh), '%', cH(dh))}
                 ${chip('Upstairs AVG', uh === null ? null : Math.round(uh), '%', cH(uh))}
-                ${chip('Bathroom', bh === null ? null : Math.round(bh), '%', cH(bh))}
-                ${chip('Kitchen', kh === null ? null : Math.round(kh), '%', cH(kh))}
-                ${chip('Bathroom Δ', s1(bhd), '%', '#94a3b8')}
-                ${chip('Kitchen Δ', s1(khd), '%', '#94a3b8')}
-                ${chip('Kitchen Δ slope', s2(ksd), '', '#94a3b8')}
+                ${chip('Downstairs AVG', dh === null ? null : Math.round(dh), '%', cH(dh))}
+                ${roomHumidityChips}
                 ${roomDeltaChips}
+              </div>`;
+          ]]]
+        temperature: |
+          [[[
+            const num = (id) => {
+              const v = parseFloat(states[id]?.state);
+              return isNaN(v) ? null : v;
+            };
+            const diagAttrs = states['sensor.hi_diagnostics']?.attributes || {};
+            const cfg = diagAttrs.config || {};
+            const slopeCfg = cfg.slope || {};
+            if (!slopeCfg.show_temperature_chips) return '';
+
+            const chip = (k, v, unit, c) => `
+              <span class="cv-chip" style="--cv:${c};">
+                <span class="k">${k}</span>
+                <span class="v" style="color:${c};">${v === null ? '—' : v}${unit || ''}</span>
+              </span>`;
+            const telemetry = Array.isArray(cfg.telemetry) ? cfg.telemetry : [];
+            const zones = cfg.zones && typeof cfg.zones === 'object' ? cfg.zones : {};
+            const norm = (v) => String(v || '').trim().toLowerCase();
+            const zoneRooms = [...new Set(Object.values(zones)
+              .flatMap((zone) => zone && zone.enabled !== false && Array.isArray(zone?.rooms) ? zone.rooms : [])
+              .map((room) => String(room || '').trim())
+              .filter(Boolean))]
+              .sort((a, b) => a.localeCompare(b));
+            const zoneTelemetry = (sensorType) => zoneRooms
+              .map((room) => {
+                const match = telemetry.find((item) =>
+                  item?.sensor_type === sensorType &&
+                  norm(item.room) === norm(room) &&
+                  item.entity_id
+                );
+                return match ? { label: room, entity: match.entity_id } : null;
+              })
+              .filter(Boolean);
+            const tempDisplay = (id) => {
+              const attrs = states[id]?.attributes || {};
+              const display = parseFloat(attrs.display_value);
+              const value = !isNaN(display) ? display : num(id);
+              const unit = attrs.display_unit || attrs.unit_of_measurement || '°C';
+              return { value: value === null ? null : Number(value).toFixed(1), unit };
+            };
+            const signed = (v) => (v === null ? null : `${v > 0 ? '+' : ''}${v.toFixed(2)}`);
+            const tempChip = (label, entity) => {
+              const item = tempDisplay(entity);
+              return chip(label, item.value, item.unit, '#facc15');
+            };
+            const slopeMap = diagAttrs.slope_map || {};
+            const roomTemperatureChips = zoneTelemetry('temperature')
+              .map((item) => tempChip(item.label, item.entity))
+              .join('');
+            const slopeChips = telemetry
+              .filter((item) => item?.sensor_type === 'temperature' && item.entity_id && item.room)
+              .map((item) => ({ label: String(item.room).trim(), entity: slopeMap[item.entity_id] }))
+              .filter((item) => item.label && item.entity)
+              .sort((a, b) => a.label.localeCompare(b.label))
+              .map((item) => chip(`${item.label} slope`, signed(num(item.entity)), '°C/h', '#94a3b8'))
+              .join('');
+
+            return `
+              <div class="cv-scroll">
+                ${tempChip('House Temp', 'sensor.house_average_temperature')}
+                ${tempChip('Upstairs Temp', 'sensor.air_control_upstairs_average_temperature')}
+                ${tempChip('Downstairs Temp', 'sensor.air_control_downstairs_average_temperature')}
+                ${roomTemperatureChips}
+                ${slopeChips}
               </div>`;
           ]]]
       tap_action:
@@ -891,8 +1017,11 @@ card:
               [[[
                 const mode = (states['sensor.air_control_mode']?.state || 'normal').toLowerCase();
                 const anyAlertActive = Object.keys(states).some((id) => {
-                  if (!/^(?:switch|input_boolean)\\.hi_air_alert_\\d+_active(?:_\\d+)?$/.test(id)) return false;
-                  return states[id]?.state === 'on';
+                  const stateObj = states[id];
+                  if (stateObj?.state !== 'on') return false;
+                  const attrs = stateObj.attributes || {};
+                  if (attrs.alert_index !== undefined && attrs.trigger_type) return true;
+                  return /^(?:switch|input_boolean)\\.(?:hi_)?(?:air_)?alert_\\d+.*_active(?:_\\d+)?$/.test(id);
                 });
                 const red =
                   states['binary_sensor.humidity_danger']?.state === 'on' ||
@@ -924,14 +1053,21 @@ card:
           - overflow: hidden
         grid:
           - grid-template-areas: |
-              "i i"
-              "n n"
-              "s s"
-              "l l"
-              "status status"
-              "reason reason"
-              "aq aq"
-              "humidity humidity"
+              [[[
+                const showTemp = !!states['sensor.hi_diagnostics']?.attributes?.config?.slope?.show_temperature_chips;
+                const rows = [
+                  '"i i"',
+                  '"n n"',
+                  '"s s"',
+                  '"l l"',
+                  '"status status"',
+                  '"reason reason"',
+                  '"aq aq"',
+                  '"humidity humidity"',
+                ];
+                if (showTemp) rows.push('"temperature temperature"');
+                return rows.join('\n');
+              ]]]
           - grid-template-columns: 1fr 1fr
           - row-gap: 6px
           - justify-items: center
@@ -971,6 +1107,15 @@ card:
           humidity:
             - width: 100%
             - justify-self: stretch
+          temperature:
+            - width: 100%
+            - justify-self: stretch
+            - display: |
+                [[[
+                  return states['sensor.hi_diagnostics']?.attributes?.config?.slope?.show_temperature_chips
+                    ? 'block'
+                    : 'none';
+                ]]]
       card_mod:
         style: >
           ha-card{ position:relative; }

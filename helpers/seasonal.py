@@ -25,6 +25,16 @@ class TargetProfile:
     mould_excess_danger: float
 
 
+@dataclass(frozen=True)
+class TemperatureComfortProfile:
+    """Resolved temperature comfort band used by runtime sensors and UI."""
+
+    key: str
+    label: str
+    low: float
+    high: float
+
+
 SEASONAL_PROFILES: dict[str, TargetProfile] = {
     "spring": TargetProfile(
         key="spring",
@@ -85,6 +95,14 @@ SEASONAL_PROFILES: dict[str, TargetProfile] = {
 }
 
 
+SEASONAL_TEMPERATURE_COMFORT: dict[str, TemperatureComfortProfile] = {
+    "winter": TemperatureComfortProfile(key="winter", label="Winter", low=19.5, high=20.5),
+    "spring": TemperatureComfortProfile(key="spring", label="Spring", low=20.0, high=21.0),
+    "summer": TemperatureComfortProfile(key="summer", label="Summer", low=20.0, high=22.5),
+    "autumn": TemperatureComfortProfile(key="autumn", label="Autumn", low=19.5, high=21.0),
+}
+
+
 def resolve_target_profile(config: Mapping[str, Any], now: Optional[datetime] = None) -> TargetProfile:
     """Resolve active profile from config with seasonal fallback."""
     now = now or datetime.now()
@@ -103,6 +121,42 @@ def resolve_target_profile(config: Mapping[str, Any], now: Optional[datetime] = 
         return SEASONAL_PROFILES[profile_mode]
 
     return SEASONAL_PROFILES[_season_key_from_month(now.month)]
+
+
+def resolve_temperature_comfort_profile(
+    config: Mapping[str, Any],
+    now: Optional[datetime] = None,
+) -> TemperatureComfortProfile:
+    """Resolve active temperature comfort band from config with seasonal fallback."""
+    now = now or datetime.now()
+    mode = str(config.get("temperature_comfort_mode") or "auto").strip().lower()
+    if mode == "custom":
+        low = _to_float(config.get("temperature_comfort_custom_low"))
+        high = _to_float(config.get("temperature_comfort_custom_high"))
+        if low is not None and high is not None and high > low:
+            return TemperatureComfortProfile(
+                key="custom",
+                label="Custom",
+                low=round(low, 1),
+                high=round(high, 1),
+            )
+    return SEASONAL_TEMPERATURE_COMFORT[_season_key_from_month(now.month)]
+
+
+def temperature_comfort_state(
+    temperature: Optional[float],
+    profile: TemperatureComfortProfile,
+) -> str:
+    """Classify temperature against the active comfort profile."""
+    if temperature is None:
+        return "unknown"
+    if temperature < profile.low:
+        return "below_comfort"
+    if temperature <= profile.high:
+        return "in_comfort"
+    if temperature <= profile.high + 1.0:
+        return "above_comfort_watch"
+    return "above_comfort_high"
 
 
 def humidity_state(humidity: Optional[float], profile: TargetProfile) -> str:
@@ -217,4 +271,3 @@ def _to_float(value: Any) -> Optional[float]:
         return float(value)
     except (TypeError, ValueError):
         return None
-

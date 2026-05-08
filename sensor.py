@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from homeassistant.components.sensor import SensorEntity
 
 from .const import DOMAIN
+from .services import _build_diagnostics_summary
 from .sensors.core import build_entities
 from .sensors.slope import build_slope_entities
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -79,26 +80,35 @@ class HIDiagnosticsSensor(SensorEntity):
         zones = config.get("zones", {}) if isinstance(config, dict) else {}
         cards = data.get("cards") or {}
         entity_map = data.get("entity_map") or {}
+        alert_telemetry = data.get("alert_telemetry") or []
         unresolved = data.get("unresolved_placeholders") or []
         unresolved_by_card = data.get("unresolved_placeholders_by_card") or {}
         duplicates = detect_zone_mapping_duplicates(telemetry, zones if isinstance(zones, dict) else {})
         duplicate_summary = summarize_zone_mapping_duplicates(duplicates)
         self._attr_native_value = "warning" if duplicates else "ok"
+        summary = _build_diagnostics_summary(
+            self.hass,
+            config if isinstance(config, dict) else {},
+            data.get("options", {}) if isinstance(data.get("options", {}), dict) else {},
+            entity_map,
+            data,
+        )
         self._attr_extra_state_attributes = {
-            "config": _sanitize_json(config),
-            "options": _sanitize_json(data.get("options", {})),
-            "entity_map": _sanitize_json(entity_map),
+            "diagnostics_summary": _sanitize_json(_compact_diagnostics_summary(summary)),
             "cards": list(cards.keys()),
-            "unresolved_placeholders": _sanitize_json(unresolved),
-            "unresolved_placeholders_by_card": _sanitize_json(unresolved_by_card),
-            "zone_mapping_duplicates": _sanitize_json(duplicates),
+            "unresolved_placeholders_count": len(unresolved),
+            "unresolved_placeholders": _sanitize_json(unresolved[:20]),
+            "unresolved_placeholders_by_card_count": len(unresolved_by_card),
             "zone_mapping_duplicate_summary": duplicate_summary,
+            "zone_mapping_duplicate_count": len(duplicates),
             "counts": {
                 "telemetry": len(telemetry),
                 "mapped_entities": len([v for v in entity_map.values() if v]),
                 "card_templates": len(cards.keys()),
                 "unresolved_placeholders": len(unresolved),
+                "active_alerts": len(alert_telemetry),
             },
+            "full_diagnostics": "Use service humidity_intelligence.dump_diagnostics for full config, options, entity map, and state export.",
         }
 
 
@@ -180,6 +190,106 @@ def _sanitize_json(value):
     except (KeyError, TypeError, ValueError):
         pass
     return value
+
+
+def _compact_diagnostics_summary(summary: dict) -> dict:
+    """Keep recorder-safe diagnostics attributes under Home Assistant's limit."""
+    unavailable = list(summary.get("unavailable_or_unknown_entities") or [])
+    active_alerts = [
+        _compact_alert_detail(item)
+        for item in list(summary.get("active_alert_resolution") or [])[:5]
+        if isinstance(item, dict)
+    ]
+    return {
+        "target_profile": summary.get("target_profile", {}),
+        "temperature_comfort": summary.get("temperature_comfort", {}),
+        "zone_mappings": _compact_zone_mappings(summary.get("zone_mappings", {})),
+        "alert_mappings": _compact_alert_mappings(summary.get("alert_mappings", [])),
+        "visual_alerts": _compact_visual_alerts(summary.get("visual_alerts", [])),
+        "active_alert_resolution": active_alerts,
+        "unavailable_or_unknown_entities_count": len(unavailable),
+        "unavailable_or_unknown_entities_sample": unavailable[:20],
+        "warnings": list(summary.get("warnings") or [])[:10],
+    }
+
+
+def _compact_zone_mappings(zones: dict) -> dict:
+    compact = {}
+    if not isinstance(zones, dict):
+        return compact
+    for key, zone in zones.items():
+        if not isinstance(zone, dict):
+            continue
+        compact[key] = {
+            "enabled": zone.get("enabled"),
+            "level": zone.get("level"),
+            "rooms": list(zone.get("rooms") or []),
+            "output_count": len(zone.get("outputs") or []),
+            "output_level": zone.get("output_level"),
+            "boost_output_level": zone.get("boost_output_level"),
+            "triggers": list(zone.get("triggers") or []),
+            "thresholds": zone.get("thresholds") or {},
+        }
+    return compact
+
+
+def _compact_alert_mappings(alerts: list) -> list:
+    compact = []
+    for alert in list(alerts or [])[:20]:
+        if not isinstance(alert, dict):
+            continue
+        compact.append({
+            "index": alert.get("index"),
+            "enabled": alert.get("enabled"),
+            "trigger_type": alert.get("trigger_type"),
+            "room": alert.get("room"),
+            "threshold": alert.get("threshold"),
+            "visual_light_count": len(alert.get("visual_lights") or []),
+            "has_power_entity": bool(alert.get("power_entity")),
+            "flash_mode": alert.get("flash_mode"),
+            "duration": alert.get("duration"),
+        })
+    return compact
+
+
+def _compact_visual_alerts(alerts: list) -> list:
+    compact = []
+    for alert in list(alerts or [])[:20]:
+        if not isinstance(alert, dict):
+            continue
+        compact.append({
+            "index": alert.get("index"),
+            "trigger_type": alert.get("trigger_type"),
+            "room": alert.get("room"),
+            "light_count": len(alert.get("lights") or []),
+            "has_power_entity": bool(alert.get("power_entity")),
+            "flash_mode": alert.get("flash_mode"),
+            "flash_count": alert.get("flash_count"),
+            "repeat_minutes": alert.get("repeat_minutes"),
+            "restore_state": alert.get("restore_state"),
+        })
+    return compact
+
+
+def _compact_alert_detail(detail: dict) -> dict:
+    visual = detail.get("visual_alert") if isinstance(detail.get("visual_alert"), dict) else {}
+    return {
+        "source_summary": detail.get("source_summary"),
+        "trigger_type": detail.get("trigger_type"),
+        "source": detail.get("source"),
+        "sensor": detail.get("sensor"),
+        "room": detail.get("room"),
+        "zone": detail.get("zone"),
+        "measured": detail.get("measured"),
+        "threshold": detail.get("threshold"),
+        "threshold_source": detail.get("threshold_source"),
+        "boost_level": detail.get("boost_level"),
+        "output_count": len(detail.get("outputs") or []),
+        "visual_configured": bool(visual.get("configured")),
+        "visual_light_count": len(visual.get("lights") or []),
+        "degraded": bool(detail.get("degraded")),
+        "degraded_reasons": list(detail.get("degraded_reasons") or [])[:5],
+    }
 
 
 def _entry_section(entry: ConfigEntry, key: str, default):
