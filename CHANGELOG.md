@@ -6,6 +6,10 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+- No unreleased changes.
+
+## 2.0.4
+
 - Fixed alert flash color payloads so internally triggered visual alerts send RGB lists accepted by Home Assistant service validation.
 - Added user-friendly headers to V2 card YAML exports with Manual-card paste instructions, `dump_cards` refresh guidance, and frontend dependency reminders.
 - Fixed alert flash payloads so optional visual-indicator power entities are omitted when unset, avoiding schema errors and repeated debug logs.
@@ -48,4 +52,4 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## 2.0.3
 
-- Current documented release in the integration manifest.
+- Previous documented release.

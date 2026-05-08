@@ -22,6 +22,7 @@
 - [Frontend Dependencies](#frontend-dependencies)
 - [Migration Guide - v1 to v2](#migration-guide---v1-to-v2)
 - [Full Configuration Flow](#full-configuration-flow)
+- [v2.0.4 UI Screenshots](#v204-ui-screenshots)
 - [Configuration Screenshots (Visual Guide)](#configuration-screenshots-visual-guide)
 - [UI Gallery](#ui-gallery)
 - [Post-Configuration Workflow](#post-configuration-workflow)
@@ -66,16 +67,21 @@ Positioning: **environmental stability + seasonal context**.
 
 <br>
 
-<img src="assets/v2_ui_gallery/IMG_5665.png" width="320" alt="V2 UI gallery image 1">
-<img src="assets/v2_ui_gallery/IMG_5672.png" width="320" alt="V2 UI gallery image 2">
-<img src="assets/v2_ui_gallery/IMG_5673.png" width="320" alt="V2 UI gallery image 3">
-<img src="assets/v2_ui_gallery/IMG_5674.png" width="320" alt="V2 UI gallery image 4">
-<img src="assets/v2_ui_gallery/IMG_0323.png" width="320" alt="V2 UI gallery image 5">
-<img src="assets/v2_ui_gallery/IMG_0324.png" width="320" alt="V2 UI gallery image 6">
-<img src="assets/v2_ui_gallery/IMG_5675.png" width="320" alt="V2 UI gallery image 7">
-<img src="assets/v2_ui_gallery/ui_v1_mobile.png" width="320" alt="V2 UI gallery image 8">
-<img src="assets/v2_ui_gallery/ui_v2_mobile_aq.png" width="320" alt="V2 UI gallery image 9">
-<img src="assets/v2_ui_gallery/ui_v2_tablet_zone_2.png" width="320" alt="V2 UI gallery image 10">
+<img src="assets/v2_ui_gallery/v204_zone_alert_boost.png" width="320" alt="v2.0.4 zone-bound alert boost context">
+<img src="assets/v2_ui_gallery/v204_unmapped_alert_context.png" width="320" alt="v2.0.4 unmapped alert degraded context">
+<img src="assets/v2_ui_gallery/v204_zone2_temperature_chips.png" width="320" alt="v2.0.4 Zone 2 with optional temperature chips">
+<img src="assets/v2_ui_gallery/v204_current_air_control_ready.png" width="320" alt="v2.0.4 Current Air Control ready state">
+<img src="assets/v2_ui_gallery/v204_presence_gate_reason.png" width="320" alt="v2.0.4 presence gate reason context">
+<img src="assets/v2_ui_gallery/IMG_5665.png" width="320" alt="V2 UI gallery image 6">
+<img src="assets/v2_ui_gallery/IMG_5672.png" width="320" alt="V2 UI gallery image 7">
+<img src="assets/v2_ui_gallery/IMG_5673.png" width="320" alt="V2 UI gallery image 8">
+<img src="assets/v2_ui_gallery/IMG_5674.png" width="320" alt="V2 UI gallery image 9">
+<img src="assets/v2_ui_gallery/IMG_0323.png" width="320" alt="V2 UI gallery image 10">
+<img src="assets/v2_ui_gallery/IMG_0324.png" width="320" alt="V2 UI gallery image 11">
+<img src="assets/v2_ui_gallery/IMG_5675.png" width="320" alt="V2 UI gallery image 12">
+<img src="assets/v2_ui_gallery/ui_v1_mobile.png" width="320" alt="V2 UI gallery image 13">
+<img src="assets/v2_ui_gallery/ui_v2_mobile_aq.png" width="320" alt="V2 UI gallery image 14">
+<img src="assets/v2_ui_gallery/ui_v2_tablet_zone_2.png" width="320" alt="V2 UI gallery image 15">
 
 </details>
 
@@ -646,6 +652,47 @@ Example service usage:
 - create dashboard with `layout: v2_mobile`, `title: Humidity Intelligence`, `url_path: humidity-intelligence`
 
 ---
+
+## v2.0.4 UI Screenshots
+
+These examples show the release UI truth surfaces: alert attribution, degraded/unmapped alert reporting, zone-bound alert boost, gate reason context, and optional runtime temperature comfort chips.
+
+<p>
+  <img src="assets/readme/v204_zone_alert_boost.png" width="320" alt="Zone-bound humidity danger alert boost">
+  <br>
+  <strong>Zone-bound alert boost:</strong> humidity danger resolves to the originating room and mapped zone before using that zone's boost level.
+</p>
+
+<p>
+  <img src="assets/readme/v204_unmapped_alert_context.png" width="320" alt="Unmapped alert degraded context">
+  <br>
+  <strong>Degraded alert context:</strong> unmapped alert candidates are reported clearly instead of triggering a blind boost.
+</p>
+
+<p>
+  <img src="assets/readme/v204_zone2_temperature_chips.png" width="320" alt="Optional temperature comfort chip row">
+  <br>
+  <strong>Temperature chip row:</strong> optional chips use HI runtime comfort sensors for blue, green, yellow, and red comfort colouring.
+</p>
+
+<p>
+  <img src="assets/readme/v204_current_air_control_ready.png" width="320" alt="Current Air Control ready state">
+  <br>
+  <strong>Current Air Control:</strong> the reason panel and chips render backend truth, not card-only logic.
+</p>
+
+<p>
+  <img src="assets/readme/v204_presence_gate_reason.png" width="320" alt="Presence gate reason context">
+  <br>
+  <strong>Gate reason context:</strong> gate holds show the blocking condition and snapshot so the paused lane is explainable.
+</p>
+
+Manual dashboard update after upgrading:
+
+1. Run `humidity_intelligence.dump_cards`.
+2. Open the generated `/config/humidity_intelligence_cards_<layout>.yaml` file.
+3. Paste the YAML into your existing Dashboard Manual card for that layout.
+4. Save, then hard-refresh the browser or Home Assistant app if the old card is still cached.
 
 ## Configuration Screenshots (Visual Guide)
 

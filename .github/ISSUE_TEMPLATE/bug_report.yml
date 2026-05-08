@@ -11,7 +11,7 @@ body:
     id: hi-version
     attributes:
       label: Humidity Intelligence version
-      placeholder: "2.0.3"
+      placeholder: "2.0.4"
     validations:
       required: true
   - type: input
