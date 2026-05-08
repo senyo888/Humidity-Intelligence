@@ -76,6 +76,7 @@ class HIDiagnosticsSensor(SensorEntity):
     def update(self) -> None:
         data = self.hass.data.get(DOMAIN, {}).get(self.entry_id, {})
         config = data.get("config", {})
+        options = data.get("options", {}) if isinstance(data.get("options", {}), dict) else {}
         telemetry = config.get("telemetry", []) if isinstance(config, dict) else []
         zones = config.get("zones", {}) if isinstance(config, dict) else {}
         cards = data.get("cards") or {}
@@ -89,12 +90,14 @@ class HIDiagnosticsSensor(SensorEntity):
         summary = _build_diagnostics_summary(
             self.hass,
             config if isinstance(config, dict) else {},
-            data.get("options", {}) if isinstance(data.get("options", {}), dict) else {},
+            options,
             entity_map,
             data,
         )
         self._attr_extra_state_attributes = {
             "diagnostics_summary": _sanitize_json(_compact_diagnostics_summary(summary)),
+            "config": _sanitize_json(_compact_ui_config(config, options)),
+            "slope_map": _sanitize_json(data.get("slope_map") or {}),
             "cards": list(cards.keys()),
             "unresolved_placeholders_count": len(unresolved),
             "unresolved_placeholders": _sanitize_json(unresolved[:20]),
@@ -210,6 +213,46 @@ def _compact_diagnostics_summary(summary: dict) -> dict:
         "unavailable_or_unknown_entities_count": len(unavailable),
         "unavailable_or_unknown_entities_sample": unavailable[:20],
         "warnings": list(summary.get("warnings") or [])[:10],
+    }
+
+
+def _compact_ui_config(config: dict, options: dict) -> dict:
+    """Expose only the UI mapping context generated cards need."""
+    effective = dict(config or {}) if isinstance(config, dict) else {}
+    if isinstance(options, dict):
+        effective.update(options)
+    telemetry = []
+    for item in effective.get("telemetry", []) or []:
+        if not isinstance(item, dict):
+            continue
+        telemetry.append({
+            "entity_id": item.get("entity_id"),
+            "sensor_type": item.get("sensor_type"),
+            "room": item.get("room"),
+            "level": item.get("level"),
+            "friendly_name": item.get("friendly_name"),
+        })
+
+    zones = {}
+    for key, zone in (effective.get("zones", {}) or {}).items():
+        if not isinstance(zone, dict):
+            continue
+        zones[key] = {
+            "enabled": zone.get("enabled", True),
+            "level": zone.get("level"),
+            "rooms": list(zone.get("rooms") or []),
+        }
+
+    slope = effective.get("slope", {}) if isinstance(effective.get("slope", {}), dict) else {}
+    return {
+        "telemetry": telemetry,
+        "zones": zones,
+        "slope": {
+            "mode": slope.get("mode"),
+            "source_entities": list(slope.get("source_entities") or []),
+            "provided_sensors": list(slope.get("provided_sensors") or []),
+            "show_temperature_chips": bool(slope.get("show_temperature_chips")),
+        },
     }
 
 
