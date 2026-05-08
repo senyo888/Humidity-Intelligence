@@ -1720,6 +1720,12 @@ def test_alert_configuration_contract_uses_internal_sources():
     assert "diagnostics_summary" in services_source
     assert "visual_alerts" in services_source
     assert "active_alert_resolution" in services_source
+    sensor_source = (ROOT / "sensor.py").read_text()
+    assert '"config": _sanitize_json(config)' not in sensor_source
+    assert '"entity_map": _sanitize_json(entity_map)' not in sensor_source
+    assert '"alert_telemetry": _sanitize_json(alert_telemetry)' not in sensor_source
+    assert "_compact_diagnostics_summary" in sensor_source
+    assert "Use service humidity_intelligence.dump_diagnostics" in sensor_source
     assert "HUMIDITY_ALERT_FLASH_COUNT = 10" in (ROOT / "automations" / "engine.py").read_text()
     assert "HUMIDITY_ALERT_REPEAT_MINUTES = 30" in (ROOT / "automations" / "engine.py").read_text()
     assert "alert_remove" in config_source

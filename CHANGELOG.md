@@ -22,6 +22,7 @@ This project follows a practical changelog format for Home Assistant and HACS us
 - Simplified alert chipsets so they render only the alert lane/status chip and the resolved alert source/context chip.
 - Changed humidity/mould/condensation visual alerts to flash 10 times, restore prior light state, wait 30 minutes, and repeat only while the same alert remains active.
 - Expanded diagnostics with target profile mode, active profile/season/custom target, zone/alert mappings, visual alert config, active alert resolution, unavailable entities, and warnings.
+- Reduced live `HI Diagnostics` state attributes to a compact recorder-safe summary; full diagnostics remain available from `dump_diagnostics`.
 - Fixed alert helper switch churn so active alerts no longer flip their UI helper switches off/on during every evaluation cycle.
 - Added single-flight automation evaluation and stopped internal status helper switches from retriggering evaluation, preventing alert-clear dogpiles when humidity returns to normal.
 - Fixed startup UI refresh scheduling to use Home Assistant's thread-safe task creator, preventing unsafe `hass.async_create_task` calls during startup.

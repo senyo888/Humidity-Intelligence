@@ -846,6 +846,7 @@ data: {}
 ### `dump_diagnostics`
 Purpose:
 - export runtime diagnostics, mapping, active target profile, visual alert rules, alert source resolution, unavailable entities, and card info to JSON.
+- `HI Diagnostics` keeps only a compact recorder-safe summary in live state attributes; use this service for the full support bundle.
 
 Example:
 ```yaml
