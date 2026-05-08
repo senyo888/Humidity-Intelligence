@@ -21,6 +21,8 @@ from ..const import (
     ENGINE_INTERVAL_MINUTES_DEFAULT,
     FAN_OUTPUT_LEVEL_AUTO,
     FAN_OUTPUT_LEVEL_STEPS,
+    CONF_ALERT_HANDLING_ENABLED,
+    DEFAULT_ALERT_HANDLING_ENABLED,
     HUMIDIFIER_RECOVERY_IN_BAND_DEFAULT,
     STARTUP_SENSOR_RECHECK_SECONDS,
     ZONE_OUTPUT_LEVEL_BOOST_DEFAULT,
@@ -39,6 +41,33 @@ from ..helpers.seasonal import (
 
 CO_EMERGENCY_START = 15
 CO_EMERGENCY_CLEAR = 10
+_RISK_ORDER = {"OK": 0, "Watch": 1, "Risk": 2, "Danger": 3, "Unknown": -1}
+_ALERT_PRIORITY = {
+    "humidity_danger": 10,
+    "mould_danger": 20,
+    "mould_risk": 30,
+    "condensation_danger": 40,
+    "condensation_risk": 50,
+    "co_emergency": 0,
+}
+_BUILT_IN_ZONE_ALERT_TRIGGERS = (
+    "humidity_danger",
+    "mould_danger",
+    "mould_risk",
+    "condensation_danger",
+    "condensation_risk",
+)
+HUMIDITY_ALERT_FLASH_COUNT = 10
+HUMIDITY_ALERT_REPEAT_MINUTES = 30
+_EVALUATION_SWITCH_SOURCE_KEYS = {
+    "air_control_enabled",
+    "air_control_manual_override",
+    "air_isolate_fan_outputs",
+    "air_isolate_humidifier_outputs",
+}
+_EVALUATION_TIMER_SOURCE_KEYS = {
+    "air_control_pause",
+}
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -57,15 +86,23 @@ class HIAutomationEngine:
         self.humidifiers = self._cfg("humidifiers", {})
         self.aq = self._cfg("aq", {})
         self.alerts = self._cfg("alerts", [])
+        self.alert_handling_enabled = bool(
+            self._cfg(CONF_ALERT_HANDLING_ENABLED, DEFAULT_ALERT_HANDLING_ENABLED)
+        )
         self.alert_only_mode = bool(self._cfg("alert_only_mode", False))
         self._unsub = None
         self._periodic = None
         self._aq_tasks: Dict[str, asyncio.Task] = {}
         self._aq_trigger_active: Dict[str, bool] = {}
+        self._visual_alert_tasks: Dict[Tuple[str, str, str], asyncio.Task] = {}
+        self._visual_alert_active: set[Tuple[str, str, str]] = set()
         self._startup_recheck_task: Optional[asyncio.Task] = None
         self._last_alert: Dict[int, datetime] = {}
+        self._active_alert_identity: Optional[Tuple[str, str, str]] = None
         self._co_emergency_active = False
         self._co_below_since: Optional[datetime] = None
+        self._evaluate_lock: Optional[asyncio.Lock] = None
+        self._evaluate_pending = False
         configured_interval = None
         if entry.options:
             configured_interval = entry.options.get("engine_interval_minutes")
@@ -102,7 +139,7 @@ class HIAutomationEngine:
             self._periodic_check,
             timedelta(minutes=self.engine_interval_minutes),
         )
-        await self._evaluate()
+        await self.async_request_evaluate()
         self._schedule_startup_recheck()
 
     async def async_stop(self) -> None:
@@ -115,16 +152,38 @@ class HIAutomationEngine:
         self._startup_recheck_task = None
         for task in self._aq_tasks.values():
             task.cancel()
+        for task in self._visual_alert_tasks.values():
+            task.cancel()
+        self._visual_alert_tasks.clear()
+        self._visual_alert_active.clear()
 
     async def _handle_change(self, event) -> None:
-        await self._evaluate()
+        await self.async_request_evaluate()
 
     async def _periodic_check(self, now) -> None:
-        await self._evaluate()
+        await self.async_request_evaluate()
 
     async def async_request_evaluate(self) -> None:
         """Request an immediate evaluation cycle."""
-        await self._evaluate()
+        evaluate_lock = self._get_evaluate_lock()
+        if evaluate_lock.locked():
+            self._evaluate_pending = True
+            _LOGGER.debug(
+                "HI entry %s evaluation already running; queued one follow-up cycle.",
+                self.entry.entry_id,
+            )
+            return
+        async with evaluate_lock:
+            while True:
+                self._evaluate_pending = False
+                await self._evaluate()
+                if not self._evaluate_pending:
+                    break
+
+    def _get_evaluate_lock(self) -> asyncio.Lock:
+        if self._evaluate_lock is None:
+            self._evaluate_lock = asyncio.Lock()
+        return self._evaluate_lock
 
     def _schedule_startup_recheck(self) -> None:
         if self._startup_recheck_task and not self._startup_recheck_task.done():
@@ -133,7 +192,7 @@ class HIAutomationEngine:
         async def _startup_recheck() -> None:
             try:
                 await asyncio.sleep(STARTUP_SENSOR_RECHECK_SECONDS)
-                await self._evaluate()
+                await self.async_request_evaluate()
             except asyncio.CancelledError:
                 return
 
@@ -170,14 +229,32 @@ class HIAutomationEngine:
                 f"{house_humidity:.1f}%" if house_humidity is not None else "unknown",
             )
 
+            # Absolute top-priority lane: CO emergency must bypass gates,
+            # pause, manual override, and normal control locks.
+            if self._co_emergency_active and self._co_clear_ready():
+                self._co_emergency_active = False
+                self._co_below_since = None
+            if self._co_emergency_triggered():
+                await self._sync_visual_alert_tasks([])
+                await self._apply_co_emergency()
+                await self._set_runtime_reason(
+                    self._with_isolation_notice(
+                        "CO emergency protection is active, so all configured ventilation outputs are forced to 100%."
+                    )
+                )
+                return
+            await self._set_bool("air_co_emergency_active", self._co_emergency_active)
+
             control_lock_reason = self._control_lock_reason()
             if control_lock_reason:
+                await self._sync_visual_alert_tasks([])
                 await self._return_to_normal()
                 await self._set_runtime_reason(self._with_isolation_notice(control_lock_reason))
                 return
 
             gates_ok, gate_reason = self._gate_status()
             if not gates_ok:
+                await self._sync_visual_alert_tasks([])
                 action = self.time_gate.get("outside_action", "safe_state")
                 if action == "safe_state":
                     await self._return_to_normal()
@@ -198,6 +275,7 @@ class HIAutomationEngine:
                     )
                 return
             if self._pause_active():
+                await self._sync_visual_alert_tasks([])
                 await self._return_to_normal()
                 await self._set_runtime_reason(
                     self._with_isolation_notice(
@@ -206,30 +284,20 @@ class HIAutomationEngine:
                 )
                 return
 
-            # Top-priority lane: CO emergency.
-            if self._co_emergency_triggered():
-                await self._apply_co_emergency()
-                await self._set_runtime_reason(
-                    self._with_isolation_notice(
-                        "CO emergency protection is active, so all configured ventilation outputs are forced to 100%."
-                    )
-                )
-                return
-            if self._co_emergency_active and self._co_clear_ready():
-                self._co_emergency_active = False
-                self._co_below_since = None
-            await self._set_bool("air_co_emergency_active", self._co_emergency_active)
-
             # Alert lane is high priority and suppresses all lower lanes.
-            alert_active, alert_labels = await self._handle_alerts()
+            alert_active, alert_details = await self._handle_alerts()
             if alert_active:
-                await self._deactivate_non_alert_activity()
+                selected_alert = alert_details[0] if alert_details else {}
+                selected_outputs = selected_alert.get("outputs", []) if selected_alert else []
+                await self._deactivate_non_alert_activity(exclude_zone_outputs=selected_outputs)
+                if selected_outputs and selected_alert.get("boost_level"):
+                    await self._set_fan_outputs_level(selected_outputs, selected_alert["boost_level"])
                 await self._set_runtime_mode("alert", "ALERT")
                 await self._set_runtime_reason(
                     self._with_isolation_notice(
                         self._build_runtime_reason(
                             runtime_mode="alert",
-                            alert_labels=alert_labels,
+                            alert_labels=alert_details,
                             zone1_active=False,
                             zone2_active=False,
                             aq_active=False,
@@ -280,7 +348,7 @@ class HIAutomationEngine:
                 self._with_isolation_notice(
                     self._build_runtime_reason(
                         runtime_mode=runtime_mode,
-                        alert_labels=alert_labels,
+                        alert_labels=alert_details,
                         zone1_active=zone1_active,
                         zone2_active=zone2_active,
                         aq_active=aq_active,
@@ -353,11 +421,15 @@ class HIAutomationEngine:
         data = self.hass.data.get(DOMAIN, {}).get(self.entry.entry_id, {})
         booleans = data.get("hi_input_booleans", {})
         timers = data.get("hi_timers", {})
-        for entity in booleans.values():
+        for key, entity in booleans.items():
+            if key not in _EVALUATION_SWITCH_SOURCE_KEYS:
+                continue
             entity_id = getattr(entity, "entity_id", None)
             if entity_id:
                 sources.append(entity_id)
-        for entity in timers.values():
+        for key, entity in timers.items():
+            if key not in _EVALUATION_TIMER_SOURCE_KEYS:
+                continue
             entity_id = getattr(entity, "entity_id", None)
             if entity_id:
                 sources.append(entity_id)
@@ -395,72 +467,352 @@ class HIAutomationEngine:
         await self._set_fan_outputs_level(outputs, "100")
         await self._set_runtime_mode("co_emergency", "CO EMERGENCY")
 
-    async def _handle_alerts(self) -> Tuple[bool, List[str]]:
-        any_active = False
-        active_labels: List[str] = []
-        for idx in range(max(len(self.alerts), 5)):
-            await self._set_bool(self._alert_switch_key(idx), False)
+    async def _handle_alerts(self) -> Tuple[bool, List[Dict[str, Any]]]:
+        active_details: List[Dict[str, Any]] = []
+        alert_switch_states = {
+            idx: False for idx in range(max(len(self.alerts), 5))
+        }
+        if not self.alert_handling_enabled:
+            await self._sync_alert_activity_switches({})
+            self._active_alert_identity = None
+            self._record_alert_resolution([])
+            _LOGGER.debug(
+                "HI alert handling is disabled for entry %s; non-CO alert lane skipped.",
+                self.entry.entry_id,
+            )
+            await self._sync_visual_alert_tasks([])
+            return False, []
         for idx, alert in enumerate(self.alerts):
             if not alert.get("enabled", True):
                 continue
-            triggered = self._alert_triggered(alert)
-            await self._set_bool(self._alert_switch_key(idx), triggered)
+            detail = self._alert_detail(idx, alert)
+            triggered = detail is not None
+            alert_switch_states[idx] = triggered
             if not triggered:
                 continue
-            any_active = True
-            active_labels.append(self._alert_label(idx, alert))
-            last = self._last_alert.get(idx)
-            if last and datetime.now() - last < timedelta(seconds=30):
-                continue
-            self._last_alert[idx] = datetime.now()
-            lights = alert.get("lights", []) or []
-            if not lights:
-                _LOGGER.debug(
-                    "Alert %s triggered with no target lights configured; skipping flash service call.",
-                    idx + 1,
-                )
-                continue
-            try:
-                await self.hass.services.async_call(
-                    DOMAIN,
-                    SERVICE_FLASH_LIGHTS,
-                    {
-                        "power_entity": alert.get("power_entity"),
-                        "lights": lights,
-                        "color": (255, 0, 0) if alert.get("flash_mode") == "red" else (255, 255, 255),
-                        "duration": alert.get("duration", 10),
-                    },
-                    blocking=False,
-                )
-            except Exception:
-                _LOGGER.exception("Alert flash service call failed for alert index %s", idx)
-        return any_active, active_labels
+            active_details.append(detail)
+        await self._sync_alert_activity_switches(alert_switch_states)
+        await self._sync_visual_alert_tasks(active_details)
+        inferred_details = self._inferred_alert_details(active_details)
+        if inferred_details:
+            _LOGGER.debug(
+                "HI inferred %s built-in alert candidate(s) for entry %s.",
+                len(inferred_details),
+                self.entry.entry_id,
+            )
+            active_details.extend(inferred_details)
+        active_details.sort(
+            key=lambda item: (
+                item.get("priority", 999),
+                item.get("zone_priority", 999),
+                item.get("index", 999),
+            )
+        )
+        selected_alert = self._select_alert_detail(active_details)
+        if selected_alert:
+            active_details = [selected_alert] + [
+                detail for detail in active_details if detail is not selected_alert
+            ]
+        self._record_alert_resolution(active_details)
+        return selected_alert is not None, active_details
 
     def _alert_triggered(self, alert: Dict[str, Any]) -> bool:
+        return self._alert_detail(0, alert) is not None
+
+    def _select_alert_detail(self, details: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Select the actionable alert to control outputs, holding it until it clears."""
+        actionable = [detail for detail in details if _alert_can_control(detail)]
+        if not actionable:
+            if details:
+                _LOGGER.debug(
+                    "HI alert candidate(s) found for entry %s but none can safely control outputs; automation will continue to the next lane.",
+                    self.entry.entry_id,
+                )
+            self._active_alert_identity = None
+            return None
+
+        best = actionable[0]
+        current = None
+        if self._active_alert_identity:
+            for detail in actionable:
+                if _alert_identity(detail) == self._active_alert_identity:
+                    current = detail
+                    break
+
+        selected = best
+        if current and int(best.get("priority", 999)) >= int(current.get("priority", 999)):
+            selected = current
+            if selected is not best:
+                selected["held_until_clear"] = True
+                _LOGGER.debug(
+                    "HI holding alert selection for entry %s until clear: selected=%s; best_candidate=%s",
+                    self.entry.entry_id,
+                    selected.get("companion") or selected.get("label"),
+                    best.get("companion") or best.get("label"),
+                )
+        else:
+            selected.pop("held_until_clear", None)
+
+        self._active_alert_identity = _alert_identity(selected)
+        return selected
+
+    def _inferred_alert_details(self, configured_details: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Build alert candidates from HI's own risk model without duplicating explicit rows."""
+        active_keys = {
+            (str(detail.get("trigger_type") or ""), str(detail.get("room") or "").lower())
+            for detail in configured_details
+        }
+        inferred: List[Dict[str, Any]] = []
+        base_index = len(self.alerts)
+        for offset, trigger_type in enumerate(_BUILT_IN_ZONE_ALERT_TRIGGERS):
+            detail = self._alert_detail(
+                base_index + offset,
+                {
+                    "enabled": True,
+                    "trigger_type": trigger_type,
+                    "room": None,
+                    "threshold": None,
+                    "_inferred": True,
+                },
+            )
+            if not detail:
+                continue
+            key = (str(detail.get("trigger_type") or ""), str(detail.get("room") or "").lower())
+            if key in active_keys:
+                continue
+            detail["source"] = "built_in_risk_model"
+            detail["label"] = f"Built-in {detail.get('label')}"
+            inferred.append(detail)
+        return inferred
+
+    def _alert_detail(self, idx: int, alert: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         ttype = alert.get("trigger_type")
         room_scope = self._alert_room_scope(alert)
-        if ttype == "custom_binary":
-            entity_id = alert.get("custom_trigger")
-            if entity_id:
-                return self.hass.states.is_state(entity_id, "on")
         if ttype == "condensation_danger":
-            if room_scope:
-                return self._room_condensation_danger(room_scope)
-            return self.hass.states.is_state("binary_sensor.hi_condensation_danger", "on")
+            room, sensor = self._matching_condensation_room("Danger", room_scope)
+            if room:
+                return self._build_alert_detail(idx, alert, sensor=sensor, room=room)
+            return None
+        if ttype == "condensation_risk":
+            room, sensor = self._matching_condensation_room("Risk", room_scope)
+            if room:
+                return self._build_alert_detail(idx, alert, sensor=sensor, room=room)
+            return None
         if ttype == "mould_danger":
-            if room_scope:
-                return self._room_mould_danger(room_scope)
-            return self.hass.states.is_state("binary_sensor.hi_mould_danger", "on")
+            room, sensor = self._matching_mould_room("Danger", room_scope)
+            if room:
+                return self._build_alert_detail(idx, alert, sensor=sensor, room=room)
+            return None
+        if ttype == "mould_risk":
+            room, sensor = self._matching_mould_room("Risk", room_scope)
+            if room:
+                return self._build_alert_detail(idx, alert, sensor=sensor, room=room)
+            return None
         if ttype == "humidity_danger":
             profile = self._active_target_profile()
-            threshold = _safe_alert_threshold("humidity_danger", alert.get("threshold"), profile.high_risk)
-            values = self._collect_values("humidity", room_scope=room_scope)
-            return any(val >= threshold for val in values)
+            threshold = float(profile.high_risk)
+            match = self._matching_humidity_sensor(threshold, room_scope)
+            if match:
+                sensor, room, value = match
+                detail = self._build_alert_detail(idx, alert, sensor=sensor, room=room)
+                detail["measured"] = f"{value:.1f}% >= active {profile.label} high-risk threshold {threshold:g}%"
+                detail["threshold"] = threshold
+                detail["threshold_source"] = f"active profile ({profile.label})"
+                detail["source_summary"] = _alert_source_summary(
+                    trigger_type=ttype,
+                    room=room,
+                    zone=detail.get("zone"),
+                    measured=f"{value:.1f}%",
+                    threshold=f"{threshold:g}% threshold",
+                )
+                return detail
+            return None
         if ttype == "co_emergency":
             threshold = _safe_alert_threshold("co_emergency", alert.get("threshold"), float(CO_EMERGENCY_START))
             values = self._collect_values("co")
-            return any(val >= threshold for val in values)
-        return False
+            if any(val >= threshold for val in values):
+                return self._build_alert_detail(idx, alert, sensor=None, room=None)
+        return None
+
+    def _build_alert_detail(
+        self,
+        idx: int,
+        alert: Dict[str, Any],
+        *,
+        sensor: Optional[str],
+        room: Optional[str],
+    ) -> Dict[str, Any]:
+        trigger_type = str(alert.get("trigger_type") or "unknown")
+        zone_key, zone = self._zone_for_room(room)
+        boost_level = None
+        outputs: List[str] = []
+        zone_label = None
+        degraded_reasons: List[str] = []
+        if room and not zone_key:
+            degraded_reasons.append(f"No enabled zone maps room '{room}'.")
+        if zone_key and zone:
+            outputs = list(zone.get("outputs", []) or [])
+            zone_label = "Zone 1" if zone_key == "zone1" else "Zone 2" if zone_key == "zone2" else zone_key
+            boost_level = _normalize_fan_level(
+                zone.get("boost_output_level", ZONE_OUTPUT_LEVEL_BOOST_DEFAULT),
+                ZONE_OUTPUT_LEVEL_BOOST_DEFAULT,
+            )
+            if not outputs:
+                degraded_reasons.append(f"{zone_label} has no fan outputs configured.")
+        if trigger_type in ROOM_SCOPED_ALERT_TRIGGERS and not sensor:
+            degraded_reasons.append("Originating telemetry sensor could not be resolved.")
+        label = self._alert_label(idx, alert, resolved_room=room)
+        alert_kind, severity = _alert_kind_and_severity(trigger_type)
+        companion = _alert_companion_label(alert_kind, severity, room, zone_label)
+        return {
+            "index": idx,
+            "label": label,
+            "companion": companion,
+            "trigger_type": trigger_type,
+            "alert_type": alert_kind,
+            "severity": severity,
+            "sensor": sensor,
+            "room": room,
+            "zone_key": zone_key,
+            "zone": zone_label,
+            "zone_priority": _zone_priority(zone_key),
+            "outputs": outputs,
+            "boost_level": boost_level,
+            "priority": _alert_priority(trigger_type),
+            "source": "configured_alert" if not alert.get("_inferred") else "built_in_risk_model",
+            "degraded": bool(degraded_reasons),
+            "degraded_reasons": degraded_reasons,
+            "source_summary": _alert_source_summary(
+                trigger_type=trigger_type,
+                room=room,
+                zone=zone_label,
+                measured=None,
+                threshold=None,
+            ),
+            "visual_alert": {
+                "configured": bool(alert.get("lights")),
+                "lights": list(alert.get("lights", []) or []),
+                "power_entity": alert.get("power_entity"),
+                "flash_mode": alert.get("flash_mode") or "red",
+                "duration": alert.get("duration", 10),
+                "flash_count": HUMIDITY_ALERT_FLASH_COUNT,
+                "repeat_minutes": HUMIDITY_ALERT_REPEAT_MINUTES,
+                "restore_state": True,
+            },
+        }
+
+    def _record_alert_resolution(self, details: List[Dict[str, Any]]) -> None:
+        data = self.hass.data.setdefault(DOMAIN, {}).setdefault(self.entry.entry_id, {})
+        if not details:
+            data["active_alert_context"] = "None"
+            data["alert_telemetry"] = []
+            return
+        selected = details[0]
+        data["active_alert_context"] = selected.get("source_summary") or selected.get("companion") or selected.get("label") or "Alert"
+        data["alert_telemetry"] = details
+        _LOGGER.debug(
+            "HI alert resolved for entry %s: selected=%s; source=%s; sensor=%s; room=%s; zone=%s; outputs=%s; boost=%s",
+            self.entry.entry_id,
+            selected.get("companion") or selected.get("label"),
+            selected.get("source"),
+            selected.get("sensor"),
+            selected.get("room"),
+            selected.get("zone"),
+            selected.get("outputs"),
+            selected.get("boost_level"),
+        )
+        if len(details) > 1:
+            _LOGGER.debug(
+                "HI alert conflict resolved for entry %s: selected=%s; candidates=%s",
+                self.entry.entry_id,
+                selected.get("companion"),
+                [
+                    {
+                        "alert": item.get("companion"),
+                        "priority": item.get("priority"),
+                        "zone": item.get("zone"),
+                        "zone_priority": item.get("zone_priority"),
+                    }
+                    for item in details
+                ],
+            )
+        if selected.get("degraded"):
+            _LOGGER.debug(
+                "HI alert degraded mode for entry %s: %s",
+                self.entry.entry_id,
+                "; ".join(selected.get("degraded_reasons", [])),
+            )
+
+    async def _sync_visual_alert_tasks(self, active_details: List[Dict[str, Any]]) -> None:
+        active_identities = {
+            _alert_identity(detail)
+            for detail in active_details
+            if self._visual_alert_configured(detail)
+        }
+        self._visual_alert_active = active_identities
+        for identity, task in list(self._visual_alert_tasks.items()):
+            if identity not in active_identities:
+                task.cancel()
+                self._visual_alert_tasks.pop(identity, None)
+        for detail in active_details:
+            if not self._visual_alert_configured(detail):
+                if detail.get("trigger_type") in _BUILT_IN_ZONE_ALERT_TRIGGERS:
+                    _LOGGER.debug(
+                        "Alert %s triggered with no target lights configured; skipping visual flash task.",
+                        int(detail.get("index", 0)) + 1,
+                    )
+                continue
+            identity = _alert_identity(detail)
+            existing = self._visual_alert_tasks.get(identity)
+            if existing and not existing.done():
+                continue
+            task = asyncio.create_task(self._visual_alert_loop(identity, dict(detail)))
+            self._visual_alert_tasks[identity] = task
+            await asyncio.sleep(0)
+
+    def _visual_alert_configured(self, detail: Dict[str, Any]) -> bool:
+        visual = detail.get("visual_alert") if isinstance(detail, dict) else {}
+        return bool(isinstance(visual, dict) and visual.get("lights"))
+
+    async def _visual_alert_loop(
+        self,
+        identity: Tuple[str, str, str],
+        detail: Dict[str, Any],
+    ) -> None:
+        try:
+            while identity in self._visual_alert_active:
+                visual = detail.get("visual_alert") or {}
+                lights = list(visual.get("lights") or [])
+                if not lights:
+                    return
+                flash_payload = {
+                    "lights": lights,
+                    "color": [255, 0, 0] if visual.get("flash_mode") == "red" else [255, 255, 255],
+                    "duration": visual.get("duration", 10),
+                    "flash_count": HUMIDITY_ALERT_FLASH_COUNT,
+                }
+                power_entity = visual.get("power_entity")
+                if power_entity:
+                    flash_payload["power_entity"] = power_entity
+                try:
+                    await self.hass.services.async_call(
+                        DOMAIN,
+                        SERVICE_FLASH_LIGHTS,
+                        flash_payload,
+                        blocking=False,
+                    )
+                except Exception:
+                    _LOGGER.exception(
+                        "Alert flash service call failed for alert identity %s",
+                        identity,
+                    )
+                await asyncio.sleep(timedelta(minutes=HUMIDITY_ALERT_REPEAT_MINUTES).total_seconds())
+        except asyncio.CancelledError:
+            return
+        finally:
+            current = self._visual_alert_tasks.get(identity)
+            if current is asyncio.current_task():
+                self._visual_alert_tasks.pop(identity, None)
 
     async def _handle_zone_by_key(self, zone_key: str) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:
         zone = self.zones.get(zone_key, {})
@@ -808,9 +1160,12 @@ class HIAutomationEngine:
             )
         )
 
-    async def _deactivate_non_alert_activity(self) -> None:
-        await self._deactivate_aq_activity(set_fan_auto=True)
-        await self._set_zone_outputs_auto()
+    async def _deactivate_non_alert_activity(self, exclude_zone_outputs: Optional[List[str]] = None) -> None:
+        await self._deactivate_aq_activity(
+            set_fan_auto=True,
+            exclude_outputs=exclude_zone_outputs,
+        )
+        await self._set_zone_outputs_auto(exclude=exclude_zone_outputs)
         await self._deactivate_humidifier_activity(turn_off_outputs=True)
 
     async def _deactivate_humidifier_activity(self, *, turn_off_outputs: bool) -> None:
@@ -821,7 +1176,13 @@ class HIAutomationEngine:
         await self._set_bool("air_downstairs_humidifier_active", False)
         await self._set_bool("air_upstairs_humidifier_active", False)
 
-    async def _deactivate_aq_activity(self, *, set_fan_auto: bool) -> None:
+    async def _deactivate_aq_activity(
+        self,
+        *,
+        set_fan_auto: bool,
+        exclude_outputs: Optional[List[str]] = None,
+    ) -> None:
+        excluded = set(exclude_outputs or [])
         for level, task in list(self._aq_tasks.items()):
             if task and not task.done():
                 task.cancel()
@@ -830,6 +1191,7 @@ class HIAutomationEngine:
         for cfg in self.aq.values():
             outputs = cfg.get("outputs", [])
             if set_fan_auto:
+                outputs = [entity_id for entity_id in outputs if entity_id not in excluded]
                 await self._set_fan_outputs_auto(outputs)
         self._aq_trigger_active = {}
         await self._set_bool("air_aq_upstairs_active", False)
@@ -838,8 +1200,11 @@ class HIAutomationEngine:
         await self._clear_timer("air_aq_downstairs_run")
 
     async def _clear_alert_activity_switches(self) -> None:
+        await self._sync_alert_activity_switches({})
+
+    async def _sync_alert_activity_switches(self, states: Dict[int, bool]) -> None:
         for idx in range(max(len(self.alerts), 5)):
-            await self._set_bool(self._alert_switch_key(idx), False)
+            await self._set_bool(self._alert_switch_key(idx), bool(states.get(idx, False)))
 
     async def _cancel_aq_task(self, level: str) -> None:
         task = self._aq_tasks.pop(level, None)
@@ -850,7 +1215,13 @@ class HIAutomationEngine:
     def _alert_switch_key(self, idx: int) -> str:
         return f"air_alert_{idx + 1}_active"
 
-    def _alert_label(self, idx: int, alert: Dict[str, Any]) -> str:
+    def _alert_label(
+        self,
+        idx: int,
+        alert: Dict[str, Any],
+        *,
+        resolved_room: Optional[str] = None,
+    ) -> str:
         trigger_type = str(alert.get("trigger_type") or "unknown")
         trigger_label = ALERT_TRIGGER_DEFS.get(trigger_type, {}).get(
             "label",
@@ -858,15 +1229,16 @@ class HIAutomationEngine:
         )
         threshold = alert.get("threshold")
         threshold_suffix = ""
-        if threshold not in (None, "") and trigger_type in {"humidity_danger", "co_emergency"}:
+        if trigger_type == "humidity_danger":
+            profile = self._active_target_profile()
+            threshold_suffix = f" @ active {profile.label} high-risk {profile.high_risk:g}"
+        elif threshold not in (None, "") and trigger_type == "co_emergency":
             default_threshold = (
-                self._active_target_profile().high_risk
-                if trigger_type == "humidity_danger"
-                else float(CO_EMERGENCY_START)
+                float(CO_EMERGENCY_START)
             )
             threshold = _safe_alert_threshold(trigger_type, threshold, default_threshold)
             threshold_suffix = f" @ {threshold}"
-        room_scope = self._alert_room_scope(alert)
+        room_scope = resolved_room or self._alert_room_scope(alert)
         room_suffix = f" in {room_scope}" if room_scope else ""
         return f"Alert {idx + 1}: {trigger_label}{threshold_suffix}{room_suffix}"
 
@@ -918,11 +1290,117 @@ class HIAutomationEngine:
         profile = self._active_target_profile()
         return seasonal_mould_level(rh, spread, profile) >= 3
 
+    def _matching_humidity_sensor(
+        self,
+        threshold: float,
+        room_scope: Optional[str],
+    ) -> Optional[Tuple[str, str, float]]:
+        matches: List[Tuple[str, str, float]] = []
+        room_filter = room_scope.lower().strip() if room_scope else None
+        for item in self.telemetry:
+            if item.get("sensor_type") != "humidity":
+                continue
+            room = str(item.get("room") or "").strip()
+            if room_filter and room.lower() != room_filter:
+                continue
+            entity_id = item.get("entity_id")
+            value = _get_float(self.hass, entity_id, sensor_type="humidity")
+            if entity_id and room and value is not None and value >= threshold:
+                matches.append((entity_id, room, value))
+        if not matches:
+            return None
+        return max(matches, key=lambda item: item[2])
+
+    def _matching_condensation_room(
+        self,
+        severity: str,
+        room_scope: Optional[str],
+    ) -> Tuple[Optional[str], Optional[str]]:
+        profile = self._active_target_profile()
+        target_rank = _RISK_ORDER.get(severity, 2)
+        candidates: List[Tuple[int, float, str, Optional[str]]] = []
+        for room, sensors in _room_map(self.telemetry).items():
+            if room_scope and room.lower().strip() != room_scope.lower().strip():
+                continue
+            rh = _get_float(self.hass, sensors.get("humidity"), sensor_type="humidity")
+            temp = _get_float(self.hass, sensors.get("temperature"), sensor_type="temperature")
+            if rh is None or temp is None:
+                _LOGGER.debug(
+                    "Condensation alert skipped for %s: missing humidity/temperature telemetry.",
+                    room,
+                )
+                continue
+            dp = _dew_point(temp, rh)
+            if dp is None:
+                continue
+            spread = temp - dp
+            risk = seasonal_condensation_risk(spread, profile)
+            rank = _RISK_ORDER.get(risk, -1)
+            if rank >= target_rank:
+                candidates.append((rank, -spread, room, sensors.get("humidity")))
+        if not candidates:
+            return None, None
+        _rank, _spread, room, sensor = max(candidates, key=lambda item: (item[0], item[1]))
+        return room, sensor
+
+    def _matching_mould_room(
+        self,
+        severity: str,
+        room_scope: Optional[str],
+    ) -> Tuple[Optional[str], Optional[str]]:
+        profile = self._active_target_profile()
+        target_rank = _RISK_ORDER.get(severity, 2)
+        candidates: List[Tuple[int, float, str, Optional[str]]] = []
+        for room, sensors in _room_map(self.telemetry).items():
+            if room_scope and room.lower().strip() != room_scope.lower().strip():
+                continue
+            rh = _get_float(self.hass, sensors.get("humidity"), sensor_type="humidity")
+            temp = _get_float(self.hass, sensors.get("temperature"), sensor_type="temperature")
+            if rh is None or temp is None:
+                _LOGGER.debug(
+                    "Mould alert skipped for %s: missing humidity/temperature telemetry.",
+                    room,
+                )
+                continue
+            dp = _dew_point(temp, rh)
+            if dp is None:
+                continue
+            spread = temp - dp
+            risk = seasonal_mould_level(rh, spread, profile)
+            if risk >= target_rank:
+                candidates.append((risk, rh, room, sensors.get("humidity")))
+        if not candidates:
+            return None, None
+        _rank, _rh, room, sensor = max(candidates, key=lambda item: (item[0], item[1]))
+        return room, sensor
+
+    def _zone_for_room(self, room: Optional[str]) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
+        if not room:
+            return None, None
+        room_key = room.lower().strip()
+        matches: List[Tuple[int, str, Dict[str, Any]]] = []
+        for zone_key, zone in self.zones.items():
+            if not isinstance(zone, dict) or not zone.get("enabled"):
+                continue
+            rooms = [str(item).lower().strip() for item in zone.get("rooms", []) or []]
+            if room_key in rooms:
+                matches.append((_zone_priority(zone_key), zone_key, zone))
+        if not matches:
+            return None, None
+        matches.sort(key=lambda item: item[0])
+        if len(matches) > 1:
+            _LOGGER.debug(
+                "HI alert room-zone ambiguity for %s resolved to %s by zone priority.",
+                room,
+                matches[0][1],
+            )
+        return matches[0][1], matches[0][2]
+
     def _build_runtime_reason(
         self,
         *,
         runtime_mode: str,
-        alert_labels: List[str],
+        alert_labels: List[Any],
         zone1_active: bool,
         zone2_active: bool,
         aq_active: bool,
@@ -933,10 +1411,7 @@ class HIAutomationEngine:
     ) -> str:
         base_reason = ""
         if runtime_mode == "alert" and alert_labels:
-            base_reason = (
-                f"Alert response is active ({'; '.join(alert_labels)}). "
-                "All other lanes are paused until the alert clears."
-            )
+            base_reason = self._format_alert_detail(alert_labels)
         elif runtime_mode == "cooking":
             if zone1_detail:
                 zone_label = zone1_detail.get("ui_label") or "Zone 1"
@@ -961,9 +1436,16 @@ class HIAutomationEngine:
             else:
                 base_reason = "System is armed and monitoring telemetry. No automation lane currently needs to run."
 
+        notices: List[str] = []
         humidifier_reason = self._format_humidifier_detail(humidifier_details) if humidifier_details else ""
         if humidifier_reason:
-            return f"{base_reason} {humidifier_reason}".strip()
+            notices.append(humidifier_reason)
+        if runtime_mode != "alert":
+            alert_notice = self._format_nonblocking_alert_notice(alert_labels)
+            if alert_notice:
+                notices.append(alert_notice)
+        if notices:
+            return f"{base_reason} {' '.join(notices)}".strip()
         return base_reason
 
     def _format_zone_detail(self, detail: Dict[str, Any], zone_label: str) -> str:
@@ -974,6 +1456,98 @@ class HIAutomationEngine:
             f"{zone_label} is active at {run_level} on {outputs}. "
             f"Trigger detail: {trigger_summary}."
         )
+
+    def _format_alert_detail(self, details: List[Any]) -> str:
+        if not details:
+            return "Alert response is active. All lower-priority lanes are paused until the alert clears."
+        if not isinstance(details[0], dict):
+            return (
+                f"Alert response is active ({'; '.join(str(item) for item in details)}). "
+                "All lower-priority lanes are paused until the alert clears."
+            )
+        selected = details[0]
+        segments = [
+            f"Alert response is active ({selected.get('companion') or selected.get('label')})."
+        ]
+        sensor = selected.get("sensor") or "unknown"
+        room = selected.get("room") or "unknown"
+        zone = selected.get("zone") or "unmapped"
+        segments.append(f"Originating sensor: {sensor}; room: {room}; resolved zone: {zone}.")
+        if selected.get("outputs") and selected.get("boost_level"):
+            outputs = self._format_output_entities(selected.get("outputs", []))
+            run_level = _fan_level_text(selected.get("boost_level"))
+            segments.append(
+                f"Selected {zone} boost level {run_level} on {outputs} because alerts override zone, AQ, and normal lanes."
+            )
+            if selected.get("held_until_clear"):
+                segments.append(
+                    "Boost selection is being held until this originating alert clears; equal-priority candidates wait their turn."
+                )
+            else:
+                segments.append(
+                    "Boost selection will be held while this originating alert remains active, then the next priority is evaluated."
+                )
+        else:
+            segments.append("Degraded mode: no zone boost was applied because the alert could not be safely mapped to configured zone outputs.")
+        if selected.get("threshold_source") and selected.get("threshold") is not None:
+            threshold = selected.get("threshold")
+            unit = "%" if selected.get("trigger_type") == "humidity_danger" else ""
+            segments.append(
+                f"Threshold source: {selected['threshold_source']}; threshold {threshold:g}{unit}."
+            )
+        if selected.get("measured"):
+            segments.append(f"Trigger detail: {selected['measured']}.")
+        if len(details) > 1:
+            candidates = "; ".join(
+                str(item.get("companion") or item.get("label")) for item in details
+            )
+            if any(not _alert_can_control(item) for item in details[1:] if isinstance(item, dict)):
+                segments.append(
+                    f"Conflict detected across active alerts; selected the next actionable mapped alert after skipping degraded candidates. Candidates: {candidates}."
+                )
+            elif selected.get("held_until_clear"):
+                segments.append(
+                    f"Conflict detected across active alerts; held the existing actionable alert until clear. Candidates: {candidates}."
+                )
+            else:
+                segments.append(
+                    f"Conflict detected across active alerts; resolved deterministically by alert hierarchy then zone priority. Candidates: {candidates}."
+                )
+        if selected.get("degraded_reasons"):
+            segments.append("Mapping issues: " + "; ".join(selected.get("degraded_reasons", [])))
+        skipped_notice = self._format_skipped_alert_notice(details[1:])
+        if skipped_notice:
+            segments.append(skipped_notice)
+        segments.append("Overridden logic: zone automation, AQ, and normal lanes are paused until the selected alert clears.")
+        return " ".join(segments)
+
+    def _format_nonblocking_alert_notice(self, details: List[Any]) -> str:
+        if not details or not isinstance(details[0], dict):
+            return ""
+        skipped_notice = self._format_skipped_alert_notice(
+            [detail for detail in details if not _alert_can_control(detail)]
+        )
+        if not skipped_notice:
+            return ""
+        return (
+            f"{skipped_notice} Automation continued to the next eligible priority "
+            "instead of applying a blind boost."
+        )
+
+    def _format_skipped_alert_notice(self, details: List[Dict[str, Any]]) -> str:
+        skipped = [detail for detail in details if not _alert_can_control(detail)]
+        if not skipped:
+            return ""
+        parts = []
+        for detail in skipped[:3]:
+            label = str(detail.get("companion") or detail.get("label") or "Alert")
+            reasons = detail.get("degraded_reasons") or []
+            if reasons:
+                parts.append(f"{label} ({'; '.join(str(reason) for reason in reasons)})")
+            else:
+                parts.append(f"{label} (no mapped zone boost output)")
+        suffix = "" if len(skipped) <= 3 else f"; plus {len(skipped) - 3} more"
+        return f"Skipped alert candidate(s): {'; '.join(parts)}{suffix}."
 
     def _format_aq_detail(self, details: List[Dict[str, Any]]) -> str:
         if not details:
@@ -1044,7 +1618,6 @@ class HIAutomationEngine:
 
     def _co_emergency_settings(self) -> Tuple[float, float, List[str]]:
         start_threshold = float(CO_EMERGENCY_START)
-        configured_outputs: List[str] = []
         configured_thresholds: List[float] = []
 
         for alert in self.alerts:
@@ -1054,11 +1627,6 @@ class HIAutomationEngine:
                 continue
             threshold = _safe_alert_threshold("co_emergency", alert.get("threshold"), float(CO_EMERGENCY_START))
             configured_thresholds.append(threshold)
-            for entity_id in alert.get("outputs", []) or []:
-                if not isinstance(entity_id, str):
-                    continue
-                if entity_id.startswith("fan.") or entity_id.startswith("switch."):
-                    configured_outputs.append(entity_id)
 
         if configured_thresholds:
             start_threshold = min(configured_thresholds)
@@ -1066,16 +1634,6 @@ class HIAutomationEngine:
         clear_threshold = max(0.0, start_threshold - 5.0)
         if clear_threshold >= start_threshold:
             clear_threshold = max(0.0, start_threshold - 1.0)
-
-        if configured_outputs:
-            seen: set[str] = set()
-            outputs: List[str] = []
-            for entity_id in configured_outputs:
-                if entity_id in seen:
-                    continue
-                seen.add(entity_id)
-                outputs.append(entity_id)
-            return start_threshold, clear_threshold, outputs
 
         return start_threshold, clear_threshold, self._all_fan_outputs()
 
@@ -1109,6 +1667,8 @@ class HIAutomationEngine:
         booleans = data.get("hi_input_booleans", {})
         entity = booleans.get(key)
         if entity:
+            if bool(getattr(entity, "is_on", False)) == bool(value):
+                return
             if value:
                 await entity.async_turn_on()
             else:
@@ -1463,6 +2023,93 @@ def _fan_level_text(level: Any) -> str:
     if normalized == FAN_OUTPUT_LEVEL_AUTO:
         return "Auto"
     return f"{normalized}%"
+
+
+def _alert_can_control(detail: Dict[str, Any]) -> bool:
+    return bool(
+        detail
+        and not detail.get("degraded")
+        and detail.get("outputs")
+        and detail.get("boost_level")
+    )
+
+
+def _alert_identity(detail: Dict[str, Any]) -> Tuple[str, str, str]:
+    return (
+        str(detail.get("trigger_type") or ""),
+        str(detail.get("sensor") or ""),
+        str(detail.get("room") or ""),
+    )
+
+
+def _alert_priority(trigger_type: str) -> int:
+    return _ALERT_PRIORITY.get(str(trigger_type or ""), 999)
+
+
+def _zone_priority(zone_key: Optional[str]) -> int:
+    if zone_key == "zone1":
+        return 1
+    if zone_key == "zone2":
+        return 2
+    return 999
+
+
+def _alert_kind_and_severity(trigger_type: str) -> Tuple[str, str]:
+    text = str(trigger_type or "alert").lower()
+    if "mould" in text:
+        kind = "Mould"
+    elif "condensation" in text:
+        kind = "Condensation"
+    elif "humidity" in text:
+        kind = "Humidity"
+    elif "co" in text:
+        kind = "CO"
+    else:
+        kind = "Alert"
+    if "danger" in text:
+        severity = "Danger"
+    elif "risk" in text:
+        severity = "Risk"
+    elif "emergency" in text:
+        severity = "Emergency"
+    else:
+        severity = "Active"
+    return kind, severity
+
+
+def _alert_companion_label(
+    kind: str,
+    severity: str,
+    room: Optional[str],
+    zone_label: Optional[str],
+) -> str:
+    base = f"{kind} {severity}".strip()
+    if room and zone_label:
+        return f"{base} - {room} ({zone_label})"
+    if room:
+        return f"{base} - {room} (unmapped zone)"
+    if zone_label:
+        return f"{base} - {zone_label}"
+    return base
+
+
+def _alert_source_summary(
+    *,
+    trigger_type: str,
+    room: Optional[str],
+    zone: Optional[str],
+    measured: Optional[str],
+    threshold: Optional[str],
+) -> str:
+    kind, severity = _alert_kind_and_severity(trigger_type)
+    parts = [f"{kind} {severity}".strip()]
+    if room:
+        parts.append(str(room))
+    if zone:
+        parts.append(str(zone))
+    if measured and threshold:
+        parts.append(f"{measured} >= {threshold}")
+    return " · ".join(part for part in parts if part)
 
 
 async def _apply_fan_level(hass: HomeAssistant, entities: List[str], level: Any) -> None:

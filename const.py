@@ -14,6 +14,13 @@ ENGINE_INTERVAL_MINUTES_DEFAULT = 5
 ENGINE_INTERVAL_MIN = 1
 ENGINE_INTERVAL_MAX = 30
 ENGINE_INTERVAL_STEP = 1
+CONF_AUTO_REFRESH_UI_ON_STARTUP = "auto_refresh_ui_on_startup"
+DEFAULT_AUTO_REFRESH_UI_ON_STARTUP = True
+CONF_ALERT_HANDLING_ENABLED = "alert_handling_enabled"
+DEFAULT_ALERT_HANDLING_ENABLED = True
+CONF_SHOW_TEMPERATURE_CHIPS = "show_temperature_chips"
+DEFAULT_SHOW_TEMPERATURE_CHIPS = False
+STARTUP_UI_REFRESH_DELAY_SECONDS = 5
 
 # Supported sensor types for telemetry input
 SENSOR_TYPES = [
@@ -66,11 +73,23 @@ TARGET_CUSTOM_HIGH_MIN = 35
 TARGET_CUSTOM_HIGH_MAX = 75
 TARGET_CUSTOM_STEP = 0.5
 
-# Optional UI dependencies used by the dashboards
+TEMPERATURE_COMFORT_PROFILE_OPTIONS = [
+    {"value": "auto", "label": "Auto (seasonal)"},
+    {"value": "custom", "label": "Custom"},
+]
+TEMPERATURE_COMFORT_CUSTOM_LOW_MIN = 16
+TEMPERATURE_COMFORT_CUSTOM_LOW_MAX = 24
+TEMPERATURE_COMFORT_CUSTOM_HIGH_MIN = 17
+TEMPERATURE_COMFORT_CUSTOM_HIGH_MAX = 26
+TEMPERATURE_COMFORT_CUSTOM_STEP = 0.5
+DEFAULT_TEMPERATURE_COMFORT_MODE = "auto"
+DEFAULT_TEMPERATURE_COMFORT_CUSTOM_LOW = 19.5
+DEFAULT_TEMPERATURE_COMFORT_CUSTOM_HIGH = 21.0
+
+# Optional frontend dependencies used by the dashboards
 DEPENDENCIES = [
     {
         "name": "HACS",
-        "url": "https://hacs.xyz/",
         "domain": "hacs",
     },
     {
@@ -138,24 +157,26 @@ AQ_TRIGGER_DEFS = {
 
 # Alert trigger types
 ALERT_TRIGGER_DEFS = {
-    "condensation_danger": {"label": "Condensation Danger"},
     "humidity_danger": {"label": "Humidity Danger"},
+    "condensation_risk": {"label": "Condensation Risk"},
+    "mould_risk": {"label": "Mould Risk"},
+    "condensation_danger": {"label": "Condensation Danger"},
     "mould_danger": {"label": "Mould Danger"},
     "co_emergency": {"label": "CO Emergency"},
-    "custom_binary": {"label": "Custom binary sensor"},
 }
 
 # Alert trigger types that support room-scoped evaluation.
 ROOM_SCOPED_ALERT_TRIGGERS = (
     "humidity_danger",
     "condensation_danger",
+    "condensation_risk",
     "mould_danger",
+    "mould_risk",
 )
 
-# Safety guardrails for alert thresholds.
-# These are enforced in config/options flow and at runtime as a fallback.
+# Safety guardrails for static alert thresholds.
+# Humidity Danger follows the active target profile high-risk threshold at runtime.
 ALERT_THRESHOLD_BOUNDS = {
-    "humidity_danger": {"min": 55, "max": 90, "default": 75, "unit": "%"},
     "co_emergency": {"min": 10, "max": 100, "default": 15, "unit": "ppm"},
 }
 

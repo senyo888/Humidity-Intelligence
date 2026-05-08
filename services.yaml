@@ -33,7 +33,7 @@ flash_lights:
           unit_of_measurement: s
     flash_count:
       name: Number of flashes
-      description: Override flash count (optional, 1-240)
+      description: Override flash count (optional, 1-240). HI humidity/mould/condensation visual alerts use 10 flashes per cycle and repeat after 30 minutes only while the same alert remains active.
       selector:
         number:
           min: 1
@@ -42,7 +42,7 @@ flash_lights:
           mode: slider
 refresh_ui:
   name: Refresh UI Mapping
-  description: Rebuild entity mapping and re-render dashboard YAML cards
+  description: Rebuild entity mapping and re-render dashboard YAML cards. HI can also run this automatically shortly after Home Assistant startup when the startup refresh option is enabled.
   fields:
     entry_id:
       name: Entry ID
@@ -51,7 +51,7 @@ refresh_ui:
         text: {}
 dump_diagnostics:
   name: Dump Diagnostics
-  description: Write diagnostics (config, options, mapping, cards) to a JSON file in the Home Assistant config folder
+  description: Write diagnostics (config, options, mapping, active target profile, alert resolution, visual alert config, unavailable entities, cards) to a JSON file in the Home Assistant config folder
   fields:
     entry_id:
       name: Entry ID
@@ -65,7 +65,7 @@ dump_diagnostics:
         text: {}
 self_check:
   name: Self Check
-  description: Validate entity mapping, dependencies, and telemetry setup
+  description: Validate entity mapping, frontend dependencies, and telemetry setup
   fields:
     entry_id:
       name: Entry ID

@@ -11,45 +11,18 @@
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.4.3%2B-blue)](https://www.home-assistant.io/)
 [![License](https://img.shields.io/github/license/senyo888/Humidity-Intelligence)](LICENSE)
 
-<details>
-<summary><strong>Quick Demo (GIF)</strong></summary>
-
-<br>
-
-![Humidity Intelligence quick demo](assets/readme/hi_quick_demo.gif)
-
-</details>
-
-<details>
-<summary><strong>V2 UI Examples (PNG)</strong></summary>
-
-<br>
-
-<img src="assets/v2_ui_gallery/IMG_5665.png" width="320" alt="V2 UI gallery image 1">
-<img src="assets/v2_ui_gallery/IMG_5672.png" width="320" alt="V2 UI gallery image 2">
-<img src="assets/v2_ui_gallery/IMG_5673.png" width="320" alt="V2 UI gallery image 3">
-<img src="assets/v2_ui_gallery/IMG_5674.png" width="320" alt="V2 UI gallery image 4">
-<img src="assets/v2_ui_gallery/IMG_0323.png" width="320" alt="V2 UI gallery image 5">
-<img src="assets/v2_ui_gallery/IMG_0324.png" width="320" alt="V2 UI gallery image 6">
-<img src="assets/v2_ui_gallery/IMG_5675.png" width="320" alt="V2 UI gallery image 7">
-<img src="assets/v2_ui_gallery/ui_v1_mobile.png" width="320" alt="V2 UI gallery image 8">
-<img src="assets/v2_ui_gallery/ui_v2_mobile_aq.png" width="320" alt="V2 UI gallery image 9">
-<img src="assets/v2_ui_gallery/ui_v2_tablet_zone_2.png" width="320" alt="V2 UI gallery image 10">
-
-</details>
-
----
-
 ## Contents
 
 - [What Humidity Intelligence V2 Is](#what-humidity-intelligence-v2-is)
+- [Support Humidity Intelligence](#support-humidity-intelligence)
 - [Why Environmental Stability Matters](#why-environmental-stability-matters)
 - [Season-Aware Environmental Control](#season-aware-environmental-control)
 - [Architecture Overview](#architecture-overview)
 - [Installation](#installation)
-- [Dependencies](#dependencies)
+- [Frontend Dependencies](#frontend-dependencies)
 - [Migration Guide - v1 to v2](#migration-guide---v1-to-v2)
 - [Full Configuration Flow](#full-configuration-flow)
+- [v2.0.4 UI Screenshots](#v204-ui-screenshots)
 - [Configuration Screenshots (Visual Guide)](#configuration-screenshots-visual-guide)
 - [UI Gallery](#ui-gallery)
 - [Post-Configuration Workflow](#post-configuration-workflow)
@@ -79,6 +52,50 @@ There is one resolved outcome, every time.
 This is environmental control with structure.
 
 Positioning: **environmental stability + seasonal context**.
+
+<details>
+<summary><strong>Quick Demo (GIF)</strong></summary>
+
+<br>
+
+![Humidity Intelligence quick demo](assets/readme/hi_quick_demo.gif)
+
+</details>
+
+<details>
+<summary><strong>V2 UI Examples (PNG)</strong></summary>
+
+<br>
+
+<img src="assets/v2_ui_gallery/v204_zone_alert_boost.png" width="320" alt="v2.0.4 zone-bound alert boost context">
+<img src="assets/v2_ui_gallery/v204_unmapped_alert_context.png" width="320" alt="v2.0.4 unmapped alert degraded context">
+<img src="assets/v2_ui_gallery/v204_zone2_temperature_chips.png" width="320" alt="v2.0.4 Zone 2 with optional temperature chips">
+<img src="assets/v2_ui_gallery/v204_current_air_control_ready.png" width="320" alt="v2.0.4 Current Air Control ready state">
+<img src="assets/v2_ui_gallery/v204_presence_gate_reason.png" width="320" alt="v2.0.4 presence gate reason context">
+<img src="assets/v2_ui_gallery/IMG_5665.png" width="320" alt="V2 UI gallery image 6">
+<img src="assets/v2_ui_gallery/IMG_5672.png" width="320" alt="V2 UI gallery image 7">
+<img src="assets/v2_ui_gallery/IMG_5673.png" width="320" alt="V2 UI gallery image 8">
+<img src="assets/v2_ui_gallery/IMG_5674.png" width="320" alt="V2 UI gallery image 9">
+<img src="assets/v2_ui_gallery/IMG_0323.png" width="320" alt="V2 UI gallery image 10">
+<img src="assets/v2_ui_gallery/IMG_0324.png" width="320" alt="V2 UI gallery image 11">
+<img src="assets/v2_ui_gallery/IMG_5675.png" width="320" alt="V2 UI gallery image 12">
+<img src="assets/v2_ui_gallery/ui_v1_mobile.png" width="320" alt="V2 UI gallery image 13">
+<img src="assets/v2_ui_gallery/ui_v2_mobile_aq.png" width="320" alt="V2 UI gallery image 14">
+<img src="assets/v2_ui_gallery/ui_v2_tablet_zone_2.png" width="320" alt="V2 UI gallery image 15">
+
+</details>
+
+---
+
+## Support Humidity Intelligence
+
+### ⭐ Enjoying Humidity Intelligence?
+
+If you're finding Humidity Intelligence useful, insightful, or just interesting to explore, consider giving the repository a star.
+
+It helps others discover the project, supports ongoing development, and shows that this kind of deterministic, explainable approach to Home Assistant has community value.
+
+[Star Humidity Intelligence on GitHub](https://github.com/senyo888/Humidity-Intelligence)
 
 ---
 
@@ -127,7 +144,7 @@ V2 models that instability structurally.
 
 `56%` is not always "high."
 
-Humidity Intelligence v2.0.3 evaluates humidity **relative to the active target profile**:
+Humidity Intelligence evaluates humidity **relative to the active target profile**:
 
 - Winter defaults to a lower comfort band than summer
 - Spring and autumn use intermediate bands
@@ -141,6 +158,19 @@ Interpretation now follows target-relative states:
 - `high_risk` -> materially above the active profile's safe limit
 
 This keeps stability as the primary goal while making evaluation season-correct and explainable.
+
+Temperature comfort uses the same source-of-truth approach for display:
+
+- Automatic mode resolves the active seasonal comfort band
+- Custom mode allows a fixed lower/upper comfort band
+- Temperature chips use HI comfort sensors, not card-only thresholds
+
+Default temperature comfort bands:
+
+- Winter: `19.5°C` to `20.5°C`
+- Spring: `20°C` to `21°C`
+- Summer: `20°C` to `22.5°C`
+- Autumn: `19.5°C` to `21°C`
 
 ---
 
@@ -168,11 +198,26 @@ and does not control hardware.
 Canonical runtime order:
 
 1. CO Emergency: highest priority automation
-2. Alert Lane: best use is for when physical intervention is required
-3. Zone 1: level humidity stabilisation automation
-4. Zone 2: lower priority humidity level stabilisation automation
-5. Air Quality: background automation with VOC PM25 & IAQ threshold triggers.
-6. Normal
+2. Humidity Danger
+3. Mould Danger
+4. Mould Risk
+5. Condensation Danger
+6. Condensation Risk
+7. Zone 1 / Zone 2
+8. Air Quality
+9. Normal
+
+Alert lanes resolve the originating sensor to a configured room/zone, then use that zone's boost fan level as the single deterministic control path. Once an actionable alert is selected, HI holds that boost path until the originating alert clears unless a higher-priority alert appears.
+
+If an alert candidate cannot be mapped to a safe zone output, HI does not boost blindly. The reason panel reports the unmapped/degraded alert and automation continues to the next eligible priority.
+
+Built-in humidity, mould, and condensation risk states are treated as alert candidates when they can be traced back to telemetry. This keeps zone boost behavior and the companion alert chip aligned even if a matching explicit alert row has not been added.
+
+Humidity Danger alerts follow the active target profile's high-risk threshold at runtime. Legacy saved humidity threshold values are ignored for that alert type, so seasonal/custom profile changes immediately affect alert evaluation.
+
+Custom trigger entities and custom binary sensors are not part of the alert flow. Optional alert configuration is for enabling HI alert handling and adding visual indicator rules only; the alert source remains HI's deterministic intelligence layer.
+
+Boost settings should normally be higher than the standard zone fan level. Zone control handles normal correction; boost is reserved for danger escalation such as condensation, mould risk, or humidity danger.
 
 Humidifier lanes operate independently where safe.
 
@@ -203,16 +248,26 @@ The UI renders.
 
 ---
 
-## v2.0.3 Highlights
+## v2.0.4 Highlights
 
-- dependency UX refined in setup and post-configuration (Dependencies is now first-class and revisitable)
-- dependency status lines now include direct upstream repository links for fast install/verification
-- options menu order updated to prioritize setup sequence: Dependencies -> Sensors -> Global Gates
-- README dependency guidance expanded and clarified for HACS-first UI setup
-- top badges updated for clearer positioning (`Custom Integration`) and Home Assistant compatibility
+- humidity, mould, and condensation alerts now resolve originating room/sensor to the mapped zone
+- alert control uses the resolved zone's boost fan level as the single deterministic output path
+- alert reason text and UI chips expose alert type, severity, room, zone, and degraded mapping warnings
+- multiple simultaneous alerts resolve by alert hierarchy first and zone priority second
+- humidity danger alerts follow the active profile high-risk threshold instead of a saved static threshold
+- HI UI mapping can refresh automatically shortly after Home Assistant startup
+- dashboard YAML must be re-exported and pasted into existing Manual cards to see the new alert chips/reason-panel UI
+- V2 exported YAML now includes a short header explaining where to paste it, when to re-run `dump_cards`, and which custom cards are required
+- Air Control humidity chips now use configured zone-room telemetry, and an optional temperature chip row can be enabled from Temperature Slope settings
 
-Upgrade note: **v2.0.3 focuses on dependency clarity, UI onboarding accuracy, and metadata consistency.**
+Upgrade note: **v2.0.4 focuses on alert attribution, zone-bound boost behavior, and startup UI refresh reliability.**
 No breaking schema changes are introduced.
+
+Manual dashboard update:
+1. Call `humidity_intelligence.dump_cards`.
+2. Open the generated `/config/humidity_intelligence_cards_<layout>.yaml` file.
+3. Copy the updated YAML into the relevant Dashboard Manual card.
+4. Save the dashboard and hard-refresh the browser/app if Home Assistant still shows the old card.
 
 ---
 
@@ -231,7 +286,7 @@ No breaking schema changes are introduced.
 
 ---
 
-## Dependencies
+## Frontend Dependencies
 
 Humidity Intelligence V2 is designed to run **fully at the backend level**, but the **UI experience depends on a small set of frontend cards**.
 
@@ -256,7 +311,7 @@ The following projects power the visual layer of Humidity Intelligence:
 
 ### Installation Notes
 
-- All dependencies can be installed via HACS (**Frontend** section).
+- All frontend dependencies can be installed via HACS (**Frontend** section).
 - After installing, hard refresh your browser or use a new session to avoid caching issues.
 - If you skip these, the system still runs, but UI elements may not render correctly.
 
@@ -275,7 +330,7 @@ These tools are foundational to the Home Assistant ecosystem, and this project w
 If you are unsure:
 
 1. Install HACS
-2. Install the dependencies above
+2. Install the frontend dependencies above
 3. Continue with the configuration flow
 
 Or:
@@ -407,15 +462,15 @@ Skipping this step will result in:
 
 Follow this sequence on first install.
 
-### 1) Dependencies
+### 1) Frontend Dependencies
 
 What to do:
-- open the Dependencies step in config flow
-- review installed/detected status and repo links
+- open the Frontend Dependencies step in config flow
+- review installed/detected status and direct resource links where shown
 - continue even if some are not installed
 
 Reference:
-- see [Dependencies](#dependencies) for install guidance and acknowledgements
+- see [Frontend Dependencies](#frontend-dependencies) for install guidance and acknowledgements
 
 
 ### 2) Global Gates
@@ -424,6 +479,8 @@ What to do:
 - set time gate window (optional)
 - select presence/alarm entities (optional)
 - define explicit present and away state values
+- set Humidity Intelligence target profile mode and Humidity custom target band when not using seasonal auto mode
+- temperature comfort is tuned later in `Thresholds & Comfort` when post-config adjustments are needed
 
 Example baseline:
 - time gate enabled: `06:00` to `23:30`
@@ -465,10 +522,14 @@ Example row:
 
 What to do:
 - choose external slope sensors or HI-generated slope
+- optionally enable the Air Control temperature chip row
+- configure temperature comfort in Global Gates before relying on comfort colours
 
 Suggested baseline:
 - use HI-generated slope if you do not already publish stable slope entities
 - use external slope entities only when they are already validated
+- leave the temperature chip row disabled unless you want temperature and slope telemetry shown under Current Air Control
+- use automatic temperature comfort unless your household has a fixed comfort policy
 
 Example (external):
 - `sensor.kitchen_temp_slope`
@@ -484,17 +545,21 @@ What to do:
 - assign each zone to a level and room set
 - configure output entities
 - choose triggers and thresholds
-- set output stage and UI label
+- set normal output stage, boost output stage, and UI label
+- tune post-config zone thresholds for humidity delta, air quality, condensation risk, and mould risk
+- keep boost higher than the normal zone fan level where possible
 
 Example baseline:
 - Zone 1 label: `Cooking`
 - Zone 1 level: `level1`
-- Zone 1 output level: `66`
+- Zone 1 normal output level: `66`
+- Zone 1 boost output level: `100`
 - Zone 1 trigger: humidity delta high
 - Zone 2 label: `Bathroom`
 - zone 2 trigger: humidity delta high, temp slope delta...
 - Zone 2 level: `level2`
-- Zone 2 output level: `100`
+- Zone 2 normal output level: `66`
+- Zone 2 boost output level: `100`
 
 Example:
 - Zone 1 outputs: `fan.kitchen_air`, `fan.living_room_air`
@@ -538,25 +603,30 @@ Example:
 ### 8) Alerts and CO Emergency
 
 What to do:
-- configure alert triggers, outputs, and flash behavior
-- configure CO emergency thresholds and outputs
+- enable or disable HI-calculated humidity, mould, and condensation alert handling
+- add, edit, or remove optional alert visual rules for internally calculated alert sources
+- configure CO emergency thresholds; CO uses configured CO telemetry and existing ventilation outputs
+- set zone boost levels in the Zone pages because alert boost is zone-bound
 
 Suggested baseline:
-- keep thresholds realistic and bounded
+- keep CO thresholds realistic and bounded
+- keep zone boost levels higher than normal zone fan levels
 - use dedicated lights for alerts when possible
-- use optional `power_entity` when wiring requires separate power enable
+- use optional `power_entity` only for visual indicator hardware that needs separate power enable
+- assign alert rooms to zones; humidity, mould, and condensation alerts use the mapped zone boost level
+- avoid tuning humidity danger as a fixed number; change the target profile/custom band when the house-wide high-risk line needs moving
+- check the reason panel and `HI Active Alert Context` for originating sensor, room, resolved zone, and degraded mapping warnings
 
-Example alert:
-- trigger type: custom binary sensor
-- trigger entity: `binary_sensor.bathroom_moisture_alert`
-- threshold: `80`
+Example visual indicator rule:
+- internal alert source: mould risk
+- room: `Bathroom`
 - lights: `light.bathroom_alert`
 - power entity: `switch.bathroom_light_power` (optional)
 
 Example CO:
-- trigger type: CO emergency
+- internal alert source: CO emergency
 - threshold: `15`
-- outputs: purifier/fan entities on both levels
+- outputs: existing configured zone/AQ ventilation outputs
 
 ### 9) UI Deployment
 
@@ -570,6 +640,7 @@ What to do:
 Suggested baseline:
 - start with one dashboard layout (`v2_mobile` or `v2_tablet`)
 - verify Current Air Control, chips, and outputs
+- re-run `humidity_intelligence.dump_cards` after changing the optional temperature chip row
 - then add second layout if needed
 
 Service options:
@@ -582,14 +653,55 @@ Example service usage:
 
 ---
 
+## v2.0.4 UI Screenshots
+
+These examples show the release UI truth surfaces: alert attribution, degraded/unmapped alert reporting, zone-bound alert boost, gate reason context, and optional runtime temperature comfort chips.
+
+<p>
+  <img src="assets/readme/v204_zone_alert_boost.png" width="320" alt="Zone-bound humidity danger alert boost">
+  <br>
+  <strong>Zone-bound alert boost:</strong> humidity danger resolves to the originating room and mapped zone before using that zone's boost level.
+</p>
+
+<p>
+  <img src="assets/readme/v204_unmapped_alert_context.png" width="320" alt="Unmapped alert degraded context">
+  <br>
+  <strong>Degraded alert context:</strong> unmapped alert candidates are reported clearly instead of triggering a blind boost.
+</p>
+
+<p>
+  <img src="assets/readme/v204_zone2_temperature_chips.png" width="320" alt="Optional temperature comfort chip row">
+  <br>
+  <strong>Temperature chip row:</strong> optional chips use HI runtime comfort sensors for blue, green, yellow, and red comfort colouring.
+</p>
+
+<p>
+  <img src="assets/readme/v204_current_air_control_ready.png" width="320" alt="Current Air Control ready state">
+  <br>
+  <strong>Current Air Control:</strong> the reason panel and chips render backend truth, not card-only logic.
+</p>
+
+<p>
+  <img src="assets/readme/v204_presence_gate_reason.png" width="320" alt="Presence gate reason context">
+  <br>
+  <strong>Gate reason context:</strong> gate holds show the blocking condition and snapshot so the paused lane is explainable.
+</p>
+
+Manual dashboard update after upgrading:
+
+1. Run `humidity_intelligence.dump_cards`.
+2. Open the generated `/config/humidity_intelligence_cards_<layout>.yaml` file.
+3. Paste the YAML into your existing Dashboard Manual card for that layout.
+4. Save, then hard-refresh the browser or Home Assistant app if the old card is still cached.
+
 ## Configuration Screenshots (Visual Guide)
 
 
 <details>
 <summary>Open configuration screenshots</summary>
 
-### 1) Dependencies
-<img src="assets/readme/config_dependencies.png" width="760" alt="Dependencies step">
+### 1) Frontend Dependencies
+<img src="assets/readme/config_dependencies.png" width="760" alt="Frontend dependencies step">
 
 ### 2) Global Gates
 <img src="assets/readme/config_global_gate.png" width="460" alt="Global gate settings">
@@ -651,9 +763,11 @@ When modifying options:
 Post-config sensor/lane management:
 
 1. use `Sensors` to add, edit, or delete any telemetry row (humidity, temperature, IAQ, PM2.5, VOC, CO2, CO)
-2. use `Humidifiers` to add/edit/remove humidifier lanes per level and update output entities
-3. use `Air Quality` to add/edit/remove AQ lanes per level and update triggers/outputs
-4. lane selections marked as `not configured - select to add` can be used to create missing lanes later without reinstalling
+2. use `Global Gates` to edit humidity target profile, custom humidity band, time gate, and presence gate
+3. use `Thresholds & Comfort` to edit per-zone humidity high, AQ, condensation risk, mould risk thresholds, and temperature comfort bands
+4. use `Humidifiers` to add/edit/remove humidifier lanes per level and update output entities
+5. use `Air Quality` to add/edit/remove AQ lanes per level and update triggers/outputs
+6. lane selections marked as `not configured - select to add` can be used to create missing lanes later without reinstalling
 
 Alert-only toggle workflow:
 
@@ -705,6 +819,8 @@ data:
 ### `dump_cards`
 Purpose:
 - render and export card YAML to file without dashboard creation.
+- use this after upgrading or changing options when an existing Manual dashboard card needs the latest HI YAML.
+- paste the generated YAML from `/config/humidity_intelligence_cards_<layout>.yaml` back into the relevant Dashboard Manual card.
 
 Example:
 ```yaml
@@ -717,6 +833,7 @@ data:
 ### `refresh_ui`
 Purpose:
 - rebuild placeholder mapping and refresh rendered UI output after config changes.
+- runs automatically shortly after Home Assistant startup when `auto_refresh_ui_on_startup` is enabled in options.
 
 Example:
 ```yaml
@@ -727,6 +844,8 @@ data: {}
 ### `flash_lights`
 Purpose:
 - run alert flash behavior manually for testing.
+- runtime humidity/mould/condensation visual alert rules flash configured lights 10 times, restore the prior light state, wait 30 minutes, then repeat only if the same alert source is still active.
+- CO emergency remains the top-priority safety lane and is not demoted by humidity visual-alert repeats.
 
 Example:
 ```yaml
@@ -763,7 +882,7 @@ data: {}
 
 ### `self_check`
 Purpose:
-- run mapping/dependency/telemetry health checks and write report JSON.
+- run mapping, frontend dependency, and telemetry health checks and write report JSON.
 
 Example:
 ```yaml
@@ -773,7 +892,8 @@ data: {}
 
 ### `dump_diagnostics`
 Purpose:
-- export runtime diagnostics, mapping, and card info to JSON.
+- export runtime diagnostics, mapping, active target profile, visual alert rules, alert source resolution, unavailable entities, and card info to JSON.
+- `HI Diagnostics` keeps only a compact recorder-safe summary in live state attributes; use this service for the full support bundle.
 
 Example:
 ```yaml
@@ -800,15 +920,51 @@ Safety guidance:
 
 ## Release Notes
 
+### v2.0.4
+
+- added alert-to-zone binding for humidity, mould, and condensation alerts so the originating room resolves to its configured zone boost level
+- added mould risk and condensation risk alert trigger types alongside existing danger triggers
+- enforced alert hierarchy: CO emergency, humidity danger, mould danger, mould risk, condensation danger, condensation risk, zones, AQ, normal
+- added deterministic multi-alert conflict reporting in the reason panel and debug logs
+- changed humidity danger alert evaluation to use the active profile high-risk threshold instead of any legacy saved static threshold
+- removed custom trigger entities and custom binary sensors from alert configuration; alerts are internally calculated from HI telemetry and risk logic
+- removed CO output-device selection from the main alert flow; CO emergency uses configured CO telemetry and existing ventilation outputs
+- clarified zone boost guidance so boost levels are presented as danger/alert escalation and should normally exceed normal zone fan levels
+- fixed alert boost hold behavior so selected zone outputs are not returned to auto while the alert lane remains active
+- fixed alert helper switch churn so active alerts no longer flip their UI helper switches off/on during every evaluation cycle
+- added single-flight automation evaluation and stopped internal status helper switches from retriggering evaluation when alert state changes
+- clarified global gate target-profile labels and added explicit alert visual rule removal in setup/options
+- added upgrade guidance that users must run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual dashboard cards to see v2.0.4 UI changes
+- added user-friendly headers to V2 card YAML exports with Manual-card paste instructions and frontend dependency reminders
+- changed unmapped/degraded alert candidates to report in reason text and continue to the next eligible priority instead of blocking automation
+- fixed built-in humidity, mould, and condensation alert candidates so they enter the alert lane, resolve zone boost, and populate the companion alert chip without requiring a duplicate explicit alert row
+- fixed V2 alert chip detection for generated alert switch entity IDs and active alert context fallback
+- added `HI Active Alert Context` telemetry for UI chips and diagnostics
+- added degraded-mode handling when alert sensor, room, zone, or output mapping is incomplete
+- added `auto_refresh_ui_on_startup` option, enabled by default, to refresh HI UI mapping shortly after Home Assistant startup without blocking startup
+- fixed startup UI refresh scheduling/cleanup to use Home Assistant's thread-safe task creator without assuming a task handle is returned
+- removed the HACS URL from frontend dependency flow output while keeping HACS detection
+- added seasonal/custom temperature comfort configuration and runtime comfort sensors for truth-based temperature chip colouring
+- added post-configuration editing for all zone thresholds: humidity high, air quality, condensation risk, and mould risk
+- fixed temperature slope chip mapping fallback so calculated slope chips use Home Assistant slug-compatible entity IDs and configured slope sources
+- renamed Global Gates labels to `Humidity Intelligence target profile mode` and `Humidity custom target`
+- changed alert chipsets to show only lane/status plus the resolved alert source context, with redundant helper-switch chips removed
+- visual humidity/mould/condensation alerts now flash 10 times, restore prior light state, wait 30 minutes, and repeat only while the same alert remains active
+- diagnostics now include a support-focused summary for target profile mode, active profile/season/custom target, zone mappings, alert mappings, visual alert configuration, active alert resolution, unavailable entities, and configuration warnings
+- bumped integration version to `2.0.4`
+
 ### v2.0.3
 
 - bumped integration version to `2.0.3`
 - documented minimum Home Assistant version as `2026.4.3`
-- dependency status output now includes direct repository links (`card-mod`, `button-card`, `mod-card`, `apexcharts-card`, `HACS`)
-- added post-configuration Dependencies options step so dependency checks are accessible after initial setup
-- reordered options menu for setup flow clarity (`Dependencies`, then `Sensors`, then `Global Gates`)
-- refreshed README dependency section with clearer HACS-first install guidance and acknowledgements
+- frontend dependency status output now includes direct repository links (`card-mod`, `button-card`, `mod-card`, `apexcharts-card`)
+- added post-configuration Frontend Dependencies options step so frontend dependency checks are accessible after initial setup
+- reordered options menu for setup flow clarity (`Frontend Dependencies`, then `Sensors`, then `Global Gates`)
+- refreshed README frontend dependency section with clearer HACS-first install guidance and acknowledgements
 - updated top badges: HACS badge wording now `Custom Integration`, and Home Assistant compatibility is shown directly
+
+<details>
+<summary>Previous Releases</summary>
 
 ### v2.0.2
 
@@ -843,6 +999,8 @@ Safety guidance:
   - `HI House Humidity State` (`hi_<entry_id>_house_humidity_state`)
 - generated V2 cards now prune unresolved optional control/output entities instead of leaving stale references.
 - if your dashboard uses Manual cards, re-copy/paste the latest exported YAML after changing `alert_only_mode` so the UI and reason panel match the selected mode.
+
+</details>
 
 ---
 

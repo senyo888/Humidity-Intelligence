@@ -15,7 +15,6 @@ from homeassistant.helpers import selector
 from homeassistant.helpers.selector import SelectOptionDict
 
 from .helpers.zone_validation import detect_zone_mapping_duplicates, summarize_zone_mapping_duplicates
-from .helpers.seasonal import resolve_target_profile
 from .const import (
     DOMAIN,
     DEFAULT_TIME_END,
@@ -37,6 +36,12 @@ from .const import (
     ALERT_TRIGGER_DEFS,
     ROOM_SCOPED_ALERT_TRIGGERS,
     ALERT_THRESHOLD_BOUNDS,
+    CONF_AUTO_REFRESH_UI_ON_STARTUP,
+    DEFAULT_AUTO_REFRESH_UI_ON_STARTUP,
+    CONF_ALERT_HANDLING_ENABLED,
+    DEFAULT_ALERT_HANDLING_ENABLED,
+    CONF_SHOW_TEMPERATURE_CHIPS,
+    DEFAULT_SHOW_TEMPERATURE_CHIPS,
     HUMIDIFIER_BAND_MIN,
     HUMIDIFIER_BAND_MAX,
     HUMIDIFIER_BAND_STEP,
@@ -58,6 +63,15 @@ from .const import (
     TARGET_CUSTOM_HIGH_MIN,
     TARGET_CUSTOM_HIGH_MAX,
     TARGET_CUSTOM_STEP,
+    TEMPERATURE_COMFORT_PROFILE_OPTIONS,
+    TEMPERATURE_COMFORT_CUSTOM_LOW_MIN,
+    TEMPERATURE_COMFORT_CUSTOM_LOW_MAX,
+    TEMPERATURE_COMFORT_CUSTOM_HIGH_MIN,
+    TEMPERATURE_COMFORT_CUSTOM_HIGH_MAX,
+    TEMPERATURE_COMFORT_CUSTOM_STEP,
+    DEFAULT_TEMPERATURE_COMFORT_MODE,
+    DEFAULT_TEMPERATURE_COMFORT_CUSTOM_LOW,
+    DEFAULT_TEMPERATURE_COMFORT_CUSTOM_HIGH,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -83,13 +97,13 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._pending_aq_level: Optional[str] = None
 
     async def async_step_user(self, user_input: Optional[Dict[str, Any]] = None):
-        """Entry point for the flow. Present the dependencies page first."""
+        """Entry point for the flow. Present the frontend dependencies page first."""
         await self.async_set_unique_id(DOMAIN)
         self._abort_if_unique_id_configured()
         return await self.async_step_dependencies()
 
     async def async_step_dependencies(self, user_input: Optional[Dict[str, Any]] = None):
-        """Collect optional dependency information and allow skipping."""
+        """Collect optional frontend dependency information and allow skipping."""
         if user_input is not None:
             self._data["skip_dependencies"] = user_input.get("skip", False)
             return await self.async_step_gates()
@@ -122,6 +136,20 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
             if custom_high <= custom_low:
                 custom_high = min(float(TARGET_CUSTOM_HIGH_MAX), custom_low + 1.0)
+            temp_comfort_low = _bounded_float(
+                user_input.get("temperature_comfort_custom_low"),
+                TEMPERATURE_COMFORT_CUSTOM_LOW_MIN,
+                TEMPERATURE_COMFORT_CUSTOM_LOW_MAX,
+                DEFAULT_TEMPERATURE_COMFORT_CUSTOM_LOW,
+            )
+            temp_comfort_high = _bounded_float(
+                user_input.get("temperature_comfort_custom_high"),
+                TEMPERATURE_COMFORT_CUSTOM_HIGH_MIN,
+                TEMPERATURE_COMFORT_CUSTOM_HIGH_MAX,
+                DEFAULT_TEMPERATURE_COMFORT_CUSTOM_HIGH,
+            )
+            if temp_comfort_high <= temp_comfort_low:
+                temp_comfort_high = min(float(TEMPERATURE_COMFORT_CUSTOM_HIGH_MAX), temp_comfort_low + 0.5)
 
             self._data["time_gate"] = {
                 "enabled": user_input.get("enable_time_gate", False),
@@ -133,9 +161,18 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 "engine_interval_minutes", ENGINE_INTERVAL_MINUTES_DEFAULT
             )
             self._data["alert_only_mode"] = user_input.get("alert_only_mode", False)
+            self._data[CONF_AUTO_REFRESH_UI_ON_STARTUP] = user_input.get(
+                CONF_AUTO_REFRESH_UI_ON_STARTUP,
+                DEFAULT_AUTO_REFRESH_UI_ON_STARTUP,
+            )
             self._data["target_profile"] = target_profile
             self._data["custom_target_low"] = custom_low
             self._data["custom_target_high"] = custom_high
+            self._data["temperature_comfort_mode"] = _normalize_temperature_comfort_mode(
+                user_input.get("temperature_comfort_mode", DEFAULT_TEMPERATURE_COMFORT_MODE)
+            )
+            self._data["temperature_comfort_custom_low"] = temp_comfort_low
+            self._data["temperature_comfort_custom_high"] = temp_comfort_high
             presence_enabled = user_input.get("enable_presence_gate", False)
             entities = user_input.get("presence_entities", [])
             self._data["presence_gate"] = {
@@ -168,6 +205,13 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
             ),
             vol.Optional("alert_only_mode", default=self._data.get("alert_only_mode", False)): selector.BooleanSelector(),
+            vol.Optional(
+                CONF_AUTO_REFRESH_UI_ON_STARTUP,
+                default=self._data.get(
+                    CONF_AUTO_REFRESH_UI_ON_STARTUP,
+                    DEFAULT_AUTO_REFRESH_UI_ON_STARTUP,
+                ),
+            ): selector.BooleanSelector(),
             vol.Optional("target_profile", default=self._data.get("target_profile", "auto")): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in TARGET_PROFILE_OPTIONS],
@@ -190,6 +234,39 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     step=TARGET_CUSTOM_STEP,
                     mode=selector.NumberSelectorMode.BOX,
                     unit_of_measurement="%",
+                )
+            ),
+            vol.Optional(
+                "temperature_comfort_mode",
+                default=self._data.get("temperature_comfort_mode", DEFAULT_TEMPERATURE_COMFORT_MODE),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in TEMPERATURE_COMFORT_PROFILE_OPTIONS],
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            ),
+            vol.Optional(
+                "temperature_comfort_custom_low",
+                default=self._data.get("temperature_comfort_custom_low", DEFAULT_TEMPERATURE_COMFORT_CUSTOM_LOW),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=TEMPERATURE_COMFORT_CUSTOM_LOW_MIN,
+                    max=TEMPERATURE_COMFORT_CUSTOM_LOW_MAX,
+                    step=TEMPERATURE_COMFORT_CUSTOM_STEP,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="°C",
+                )
+            ),
+            vol.Optional(
+                "temperature_comfort_custom_high",
+                default=self._data.get("temperature_comfort_custom_high", DEFAULT_TEMPERATURE_COMFORT_CUSTOM_HIGH),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=TEMPERATURE_COMFORT_CUSTOM_HIGH_MIN,
+                    max=TEMPERATURE_COMFORT_CUSTOM_HIGH_MAX,
+                    step=TEMPERATURE_COMFORT_CUSTOM_STEP,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="°C",
                 )
             ),
             vol.Optional("enable_presence_gate", default=False): selector.BooleanSelector(),
@@ -453,7 +530,11 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Configure temperature slope sensors."""
         temp_entities = [t["entity_id"] for t in self._telemetry if t["sensor_type"] == "temperature"]
         if not temp_entities:
-            self._data["slope"] = {"mode": SLOPE_MODE_NONE, "source_entities": []}
+            self._data["slope"] = {
+                "mode": SLOPE_MODE_NONE,
+                "source_entities": [],
+                CONF_SHOW_TEMPERATURE_CHIPS: DEFAULT_SHOW_TEMPERATURE_CHIPS,
+            }
             return await self.async_step_zones()
 
         errors: Dict[str, str] = {}
@@ -461,12 +542,22 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             mode = user_input["slope_mode"]
             slope_sources = user_input.get("slope_sources", [])
             provided_sensors = user_input.get("slope_sensors", [])
+            show_temperature_chips = bool(
+                user_input.get(
+                    CONF_SHOW_TEMPERATURE_CHIPS,
+                    DEFAULT_SHOW_TEMPERATURE_CHIPS,
+                )
+            )
             if mode == SLOPE_MODE_CALCULATED and not slope_sources:
                 errors["slope_sources"] = "required"
             if mode == SLOPE_MODE_PROVIDED and not provided_sensors:
                 errors["slope_sensors"] = "required"
             if not errors:
-                slope_data: Dict[str, Any] = {"mode": mode, "source_entities": []}
+                slope_data: Dict[str, Any] = {
+                    "mode": mode,
+                    "source_entities": [],
+                    CONF_SHOW_TEMPERATURE_CHIPS: show_temperature_chips,
+                }
                 if mode == SLOPE_MODE_CALCULATED:
                     slope_data["source_entities"] = slope_sources
                 elif mode == SLOPE_MODE_PROVIDED:
@@ -492,6 +583,10 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Optional("slope_sensors", default=[]): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="sensor", multiple=True)
             ),
+            vol.Optional(
+                CONF_SHOW_TEMPERATURE_CHIPS,
+                default=DEFAULT_SHOW_TEMPERATURE_CHIPS,
+            ): selector.BooleanSelector(),
         })
         return self.async_show_form(step_id="slope", data_schema=schema, errors=errors)
 
@@ -542,6 +637,9 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }
             self._zones[zone_key] = zone
             self._data["zones"] = self._zones
+            boost_warning = _boost_level_warning(zone.get("output_level"), zone.get("boost_output_level"))
+            if boost_warning:
+                _LOGGER.warning("HI %s boost guidance: %s", zone_key, boost_warning)
             duplicates = detect_zone_mapping_duplicates(self._telemetry, self._zones)
             if duplicates:
                 _LOGGER.warning(
@@ -612,7 +710,13 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
             ),
         })
-        return self.async_show_form(step_id=zone_key, data_schema=schema)
+        return self.async_show_form(
+            step_id=zone_key,
+            data_schema=schema,
+            description_placeholders={
+                "boost_guidance": _boost_guidance_for_zone(existing),
+            },
+        )
 
     async def async_step_zone_thresholds(self, user_input: Optional[Dict[str, Any]] = None):
         """Configure zone thresholds for the selected triggers."""
@@ -833,60 +937,74 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_alerts(self, user_input: Optional[Dict[str, Any]] = None):
         """Menu for alert/emergency automations."""
-        if len(self._alerts) >= MAX_ALERTS:
-            return await self.async_step_alerts_done()
         alert_summary = _render_alerts_summary(self._alerts)
+        menu_options = ["alert_settings"]
+        if len(self._alerts) < MAX_ALERTS:
+            menu_options.append("alert_add")
+        if self._alerts:
+            menu_options.append("alert_remove")
+        menu_options.extend([
+            "alerts_done",
+            "alerts_back",
+        ])
         return self.async_show_menu(
             step_id="alerts",
-            menu_options=[
-                "alert_add",
-                "alerts_done",
-                "alerts_back",
-            ],
+            menu_options=menu_options,
             description_placeholders={"configured_alerts": alert_summary},
         )
 
+    async def async_step_alert_settings(self, user_input: Optional[Dict[str, Any]] = None):
+        """Configure internal alert handling behavior."""
+        if user_input is not None:
+            self._data[CONF_ALERT_HANDLING_ENABLED] = bool(
+                user_input.get(
+                    CONF_ALERT_HANDLING_ENABLED,
+                    self._data.get(CONF_ALERT_HANDLING_ENABLED, DEFAULT_ALERT_HANDLING_ENABLED),
+                )
+            )
+            return await self.async_step_alerts()
+
+        schema = vol.Schema({
+            vol.Optional(
+                CONF_ALERT_HANDLING_ENABLED,
+                default=self._data.get(CONF_ALERT_HANDLING_ENABLED, DEFAULT_ALERT_HANDLING_ENABLED),
+            ): selector.BooleanSelector(),
+        })
+        return self.async_show_form(step_id="alert_settings", data_schema=schema)
+
     async def async_step_alert_add(self, user_input: Optional[Dict[str, Any]] = None):
-        """Add a high-priority alert automation."""
+        """Add a visual indicator rule for an internally calculated alert."""
         errors: Dict[str, str] = {}
         telemetry = list(self._telemetry)
 
         trigger_default = _default_alert_trigger_type()
         enabled_default = True
-        custom_trigger_default: Optional[str] = None
         room_default = ""
         lights_default: List[str] = []
-        outputs_default: List[str] = []
         power_entity_default: Optional[str] = None
         flash_mode_default = _default_alert_flash_mode()
         duration_default = 10
-        humidity_threshold_fallback = _humidity_danger_threshold(self._data)
-        threshold_default_value: Any = _safe_alert_threshold(
+        threshold_default_value: Any = _alert_threshold_value(
             trigger_default,
             None,
-            humidity_threshold_fallback,
+            self._data,
         )
 
         if user_input is not None:
             enabled_default = bool(user_input.get("enabled", True))
             trigger_default = _normalize_alert_trigger_type(user_input.get("trigger_type"))
-            custom_trigger_default = _sanitize_optional_entity_id(user_input.get("custom_trigger"))
             room_default = _sanitize_optional_room_scope(user_input.get("room")) or ""
             lights_default = _sanitize_entity_ids(user_input.get("lights", []))
-            outputs_default = _sanitize_entity_ids(user_input.get("outputs", []))
             power_entity_default = _sanitize_optional_entity_id(user_input.get("power_entity"))
             flash_mode_default = _normalize_alert_flash_mode(user_input.get("flash_mode"))
             duration_default = _safe_alert_duration(user_input.get("duration", 10))
-            threshold_default_value = _safe_alert_threshold(
+            threshold_default_value = _alert_threshold_value(
                 trigger_default,
                 user_input.get("threshold"),
-                humidity_threshold_fallback,
+                self._data,
             )
 
             try:
-                if trigger_default == "custom_binary" and not custom_trigger_default:
-                    errors["custom_trigger"] = "custom_trigger_required"
-
                 room_scope, room_error = _resolve_alert_room_scope(telemetry, trigger_default, room_default)
                 if room_error:
                     errors["room"] = room_error
@@ -895,11 +1013,9 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     alert: Dict[str, Any] = {
                         "enabled": enabled_default,
                         "trigger_type": trigger_default,
-                        "custom_trigger": custom_trigger_default,
                         "threshold": threshold_default_value,
                         "room": room_scope,
                         "lights": lights_default,
-                        "outputs": outputs_default,
                         "power_entity": power_entity_default,
                         "flash_mode": flash_mode_default,
                         "duration": duration_default,
@@ -911,8 +1027,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("Failed to add alert during initial config flow")
                 errors["base"] = "alert_save_failed"
 
-        threshold_min, threshold_max, _, threshold_unit = _alert_threshold_bounds(trigger_default)
-        schema = vol.Schema({
+        schema_fields: Dict[Any, Any] = {
             vol.Optional("enabled", default=enabled_default): selector.BooleanSelector(),
             vol.Required("trigger_type", default=trigger_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
@@ -920,30 +1035,27 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
-            _optional_entity_selector_key("custom_trigger", custom_trigger_default): selector.EntitySelector(
-                selector.EntitySelectorConfig(domain="binary_sensor", multiple=False)
-            ),
-            vol.Optional("threshold", default=threshold_default_value): selector.NumberSelector(
+        }
+        if _alert_uses_static_threshold(trigger_default):
+            threshold_min, threshold_max, _, threshold_unit = _alert_threshold_bounds(trigger_default)
+            schema_fields[vol.Optional("threshold", default=threshold_default_value)] = selector.NumberSelector(
                 selector.NumberSelectorConfig(
                     min=threshold_min,
                     max=threshold_max,
                     step=1,
                     unit_of_measurement=threshold_unit,
                 )
-            ),
+            )
+        schema_fields.update({
             vol.Optional("room", default=room_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=_alert_room_options(telemetry),
                     multiple=False,
-                    custom_value=True,
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
             vol.Optional("lights", default=lights_default): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="light", multiple=True)
-            ),
-            vol.Optional("outputs", default=outputs_default): selector.EntitySelector(
-                selector.EntitySelectorConfig(domain=["fan", "switch"], multiple=True)
             ),
             _optional_entity_selector_key("power_entity", power_entity_default): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["switch", "light"], multiple=False)
@@ -964,7 +1076,44 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
             ),
         })
+        schema = vol.Schema(schema_fields)
         return self.async_show_form(step_id="alert_add", data_schema=schema, errors=errors)
+
+    async def async_step_alert_remove(self, user_input: Optional[Dict[str, Any]] = None):
+        """Remove a visual indicator rule during initial setup."""
+        if not self._alerts:
+            return await self.async_step_alerts()
+
+        if user_input is not None:
+            remove_alert = str(user_input.get("remove_alert", "cancel"))
+            if remove_alert != "cancel":
+                try:
+                    idx = int(remove_alert)
+                except (TypeError, ValueError):
+                    idx = -1
+                if 0 <= idx < len(self._alerts):
+                    self._alerts.pop(idx)
+                    self._data["alerts"] = self._alerts
+            return await self.async_step_alerts()
+
+        options = [
+            SelectOptionDict(value=str(idx), label=_alert_option_label(idx, alert))
+            for idx, alert in enumerate(self._alerts)
+        ]
+        options.append(SelectOptionDict(value="cancel", label="Cancel"))
+        schema = vol.Schema({
+            vol.Required("remove_alert", default="0"): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=options,
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            )
+        })
+        return self.async_show_form(
+            step_id="alert_remove",
+            data_schema=schema,
+            description_placeholders={"configured_alerts": _render_alerts_summary(self._alerts)},
+        )
 
     async def async_step_alerts_done(self, user_input: Optional[Dict[str, Any]] = None):
         return await self.async_step_ui_install()
@@ -974,6 +1123,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def _async_create_entry(self):
         """Create the final config entry."""
+        self._data["alerts"] = _sanitize_alert_rules(self._data.get("alerts", []))
         return super().async_create_entry(title="Humidity Intelligence", data=self._data)
 
     async def async_step_ui_install(self, user_input: Optional[Dict[str, Any]] = None):
@@ -1082,9 +1232,21 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             source_entities = _sanitize_entity_ids(remaining_temp_sources)
 
         if mode == SLOPE_MODE_CALCULATED and not source_entities:
-            slope = {"mode": SLOPE_MODE_NONE, "source_entities": []}
+            slope = {
+                "mode": SLOPE_MODE_NONE,
+                "source_entities": [],
+                CONF_SHOW_TEMPERATURE_CHIPS: bool(
+                    slope.get(CONF_SHOW_TEMPERATURE_CHIPS, DEFAULT_SHOW_TEMPERATURE_CHIPS)
+                ),
+            }
         elif mode == SLOPE_MODE_PROVIDED and not provided_sensors:
-            slope = {"mode": SLOPE_MODE_NONE, "source_entities": []}
+            slope = {
+                "mode": SLOPE_MODE_NONE,
+                "source_entities": [],
+                CONF_SHOW_TEMPERATURE_CHIPS: bool(
+                    slope.get(CONF_SHOW_TEMPERATURE_CHIPS, DEFAULT_SHOW_TEMPERATURE_CHIPS)
+                ),
+            }
         else:
             slope["source_entities"] = source_entities
             if mode == SLOPE_MODE_PROVIDED:
@@ -1101,6 +1263,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 "options_dependencies",
                 "options_sensors",
                 "options_gates",
+                "options_thresholds",
                 "options_zones",
                 "options_humidifiers",
                 "options_aq",
@@ -1111,7 +1274,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         )
 
     async def async_step_options_dependencies(self, user_input: Optional[Dict[str, Any]] = None):
-        """Review optional UI dependency status from post-configuration options."""
+        """Review optional frontend dependency status from post-configuration options."""
         if user_input is not None:
             self._options["skip_dependencies"] = user_input.get(
                 "skip", self._section("skip_dependencies", False)
@@ -1168,7 +1331,6 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             )
             if custom_high <= custom_low:
                 custom_high = min(float(TARGET_CUSTOM_HIGH_MAX), custom_low + 1.0)
-
             self._options["time_gate"] = {
                 "enabled": user_input.get("enable_time_gate", False),
                 "start": user_input.get("start_time"),
@@ -1176,6 +1338,13 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 "outside_action": user_input.get("outside_action", OUTSIDE_WINDOW_ACTIONS[0]["value"]),
             }
             self._options["alert_only_mode"] = user_input.get("alert_only_mode", self._section("alert_only_mode", False))
+            self._options[CONF_AUTO_REFRESH_UI_ON_STARTUP] = user_input.get(
+                CONF_AUTO_REFRESH_UI_ON_STARTUP,
+                self._section(
+                    CONF_AUTO_REFRESH_UI_ON_STARTUP,
+                    DEFAULT_AUTO_REFRESH_UI_ON_STARTUP,
+                ),
+            )
             self._options["engine_interval_minutes"] = user_input.get(
                 "engine_interval_minutes",
                 self._section("engine_interval_minutes", ENGINE_INTERVAL_MINUTES_DEFAULT),
@@ -1183,7 +1352,6 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             self._options["target_profile"] = target_profile
             self._options["custom_target_low"] = custom_low
             self._options["custom_target_high"] = custom_high
-
             presence_enabled = user_input.get("enable_presence_gate", False)
             entities = _sanitize_entity_ids(user_input.get("presence_entities", []))
             pending_presence = {
@@ -1227,6 +1395,13 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 )
             ),
             vol.Optional("alert_only_mode", default=self._section("alert_only_mode", False)): selector.BooleanSelector(),
+            vol.Optional(
+                CONF_AUTO_REFRESH_UI_ON_STARTUP,
+                default=self._section(
+                    CONF_AUTO_REFRESH_UI_ON_STARTUP,
+                    DEFAULT_AUTO_REFRESH_UI_ON_STARTUP,
+                ),
+            ): selector.BooleanSelector(),
             vol.Optional("target_profile", default=self._section("target_profile", "auto")): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in TARGET_PROFILE_OPTIONS],
@@ -1320,6 +1495,119 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 )
             ),
         })
+
+    async def async_step_options_thresholds(self, user_input: Optional[Dict[str, Any]] = None):
+        """Edit post-configuration zone thresholds and temperature comfort bands."""
+        zones = dict(self._section("zones", {}))
+
+        if user_input is not None:
+            temp_comfort_low = _bounded_float(
+                user_input.get("temperature_comfort_custom_low"),
+                TEMPERATURE_COMFORT_CUSTOM_LOW_MIN,
+                TEMPERATURE_COMFORT_CUSTOM_LOW_MAX,
+                _bounded_float(
+                    self._section("temperature_comfort_custom_low", DEFAULT_TEMPERATURE_COMFORT_CUSTOM_LOW),
+                    TEMPERATURE_COMFORT_CUSTOM_LOW_MIN,
+                    TEMPERATURE_COMFORT_CUSTOM_LOW_MAX,
+                    DEFAULT_TEMPERATURE_COMFORT_CUSTOM_LOW,
+                ),
+            )
+            temp_comfort_high = _bounded_float(
+                user_input.get("temperature_comfort_custom_high"),
+                TEMPERATURE_COMFORT_CUSTOM_HIGH_MIN,
+                TEMPERATURE_COMFORT_CUSTOM_HIGH_MAX,
+                _bounded_float(
+                    self._section("temperature_comfort_custom_high", DEFAULT_TEMPERATURE_COMFORT_CUSTOM_HIGH),
+                    TEMPERATURE_COMFORT_CUSTOM_HIGH_MIN,
+                    TEMPERATURE_COMFORT_CUSTOM_HIGH_MAX,
+                    DEFAULT_TEMPERATURE_COMFORT_CUSTOM_HIGH,
+                ),
+            )
+            if temp_comfort_high <= temp_comfort_low:
+                temp_comfort_high = min(float(TEMPERATURE_COMFORT_CUSTOM_HIGH_MAX), temp_comfort_low + 0.5)
+
+            self._options["temperature_comfort_mode"] = _normalize_temperature_comfort_mode(
+                user_input.get(
+                    "temperature_comfort_mode",
+                    self._section("temperature_comfort_mode", DEFAULT_TEMPERATURE_COMFORT_MODE),
+                )
+            )
+            self._options["temperature_comfort_custom_low"] = temp_comfort_low
+            self._options["temperature_comfort_custom_high"] = temp_comfort_high
+
+            for zone_key in ("zone1", "zone2"):
+                zone = dict(zones.get(zone_key) or {})
+                previous_thresholds = dict(zone.get("thresholds", {}))
+                thresholds: Dict[str, Any] = {}
+                for trig, trig_def in TRIGGER_DEFS.items():
+                    field = f"{zone_key}_threshold_{trig}"
+                    if field in user_input:
+                        thresholds[trig] = user_input[field]
+                    elif trig in previous_thresholds:
+                        thresholds[trig] = previous_thresholds[trig]
+                    else:
+                        thresholds[trig] = trig_def["default"]
+                zone["thresholds"] = thresholds
+                zones[zone_key] = zone
+            self._options["zones"] = zones
+            return await self.async_step_init()
+
+        schema_fields: Dict[Any, Any] = {
+            vol.Optional(
+                "temperature_comfort_mode",
+                default=self._section("temperature_comfort_mode", DEFAULT_TEMPERATURE_COMFORT_MODE),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in TEMPERATURE_COMFORT_PROFILE_OPTIONS],
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            ),
+            vol.Optional(
+                "temperature_comfort_custom_low",
+                default=self._section("temperature_comfort_custom_low", DEFAULT_TEMPERATURE_COMFORT_CUSTOM_LOW),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=TEMPERATURE_COMFORT_CUSTOM_LOW_MIN,
+                    max=TEMPERATURE_COMFORT_CUSTOM_LOW_MAX,
+                    step=TEMPERATURE_COMFORT_CUSTOM_STEP,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="°C",
+                )
+            ),
+            vol.Optional(
+                "temperature_comfort_custom_high",
+                default=self._section("temperature_comfort_custom_high", DEFAULT_TEMPERATURE_COMFORT_CUSTOM_HIGH),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=TEMPERATURE_COMFORT_CUSTOM_HIGH_MIN,
+                    max=TEMPERATURE_COMFORT_CUSTOM_HIGH_MAX,
+                    step=TEMPERATURE_COMFORT_CUSTOM_STEP,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="°C",
+                )
+            ),
+        }
+        for zone_key in ("zone1", "zone2"):
+            zone = zones.get(zone_key) or {}
+            for trig, trig_def in TRIGGER_DEFS.items():
+                schema_fields[vol.Optional(
+                    f"{zone_key}_threshold_{trig}",
+                    default=zone.get("thresholds", {}).get(trig, trig_def["default"]),
+                )] = selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=trig_def["min"],
+                        max=trig_def["max"],
+                        step=trig_def.get("step", 1),
+                        mode=selector.NumberSelectorMode.SLIDER,
+                        unit_of_measurement=trig_def.get("unit", "%"),
+                    )
+                )
+
+        return self.async_show_form(
+            step_id="options_thresholds",
+            data_schema=vol.Schema(schema_fields),
+            description_placeholders={"configured_zones": _render_zones_summary(zones)},
+        )
 
     async def async_step_options_sensors(self, user_input: Optional[Dict[str, Any]] = None):
         """Alias step for clearer top-level label in Options menu."""
@@ -1604,11 +1892,8 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             ]
             previous_thresholds = dict(zone.get("thresholds", {}))
             thresholds: Dict[str, Any] = {}
-            for trig in selected_triggers:
-                field = f"threshold_{trig}"
-                if field in user_input:
-                    thresholds[trig] = user_input[field]
-                elif trig in previous_thresholds:
+            for trig in TRIGGER_DEFS:
+                if trig in previous_thresholds:
                     thresholds[trig] = previous_thresholds[trig]
                 else:
                     thresholds[trig] = TRIGGER_DEFS[trig]["default"]
@@ -1634,6 +1919,12 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 "thresholds": thresholds,
             }
             self._options["zones"] = zones
+            boost_warning = _boost_level_warning(
+                zones[zone_key].get("output_level"),
+                zones[zone_key].get("boost_output_level"),
+            )
+            if boost_warning:
+                _LOGGER.warning("HI %s boost guidance: %s", zone_key, boost_warning)
             duplicates = detect_zone_mapping_duplicates(self._section("telemetry", []), zones)
             if duplicates:
                 _LOGGER.warning(
@@ -1699,26 +1990,13 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
             ),
         }
-        for trig in selected_triggers:
-            trig_def = TRIGGER_DEFS.get(trig)
-            if not trig_def:
-                continue
-            schema_fields[vol.Optional(f"threshold_{trig}", default=zone.get("thresholds", {}).get(trig, trig_def["default"]))] = (
-                selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        min=trig_def["min"],
-                        max=trig_def["max"],
-                        step=trig_def.get("step", 1),
-                        mode=selector.NumberSelectorMode.SLIDER,
-                        unit_of_measurement=trig_def.get("unit", "%"),
-                    )
-                )
-            )
-
         return self.async_show_form(
             step_id="options_zone_edit",
             data_schema=vol.Schema(schema_fields),
-            description_placeholders={"zone_label": "Zone 1" if zone_key == "zone1" else "Zone 2"},
+            description_placeholders={
+                "zone_label": "Zone 1" if zone_key == "zone1" else "Zone 2",
+                "boost_guidance": _boost_guidance_for_zone(zone),
+            },
         )
 
     async def async_step_options_humidifiers(self, user_input: Optional[Dict[str, Any]] = None):
@@ -1962,14 +2240,19 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_options_alerts(self, user_input: Optional[Dict[str, Any]] = None):
         """Choose an alert to edit."""
-        alerts = list(self._section("alerts", []))
+        alerts = _sanitize_alert_rules(list(self._section("alerts", [])))
+        self._options["alerts"] = alerts
 
         if user_input is not None:
             action = user_input.get("action", "done")
             if action == "done":
                 return await self.async_step_init()
+            if action == "settings":
+                return await self.async_step_options_alert_settings()
             if action == "add":
                 return await self.async_step_options_alert_add()
+            if action == "remove":
+                return await self.async_step_options_alert_remove()
             try:
                 idx = int(action)
             except (TypeError, ValueError):
@@ -1978,13 +2261,16 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 self._pending_alert_index = idx
                 return await self.async_step_options_alert_edit()
 
-        options = [SelectOptionDict(value="add", label="Add alert")]
+        options = [SelectOptionDict(value="settings", label="Alert handling settings")]
+        options.append(SelectOptionDict(value="add", label="Add alert visual rule"))
+        if alerts:
+            options.append(SelectOptionDict(value="remove", label="Remove alert visual rule"))
         options.extend([
             SelectOptionDict(value=str(idx), label=_alert_option_label(idx, alert))
             for idx, alert in enumerate(alerts)
         ])
         options.append(SelectOptionDict(value="done", label="Done"))
-        default_action = "0" if alerts else "add"
+        default_action = "0" if alerts else "settings"
         schema = vol.Schema({
             vol.Required("action", default=default_action): selector.SelectSelector(
                 selector.SelectSelectorConfig(
@@ -1999,8 +2285,27 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             description_placeholders={"configured_alerts": _render_alerts_summary(alerts)},
         )
 
+    async def async_step_options_alert_settings(self, user_input: Optional[Dict[str, Any]] = None):
+        """Edit internal alert handling settings from options."""
+        if user_input is not None:
+            self._options[CONF_ALERT_HANDLING_ENABLED] = bool(
+                user_input.get(
+                    CONF_ALERT_HANDLING_ENABLED,
+                    self._section(CONF_ALERT_HANDLING_ENABLED, DEFAULT_ALERT_HANDLING_ENABLED),
+                )
+            )
+            return await self.async_step_options_alerts()
+
+        schema = vol.Schema({
+            vol.Optional(
+                CONF_ALERT_HANDLING_ENABLED,
+                default=self._section(CONF_ALERT_HANDLING_ENABLED, DEFAULT_ALERT_HANDLING_ENABLED),
+            ): selector.BooleanSelector(),
+        })
+        return self.async_show_form(step_id="options_alert_settings", data_schema=schema)
+
     async def async_step_options_alert_add(self, user_input: Optional[Dict[str, Any]] = None):
-        """Add a new alert from options."""
+        """Add a new visual indicator rule from options."""
         alerts = list(self._section("alerts", []))
         if len(alerts) >= MAX_ALERTS:
             return await self.async_step_options_alerts()
@@ -2009,40 +2314,32 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
 
         trigger_default = _default_alert_trigger_type()
         enabled_default = True
-        custom_trigger_default: Optional[str] = None
         room_default = ""
         lights_default: List[str] = []
-        outputs_default: List[str] = []
         power_entity_default: Optional[str] = None
         flash_mode_default = _default_alert_flash_mode()
         duration_default = 10
-        humidity_threshold_fallback = _humidity_danger_threshold(self._effective_config())
-        threshold_default_value: Any = _safe_alert_threshold(
+        threshold_default_value: Any = _alert_threshold_value(
             trigger_default,
             None,
-            humidity_threshold_fallback,
+            self._effective_config(),
         )
 
         if user_input is not None:
             enabled_default = bool(user_input.get("enabled", True))
             trigger_default = _normalize_alert_trigger_type(user_input.get("trigger_type"))
-            custom_trigger_default = _sanitize_optional_entity_id(user_input.get("custom_trigger"))
             room_default = _sanitize_optional_room_scope(user_input.get("room")) or ""
             lights_default = _sanitize_entity_ids(user_input.get("lights", []))
-            outputs_default = _sanitize_entity_ids(user_input.get("outputs", []))
             power_entity_default = _sanitize_optional_entity_id(user_input.get("power_entity"))
             flash_mode_default = _normalize_alert_flash_mode(user_input.get("flash_mode"))
             duration_default = _safe_alert_duration(user_input.get("duration", 10))
-            threshold_default_value = _safe_alert_threshold(
+            threshold_default_value = _alert_threshold_value(
                 trigger_default,
                 user_input.get("threshold"),
-                humidity_threshold_fallback,
+                self._effective_config(),
             )
 
             try:
-                if trigger_default == "custom_binary" and not custom_trigger_default:
-                    errors["custom_trigger"] = "custom_trigger_required"
-
                 room_scope, room_error = _resolve_alert_room_scope(telemetry, trigger_default, room_default)
                 if room_error:
                     errors["room"] = room_error
@@ -2051,11 +2348,9 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                     alert = {
                         "enabled": enabled_default,
                         "trigger_type": trigger_default,
-                        "custom_trigger": custom_trigger_default,
                         "threshold": threshold_default_value,
                         "room": room_scope,
                         "lights": lights_default,
-                        "outputs": outputs_default,
                         "power_entity": power_entity_default,
                         "flash_mode": flash_mode_default,
                         "duration": duration_default,
@@ -2067,8 +2362,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 _LOGGER.exception("Failed to add alert in options flow")
                 errors["base"] = "alert_save_failed"
 
-        threshold_min, threshold_max, _, threshold_unit = _alert_threshold_bounds(trigger_default)
-        schema = vol.Schema({
+        schema_fields: Dict[Any, Any] = {
             vol.Optional("enabled", default=enabled_default): selector.BooleanSelector(),
             vol.Required("trigger_type", default=trigger_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
@@ -2076,30 +2370,27 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
-            _optional_entity_selector_key("custom_trigger", custom_trigger_default): selector.EntitySelector(
-                selector.EntitySelectorConfig(domain="binary_sensor", multiple=False)
-            ),
-            vol.Optional("threshold", default=threshold_default_value): selector.NumberSelector(
+        }
+        if _alert_uses_static_threshold(trigger_default):
+            threshold_min, threshold_max, _, threshold_unit = _alert_threshold_bounds(trigger_default)
+            schema_fields[vol.Optional("threshold", default=threshold_default_value)] = selector.NumberSelector(
                 selector.NumberSelectorConfig(
                     min=threshold_min,
                     max=threshold_max,
                     step=1,
                     unit_of_measurement=threshold_unit,
                 )
-            ),
+            )
+        schema_fields.update({
             vol.Optional("room", default=room_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=_alert_room_options(telemetry),
                     multiple=False,
-                    custom_value=True,
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
             vol.Optional("lights", default=lights_default): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="light", multiple=True)
-            ),
-            vol.Optional("outputs", default=outputs_default): selector.EntitySelector(
-                selector.EntitySelectorConfig(domain=["fan", "switch"], multiple=True)
             ),
             _optional_entity_selector_key("power_entity", power_entity_default): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["switch", "light"], multiple=False)
@@ -2120,7 +2411,46 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 )
             ),
         })
+        schema = vol.Schema(schema_fields)
         return self.async_show_form(step_id="options_alert_add", data_schema=schema, errors=errors)
+
+    async def async_step_options_alert_remove(self, user_input: Optional[Dict[str, Any]] = None):
+        """Remove a visual indicator rule from options."""
+        alerts = _sanitize_alert_rules(list(self._section("alerts", [])))
+        self._options["alerts"] = alerts
+        if not alerts:
+            return await self.async_step_options_alerts()
+
+        if user_input is not None:
+            remove_alert = str(user_input.get("remove_alert", "cancel"))
+            if remove_alert != "cancel":
+                try:
+                    idx = int(remove_alert)
+                except (TypeError, ValueError):
+                    idx = -1
+                if 0 <= idx < len(alerts):
+                    alerts.pop(idx)
+                    self._options["alerts"] = alerts
+            return await self.async_step_options_alerts()
+
+        options = [
+            SelectOptionDict(value=str(idx), label=_alert_option_label(idx, alert))
+            for idx, alert in enumerate(alerts)
+        ]
+        options.append(SelectOptionDict(value="cancel", label="Cancel"))
+        schema = vol.Schema({
+            vol.Required("remove_alert", default="0"): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=options,
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            )
+        })
+        return self.async_show_form(
+            step_id="options_alert_remove",
+            data_schema=schema,
+            description_placeholders={"configured_alerts": _render_alerts_summary(alerts)},
+        )
 
     async def async_step_options_alert_edit(self, user_input: Optional[Dict[str, Any]] = None):
         alerts = list(self._section("alerts", []))
@@ -2135,29 +2465,22 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
 
         trigger_default = _normalize_alert_trigger_type(alert.get("trigger_type"))
         enabled_default = bool(alert.get("enabled", True))
-        custom_trigger_default = _sanitize_optional_entity_id(alert.get("custom_trigger"))
         room_default = _sanitize_optional_room_scope(alert.get("room")) or ""
         lights_default = _sanitize_entity_ids(alert.get("lights", []))
-        outputs_default = _sanitize_entity_ids(alert.get("outputs", []))
         power_entity_default = _sanitize_optional_entity_id(alert.get("power_entity"))
         flash_mode_default = _normalize_alert_flash_mode(alert.get("flash_mode"))
         duration_default = _safe_alert_duration(alert.get("duration", 10))
-        humidity_threshold_fallback = _humidity_danger_threshold(self._effective_config())
-        threshold_default = _safe_alert_threshold(
+        threshold_default = _alert_threshold_value(
             trigger_default,
             alert.get("threshold"),
-            humidity_threshold_fallback,
+            self._effective_config(),
         )
 
         if user_input is not None:
             trigger_default = _normalize_alert_trigger_type(user_input.get("trigger_type", trigger_default))
             enabled_default = bool(user_input.get("enabled", enabled_default))
-            custom_trigger_default = _sanitize_optional_entity_id(
-                user_input.get("custom_trigger", custom_trigger_default)
-            )
             room_default = _sanitize_optional_room_scope(user_input.get("room", room_default)) or ""
             lights_default = _sanitize_entity_ids(user_input.get("lights", lights_default))
-            outputs_default = _sanitize_entity_ids(user_input.get("outputs", outputs_default))
             power_entity_default = _sanitize_optional_entity_id(
                 user_input.get("power_entity", power_entity_default)
             )
@@ -2165,16 +2488,13 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 user_input.get("flash_mode", flash_mode_default)
             )
             duration_default = _safe_alert_duration(user_input.get("duration", duration_default))
-            threshold_default = _safe_alert_threshold(
+            threshold_default = _alert_threshold_value(
                 trigger_default,
                 user_input.get("threshold", threshold_default),
-                humidity_threshold_fallback,
+                self._effective_config(),
             )
 
             try:
-                if trigger_default == "custom_binary" and not custom_trigger_default:
-                    errors["custom_trigger"] = "custom_trigger_required"
-
                 room_scope, room_error = _resolve_alert_room_scope(telemetry, trigger_default, room_default)
                 if room_error:
                     errors["room"] = room_error
@@ -2184,11 +2504,9 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                         **alert,
                         "enabled": enabled_default,
                         "trigger_type": trigger_default,
-                        "custom_trigger": custom_trigger_default,
                         "threshold": threshold_default,
                         "room": room_scope,
                         "lights": lights_default,
-                        "outputs": outputs_default,
                         "power_entity": power_entity_default,
                         "flash_mode": flash_mode_default,
                         "duration": duration_default,
@@ -2199,8 +2517,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 _LOGGER.exception("Failed to edit alert %s in options flow", idx + 1)
                 errors["base"] = "alert_save_failed"
 
-        threshold_min, threshold_max, _, threshold_unit = _alert_threshold_bounds(trigger_default)
-        schema = vol.Schema({
+        schema_fields: Dict[Any, Any] = {
             vol.Optional("enabled", default=enabled_default): selector.BooleanSelector(),
             vol.Optional("trigger_type", default=trigger_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
@@ -2208,30 +2525,27 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
-            _optional_entity_selector_key("custom_trigger", custom_trigger_default): selector.EntitySelector(
-                selector.EntitySelectorConfig(domain="binary_sensor", multiple=False)
-            ),
-            vol.Optional("threshold", default=threshold_default): selector.NumberSelector(
+        }
+        if _alert_uses_static_threshold(trigger_default):
+            threshold_min, threshold_max, _, threshold_unit = _alert_threshold_bounds(trigger_default)
+            schema_fields[vol.Optional("threshold", default=threshold_default)] = selector.NumberSelector(
                 selector.NumberSelectorConfig(
                     min=threshold_min,
                     max=threshold_max,
                     step=1,
                     unit_of_measurement=threshold_unit,
                 )
-            ),
+            )
+        schema_fields.update({
             vol.Optional("room", default=room_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=_alert_room_options(telemetry),
                     multiple=False,
-                    custom_value=True,
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
             vol.Optional("lights", default=lights_default): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="light", multiple=True)
-            ),
-            vol.Optional("outputs", default=outputs_default): selector.EntitySelector(
-                selector.EntitySelectorConfig(domain=["fan", "switch"], multiple=True)
             ),
             _optional_entity_selector_key("power_entity", power_entity_default): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["switch", "light"], multiple=False)
@@ -2252,6 +2566,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 )
             ),
         })
+        schema = vol.Schema(schema_fields)
         return self.async_show_form(
             step_id="options_alert_edit",
             data_schema=schema,
@@ -2271,12 +2586,18 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         default_mode = slope.get("mode", SLOPE_MODE_CALCULATED if temp_entities else SLOPE_MODE_NONE)
         default_sources = _sanitize_entity_ids(slope.get("source_entities", temp_entities))
         default_provided = _sanitize_entity_ids(slope.get("provided_sensors", []))
+        default_show_temperature_chips = bool(
+            slope.get(CONF_SHOW_TEMPERATURE_CHIPS, DEFAULT_SHOW_TEMPERATURE_CHIPS)
+        )
 
         errors: Dict[str, str] = {}
         if user_input is not None:
             mode = user_input.get("slope_mode", default_mode)
             slope_sources = _sanitize_entity_ids(user_input.get("slope_sources", []))
             provided_sensors = _sanitize_entity_ids(user_input.get("slope_sensors", []))
+            show_temperature_chips = bool(
+                user_input.get(CONF_SHOW_TEMPERATURE_CHIPS, default_show_temperature_chips)
+            )
 
             if mode == SLOPE_MODE_CALCULATED and not slope_sources:
                 errors["slope_sources"] = "required"
@@ -2284,7 +2605,11 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 errors["slope_sensors"] = "required"
 
             if not errors:
-                slope_data: Dict[str, Any] = {"mode": mode, "source_entities": []}
+                slope_data: Dict[str, Any] = {
+                    "mode": mode,
+                    "source_entities": [],
+                    CONF_SHOW_TEMPERATURE_CHIPS: show_temperature_chips,
+                }
                 if mode == SLOPE_MODE_CALCULATED:
                     slope_data["source_entities"] = slope_sources
                 elif mode == SLOPE_MODE_PROVIDED:
@@ -2310,6 +2635,10 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             vol.Optional("slope_sensors", default=default_provided): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="sensor", multiple=True)
             ),
+            vol.Optional(
+                CONF_SHOW_TEMPERATURE_CHIPS,
+                default=default_show_temperature_chips,
+            ): selector.BooleanSelector(),
         })
         return self.async_show_form(
             step_id="options_slope",
@@ -2319,6 +2648,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         )
 
     async def async_step_options_done(self, user_input: Optional[Dict[str, Any]] = None):
+        self._options["alerts"] = _sanitize_alert_rules(self._section("alerts", []))
         return self.async_create_entry(title="", data=self._options)
 
 
@@ -2339,7 +2669,7 @@ async def _render_dependency_status(hass: HomeAssistant) -> str:
 
     for dep in DEPENDENCIES:
         status = "Unknown (verify manually)"
-        url = dep["url"]
+        url = dep.get("url")
         resource = dep.get("resource")
         if resource and any(resource in str(v) for v in resources.values()):
             status = "Installed"
@@ -2347,7 +2677,8 @@ async def _render_dependency_status(hass: HomeAssistant) -> str:
             path = custom_components_path / dep["domain"]
             if path.exists():
                 status = "Detected"
-        lines.append(f"- {dep['name']}: {status} | repo: {url}")
+        suffix = f" | repo: {url}" if url else ""
+        lines.append(f"- {dep['name']}: {status}{suffix}")
 
     return "\n".join(lines)
 
@@ -2427,13 +2758,16 @@ def _alert_threshold_bounds(trigger_type: Any) -> Tuple[float, float, float, Opt
     )
 
 
-def _humidity_danger_threshold(config: Dict[str, Any]) -> float:
-    try:
-        profile = resolve_target_profile(config or {})
-        return float(profile.high_risk)
-    except Exception:
-        _LOGGER.debug("Falling back to static humidity danger threshold default.", exc_info=True)
-        return float(ALERT_THRESHOLD_BOUNDS.get("humidity_danger", {}).get("default", 75.0))
+def _alert_uses_static_threshold(trigger_type: Any) -> bool:
+    """Return True for alert triggers that store their own numeric threshold."""
+    return str(trigger_type or "") in ALERT_THRESHOLD_BOUNDS
+
+
+def _alert_threshold_value(trigger_type: Any, value: Any, _config: Dict[str, Any]) -> Any:
+    """Normalize static thresholds while leaving profile-driven alerts unsaved."""
+    if not _alert_uses_static_threshold(trigger_type):
+        return None
+    return _safe_alert_threshold(trigger_type, value, None)
 
 
 def _safe_alert_threshold(trigger_type: Any, value: Any, fallback: Optional[float] = None) -> Any:
@@ -2506,7 +2840,9 @@ def _sanitize_optional_room_scope(value: Any) -> Optional[str]:
 
 
 def _alert_room_options(telemetry: List[Dict[str, Any]]) -> List[SelectOptionDict]:
-    return [SelectOptionDict(value=room, label=room) for room in _rooms_all(telemetry)]
+    options = [SelectOptionDict(value="", label="Auto-resolve affected room")]
+    options.extend(SelectOptionDict(value=room, label=room) for room in _rooms_all(telemetry))
+    return options
 
 
 def _resolve_alert_room_scope(
@@ -2533,7 +2869,7 @@ def _resolve_alert_room_scope(
     if trigger_type == "humidity_danger":
         if not _telemetry_room_has_sensor_type(telemetry, resolved_room, "humidity"):
             return None, "room_missing_humidity"
-    elif trigger_type in {"condensation_danger", "mould_danger"}:
+    elif trigger_type in {"condensation_danger", "condensation_risk", "mould_danger", "mould_risk"}:
         has_humidity = _telemetry_room_has_sensor_type(telemetry, resolved_room, "humidity")
         has_temperature = _telemetry_room_has_sensor_type(telemetry, resolved_room, "temperature")
         if not has_humidity or not has_temperature:
@@ -2565,9 +2901,10 @@ def _optional_entity_selector_key(field_name: str, default_value: Any) -> Any:
 
 
 def _render_alerts_summary(alerts: List[Dict[str, Any]]) -> str:
-    """Human-readable summary of configured alerts for config flow pages."""
+    """Human-readable summary of configured visual alert indicator rules."""
+    alerts = _sanitize_alert_rules(alerts)
     if not alerts:
-        return "None configured yet."
+        return "No visual indicator rules configured yet."
     lines: List[str] = []
     for idx, alert in enumerate(alerts, start=1):
         trigger = alert.get("trigger_type", "unknown")
@@ -2575,12 +2912,39 @@ def _render_alerts_summary(alerts: List[Dict[str, Any]]) -> str:
         trigger_label = trigger_def.get("label", trigger.replace("_", " ").title())
         threshold = alert.get("threshold")
         suffix = ""
-        if threshold not in (None, ""):
-            suffix = f" @ {threshold}"
+        if trigger == "humidity_danger":
+            suffix = " @ active profile high-risk"
+        elif _alert_uses_static_threshold(trigger) and threshold not in (None, ""):
+            suffix = f" @ {_safe_alert_threshold(trigger, threshold, None)}"
         room_scope = _sanitize_optional_room_scope(alert.get("room"))
         room_suffix = f" in {room_scope}" if room_scope else ""
-        lines.append(f"- Alert {idx}: {trigger_label}{suffix}{room_suffix}")
+        lines.append(f"- Indicator {idx}: {trigger_label}{suffix}{room_suffix}")
     return "\n".join(lines)
+
+
+def _sanitize_alert_rules(alerts: Any) -> List[Dict[str, Any]]:
+    """Strip deprecated generic-trigger alert config and keep indicator rules portable."""
+    sanitized: List[Dict[str, Any]] = []
+    for alert in alerts or []:
+        if not isinstance(alert, dict):
+            continue
+        raw_trigger = str(alert.get("trigger_type") or "").strip()
+        if raw_trigger not in ALERT_TRIGGER_DEFS:
+            continue
+        trigger = _normalize_alert_trigger_type(raw_trigger)
+        sanitized.append({
+            "enabled": bool(alert.get("enabled", True)),
+            "trigger_type": trigger,
+            "threshold": _alert_threshold_value(trigger, alert.get("threshold"), alert),
+            "room": _sanitize_optional_room_scope(alert.get("room")),
+            "lights": _sanitize_entity_ids(alert.get("lights", [])),
+            "power_entity": _sanitize_optional_entity_id(alert.get("power_entity")),
+            "flash_mode": _normalize_alert_flash_mode(alert.get("flash_mode")),
+            "duration": _safe_alert_duration(alert.get("duration", 10)),
+        })
+        if len(sanitized) >= MAX_ALERTS:
+            break
+    return sanitized
 
 
 def _render_slope_summary(slope: Dict[str, Any]) -> str:
@@ -2590,15 +2954,19 @@ def _render_slope_summary(slope: Dict[str, Any]) -> str:
     mode = slope.get("mode", SLOPE_MODE_NONE)
     if mode == SLOPE_MODE_CALCULATED:
         sources = _sanitize_entity_ids(slope.get("source_entities", []))
-        return f"Mode: HI calculates slope. Source sensors: {len(sources)}."
+        chips = "enabled" if slope.get(CONF_SHOW_TEMPERATURE_CHIPS) else "disabled"
+        return f"Mode: HI calculates slope. Source sensors: {len(sources)}. Temperature chip row: {chips}."
     if mode == SLOPE_MODE_PROVIDED:
         provided = _sanitize_entity_ids(slope.get("provided_sensors", []))
         sources = _sanitize_entity_ids(slope.get("source_entities", []))
+        chips = "enabled" if slope.get(CONF_SHOW_TEMPERATURE_CHIPS) else "disabled"
         return (
             f"Mode: Provided slope sensors. "
-            f"Provided sensors: {len(provided)}. Source temperature sensors: {len(sources)}."
+            f"Provided sensors: {len(provided)}. Source temperature sensors: {len(sources)}. "
+            f"Temperature chip row: {chips}."
         )
-    return "Mode: Slope disabled."
+    chips = "enabled" if slope.get(CONF_SHOW_TEMPERATURE_CHIPS) else "disabled"
+    return f"Mode: Slope disabled. Temperature chip row: {chips}."
 
 
 def _render_zones_summary(zones: Dict[str, Dict[str, Any]]) -> str:
@@ -2615,8 +2983,10 @@ def _render_zones_summary(zones: Dict[str, Dict[str, Any]]) -> str:
         normal_level = _fan_level_label(zone.get("output_level", ZONE_OUTPUT_LEVEL_DEFAULT))
         boost_level = _fan_level_label(zone.get("boost_output_level", ZONE_OUTPUT_LEVEL_BOOST_DEFAULT))
         ui_label = _sanitize_ui_label(zone.get("ui_label"), _default_zone_ui_label(zone_key))
+        boost_warning = _boost_level_warning(zone.get("output_level"), zone.get("boost_output_level"))
+        warning_suffix = f" Warning: {boost_warning}" if boost_warning else ""
         lines.append(
-            f"- {zone_key.upper()}: {enabled}, {level}, label '{ui_label}', normal {normal_level}, boost {boost_level}"
+            f"- {zone_key.upper()}: {enabled}, {level}, label '{ui_label}', normal {normal_level}, boost {boost_level}.{warning_suffix}"
         )
     return "\n".join(lines) if lines else "No zones configured yet."
 
@@ -2708,7 +3078,7 @@ def _alert_option_label(idx: int, alert: Dict[str, Any]) -> str:
     enabled = "Enabled" if alert.get("enabled", True) else "Disabled"
     room_scope = _sanitize_optional_room_scope(alert.get("room"))
     room_suffix = f" in {room_scope}" if room_scope else ""
-    return f"Alert {idx + 1} - {trigger_label}{room_suffix} ({enabled})"
+    return f"Indicator {idx + 1} - {trigger_label}{room_suffix} ({enabled})"
 
 
 def _suggest_room_and_level(hass: HomeAssistant, entity_id: str | None = None) -> tuple[str, str]:
@@ -2796,6 +3166,14 @@ def _normalize_target_profile(value: Any) -> str:
     return "auto"
 
 
+def _normalize_temperature_comfort_mode(value: Any) -> str:
+    raw = str(value or DEFAULT_TEMPERATURE_COMFORT_MODE).strip().lower()
+    allowed = {item["value"] for item in TEMPERATURE_COMFORT_PROFILE_OPTIONS}
+    if raw in allowed:
+        return raw
+    return DEFAULT_TEMPERATURE_COMFORT_MODE
+
+
 def _bounded_float(value: Any, min_value: float, max_value: float, fallback: float) -> float:
     try:
         parsed = float(value)
@@ -2840,6 +3218,40 @@ def _fan_level_label(value: Any) -> str:
     if normalized == FAN_OUTPUT_LEVEL_AUTO:
         return "Auto"
     return f"{normalized}%"
+
+
+def _config_fan_level_rank(value: Any) -> int:
+    normalized = _normalize_fan_level_choice(value, ZONE_OUTPUT_LEVEL_DEFAULT)
+    if normalized == FAN_OUTPUT_LEVEL_AUTO:
+        return 0
+    try:
+        return int(normalized)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _boost_level_warning(normal_level: Any, boost_level: Any) -> str:
+    if _config_fan_level_rank(boost_level) <= _config_fan_level_rank(normal_level):
+        return (
+            "Boost settings should normally be higher than the standard zone fan level. "
+            "Zone control handles normal correction; boost is reserved for danger escalation "
+            "such as condensation, mould risk, or humidity danger."
+        )
+    return ""
+
+
+def _boost_guidance_for_zone(zone: Dict[str, Any]) -> str:
+    normal_level = zone.get("output_level", ZONE_OUTPUT_LEVEL_DEFAULT)
+    boost_level = zone.get("boost_output_level", ZONE_OUTPUT_LEVEL_BOOST_DEFAULT)
+    warning = _boost_level_warning(normal_level, boost_level)
+    guidance = (
+        "Boost settings should normally be higher than the standard zone fan level. "
+        "Zone control handles normal correction; boost is reserved for danger escalation "
+        "such as condensation, mould risk, or humidity danger."
+    )
+    if warning:
+        return f"{guidance}\n\nWarning: current boost is not higher than the normal zone fan level."
+    return guidance
 
 
 def _default_zone_ui_label(zone_key: str) -> str:
