@@ -25,6 +25,9 @@ DESIGN_BRIEF.md
 PROJECT_SUMMARY.md
 ROADMAP.md
 
+# --- Local AI-agent instructions ---
+AGENTS.local.md
+
 # --- Node / build (future-safe) ---
 node_modules/
 dist/
