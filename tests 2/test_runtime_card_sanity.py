@@ -21,19 +21,94 @@ def _install_homeassistant_stubs() -> None:
     core = types.ModuleType("homeassistant.core")
     config_entries = types.ModuleType("homeassistant.config_entries")
     const = types.ModuleType("homeassistant.const")
+    exceptions = types.ModuleType("homeassistant.exceptions")
     helpers = types.ModuleType("homeassistant.helpers")
+    config_validation = types.ModuleType("homeassistant.helpers.config_validation")
     event = types.ModuleType("homeassistant.helpers.event")
     entity_registry = types.ModuleType("homeassistant.helpers.entity_registry")
+    voluptuous = types.ModuleType("voluptuous")
 
     class HomeAssistant:
         pass
 
+    class ServiceCall:
+        def __init__(self, data=None):
+            self.data = data or {}
+
     class ConfigEntry:
+        pass
+
+    class HomeAssistantError(Exception):
         pass
 
     class UnitOfTemperature:
         CELSIUS = "°C"
         FAHRENHEIT = "°F"
+
+    class Invalid(Exception):
+        pass
+
+    class _SchemaKey:
+        def __init__(self, key, default=None):
+            self.key = key
+            self.default = default
+
+        def __hash__(self):
+            try:
+                return hash((self.key, self.default))
+            except TypeError:
+                return hash((self.key, repr(self.default)))
+
+    class Schema:
+        def __init__(self, schema):
+            self.schema = schema
+
+        def __call__(self, value):
+            return value
+
+    def _ensure_list(value):
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return value
+        if isinstance(value, tuple):
+            return list(value)
+        return [value]
+
+    def _coerce(kind):
+        return lambda value: kind(value)
+
+    def _range(min=None, max=None):
+        def validate(value):
+            if min is not None and value < min:
+                raise Invalid("value below range")
+            if max is not None and value > max:
+                raise Invalid("value above range")
+            return value
+
+        return validate
+
+    def _all(*validators):
+        def validate(value):
+            for validator in validators:
+                value = validator(value)
+            return value
+
+        return validate
+
+    def _any(*validators):
+        def validate(value):
+            for validator in validators:
+                if validator is None and value is None:
+                    return value
+                if callable(validator):
+                    try:
+                        return validator(value)
+                    except Exception:
+                        continue
+            raise Invalid("no validator accepted value")
+
+        return validate
 
     def async_track_state_change_event(*args, **kwargs):
         return lambda: None
@@ -42,20 +117,37 @@ def _install_homeassistant_stubs() -> None:
         return lambda: None
 
     core.HomeAssistant = HomeAssistant
+    core.ServiceCall = ServiceCall
     config_entries.ConfigEntry = ConfigEntry
+    exceptions.HomeAssistantError = HomeAssistantError
     const.UnitOfTemperature = UnitOfTemperature
     const.PERCENTAGE = "%"
+    config_validation.entity_id = str
+    config_validation.entity_ids = _ensure_list
+    config_validation.ensure_list = _ensure_list
+    config_validation.string = str
     event.async_track_state_change_event = async_track_state_change_event
     event.async_track_time_interval = async_track_time_interval
     entity_registry.async_get = lambda hass: None
+    voluptuous.Schema = Schema
+    voluptuous.Optional = _SchemaKey
+    voluptuous.Required = _SchemaKey
+    voluptuous.Invalid = Invalid
+    voluptuous.Coerce = _coerce
+    voluptuous.Range = _range
+    voluptuous.All = _all
+    voluptuous.Any = _any
 
     sys.modules["homeassistant"] = ha
     sys.modules["homeassistant.core"] = core
     sys.modules["homeassistant.config_entries"] = config_entries
     sys.modules["homeassistant.const"] = const
+    sys.modules["homeassistant.exceptions"] = exceptions
     sys.modules["homeassistant.helpers"] = helpers
+    sys.modules["homeassistant.helpers.config_validation"] = config_validation
     sys.modules["homeassistant.helpers.event"] = event
     sys.modules["homeassistant.helpers.entity_registry"] = entity_registry
+    sys.modules["voluptuous"] = voluptuous
 
 
 def _install_package_scaffold() -> None:
@@ -93,6 +185,13 @@ def _load_target_modules():
     return engine_mod, register_mod
 
 
+def _load_services_module():
+    _install_homeassistant_stubs()
+    _install_package_scaffold()
+    _load_module(f"{PKG}.const", ROOT / "const.py")
+    return _load_module(f"{PKG}.services", ROOT / "services.py")
+
+
 class _FakeState:
     def __init__(self, state, attrs=None):
         self.state = str(state)
@@ -120,6 +219,39 @@ class _FakeServices:
 
     async def async_call(self, domain, service, data=None, blocking=False):
         self.calls.append((domain, service, dict(data or {}), bool(blocking)))
+
+
+class _FlashServiceRegistry:
+    def __init__(self, states):
+        self.states = states
+        self.calls = []
+        self.handlers = {}
+
+    def has_service(self, domain, service):
+        return True
+
+    def async_register(self, domain, service, handler, schema=None):
+        self.handlers[(domain, service)] = handler
+
+    async def async_call(self, domain, service, data=None, blocking=False):
+        payload = dict(data or {})
+        self.calls.append((domain, service, payload, bool(blocking)))
+        if domain == "light":
+            entity_id = payload.get("entity_id")
+            current = self.states.get(entity_id)
+            attrs = dict(current.attributes) if current is not None else {}
+            if service == "turn_on":
+                attrs.update({key: value for key, value in payload.items() if key != "entity_id"})
+                self.states._values[entity_id] = _FakeState("on", attrs)
+            elif service == "turn_off":
+                self.states._values[entity_id] = _FakeState("off", attrs)
+
+
+class _FlashHass:
+    def __init__(self, states):
+        self.states = _FakeStates(states)
+        self.services = _FlashServiceRegistry(self.states)
+        self.data = {}
 
 
 class _FakeBool:
@@ -834,6 +966,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
         all(isinstance(channel, int) for channel in data.get("color"))
         for data in dynamic_flash_calls
     )
+    assert len(engine_room_alert_dynamic._visual_alert_tasks) == 1
     await engine_room_alert_dynamic._evaluate()
     dynamic_flash_calls_after_repeat_eval = [
         data
@@ -841,6 +974,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
         if domain == "humidity_intelligence" and service == "flash_lights"
     ]
     assert len(dynamic_flash_calls_after_repeat_eval) == len(dynamic_flash_calls)
+    assert len(engine_room_alert_dynamic._visual_alert_tasks) == 1
     await engine_room_alert_dynamic.async_stop()
 
     # Alerts without target lights should still activate runtime alert mode,
@@ -1660,6 +1794,78 @@ def test_temperature_normalization_respects_source_units():
     assert from_f is not None and abs(from_f - 20.0) < 0.05
     assert from_c is not None and abs(from_c - 20.0) < 0.05
     assert from_missing_unit is not None and abs(from_missing_unit - 21.0) < 0.05
+
+
+async def _registered_flash_handler(services_mod, hass):
+    await services_mod.async_register_services(hass)
+    return hass.services.handlers[(services_mod.DOMAIN, services_mod.SERVICE_FLASH_LIGHTS)]
+
+
+def _light_service_calls(hass):
+    return [
+        (service, data)
+        for domain, service, data, _blocking in hass.services.calls
+        if domain == "light"
+    ]
+
+
+async def _run_visual_flash_restore_assertions(services_mod) -> None:
+    original_sleep = services_mod.asyncio.sleep
+
+    async def fast_sleep(_delay):
+        await original_sleep(0)
+
+    services_mod.asyncio.sleep = fast_sleep
+    try:
+        attrs = {
+            "supported_color_modes": ["rgb"],
+            "brightness": 77,
+            "rgb_color": (1, 2, 3),
+        }
+        payload = {
+            "lights": ["light.alert"],
+            "color": [255, 0, 0],
+            "duration": 10,
+            "flash_count": 10,
+        }
+
+        hass_on = _FlashHass({"light.alert": _FakeState("on", attrs)})
+        handler_on = await _registered_flash_handler(services_mod, hass_on)
+        await handler_on(SimpleNamespace(data=payload))
+        on_calls = _light_service_calls(hass_on)
+        assert [service for service, _data in on_calls[:20]] == ["turn_on", "turn_off"] * 10
+        assert len(on_calls) == 21
+        assert on_calls[-1][0] == "turn_on"
+        assert on_calls[-1][1]["brightness"] == 77
+        assert on_calls[-1][1]["rgb_color"] == (1, 2, 3)
+        assert hass_on.states.get("light.alert").state == "on"
+
+        hass_off = _FlashHass({"light.alert": _FakeState("off", attrs)})
+        handler_off = await _registered_flash_handler(services_mod, hass_off)
+        await handler_off(SimpleNamespace(data=payload))
+        off_calls = _light_service_calls(hass_off)
+        assert [service for service, _data in off_calls[:20]] == ["turn_on", "turn_off"] * 10
+        assert len(off_calls) == 21
+        assert off_calls[-1][0] == "turn_off"
+        assert hass_off.states.get("light.alert").state == "off"
+
+        hass_overlap = _FlashHass({"light.alert": _FakeState("on", attrs)})
+        handler_overlap = await _registered_flash_handler(services_mod, hass_overlap)
+        await asyncio.gather(
+            handler_overlap(SimpleNamespace(data=payload)),
+            handler_overlap(SimpleNamespace(data=payload)),
+        )
+        overlap_services = [service for service, _data in _light_service_calls(hass_overlap)]
+        one_sequence = ["turn_on", "turn_off"] * 10 + ["turn_on"]
+        assert overlap_services == one_sequence + one_sequence
+        assert hass_overlap.states.get("light.alert").state == "on"
+    finally:
+        services_mod.asyncio.sleep = original_sleep
+
+
+def test_visual_alert_flash_restores_initial_light_state_and_serializes_overlap():
+    services_mod = _load_services_module()
+    asyncio.run(_run_visual_flash_restore_assertions(services_mod))
 
 
 def test_startup_ui_refresh_contract_is_wired():

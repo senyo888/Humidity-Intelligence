@@ -6,7 +6,8 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
-- No unreleased changes.
+- Fixed visual alert flashing so indicator lights are explicitly restored to their initial on/off state after the 10-flash sequence.
+- Serialized visual alert flashing per light to avoid overlapping restore races.
 
 ## 2.0.4
 

@@ -8,7 +8,7 @@ import os
 import re
 import tempfile
 from datetime import timedelta
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -32,6 +32,7 @@ SERVICE_VIEW_CARDS = "view_cards"
 SERVICE_PURGE_FILES = "purge_files"
 SERVICE_PAUSE_CONTROL = "pause_control"
 SERVICE_RESUME_CONTROL = "resume_control"
+_FLASH_LIGHT_LOCKS_KEY = "_flash_light_locks"
 
 _ALLOWED_LAYOUTS = {"v2_mobile", "v2_tablet", "v1_mobile", "view_cards_button"}
 _SAFE_FILENAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
@@ -176,7 +177,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
 
     async def handle_flash(call: ServiceCall) -> None:
         power_entity = call.data.get("power_entity")
-        lights = call.data.get("lights") or []
+        lights = _dedupe_lights(call.data.get("lights") or [])
         color_list = call.data.get("color") or [255, 0, 0]
         duration = max(1, int(call.data.get("duration", 10)))
         flash_count = call.data.get("flash_count")
@@ -186,20 +187,34 @@ async def async_register_services(hass: HomeAssistant) -> None:
             _LOGGER.debug("No lights provided to flash_lights; skipping light flash.")
             return
 
-        if power_entity:
-            domain = power_entity.split(".")[0]
-            if hass.services.has_service(domain, "turn_on"):
+        locks = _light_flash_locks(hass, lights)
+        acquired_locks: List[asyncio.Lock] = []
+        try:
+            for lock in locks:
+                await lock.acquire()
+                acquired_locks.append(lock)
+
+            initial_states = _capture_light_states(hass, lights)
+
+            if power_entity:
+                domain = power_entity.split(".")[0]
+                if hass.services.has_service(domain, "turn_on"):
+                    try:
+                        await hass.services.async_call(domain, "turn_on", {"entity_id": power_entity}, blocking=True)
+                        await asyncio.sleep(0.5)
+                    except Exception:
+                        _LOGGER.exception("Failed to turn on alert power entity %s", power_entity)
+
+            supports_color = {light: _supports_color(hass.states.get(light)) for light in lights}
+
+            await _flash_lights(hass, lights, color, duration, flash_count, supports_color)
+            await _restore_lights(hass, initial_states)
+        finally:
+            for lock in reversed(acquired_locks):
                 try:
-                    await hass.services.async_call(domain, "turn_on", {"entity_id": power_entity}, blocking=True)
-                    await asyncio.sleep(0.5)
-                except Exception:
-                    _LOGGER.exception("Failed to turn on alert power entity %s", power_entity)
-
-        states = {light: hass.states.get(light) for light in lights}
-        supports_color = {light: _supports_color(state) for light, state in states.items()}
-
-        await _flash_lights(hass, lights, color, duration, flash_count, supports_color)
-        await _restore_lights(hass, states)
+                    lock.release()
+                except RuntimeError:
+                    continue
 
     hass.services.async_register(DOMAIN, SERVICE_FLASH_LIGHTS, handle_flash, schema=SERVICE_FLASH_SCHEMA)
 
@@ -766,6 +781,34 @@ def _supports_color(state) -> bool:
     return "rgb" in modes or "hs" in modes
 
 
+def _dedupe_lights(lights: List[str]) -> List[str]:
+    ordered: List[str] = []
+    seen = set()
+    for light in lights:
+        if light in seen:
+            continue
+        ordered.append(light)
+        seen.add(light)
+    return ordered
+
+
+def _light_flash_locks(hass: HomeAssistant, lights: List[str]) -> List[asyncio.Lock]:
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    locks: Dict[str, asyncio.Lock] = domain_data.setdefault(_FLASH_LIGHT_LOCKS_KEY, {})
+    return [locks.setdefault(light, asyncio.Lock()) for light in sorted(set(lights))]
+
+
+def _capture_light_states(hass: HomeAssistant, lights: List[str]) -> Dict[str, Dict[str, Any]]:
+    captured: Dict[str, Dict[str, Any]] = {}
+    for light in lights:
+        state = hass.states.get(light)
+        captured[light] = {
+            "state": state.state if state is not None else None,
+            "attributes": dict(state.attributes) if state is not None else {},
+        }
+    return captured
+
+
 async def _flash_lights(
     hass: HomeAssistant,
     lights: List[str],
@@ -796,13 +839,14 @@ async def _flash_lights(
         await asyncio.sleep(interval)
 
 
-async def _restore_lights(hass: HomeAssistant, states: dict) -> None:
-    for entity_id, state in states.items():
-        if state is None:
+async def _restore_lights(hass: HomeAssistant, states: Dict[str, Dict[str, Any]]) -> None:
+    for entity_id, snapshot in states.items():
+        initial_state = snapshot.get("state")
+        if initial_state is None:
             continue
-        if state.state == "on":
+        if initial_state == "on":
             data = {"entity_id": entity_id}
-            attrs = state.attributes
+            attrs = snapshot.get("attributes") or {}
             if "brightness" in attrs:
                 data["brightness"] = attrs.get("brightness")
             if "rgb_color" in attrs:
