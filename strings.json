@@ -4,14 +4,14 @@
     "step": {
       "dependencies": {
         "title": "Frontend Dependencies",
-        "description": "Optional frontend custom cards used by the Humidity Intelligence dashboards.\n\n{dependencies}\n\nIf a status is Unknown, verify manually in HACS and Dashboard resources.\n\nThanks to Home Assistant, HACS, and the community developers that make these cards possible.",
+        "description": "Optional frontend custom cards used by the Humidity Intelligence dashboards.\n\n{dependencies}\n\nBackend control works without optional frontend cards, but dashboard visuals may degrade until they are installed. If a status is Unknown, verify manually in HACS and Dashboard resources.\n\nThanks to Home Assistant, HACS, and the community developers that make these cards possible.",
         "data": {
           "skip": "Skip frontend dependency checks and continue"
         }
       },
       "gates": {
         "title": "Global Gates",
-        "description": "Configure time and presence gates that apply to all automations. Also select how HI resolves the active HI target profile and temperature comfort band.",
+        "description": "Configure the essential operating gates for Humidity Intelligence.\n\n{advanced_note}\n\nAdvanced tuning contains control-loop timing, startup UI mapping refresh, custom target bands, and optional output entity details.",
         "data": {
           "enable_time_gate": "Enable time gate",
           "start_time": "Start time",
@@ -20,6 +20,7 @@
           "engine_interval_minutes": "Control loop interval",
           "alert_only_mode": "Alert-only mode (monitor + alerts only)",
           "auto_refresh_ui_on_startup": "Refresh HI UI mapping on Home Assistant startup",
+          "show_output_entity_details": "Show output entity details",
           "target_profile": "Humidity Intelligence target profile mode",
           "custom_target_low": "Humidity custom target low (%)",
           "custom_target_high": "Humidity custom target high (%)",
@@ -27,7 +28,8 @@
           "temperature_comfort_custom_low": "Custom temperature comfort low (°C)",
           "temperature_comfort_custom_high": "Custom temperature comfort high (°C)",
           "enable_presence_gate": "Enable presence gate",
-          "presence_entities": "Presence entities (any helper/entity)"
+          "presence_entities": "Presence entities (any helper/entity)",
+          "show_advanced_options": "Show advanced tuning"
         }
       },
       "presence_states": {
@@ -77,12 +79,13 @@
       },
       "slope": {
         "title": "Temperature Slope",
-        "description": "Choose how slope sensors are handled. You can also enable the optional Air Control temperature chip row.",
+        "description": "Choose the slope mode. HI can calculate slope automatically from configured temperature telemetry.\n\n{advanced_note}\n\nUse source overrides, provided slope sensors, or the optional temperature chip row only when you need custom UI/runtime tuning.",
         "data": {
           "slope_mode": "Slope mode",
           "slope_sources": "Temperature sensors for HI slope",
           "slope_sensors": "Existing slope sensors",
-          "show_temperature_chips": "Show temperature chip row in Air Control"
+          "show_temperature_chips": "Show temperature chip row in Air Control",
+          "show_advanced_options": "Show advanced tuning"
         }
       },
       "zones": {
@@ -97,7 +100,7 @@
       },
       "zone1": {
         "title": "Zone 1",
-        "description": "Configure Zone 1 automation settings.\n\n{boost_guidance}",
+        "description": "Configure the essential Zone 1 mapping and outputs.\n\n{advanced_note}\n\nAdvanced tuning contains fan levels and the Current Air Control display label.\n\n{boost_guidance}",
         "data": {
           "enabled": "Enable zone",
           "level": "Level",
@@ -106,12 +109,13 @@
           "outputs": "Outputs",
           "output_level": "Normal fan run level (Auto/33/66/100)",
           "boost_output_level": "Boost fan run level (Auto/33/66/100) - danger/alert escalation level for this zone",
-          "ui_label": "Current Air Control label for Zone 1"
+          "ui_label": "Current Air Control label for Zone 1",
+          "show_advanced_options": "Show advanced tuning"
         }
       },
       "zone2": {
         "title": "Zone 2",
-        "description": "Configure Zone 2 automation settings.\n\n{boost_guidance}",
+        "description": "Configure the essential Zone 2 mapping and outputs.\n\n{advanced_note}\n\nAdvanced tuning contains fan levels and the Current Air Control display label.\n\n{boost_guidance}",
         "data": {
           "enabled": "Enable zone",
           "level": "Level",
@@ -120,13 +124,15 @@
           "outputs": "Outputs",
           "output_level": "Normal fan run level (Auto/33/66/100)",
           "boost_output_level": "Boost fan run level (Auto/33/66/100) - danger/alert escalation level for this zone",
-          "ui_label": "Current Air Control label for Zone 2"
+          "ui_label": "Current Air Control label for Zone 2",
+          "show_advanced_options": "Show advanced tuning"
         }
       },
       "zone_thresholds": {
         "title": "Zone Thresholds",
-        "description": "Tune thresholds for selected triggers.\n\nHumidity above house average uses the selected rooms' average humidity compared to the whole-house average. The threshold is the delta in % points.\n\nCondensation risk uses dew-point spread:\nspread = temperature - dew_point\nLower spread = higher risk (air is closer to saturation).\nInterpretation is season-aware and relative to the active target profile. The configured slider remains deterministic and is mapped to a seasonal spread threshold.\n\nMould risk is derived from humidity relative to the active target band plus dew-point spread, normalized to levels:\nLevel 1 = Watch\nLevel 2 = Risk\nLevel 3 = Danger\nSo a threshold of 2 triggers when risk reaches Risk or Danger for the active profile.",
+        "description": "Selected zone triggers use recommended thresholds unless customised.\n\n{advanced_note}\n\nHumidity above house average uses the selected rooms' average humidity compared to the whole-house average. The threshold is the delta in % points.\n\nCondensation risk uses dew-point spread:\nspread = temperature - dew_point\nLower spread = higher risk (air is closer to saturation).\nInterpretation is season-aware and relative to the active target profile. The configured slider remains deterministic and is mapped to a seasonal spread threshold.\n\nMould risk is derived from humidity relative to the active target band plus dew-point spread, normalized to levels:\nLevel 1 = Watch\nLevel 2 = Risk\nLevel 3 = Danger\nSo a threshold of 2 triggers when risk reaches Risk or Danger for the active profile.",
         "data": {
+          "show_advanced_options": "Show advanced tuning",
           "humidity_high": "Humidity above house avg (delta %)",
           "condensation_risk": "Condensation risk (dew-point spread degC)",
           "mould_risk": "Mould risk level (1-3)",
@@ -145,20 +151,22 @@
       },
       "humidifier_level1": {
         "title": "Level 1 Humidifier",
-        "description": "Target band entities: {target_low} / {target_high}\nBand adjustment shifts both targets up or down by the selected percent.",
+        "description": "Enable Level 1 humidifier hardware and outputs.\n\n{advanced_note}\n\nTarget band entities: {target_low} / {target_high}\nBand adjustment shifts both targets up or down by the selected percent.",
         "data": {
           "enabled": "Enable humidifier",
           "band_adjust": "Band adjustment",
-          "outputs": "Humidifier outputs"
+          "outputs": "Humidifier outputs",
+          "show_advanced_options": "Show advanced tuning"
         }
       },
       "humidifier_level2": {
         "title": "Level 2 Humidifier",
-        "description": "Target band entities: {target_low} / {target_high}\nBand adjustment shifts both targets up or down by the selected percent.",
+        "description": "Enable Level 2 humidifier hardware and outputs.\n\n{advanced_note}\n\nTarget band entities: {target_low} / {target_high}\nBand adjustment shifts both targets up or down by the selected percent.",
         "data": {
           "enabled": "Enable humidifier",
           "band_adjust": "Band adjustment",
-          "outputs": "Humidifier outputs"
+          "outputs": "Humidifier outputs",
+          "show_advanced_options": "Show advanced tuning"
         }
       },
       "aq": {
@@ -180,29 +188,34 @@
       },
       "aq_level1": {
         "title": "Level 1 Air Quality",
-        "description": "Configure air quality automation for Level 1.",
+        "description": "Configure essential air quality automation for Level 1.\n\n{advanced_note}\n\nAdvanced tuning contains run duration and fan level.",
         "data": {
           "enabled": "Enable AQ automation",
           "triggers": "Triggers",
           "outputs": "Outputs",
           "run_duration": "Run duration",
-          "output_level": "Fan run level (Auto/33/66/100)"
+          "output_level": "Fan run level (Auto/33/66/100)",
+          "show_advanced_options": "Show advanced tuning"
         }
       },
       "aq_level2": {
         "title": "Level 2 Air Quality",
-        "description": "Configure air quality automation for Level 2.",
+        "description": "Configure essential air quality automation for Level 2.\n\n{advanced_note}\n\nAdvanced tuning contains run duration and fan level.",
         "data": {
           "enabled": "Enable AQ automation",
           "triggers": "Triggers",
           "outputs": "Outputs",
           "run_duration": "Run duration",
-          "output_level": "Fan run level (Auto/33/66/100)"
+          "output_level": "Fan run level (Auto/33/66/100)",
+          "show_advanced_options": "Show advanced tuning"
         }
       },
       "aq_thresholds": {
         "title": "AQ Thresholds",
-        "description": "Tune thresholds for selected AQ triggers."
+        "description": "Selected AQ triggers use recommended thresholds unless customised.\n\n{advanced_note}",
+        "data": {
+          "show_advanced_options": "Show advanced tuning"
+        }
       },
       "alerts": {
         "title": "Alerts and Emergencies",
@@ -224,7 +237,7 @@
       },
       "alert_add": {
         "title": "Add Alert Visual Rule",
-        "description": "Configure optional visual indicators for an internally calculated HI alert. The selected alert source is calculated by HI, not by a custom trigger entity. Fan boost behavior is controlled by the affected room's mapped zone boost setting.",
+        "description": "Configure an optional visual indicator for an internally calculated HI alert. The selected alert source is calculated by HI, not by a custom trigger entity. Fan boost behavior is controlled by the affected room's mapped zone boost setting.\n\n{advanced_note}\n\nAdvanced tuning contains CO threshold, power entity, flash mode, and duration.",
         "data": {
           "enabled": "Enable visual indicator rule",
           "trigger_type": "Internal HI alert source",
@@ -233,7 +246,8 @@
           "lights": "Lights to flash (optional)",
           "power_entity": "Visual indicator power entity (optional)",
           "flash_mode": "Flash mode",
-          "duration": "Duration"
+          "duration": "Duration",
+          "show_advanced_options": "Show advanced tuning"
         }
       },
       "alert_remove": {
@@ -245,7 +259,7 @@
       },
       "ui_install": {
         "title": "UI Cards",
-        "description": "Select which UI layouts to export now. HI will write one file per layout to /config/humidity_intelligence_cards_layout.yaml and post a notification with the file path.\n\nConfigured alerts:\n{configured_alerts}\n\nWarning: The backend logic will work without frontend dependencies, but the UI cards may render incorrectly unless the required custom cards are installed (card-mod, button-card, mod-card, apexcharts-card).\n\nTo load a card: open File Editor → /config/humidity_intelligence_cards_layout.yaml → copy the YAML → Dashboard → Edit → Add card → Manual → paste YAML.",
+        "description": "Select which UI layouts to export now. The tablet layout is selected by default. Additional layouts can be exported later with dump_cards.\n\nHI will write one file per layout to /config/humidity_intelligence_cards_layout.yaml and post a notification with the file path.\n\nConfigured alerts:\n{configured_alerts}\n\nWarning: The backend logic will work without frontend dependencies, but the UI cards may render incorrectly unless the required custom cards are installed (card-mod, button-card, mod-card, apexcharts-card).\n\nTo load a card: open File Editor → /config/humidity_intelligence_cards_layout.yaml → copy the YAML → Dashboard → Edit → Add card → Manual → paste YAML.",
         "data": {
           "ui_layouts": "UI layouts to export"
         }
@@ -287,7 +301,7 @@
       },
       "options_gates": {
         "title": "Global Gates Options",
-        "description": "Edit global time and presence gates. Presence can use person, device_tracker, alarm panel, or helper entities. Humidity Intelligence target profile mode controls seasonal vs custom humidity interpretation.",
+        "description": "Edit the essential operating gates. Presence can use person, device_tracker, alarm panel, or helper entities. Humidity Intelligence target profile mode controls seasonal vs custom humidity interpretation.\n\n{advanced_note}\n\nAdvanced tuning contains control-loop timing, startup UI mapping refresh, custom target bands, and optional output entity details.",
         "data": {
           "enable_time_gate": "Enable time gate",
           "start_time": "Start time",
@@ -296,16 +310,18 @@
           "engine_interval_minutes": "Control loop interval",
           "alert_only_mode": "Alert-only mode (monitor + alerts only)",
           "auto_refresh_ui_on_startup": "Refresh HI UI mapping on Home Assistant startup",
+          "show_output_entity_details": "Show output entity details",
           "target_profile": "Humidity Intelligence target profile mode",
           "custom_target_low": "Humidity custom target low (%)",
           "custom_target_high": "Humidity custom target high (%)",
           "enable_presence_gate": "Enable presence gate",
-          "presence_entities": "Presence/alarm entities"
+          "presence_entities": "Presence/alarm entities",
+          "show_advanced_options": "Show advanced tuning"
         }
       },
       "options_thresholds": {
         "title": "Thresholds & Comfort",
-        "description": "Edit zone thresholds and temperature comfort bands without changing zone mapping, outputs, or gate behavior.\n\nConfigured zones:\n{configured_zones}",
+        "description": "Review comfort mode first. Custom comfort levels and deterministic zone thresholds are advanced tuning controls.\n\n{advanced_note}\n\nConfigured zones:\n{configured_zones}",
         "data": {
           "temperature_comfort_mode": "Temperature comfort mode",
           "temperature_comfort_custom_low": "Custom temperature comfort low (°C)",
@@ -317,7 +333,8 @@
           "zone2_threshold_humidity_high": "Zone 2 humidity above house average (delta %)",
           "zone2_threshold_condensation_risk": "Zone 2 condensation risk threshold (dew-point spread °C)",
           "zone2_threshold_mould_risk": "Zone 2 mould risk threshold (level 1-3)",
-          "zone2_threshold_air_quality_bad": "Zone 2 air quality bad threshold (IAQ)"
+          "zone2_threshold_air_quality_bad": "Zone 2 air quality bad threshold (IAQ)",
+          "show_advanced_options": "Show advanced tuning"
         }
       },
       "options_presence_states": {
@@ -374,7 +391,7 @@
       },
       "options_zone_edit": {
         "title": "Edit Zone",
-        "description": "Editing {zone_label}.\n\n{boost_guidance}",
+        "description": "Editing {zone_label}. Keep the essential mapping visible; fan levels and label tuning are advanced.\n\n{advanced_note}\n\n{boost_guidance}",
         "data": {
           "enabled": "Enable zone",
           "level": "Level",
@@ -383,7 +400,8 @@
           "outputs": "Output devices",
           "output_level": "Normal fan run level (Auto/33/66/100)",
           "boost_output_level": "Boost fan run level (Auto/33/66/100) - danger/alert escalation level for this zone",
-          "ui_label": "Current Air Control label"
+          "ui_label": "Current Air Control label",
+          "show_advanced_options": "Show advanced tuning"
         }
       },
       "options_humidifiers": {
@@ -395,12 +413,13 @@
       },
       "options_humidifier_edit": {
         "title": "Edit Humidifier Lane",
-        "description": "Editing {level_label}.",
+        "description": "Editing {level_label}. Keep enablement and outputs visible. Removal and band adjustment are advanced controls.\n\n{advanced_note}",
         "data": {
           "remove_lane": "Remove this humidifier lane",
           "enabled": "Enable humidifier lane",
           "band_adjust": "Target band adjustment",
-          "outputs": "Humidifier outputs"
+          "outputs": "Humidifier outputs",
+          "show_advanced_options": "Show advanced tuning"
         }
       },
       "options_aq": {
@@ -412,7 +431,7 @@
       },
       "options_aq_edit": {
         "title": "Edit Air Quality Lane",
-        "description": "Editing {level_label}.",
+        "description": "Editing {level_label}. Keep enablement, triggers, and outputs visible. Removal, run duration, fan level, and trigger thresholds are advanced tuning.\n\n{advanced_note}",
         "data": {
           "remove_lane": "Remove this AQ lane",
           "enabled": "Enable AQ lane",
@@ -424,7 +443,8 @@
           "threshold_pm25_high": "PM2.5 high threshold",
           "threshold_voc_bad": "VOC bad threshold",
           "threshold_co2_high": "CO2 high threshold",
-          "threshold_co_warning": "CO warning threshold"
+          "threshold_co_warning": "CO warning threshold",
+          "show_advanced_options": "Show advanced tuning"
         }
       },
       "options_alerts": {
@@ -443,7 +463,7 @@
       },
       "options_alert_add": {
         "title": "Add Alert Visual Rule",
-        "description": "Configure optional visual indicators for an internally calculated HI alert. Fan boost is controlled by the affected room's mapped zone boost setting.",
+        "description": "Configure an optional visual indicator for an internally calculated HI alert. Fan boost is controlled by the affected room's mapped zone boost setting.\n\n{advanced_note}\n\nAdvanced tuning contains CO threshold, power entity, flash mode, and duration.",
         "data": {
           "enabled": "Enable visual indicator rule",
           "trigger_type": "Internal HI alert source",
@@ -452,7 +472,8 @@
           "lights": "Target lights (optional)",
           "power_entity": "Visual indicator power entity (optional)",
           "flash_mode": "Flash mode",
-          "duration": "Flash duration"
+          "duration": "Flash duration",
+          "show_advanced_options": "Show advanced tuning"
         }
       },
       "options_alert_remove": {
@@ -464,7 +485,7 @@
       },
       "options_alert_edit": {
         "title": "Edit Visual Indicator Rule",
-        "description": "Editing {alert_label}.",
+        "description": "Editing {alert_label}. Core alert source, room scope, and target lights stay visible. CO threshold, power entity, flash mode, and duration are advanced tuning.\n\n{advanced_note}",
         "data": {
           "enabled": "Enable visual indicator rule",
           "trigger_type": "Internal HI alert source",
@@ -473,17 +494,19 @@
           "lights": "Target lights (optional)",
           "power_entity": "Visual indicator power entity (optional)",
           "flash_mode": "Flash mode",
-          "duration": "Flash duration"
+          "duration": "Flash duration",
+          "show_advanced_options": "Show advanced tuning"
         }
       },
       "options_slope": {
         "title": "Temperature Slope Options",
-        "description": "Edit how HI handles temperature slope entities and the optional Air Control temperature chip row.\n\nCurrent slope configuration:\n{configured_slope}",
+        "description": "Edit how HI handles temperature slope mode. Source overrides, provided slope sensors, and the optional Air Control temperature chip row are advanced tuning.\n\n{advanced_note}\n\nCurrent slope configuration:\n{configured_slope}",
         "data": {
           "slope_mode": "Slope mode",
           "slope_sources": "Temperature sensors used as slope sources",
           "slope_sensors": "Provided slope sensor entities",
-          "show_temperature_chips": "Show temperature chip row in Air Control"
+          "show_temperature_chips": "Show temperature chip row in Air Control",
+          "show_advanced_options": "Show advanced tuning"
         }
       }
     },

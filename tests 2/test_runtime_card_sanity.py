@@ -1724,6 +1724,37 @@ async def _run_card_assertions(register_mod) -> None:
     assert not _has_invalid_conditional_block(tablet)
 
 
+async def _run_output_detail_visibility_assertions(register_mod) -> None:
+    sys.modules["homeassistant.helpers.entity_registry"].async_get = lambda hass: _FakeRegistry()
+
+    hidden_data = _base_entry_data()
+    hidden_data["show_output_entity_details"] = False
+    hidden_entry = SimpleNamespace(entry_id=ENTRY_ID, data=hidden_data, options={})
+    hidden_hass = _FakeHass(hidden_entry, {})
+    hidden_mapping = await register_mod.async_build_entity_mapping(hidden_hass, ENTRY_ID)
+    hidden_cards = await register_mod.async_register_cards(hidden_hass, ENTRY_ID, hidden_mapping)
+
+    for card in (hidden_cards.get("v2_mobile", ""), hidden_cards.get("v2_tablet", "")):
+        assert "name: Outputs" not in card
+        assert "entity: switch.hi_input_air_control_output_expanded" not in card
+        assert "entity: input_boolean.air_control_output_expanded" not in card
+        assert "hi:output-details" not in card
+        assert not _has_empty_cards_block(card)
+        assert not _has_invalid_conditional_block(card)
+
+    shown_data = _base_entry_data()
+    shown_data["show_output_entity_details"] = True
+    shown_entry = SimpleNamespace(entry_id=ENTRY_ID, data=shown_data, options={})
+    shown_hass = _FakeHass(shown_entry, {})
+    shown_mapping = await register_mod.async_build_entity_mapping(shown_hass, ENTRY_ID)
+    shown_cards = await register_mod.async_register_cards(shown_hass, ENTRY_ID, shown_mapping)
+
+    for card in (shown_cards.get("v2_mobile", ""), shown_cards.get("v2_tablet", "")):
+        assert "name: Outputs" in card
+        assert "air_control_output_expanded" in card
+        assert "hi:output-details" not in card
+
+
 async def _run_alert_only_card_assertions(register_mod) -> None:
     sys.modules["homeassistant.helpers.entity_registry"].async_get = lambda hass: _FakeRegistry()
 
@@ -1768,6 +1799,11 @@ def test_runtime_lane_order_and_service_simulation():
 def test_card_render_sanity_and_placeholder_resolution():
     _, register_mod = _load_target_modules()
     asyncio.run(_run_card_assertions(register_mod))
+
+
+def test_output_detail_visibility_option_prunes_v2_cards():
+    _, register_mod = _load_target_modules()
+    asyncio.run(_run_output_detail_visibility_assertions(register_mod))
 
 
 def test_card_render_hides_controls_in_alert_only_mode():
@@ -1885,13 +1921,26 @@ def test_startup_ui_refresh_contract_is_wired():
     assert "STARTUP_UI_REFRESH_DELAY_SECONDS" in init_source
     assert "blocking=True" in init_source
     assert "auto_refresh_ui_on_startup" in const_source
+    assert "show_output_entity_details" in const_source
     assert "CONF_AUTO_REFRESH_UI_ON_STARTUP" in config_source
     assert "DEFAULT_AUTO_REFRESH_UI_ON_STARTUP" in config_source
+    assert "CONF_SHOW_OUTPUT_ENTITY_DETAILS" in config_source
+    assert "DEFAULT_SHOW_OUTPUT_ENTITY_DETAILS" in config_source
+    assert "ADVANCED_OPTIONS_FIELD" in config_source
+    assert "show_advanced_options" in config_source
+    assert '"show_advanced_options": "Show advanced tuning"' in strings_source
+    assert "show_output_entity_details" in strings_source
+    assert "Show output entity details" in strings_source
+    assert "['v2_tablet']" in config_source or 'default=["v2_tablet"]' in config_source
     assert "async_step_options_thresholds" in config_source
     assert "zone1_threshold_humidity_high" in strings_source
     assert "temperature_comfort_mode" in strings_source
     assert "auto_refresh_ui_on_startup" in strings_source
+    assert "recommended defaults" in config_source
+    assert "recommended thresholds" in strings_source
     assert "automatically shortly after Home Assistant startup" in services_source
+    assert "_entry_show_output_entity_details" in init_source
+    assert "output entity details" in init_source
 
 
 def test_alert_configuration_contract_uses_internal_sources():
@@ -1965,3 +2014,14 @@ def test_level_average_ignores_unknown_unavailable_and_non_numeric_states():
 
     engine = engine_mod.HIAutomationEngine(hass, entry)
     assert engine._level_avg("iaq", "level1") == 57.2
+
+
+if __name__ == "__main__":
+    tests = [
+        (name, value)
+        for name, value in sorted(globals().items())
+        if name.startswith("test_") and callable(value)
+    ]
+    for name, test in tests:
+        test()
+    print(f"{len(tests)} direct sanity checks passed.")

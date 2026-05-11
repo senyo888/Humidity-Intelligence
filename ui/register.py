@@ -15,7 +15,11 @@ from typing import Any, Dict, List
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
-from ..const import DOMAIN
+from ..const import (
+    CONF_SHOW_OUTPUT_ENTITY_DETAILS,
+    DEFAULT_SHOW_OUTPUT_ENTITY_DETAILS,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -345,6 +349,8 @@ async def async_register_cards(hass: HomeAssistant, entry_id: str, mapping: Dict
         "v1_mobile": base_path / "v1_mobile.yaml",
         "view_cards_button": base_path / "view_cards_button.yaml",
     }
+    entry = hass.config_entries.async_get_entry(entry_id)
+    show_output_details = _entry_show_output_entity_details(entry)
     cards: Dict[str, str] = {}
     unresolved = list(
         (hass.data.get(DOMAIN, {}).get(entry_id, {}) or {}).get("unresolved_placeholders", [])
@@ -356,6 +362,12 @@ async def async_register_cards(hass: HomeAssistant, entry_id: str, mapping: Dict
         except Exception as exc:
             _LOGGER.error("Unable to read template %s: %s", path, exc)
             continue
+        if name in {"v2_mobile", "v2_tablet"}:
+            content = _apply_marked_yaml_section(
+                content,
+                "hi:output-details",
+                keep=show_output_details,
+            )
         # Replace placeholders safely (avoid partial matches like binary_sensor.*)
         for placeholder, entity_id in mapping.items():
             if not entity_id:
@@ -395,6 +407,44 @@ async def async_register_cards(hass: HomeAssistant, entry_id: str, mapping: Dict
     hass.data.setdefault(DOMAIN, {}).setdefault(entry_id, {})
     hass.data[DOMAIN][entry_id]["unresolved_placeholders_by_card"] = unresolved_by_card
     return cards
+
+
+def _apply_marked_yaml_section(content: str, marker: str, *, keep: bool) -> str:
+    """Drop or keep a marked YAML section while stripping marker comments."""
+    start = f"# {marker}:start"
+    end = f"# {marker}:end"
+    lines = content.splitlines()
+    out: List[str] = []
+    in_marked_section = False
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped == start:
+            in_marked_section = True
+            continue
+        if stripped == end:
+            in_marked_section = False
+            continue
+        if in_marked_section and not keep:
+            continue
+        out.append(line)
+
+    result = "\n".join(out)
+    if content.endswith("\n"):
+        result += "\n"
+    return result
+
+
+def _entry_show_output_entity_details(entry: Any) -> bool:
+    if entry is None:
+        return DEFAULT_SHOW_OUTPUT_ENTITY_DETAILS
+    options = getattr(entry, "options", None) or {}
+    if CONF_SHOW_OUTPUT_ENTITY_DETAILS in options:
+        return bool(options.get(CONF_SHOW_OUTPUT_ENTITY_DETAILS))
+    data = getattr(entry, "data", None) or {}
+    if CONF_SHOW_OUTPUT_ENTITY_DETAILS in data:
+        return bool(data.get(CONF_SHOW_OUTPUT_ENTITY_DETAILS))
+    return True
 
 
 def _is_optional_placeholder(placeholder: str) -> bool:

@@ -107,6 +107,12 @@ Temperature chips:
 - use blue below band, green in band, yellow up to `1°C` above band, red above that
 - show room slope chips only for configured temperature slope sources or provided slope sensors
 
+Output details:
+
+- render the expandable output details panel only when `show_output_entity_details` is enabled
+- stay display-only; the option must not affect lane selection, output writes, isolation switches, or diagnostics
+- require a fresh `humidity_intelligence.dump_cards` export after changing visibility
+
 ---
 
 ## Placeholder Mapping Model

@@ -6,8 +6,16 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+## 2.0.5
+
+- Reorganised setup and options so essentials stay visible while tuning controls move behind Advanced sections.
+- Added recommended-default guidance across setup/options without changing deterministic runtime behavior.
+- Added `show_output_entity_details` as a UI-only generated-card option; new installs default to the cleaner V2 output display unless it is enabled.
+- Made `Thresholds & Comfort` easier to scan by keeping comfort mode visible and moving custom comfort/threshold tuning into Advanced.
+- Changed first-install UI export default to `v2_tablet`.
 - Fixed visual alert flashing so indicator lights are explicitly restored to their initial on/off state after the 10-flash sequence.
 - Serialized visual alert flashing per light to avoid overlapping restore races.
+- Bumped integration version to `2.0.5`.
 
 ## 2.0.4
 

@@ -18,6 +18,8 @@
 - [Why Environmental Stability Matters](#why-environmental-stability-matters)
 - [Season-Aware Environmental Control](#season-aware-environmental-control)
 - [Architecture Overview](#architecture-overview)
+- [v2.0.5 Highlights](#v205-highlights)
+- [v2.0.4 Highlights](#v204-highlights)
 - [Installation](#installation)
 - [Frontend Dependencies](#frontend-dependencies)
 - [Migration Guide - v1 to v2](#migration-guide---v1-to-v2)
@@ -245,6 +247,21 @@ The UI reflects runtime truth:
 The UI does not compute logic.
 The engine decides.
 The UI renders.
+
+---
+
+## v2.0.5 Highlights
+
+- setup and options now present essentials first, with tuning controls behind Advanced sections
+- HI applies recommended defaults unless you customise them
+- control loop interval, startup UI mapping refresh, custom humidity targets, custom temperature comfort values, slope sources, fan levels, and threshold tuning remain available as advanced controls
+- new installs default the generated V2 dashboard to a cleaner output display
+- `Show output entity details` can re-enable the expandable output details panel when deeper runtime inspection is useful
+- `v2_tablet` is selected by default during UI export; additional layouts remain available through setup and `dump_cards`
+- deterministic runtime lane ordering, alert hierarchy, CO emergency behavior, humidifier independence, entity names, and `dump_cards` remain unchanged
+
+Upgrade note: **v2.0.5 is a configuration UX reorganisation release, not a runtime feature release.**
+After changing UI visibility options, run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual cards.
 
 ---
 
@@ -479,8 +496,9 @@ What to do:
 - set time gate window (optional)
 - select presence/alarm entities (optional)
 - define explicit present and away state values
-- set Humidity Intelligence target profile mode and Humidity custom target band when not using seasonal auto mode
-- temperature comfort is tuned later in `Thresholds & Comfort` when post-config adjustments are needed
+- set Humidity Intelligence target profile mode
+- leave recommended defaults in place unless you have a clear reason to customise
+- open Advanced only for control loop interval, startup UI mapping refresh, custom humidity targets, custom temperature comfort limits, or output entity details
 
 Example baseline:
 - time gate enabled: `06:00` to `23:30`
@@ -488,6 +506,8 @@ Example baseline:
 - presence entities: `person.adam`, `person.eve`, or alarm panel
 - present states: `home`, `on`, `disarmed`
 - away states: `not_home`, `off`, `armed_away`, `away`
+- target profile mode: `auto`
+- output entity details: off for a cleaner dashboard unless you want the expandable output panel
 
 Example:
 - if everyone is away, HI enters gate hold
@@ -521,15 +541,15 @@ Example row:
 ### 4) Temperature Slope Mode
 
 What to do:
-- choose external slope sensors or HI-generated slope
-- optionally enable the Air Control temperature chip row
-- configure temperature comfort in Global Gates before relying on comfort colours
+- choose whether HI calculates slope automatically or uses provided slope sensors
+- open Advanced only for slope source overrides, provided slope sensors, or the optional Air Control temperature chip row
+- use `Thresholds & Comfort` after setup for post-configuration temperature comfort adjustments
 
 Suggested baseline:
 - use HI-generated slope if you do not already publish stable slope entities
 - use external slope entities only when they are already validated
-- leave the temperature chip row disabled unless you want temperature and slope telemetry shown under Current Air Control
 - use automatic temperature comfort unless your household has a fixed comfort policy
+- leave the temperature chip row disabled unless you want temperature and slope telemetry shown under Current Air Control
 
 Example (external):
 - `sensor.kitchen_temp_slope`
@@ -544,9 +564,9 @@ Example (HI-generated):
 What to do:
 - assign each zone to a level and room set
 - configure output entities
-- choose triggers and thresholds
-- set normal output stage, boost output stage, and UI label
-- tune post-config zone thresholds for humidity delta, air quality, condensation risk, and mould risk
+- choose triggers
+- use recommended thresholds first; tune later from `Thresholds & Comfort` if observed behaviour needs adjustment
+- open Advanced for normal output stage, boost output stage, and Current Air Control label
 - keep boost higher than the normal zone fan level where possible
 
 Example baseline:
@@ -571,6 +591,7 @@ Example:
 What to do:
 - configure per-level humidifier outputs
 - confirm on/off behavior against target band
+- open Advanced only when you need a target band adjustment
 
 Suggested baseline:
 - enable humidifier lanes only on levels with real humidifier hardware
@@ -586,8 +607,8 @@ Example:
 
 What to do:
 - enable AQ per level if AQ telemetry is present
-- assign outputs and run duration
-- set safe AQ thresholds
+- assign triggers and outputs
+- open Advanced for run duration, fan level, and per-trigger thresholds
 
 Suggested baseline:
 - AQ output level: `66`
@@ -605,7 +626,8 @@ Example:
 What to do:
 - enable or disable HI-calculated humidity, mould, and condensation alert handling
 - add, edit, or remove optional alert visual rules for internally calculated alert sources
-- configure CO emergency thresholds; CO uses configured CO telemetry and existing ventilation outputs
+- open Advanced on a visual rule for CO threshold, flash mode, duration, or power entity
+- CO uses configured CO telemetry and existing ventilation outputs
 - set zone boost levels in the Zone pages because alert boost is zone-bound
 
 Suggested baseline:
@@ -638,9 +660,9 @@ What to do:
 
 
 Suggested baseline:
-- start with one dashboard layout (`v2_mobile` or `v2_tablet`)
+- start with the default `v2_tablet` layout, then add mobile if needed
 - verify Current Air Control, chips, and outputs
-- re-run `humidity_intelligence.dump_cards` after changing the optional temperature chip row
+- re-run `humidity_intelligence.dump_cards` after changing the optional temperature chip row or output entity details option
 - then add second layout if needed
 
 Service options:
@@ -763,11 +785,18 @@ When modifying options:
 Post-config sensor/lane management:
 
 1. use `Sensors` to add, edit, or delete any telemetry row (humidity, temperature, IAQ, PM2.5, VOC, CO2, CO)
-2. use `Global Gates` to edit humidity target profile, custom humidity band, time gate, and presence gate
-3. use `Thresholds & Comfort` to edit per-zone humidity high, AQ, condensation risk, mould risk thresholds, and temperature comfort bands
-4. use `Humidifiers` to add/edit/remove humidifier lanes per level and update output entities
-5. use `Air Quality` to add/edit/remove AQ lanes per level and update triggers/outputs
+2. use `Global Gates` to edit time gate, presence gate, alert-only mode, and target profile; open Advanced for control loop interval, startup UI mapping refresh, custom humidity band, and output entity details
+3. use `Thresholds & Comfort` to review temperature comfort mode; open Advanced for custom comfort values and per-zone humidity high, AQ, condensation risk, and mould risk thresholds
+4. use `Humidifiers` to add or edit humidifier lanes per level and update output entities; open Advanced for lane removal or band adjustment
+5. use `Air Quality` to add or edit AQ lanes per level and update triggers/outputs; open Advanced for lane removal, run duration, fan level, and AQ thresholds
 6. lane selections marked as `not configured - select to add` can be used to create missing lanes later without reinstalling
+
+UI visibility options:
+
+1. keep `Show output entity details` off for the cleaner default V2 display
+2. enable it only when you want the expandable output details panel for deeper troubleshooting
+3. after changing it, run `humidity_intelligence.dump_cards`
+4. paste the refreshed YAML into existing Manual card(s)
 
 Alert-only toggle workflow:
 
@@ -919,6 +948,18 @@ Safety guidance:
 ---
 
 ## Release Notes
+
+### v2.0.5
+
+- reorganised setup and options around essentials first, with tuning controls behind Advanced sections
+- added recommended-default guidance to setup and post-configuration pages
+- kept control loop interval, startup UI mapping refresh, custom humidity targets, slope source selection, temperature chips, fan levels, thresholds, lane removal, and alert visual tuning available as advanced controls
+- made `Thresholds & Comfort` easier to scan by keeping temperature comfort mode visible and moving custom comfort values plus zone thresholds into Advanced
+- added `show_output_entity_details` / `Show output entity details` as a UI-only option for generated V2 cards
+- defaulted new generated V2 cards to hide the expandable output details panel unless the option is enabled
+- changed first-install UI export default to `v2_tablet`
+- kept deterministic runtime behavior, lane ordering, alert hierarchy, CO emergency handling, humidifier independence, public entity semantics, and `dump_cards` unchanged
+- bumped integration version to `2.0.5`
 
 ### v2.0.4
 
