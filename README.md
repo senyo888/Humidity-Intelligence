@@ -252,7 +252,7 @@ The UI renders.
 
 ## v2.0.5 Highlights
 
-- setup and options now present essentials first, with tuning controls behind Advanced sections
+- setup and options now present essentials first, with tuning controls behind Advanced sections that open/retract immediately in the form
 - HI applies recommended defaults unless you customise them
 - control loop interval, startup UI mapping refresh, custom humidity targets, custom temperature comfort values, slope sources, fan levels, and threshold tuning remain available as advanced controls
 - new installs default the generated V2 dashboard to a cleaner output display
@@ -498,7 +498,7 @@ What to do:
 - define explicit present and away state values
 - set Humidity Intelligence target profile mode
 - leave recommended defaults in place unless you have a clear reason to customise
-- open Advanced only for control loop interval, startup UI mapping refresh, custom humidity targets, custom temperature comfort limits, or output entity details
+- open Advanced in-place only for control loop interval, startup UI mapping refresh, custom humidity targets, custom temperature comfort limits, or output entity details
 
 Example baseline:
 - time gate enabled: `06:00` to `23:30`
@@ -968,7 +968,7 @@ Safety guidance:
 
 ### v2.0.5
 
-- reorganised setup and options around essentials first, with tuning controls behind Advanced sections
+- reorganised setup and options around essentials first, with tuning controls behind Advanced sections that open/retract immediately without an extra Submit cycle
 - added recommended-default guidance to setup and post-configuration pages
 - kept control loop interval, startup UI mapping refresh, custom humidity targets, slope source selection, temperature chips, fan levels, thresholds, lane removal, and alert visual tuning available as advanced controls
 - made `Thresholds & Comfort` easier to scan by keeping temperature comfort mode visible and moving custom comfort values plus zone thresholds into Advanced

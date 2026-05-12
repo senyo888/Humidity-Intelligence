@@ -9,6 +9,7 @@ This project follows a practical changelog format for Home Assistant and HACS us
 ## 2.0.5
 
 - Reorganised setup and options so essentials stay visible while tuning controls move behind Advanced sections.
+- Changed Advanced tuning from submit-gated reveal toggles to in-form collapsible sections so tuning controls open and retract immediately without changing saved runtime behavior.
 - Added recommended-default guidance across setup/options without changing deterministic runtime behavior.
 - Added `show_output_entity_details` as a UI-only generated-card option; new installs default to the cleaner V2 output display unless it is enabled.
 - Made `Thresholds & Comfort` easier to scan by keeping comfort mode visible and moving custom comfort/threshold tuning into Advanced.

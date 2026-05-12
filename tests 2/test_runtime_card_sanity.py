@@ -2026,14 +2026,15 @@ def test_options_gates_keeps_custom_targets_behind_advanced():
     method_source = config_source.split("async def async_step_options_gates", 1)[1].split(
         "async def async_step_options_presence_states", 1
     )[0]
-    visible_schema_source = method_source.split("if gates_advanced:", 1)[0]
-    advanced_schema_source = method_source.split("if gates_advanced:", 1)[1]
+    schema_source = method_source.split("schema_fields: Dict[Any, Any]", 1)[1]
+    visible_schema_source = schema_source.split("vol.Optional(ADVANCED_OPTIONS_FIELD", 1)[0]
+    advanced_schema_source = schema_source.split("vol.Optional(ADVANCED_OPTIONS_FIELD", 1)[1]
 
     assert 'vol.Optional("target_profile"' in visible_schema_source
-    assert 'vol.Optional("custom_target_low"' not in visible_schema_source
-    assert 'vol.Optional("custom_target_high"' not in visible_schema_source
-    assert 'vol.Optional("custom_target_low"' in advanced_schema_source
-    assert 'vol.Optional("custom_target_high"' in advanced_schema_source
+    assert '"custom_target_low"' not in visible_schema_source
+    assert '"custom_target_high"' not in visible_schema_source
+    assert '"custom_target_low"' in advanced_schema_source
+    assert '"custom_target_high"' in advanced_schema_source
 
 
 def test_options_thresholds_only_persists_real_zone_configs():
@@ -2048,28 +2049,46 @@ def test_options_thresholds_only_persists_real_zone_configs():
     assert "zone[\"thresholds\"] = thresholds" in method_source
 
 
-def test_advanced_reveal_remembers_submitted_visible_values():
+def test_advanced_tuning_uses_collapsible_sections_not_submit_reveal():
     config_source = (ROOT / "config_flow.py").read_text()
 
-    assert "_remember_advanced_input" in config_source
-    for step_id in (
-        '"gates"',
-        '"slope"',
-        "zone_key",
-        '"zone_thresholds"',
-        "step_key",
-        '"aq_thresholds"',
-        '"alert_add"',
-        '"options_gates"',
-        '"options_thresholds"',
-        '"options_zone_edit"',
-        '"options_humidifier_edit"',
-        '"options_aq_edit"',
-        '"options_alert_add"',
-        '"options_alert_edit"',
-        '"options_slope"',
-    ):
-        assert f"_remember_advanced_input(self._advanced_inputs, {step_id}, user_input)" in config_source
+    assert "from homeassistant.data_entry_flow import section" in config_source
+    assert "def _advanced_section(" in config_source
+    assert "section(vol.Schema(fields), {\"collapsed\": True})" in config_source
+    assert "_flatten_advanced_section_input(user_input)" in config_source
+    assert "_should_reveal_advanced" not in config_source
+    assert "_advanced_toggle" not in config_source
+    assert "self._advanced_visible" not in config_source
+    assert "self._advanced_inputs" not in config_source
+    assert 'slope_sources = user_input.get("slope_sources", temp_entities)' in config_source
+    assert 'slope_sources = _sanitize_entity_ids(user_input.get("slope_sources", default_sources))' in config_source
+    assert '"run_duration": user_input.get("run_duration", existing.get("run_duration", 30))' in config_source
+
+    advanced_steps = (
+        "async_step_gates",
+        "async_step_slope",
+        "_async_step_zone_config",
+        "async_step_zone_thresholds",
+        "_async_step_humidifier",
+        "_async_step_aq",
+        "async_step_aq_thresholds",
+        "async_step_alert_add",
+        "async_step_options_gates",
+        "async_step_options_thresholds",
+        "async_step_options_zone_edit",
+        "async_step_options_humidifier_edit",
+        "async_step_options_aq_edit",
+        "async_step_options_alert_add",
+        "async_step_options_alert_edit",
+        "async_step_options_slope",
+    )
+    for step_name in advanced_steps:
+        method_source = config_source.split(f"async def {step_name}", 1)[1].split(
+            "\n    async def ",
+            1,
+        )[0]
+        assert "user_input = _flatten_advanced_section_input(user_input)" in method_source
+        assert "_advanced_section(" in method_source
 
 
 def test_readme_uses_manifest_version_badge_not_static_ha_compatibility_badge():
