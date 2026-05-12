@@ -72,6 +72,25 @@ self_check:
       description: Optional config entry ID to check; omit to check all
       selector:
         text: {}
+v205_release_check:
+  name: v2.0.5 Release Check
+  description: Run a read-only v2.0.5 validation report for generated-card visibility, dump_cards scope behavior, cached layouts, unresolved placeholders, frontend dependency status, and configured entity availability.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to check; omit to check all
+      selector:
+        text: {}
+    filename:
+      name: Filename
+      description: Output filename in the HA config folder (defaults to humidity_intelligence_v205_release_check.json)
+      selector:
+        text: {}
+    write_test_exports:
+      name: Write test card exports
+      description: When enabled, writes test card export files to verify unscoped dump_cards exports all layouts and scoped layout exports only v2_tablet. No devices or runtime outputs are changed.
+      selector:
+        boolean: {}
 dump_cards:
   name: Dump Cards
   description: Write rendered card YAML to the Home Assistant config folder. Without layout, all cached layouts are exported; with layout, only that layout is exported.

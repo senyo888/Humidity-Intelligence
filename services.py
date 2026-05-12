@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import re
@@ -15,7 +16,7 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 
-from .const import DOMAIN
+from .const import CONF_SHOW_OUTPUT_ENTITY_DETAILS, DEFAULT_SHOW_OUTPUT_ENTITY_DETAILS, DOMAIN
 from .helpers.cleanup import list_all_generated_files, list_generated_files, remove_files, remove_dashboard
 from .helpers.seasonal import resolve_target_profile
 from .helpers.zone_validation import detect_zone_mapping_duplicates, summarize_zone_mapping_duplicates
@@ -26,6 +27,7 @@ SERVICE_FLASH_LIGHTS = "flash_lights"
 SERVICE_REFRESH_UI = "refresh_ui"
 SERVICE_DUMP_DIAGNOSTICS = "dump_diagnostics"
 SERVICE_SELF_CHECK = "self_check"
+SERVICE_V205_RELEASE_CHECK = "v205_release_check"
 SERVICE_DUMP_CARDS = "dump_cards"
 SERVICE_CREATE_DASHBOARD = "create_dashboard"
 SERVICE_VIEW_CARDS = "view_cards"
@@ -124,6 +126,18 @@ def _validate_rgb_color(value) -> List[int]:
     return values[:3]
 
 
+def _validate_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"true", "yes", "on", "1"}:
+            return True
+        if lowered in {"false", "no", "off", "0"}:
+            return False
+    raise vol.Invalid("Expected a boolean value")
+
+
 SERVICE_FLASH_SCHEMA = vol.Schema({
     vol.Optional("power_entity"): cv.entity_id,
     vol.Optional("lights", default=[]): cv.entity_ids,
@@ -143,6 +157,11 @@ SERVICE_DUMP_SCHEMA = vol.Schema({
 })
 SERVICE_SELF_CHECK_SCHEMA = vol.Schema({
     vol.Optional("entry_id"): cv.string,
+})
+SERVICE_V205_RELEASE_CHECK_SCHEMA = vol.Schema({
+    vol.Optional("entry_id"): cv.string,
+    vol.Optional("filename", default="humidity_intelligence_v205_release_check.json"): _validate_safe_filename,
+    vol.Optional("write_test_exports", default=False): _validate_bool,
 })
 SERVICE_DUMP_CARDS_SCHEMA = vol.Schema({
     vol.Optional("entry_id"): cv.string,
@@ -324,6 +343,88 @@ async def async_register_services(hass: HomeAssistant) -> None:
 
     hass.services.async_register(DOMAIN, SERVICE_SELF_CHECK, handle_self_check, schema=SERVICE_SELF_CHECK_SCHEMA)
 
+    async def handle_v205_release_check(call: ServiceCall) -> None:
+        from .ui.register import async_build_entity_mapping, async_register_cards
+
+        entry_id = call.data.get("entry_id")
+        filename = call.data.get("filename", "humidity_intelligence_v205_release_check.json")
+        write_test_exports = bool(call.data.get("write_test_exports", False))
+        entries = []
+        if entry_id:
+            entry = hass.config_entries.async_get_entry(entry_id)
+            if entry:
+                entries = [entry]
+        else:
+            entries = hass.config_entries.async_entries(DOMAIN)
+
+        manifest_version = await _async_read_manifest_version(hass)
+        report: Dict[str, Any] = {
+            "check": SERVICE_V205_RELEASE_CHECK,
+            "status": "pass",
+            "entries": {},
+        }
+
+        if not entries:
+            report["status"] = "fail"
+            report["entries"] = {}
+            report["checks"] = [
+                {
+                    "id": "config_entry",
+                    "status": "fail",
+                    "message": "No Humidity Intelligence config entry was found.",
+                }
+            ]
+        else:
+            entry_reports = []
+            for entry in entries:
+                mapping = await async_build_entity_mapping(hass, entry.entry_id)
+                cards = await async_register_cards(hass, entry.entry_id, mapping=mapping)
+                domain_data = hass.data.setdefault(DOMAIN, {}).setdefault(entry.entry_id, {})
+                domain_data["entity_map"] = mapping
+                domain_data["cards"] = cards
+
+                unscoped_written: List[str] = []
+                scoped_written: List[str] = []
+                if write_test_exports:
+                    slug = _safe_report_slug(entry.entry_id)
+                    base = f"humidity_intelligence_v205_release_check_cards_{slug}" if len(entries) > 1 else "humidity_intelligence_v205_release_check_cards"
+                    scoped_base = f"{base}_scoped"
+                    unscoped_written = await _dump_cards_to_file(hass, entry.entry_id, base, layout=None)
+                    scoped_written = await _dump_cards_to_file(hass, entry.entry_id, scoped_base, layout="v2_tablet")
+
+                entry_report = _build_v205_release_check_entry_report(
+                    hass,
+                    entry,
+                    domain_data,
+                    manifest_version=manifest_version,
+                    write_test_exports=write_test_exports,
+                    unscoped_written=unscoped_written,
+                    scoped_written=scoped_written,
+                )
+                report["entries"][entry.entry_id] = entry_report
+                entry_reports.append(entry_report)
+
+            report["status"] = _combined_check_status(entry_reports)
+
+        path = hass.config.path(filename)
+        await hass.async_add_executor_job(_write_json, path, report)
+        await hass.services.async_call(
+            "persistent_notification",
+            "create",
+            {
+                "title": "Humidity Intelligence v2.0.5 Release Check",
+                "message": f"{report['status'].upper()}: report written to /config/{filename}",
+            },
+            blocking=False,
+        )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_V205_RELEASE_CHECK,
+        handle_v205_release_check,
+        schema=SERVICE_V205_RELEASE_CHECK_SCHEMA,
+    )
+
     async def handle_dump_cards(call: ServiceCall) -> None:
         entry_id = call.data.get("entry_id")
         filename = call.data.get("filename")
@@ -503,6 +604,8 @@ async def async_unregister_services(hass: HomeAssistant) -> None:
         hass.services.async_remove(DOMAIN, SERVICE_DUMP_DIAGNOSTICS)
     if hass.services.has_service(DOMAIN, SERVICE_SELF_CHECK):
         hass.services.async_remove(DOMAIN, SERVICE_SELF_CHECK)
+    if hass.services.has_service(DOMAIN, SERVICE_V205_RELEASE_CHECK):
+        hass.services.async_remove(DOMAIN, SERVICE_V205_RELEASE_CHECK)
     if hass.services.has_service(DOMAIN, SERVICE_DUMP_CARDS):
         hass.services.async_remove(DOMAIN, SERVICE_DUMP_CARDS)
     if hass.services.has_service(DOMAIN, SERVICE_CREATE_DASHBOARD):
@@ -539,6 +642,21 @@ def _write_text(path: str, payload: str) -> None:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(payload)
+
+
+async def _async_read_manifest_version(hass: HomeAssistant) -> Optional[str]:
+    def _read_version() -> Optional[str]:
+        path = os.path.join(os.path.dirname(__file__), "manifest.json")
+        with open(path, "r", encoding="utf-8") as manifest:
+            data = json.load(manifest)
+        version = data.get("version")
+        return str(version) if version is not None else None
+
+    try:
+        return await hass.async_add_executor_job(_read_version)
+    except Exception:
+        _LOGGER.exception("Unable to read Humidity Intelligence manifest version")
+        return None
 
 
 def _to_jsonable(value):
@@ -625,6 +743,208 @@ def _build_diagnostics_summary(
         "unavailable_or_unknown_entities": unavailable,
         "warnings": warnings,
     })
+
+
+def _build_v205_release_check_entry_report(
+    hass: HomeAssistant,
+    entry: Any,
+    runtime_data: dict,
+    *,
+    manifest_version: Optional[str],
+    write_test_exports: bool = False,
+    unscoped_written: Optional[List[str]] = None,
+    scoped_written: Optional[List[str]] = None,
+) -> dict:
+    """Build a truth-only v2.0.5 release-validation report for one entry."""
+    cards = runtime_data.get("cards", {}) or {}
+    entity_map = runtime_data.get("entity_map", {}) or {}
+    effective = _effective_entry_config(entry)
+    checks: List[Dict[str, Any]] = []
+
+    _add_check(
+        checks,
+        "manifest_version",
+        "pass" if manifest_version == "2.0.5" else "fail",
+        f"Manifest version is {manifest_version or 'unknown'}; expected 2.0.5.",
+    )
+
+    show_output_details = bool(
+        effective.get(CONF_SHOW_OUTPUT_ENTITY_DETAILS, DEFAULT_SHOW_OUTPUT_ENTITY_DETAILS)
+    )
+    _add_check(
+        checks,
+        "show_output_entity_details_option",
+        "pass",
+        "show_output_entity_details resolved as a generated-card visibility option.",
+        {
+            "configured": CONF_SHOW_OUTPUT_ENTITY_DETAILS in effective,
+            "resolved_value": show_output_details,
+        },
+    )
+
+    required_layouts = {"v2_mobile", "v2_tablet", "v1_mobile", "view_cards_button"}
+    cached_layouts = set(cards)
+    missing_layouts = sorted(required_layouts - cached_layouts)
+    _add_check(
+        checks,
+        "cached_layouts",
+        "pass" if not missing_layouts else "fail",
+        "All expected generated card layouts are cached." if not missing_layouts else "Generated card layout cache is incomplete.",
+        {"cached_layouts": sorted(cached_layouts), "missing_layouts": missing_layouts},
+    )
+
+    visibility_failures = _output_details_visibility_failures(cards, show_output_details)
+    _add_check(
+        checks,
+        "output_details_visibility",
+        "pass" if not visibility_failures else "fail",
+        "Generated V2 output details visibility matches show_output_entity_details.",
+        {"show_output_entity_details": show_output_details, "failures": visibility_failures},
+    )
+
+    unresolved = runtime_data.get("unresolved_placeholders_by_card") or {}
+    if not unresolved:
+        unresolved = runtime_data.get("unresolved_placeholders") or []
+    _add_check(
+        checks,
+        "unresolved_placeholders",
+        "pass" if not unresolved else "fail",
+        "No unresolved placeholders are recorded for generated cards." if not unresolved else "Generated cards have unresolved placeholders.",
+        {"unresolved": unresolved},
+    )
+
+    card_sanity_failures = _generated_card_text_sanity_failures(cards)
+    _add_check(
+        checks,
+        "generated_cards_text_sanity",
+        "pass" if not card_sanity_failures else "fail",
+        "Generated card YAML text has no obvious empty containers, invalid conditionals, or leftover HI markers.",
+        {"failures": card_sanity_failures},
+    )
+
+    if write_test_exports:
+        unscoped_layouts = _layouts_from_written_paths(unscoped_written or [])
+        scoped_layouts = _layouts_from_written_paths(scoped_written or [])
+        _add_check(
+            checks,
+            "dump_cards_unscoped_export_all",
+            "pass" if required_layouts <= unscoped_layouts else "fail",
+            "Unscoped dump_cards exported every cached/generated layout.",
+            {"written": list(unscoped_written or []), "layouts": sorted(unscoped_layouts)},
+        )
+        _add_check(
+            checks,
+            "dump_cards_scoped_export_single_layout",
+            "pass" if scoped_layouts == {"v2_tablet"} else "fail",
+            "Scoped dump_cards exported only the selected v2_tablet layout.",
+            {"written": list(scoped_written or []), "layouts": sorted(scoped_layouts)},
+        )
+    else:
+        _add_check(
+            checks,
+            "dump_cards_export_contract",
+            "skip",
+            "Set write_test_exports: true to write test card exports and verify scoped/unscoped dump_cards behavior in Home Assistant.",
+        )
+
+    frontend_dependencies = _frontend_dependency_status(hass)
+    _add_check(
+        checks,
+        "frontend_dependencies_reported",
+        "pass",
+        "Optional frontend dependency resource status was reported without blocking backend validation.",
+        frontend_dependencies,
+    )
+
+    unavailable = _unavailable_configured_entities(hass, effective, entity_map)
+    _add_check(
+        checks,
+        "configured_entity_availability",
+        "pass" if not unavailable else "warn",
+        "All configured/mapped entity references are currently available." if not unavailable else "Some configured/mapped entity references are missing, unknown, or unavailable.",
+        {"unavailable_or_unknown_entities": unavailable},
+    )
+
+    return {
+        "status": _combined_check_status([{"status": check["status"]} for check in checks]),
+        "entry_id": getattr(entry, "entry_id", None),
+        "checks": checks,
+    }
+
+
+def _effective_entry_config(entry: Any) -> dict:
+    effective = dict(getattr(entry, "data", None) or {})
+    effective.update(dict(getattr(entry, "options", None) or {}))
+    return effective
+
+
+def _add_check(
+    checks: List[Dict[str, Any]],
+    check_id: str,
+    status: str,
+    message: str,
+    details: Optional[Any] = None,
+) -> None:
+    row: Dict[str, Any] = {"id": check_id, "status": status, "message": message}
+    if details is not None:
+        row["details"] = _to_jsonable(details)
+    checks.append(row)
+
+
+def _combined_check_status(items: List[dict]) -> str:
+    statuses = [item.get("status") for item in items]
+    if any(status == "fail" for status in statuses):
+        return "fail"
+    if any(status == "warn" for status in statuses):
+        return "warn"
+    return "pass"
+
+
+def _output_details_visibility_failures(cards: dict, show_output_details: bool) -> List[str]:
+    failures: List[str] = []
+    for layout in ("v2_mobile", "v2_tablet"):
+        card = str(cards.get(layout, ""))
+        has_output_panel = "name: Outputs" in card or "entity: input_boolean.air_control_output_expanded" in card or "entity: switch.hi_input_air_control_output_expanded" in card
+        if show_output_details and not has_output_panel:
+            failures.append(f"{layout}: output details panel expected but not found")
+        if not show_output_details and has_output_panel:
+            failures.append(f"{layout}: output details panel present while disabled")
+    return failures
+
+
+def _generated_card_text_sanity_failures(cards: dict) -> List[str]:
+    failures: List[str] = []
+    for layout, card in (cards or {}).items():
+        text = str(card)
+        if "cards: []" in text:
+            failures.append(f"{layout}: empty cards list")
+        if "# hi:output-details" in text:
+            failures.append(f"{layout}: output-details marker was not stripped")
+        if re.search(r"type:\s*conditional\s*\n\s*(?:conditions:\s*\[\]|card:\s*(?:\n|$))", text):
+            failures.append(f"{layout}: invalid conditional block")
+    return failures
+
+
+def _layouts_from_written_paths(paths: List[str]) -> set[str]:
+    layouts = set()
+    for path in paths:
+        text = str(path)
+        for layout in _ALLOWED_LAYOUTS:
+            if text.endswith(f"_{layout}.yaml") or f"_{layout}." in text:
+                layouts.add(layout)
+    return layouts
+
+
+def _frontend_dependency_status(hass: HomeAssistant) -> dict:
+    resources = hass.data.get("lovelace_resources") or {}
+    return {
+        dep: any(dep in str(value) for value in resources.values())
+        for dep in ["card-mod", "button-card", "mod-card", "apexcharts-card"]
+    }
+
+
+def _safe_report_slug(value: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_-]+", "_", str(value or "entry"))[:48] or "entry"
 
 
 def _zone_mapping_summary(zones: dict) -> dict:

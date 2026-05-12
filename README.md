@@ -921,6 +921,21 @@ service: humidity_intelligence.self_check
 data: {}
 ```
 
+### `v205_release_check`
+Purpose:
+- run a read-only v2.0.5 release-validation report in Home Assistant.
+- verify generated-card output-details visibility, cached layout coverage, unresolved placeholders, card text sanity, configured entity availability, and optional frontend dependency status.
+- with `write_test_exports: true`, write test card exports proving unscoped `dump_cards` exports all layouts and scoped export writes only `v2_tablet`.
+- no runtime outputs, helpers, lanes, or configured entities are changed.
+
+Example:
+```yaml
+service: humidity_intelligence.v205_release_check
+data:
+  write_test_exports: true
+  filename: humidity_intelligence_v205_release_check.json
+```
+
 ### `dump_diagnostics`
 Purpose:
 - export runtime diagnostics, mapping, active target profile, visual alert rules, alert source resolution, unavailable entities, and card info to JSON.
