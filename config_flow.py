@@ -98,6 +98,41 @@ def _advanced_toggle(default: bool) -> Any:
     return vol.Optional(ADVANCED_OPTIONS_FIELD, default=default)
 
 
+def _remember_advanced_input(
+    state: Dict[str, Dict[str, Any]],
+    step_id: str,
+    user_input: Optional[Dict[str, Any]],
+) -> None:
+    if not user_input:
+        return
+    state[step_id] = {
+        key: value
+        for key, value in user_input.items()
+        if key != ADVANCED_OPTIONS_FIELD
+    }
+
+
+def _advanced_input_default(
+    state: Dict[str, Dict[str, Any]],
+    step_id: str,
+    field: str,
+    default: Any,
+) -> Any:
+    return state.get(step_id, {}).get(field, default)
+
+
+def _configured_zone_items(zones: Dict[str, Any]) -> List[Tuple[str, Dict[str, Any]]]:
+    configured: List[Tuple[str, Dict[str, Any]]] = []
+    for zone_key in ("zone1", "zone2"):
+        zone = zones.get(zone_key)
+        if not isinstance(zone, dict) or not zone:
+            continue
+        if not any(key in zone for key in ("enabled", "level", "rooms", "triggers", "outputs", "ui_label")):
+            continue
+        configured.append((zone_key, dict(zone)))
+    return configured
+
+
 class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Humidity Intelligence."""
 
@@ -117,6 +152,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._pending_zone_key: Optional[str] = None
         self._pending_aq_level: Optional[str] = None
         self._advanced_visible: Dict[str, bool] = {}
+        self._advanced_inputs: Dict[str, Dict[str, Any]] = {}
 
     async def async_step_user(self, user_input: Optional[Dict[str, Any]] = None):
         """Entry point for the flow. Present the frontend dependencies page first."""
@@ -144,6 +180,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Collect global time and presence gate settings."""
         if user_input is not None:
             if _should_reveal_advanced(self._advanced_visible, "gates", user_input):
+                _remember_advanced_input(self._advanced_inputs, "gates", user_input)
                 self._advanced_visible["gates"] = True
                 return await self.async_step_gates()
 
@@ -218,18 +255,21 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return await self.async_step_telemetry()
 
         gates_advanced = _advanced_visible(self._advanced_visible, "gates")
+        gates_default = lambda field, default: _advanced_input_default(
+            self._advanced_inputs, "gates", field, default
+        )
         schema_fields: Dict[Any, Any] = {
-            vol.Optional("enable_time_gate", default=False): selector.BooleanSelector(),
-            vol.Optional("start_time", default=DEFAULT_TIME_START): selector.TimeSelector(),
-            vol.Optional("end_time", default=DEFAULT_TIME_END): selector.TimeSelector(),
-            vol.Optional("outside_action", default=OUTSIDE_WINDOW_ACTIONS[0]["value"]): selector.SelectSelector(
+            vol.Optional("enable_time_gate", default=gates_default("enable_time_gate", False)): selector.BooleanSelector(),
+            vol.Optional("start_time", default=gates_default("start_time", DEFAULT_TIME_START)): selector.TimeSelector(),
+            vol.Optional("end_time", default=gates_default("end_time", DEFAULT_TIME_END)): selector.TimeSelector(),
+            vol.Optional("outside_action", default=gates_default("outside_action", OUTSIDE_WINDOW_ACTIONS[0]["value"])): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in OUTSIDE_WINDOW_ACTIONS],
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
-            vol.Optional("alert_only_mode", default=self._data.get("alert_only_mode", False)): selector.BooleanSelector(),
-            vol.Optional("target_profile", default=self._data.get("target_profile", "auto")): selector.SelectSelector(
+            vol.Optional("alert_only_mode", default=gates_default("alert_only_mode", self._data.get("alert_only_mode", False))): selector.BooleanSelector(),
+            vol.Optional("target_profile", default=gates_default("target_profile", self._data.get("target_profile", "auto"))): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in TARGET_PROFILE_OPTIONS],
                     mode=selector.SelectSelectorMode.DROPDOWN,
@@ -237,15 +277,18 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ),
             vol.Optional(
                 "temperature_comfort_mode",
-                default=self._data.get("temperature_comfort_mode", DEFAULT_TEMPERATURE_COMFORT_MODE),
+                default=gates_default(
+                    "temperature_comfort_mode",
+                    self._data.get("temperature_comfort_mode", DEFAULT_TEMPERATURE_COMFORT_MODE),
+                ),
             ): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in TEMPERATURE_COMFORT_PROFILE_OPTIONS],
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
-            vol.Optional("enable_presence_gate", default=False): selector.BooleanSelector(),
-            vol.Optional("presence_entities", default=[]): selector.EntitySelector(
+            vol.Optional("enable_presence_gate", default=gates_default("enable_presence_gate", False)): selector.BooleanSelector(),
+            vol.Optional("presence_entities", default=gates_default("presence_entities", [])): selector.EntitySelector(
                 selector.EntitySelectorConfig(multiple=True)
             ),
             _advanced_toggle(gates_advanced): selector.BooleanSelector(),
@@ -589,6 +632,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: Dict[str, str] = {}
         if user_input is not None:
             if _should_reveal_advanced(self._advanced_visible, "slope", user_input):
+                _remember_advanced_input(self._advanced_inputs, "slope", user_input)
                 self._advanced_visible["slope"] = True
                 return await self.async_step_slope()
 
@@ -622,8 +666,11 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return await self.async_step_zones()
 
         slope_advanced = _advanced_visible(self._advanced_visible, "slope")
+        slope_default = lambda field, default: _advanced_input_default(
+            self._advanced_inputs, "slope", field, default
+        )
         schema_fields: Dict[Any, Any] = {
-            vol.Required("slope_mode", default=SLOPE_MODE_CALCULATED): selector.SelectSelector(
+            vol.Required("slope_mode", default=slope_default("slope_mode", SLOPE_MODE_CALCULATED)): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=[
                         SelectOptionDict(value=SLOPE_MODE_CALCULATED, label="HI calculates slope"),
@@ -637,15 +684,15 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         }
         if slope_advanced:
             schema_fields.update({
-                vol.Optional("slope_sources", default=temp_entities): selector.EntitySelector(
+                vol.Optional("slope_sources", default=slope_default("slope_sources", temp_entities)): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="sensor", multiple=True)
                 ),
-                vol.Optional("slope_sensors", default=[]): selector.EntitySelector(
+                vol.Optional("slope_sensors", default=slope_default("slope_sensors", [])): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="sensor", multiple=True)
                 ),
                 vol.Optional(
                     CONF_SHOW_TEMPERATURE_CHIPS,
-                    default=DEFAULT_SHOW_TEMPERATURE_CHIPS,
+                    default=slope_default(CONF_SHOW_TEMPERATURE_CHIPS, DEFAULT_SHOW_TEMPERATURE_CHIPS),
                 ): selector.BooleanSelector(),
             })
         schema = vol.Schema(schema_fields)
@@ -681,6 +728,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         existing = self._zones.get(zone_key, {})
         if user_input is not None:
             if _should_reveal_advanced(self._advanced_visible, zone_key, user_input):
+                _remember_advanced_input(self._advanced_inputs, zone_key, user_input)
                 self._advanced_visible[zone_key] = True
                 return await self._async_step_zone_config(zone_key)
 
@@ -725,17 +773,21 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         rooms_all = _rooms_all(self._telemetry)
         level_default = existing.get("level") or LEVELS[0]["value"]
         room_options = [SelectOptionDict(value=r, label=r) for r in rooms_all]
-        trigger_options = _zone_trigger_options(level_default)
         zone_advanced = _advanced_visible(self._advanced_visible, zone_key)
+        zone_default = lambda field, default: _advanced_input_default(
+            self._advanced_inputs, zone_key, field, default
+        )
+        selected_level_default = zone_default("level", level_default)
+        trigger_options = _zone_trigger_options(selected_level_default)
         schema_fields: Dict[Any, Any] = {
-            vol.Optional("enabled", default=existing.get("enabled", False)): selector.BooleanSelector(),
-            vol.Optional("level", default=level_default): selector.SelectSelector(
+            vol.Optional("enabled", default=zone_default("enabled", existing.get("enabled", False))): selector.BooleanSelector(),
+            vol.Optional("level", default=selected_level_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in LEVELS],
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
-            vol.Optional("rooms", default=existing.get("rooms", [])): selector.SelectSelector(
+            vol.Optional("rooms", default=zone_default("rooms", existing.get("rooms", []))): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=room_options,
                     multiple=True,
@@ -743,14 +795,14 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
-            vol.Optional("triggers", default=existing.get("triggers", [])): selector.SelectSelector(
+            vol.Optional("triggers", default=zone_default("triggers", existing.get("triggers", []))): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=trigger_options,
                     multiple=True,
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
-            vol.Optional("outputs", default=existing.get("outputs", [])): selector.EntitySelector(
+            vol.Optional("outputs", default=zone_default("outputs", existing.get("outputs", []))): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["fan", "switch"], multiple=True)
             ),
             _advanced_toggle(zone_advanced): selector.BooleanSelector(),
@@ -805,6 +857,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         triggers = zone.get("triggers", [])
         if user_input is not None:
             if _should_reveal_advanced(self._advanced_visible, "zone_thresholds", user_input):
+                _remember_advanced_input(self._advanced_inputs, "zone_thresholds", user_input)
                 self._advanced_visible["zone_thresholds"] = True
                 return await self.async_step_zone_thresholds()
 
@@ -875,6 +928,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             step_key = f"humidifier_{level}"
             if _should_reveal_advanced(self._advanced_visible, step_key, user_input):
+                _remember_advanced_input(self._advanced_inputs, step_key, user_input)
                 self._advanced_visible[step_key] = True
                 return await self._async_step_humidifier(level)
 
@@ -890,9 +944,12 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         target_high = f"sensor.hi_{level}_humidity_target_high"
         step_key = f"humidifier_{level}"
         humidifier_advanced = _advanced_visible(self._advanced_visible, step_key)
+        humidifier_default = lambda field, default: _advanced_input_default(
+            self._advanced_inputs, step_key, field, default
+        )
         schema_fields: Dict[Any, Any] = {
-            vol.Optional("enabled", default=existing.get("enabled", False)): selector.BooleanSelector(),
-            vol.Optional("outputs", default=existing.get("outputs", [])): selector.EntitySelector(
+            vol.Optional("enabled", default=humidifier_default("enabled", existing.get("enabled", False))): selector.BooleanSelector(),
+            vol.Optional("outputs", default=humidifier_default("outputs", existing.get("outputs", []))): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["humidifier", "fan", "switch"], multiple=True)
             ),
             _advanced_toggle(humidifier_advanced): selector.BooleanSelector(),
@@ -951,6 +1008,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             step_key = f"aq_{level}"
             if _should_reveal_advanced(self._advanced_visible, step_key, user_input):
+                _remember_advanced_input(self._advanced_inputs, step_key, user_input)
                 self._advanced_visible[step_key] = True
                 return await self._async_step_aq(level)
 
@@ -974,16 +1032,19 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         trigger_options = _aq_trigger_options(level)
         step_key = f"aq_{level}"
         aq_advanced = _advanced_visible(self._advanced_visible, step_key)
+        aq_default = lambda field, default: _advanced_input_default(
+            self._advanced_inputs, step_key, field, default
+        )
         schema_fields: Dict[Any, Any] = {
-            vol.Optional("enabled", default=existing.get("enabled", False)): selector.BooleanSelector(),
-            vol.Optional("triggers", default=existing.get("triggers", [])): selector.SelectSelector(
+            vol.Optional("enabled", default=aq_default("enabled", existing.get("enabled", False))): selector.BooleanSelector(),
+            vol.Optional("triggers", default=aq_default("triggers", existing.get("triggers", []))): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=trigger_options,
                     multiple=True,
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
-            vol.Optional("outputs", default=existing.get("outputs", [])): selector.EntitySelector(
+            vol.Optional("outputs", default=aq_default("outputs", existing.get("outputs", []))): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["fan", "air_purifier", "switch"], multiple=True)
             ),
             _advanced_toggle(aq_advanced): selector.BooleanSelector(),
@@ -1029,6 +1090,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         triggers = aq.get("triggers", [])
         if user_input is not None:
             if _should_reveal_advanced(self._advanced_visible, "aq_thresholds", user_input):
+                _remember_advanced_input(self._advanced_inputs, "aq_thresholds", user_input)
                 self._advanced_visible["aq_thresholds"] = True
                 return await self.async_step_aq_thresholds()
 
@@ -1136,6 +1198,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             if _should_reveal_advanced(self._advanced_visible, "alert_add", user_input):
+                _remember_advanced_input(self._advanced_inputs, "alert_add", user_input)
                 self._advanced_visible["alert_add"] = True
                 return await self.async_step_alert_add()
 
@@ -1176,6 +1239,21 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "alert_save_failed"
 
         alert_advanced = _advanced_visible(self._advanced_visible, "alert_add")
+        alert_default = lambda field, default: _advanced_input_default(
+            self._advanced_inputs, "alert_add", field, default
+        )
+        trigger_default = _normalize_alert_trigger_type(alert_default("trigger_type", trigger_default))
+        enabled_default = bool(alert_default("enabled", enabled_default))
+        room_default = _sanitize_optional_room_scope(alert_default("room", room_default)) or ""
+        lights_default = _sanitize_entity_ids(alert_default("lights", lights_default))
+        power_entity_default = _sanitize_optional_entity_id(alert_default("power_entity", power_entity_default))
+        flash_mode_default = _normalize_alert_flash_mode(alert_default("flash_mode", flash_mode_default))
+        duration_default = _safe_alert_duration(alert_default("duration", duration_default))
+        threshold_default_value = _alert_threshold_value(
+            trigger_default,
+            alert_default("threshold", threshold_default_value),
+            self._data,
+        )
         schema_fields: Dict[Any, Any] = {
             vol.Optional("enabled", default=enabled_default): selector.BooleanSelector(),
             vol.Required("trigger_type", default=trigger_default): selector.SelectSelector(
@@ -1324,6 +1402,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         self._pending_alert_index: Optional[int] = None
         self._pending_presence_gate: Optional[Dict[str, Any]] = None
         self._advanced_visible: Dict[str, bool] = {}
+        self._advanced_inputs: Dict[str, Dict[str, Any]] = {}
 
     def _section(self, key: str, default: Any) -> Any:
         if key in self._options:
@@ -1462,6 +1541,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
 
         if user_input is not None:
             if _should_reveal_advanced(self._advanced_visible, "options_gates", user_input):
+                _remember_advanced_input(self._advanced_inputs, "options_gates", user_input)
                 self._advanced_visible["options_gates"] = True
                 return await self.async_step_options_gates()
 
@@ -1537,46 +1617,34 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             return await self.async_step_init()
 
         gates_advanced = _advanced_visible(self._advanced_visible, "options_gates")
+        gates_default = lambda field, default: _advanced_input_default(
+            self._advanced_inputs, "options_gates", field, default
+        )
         schema_fields: Dict[Any, Any] = {
-            vol.Optional("enable_time_gate", default=time_gate.get("enabled", False)): selector.BooleanSelector(),
-            vol.Optional("start_time", default=time_gate.get("start") or DEFAULT_TIME_START): selector.TimeSelector(),
-            vol.Optional("end_time", default=time_gate.get("end") or DEFAULT_TIME_END): selector.TimeSelector(),
+            vol.Optional("enable_time_gate", default=gates_default("enable_time_gate", time_gate.get("enabled", False))): selector.BooleanSelector(),
+            vol.Optional("start_time", default=gates_default("start_time", time_gate.get("start") or DEFAULT_TIME_START)): selector.TimeSelector(),
+            vol.Optional("end_time", default=gates_default("end_time", time_gate.get("end") or DEFAULT_TIME_END)): selector.TimeSelector(),
             vol.Optional(
                 "outside_action",
-                default=time_gate.get("outside_action") or OUTSIDE_WINDOW_ACTIONS[0]["value"],
+                default=gates_default(
+                    "outside_action",
+                    time_gate.get("outside_action") or OUTSIDE_WINDOW_ACTIONS[0]["value"],
+                ),
             ): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in OUTSIDE_WINDOW_ACTIONS],
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
-            vol.Optional("alert_only_mode", default=self._section("alert_only_mode", False)): selector.BooleanSelector(),
-            vol.Optional("target_profile", default=self._section("target_profile", "auto")): selector.SelectSelector(
+            vol.Optional("alert_only_mode", default=gates_default("alert_only_mode", self._section("alert_only_mode", False))): selector.BooleanSelector(),
+            vol.Optional("target_profile", default=gates_default("target_profile", self._section("target_profile", "auto"))): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in TARGET_PROFILE_OPTIONS],
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
-            vol.Optional("custom_target_low", default=self._section("custom_target_low", 45.0)): selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=TARGET_CUSTOM_LOW_MIN,
-                    max=TARGET_CUSTOM_LOW_MAX,
-                    step=TARGET_CUSTOM_STEP,
-                    mode=selector.NumberSelectorMode.BOX,
-                    unit_of_measurement="%",
-                )
-            ),
-            vol.Optional("custom_target_high", default=self._section("custom_target_high", 55.0)): selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=TARGET_CUSTOM_HIGH_MIN,
-                    max=TARGET_CUSTOM_HIGH_MAX,
-                    step=TARGET_CUSTOM_STEP,
-                    mode=selector.NumberSelectorMode.BOX,
-                    unit_of_measurement="%",
-                )
-            ),
-            vol.Optional("enable_presence_gate", default=presence_gate.get("enabled", False)): selector.BooleanSelector(),
-            vol.Optional("presence_entities", default=default_presence_entities): selector.EntitySelector(
+            vol.Optional("enable_presence_gate", default=gates_default("enable_presence_gate", presence_gate.get("enabled", False))): selector.BooleanSelector(),
+            vol.Optional("presence_entities", default=gates_default("presence_entities", default_presence_entities)): selector.EntitySelector(
                 selector.EntitySelectorConfig(multiple=True)
             ),
             _advanced_toggle(gates_advanced): selector.BooleanSelector(),
@@ -1701,6 +1769,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
 
         if user_input is not None:
             if _should_reveal_advanced(self._advanced_visible, "options_thresholds", user_input):
+                _remember_advanced_input(self._advanced_inputs, "options_thresholds", user_input)
                 self._advanced_visible["options_thresholds"] = True
                 return await self.async_step_options_thresholds()
 
@@ -1738,8 +1807,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             self._options["temperature_comfort_custom_low"] = temp_comfort_low
             self._options["temperature_comfort_custom_high"] = temp_comfort_high
 
-            for zone_key in ("zone1", "zone2"):
-                zone = dict(zones.get(zone_key) or {})
+            for zone_key, zone in _configured_zone_items(zones):
                 previous_thresholds = dict(zone.get("thresholds", {}))
                 thresholds: Dict[str, Any] = {}
                 for trig, trig_def in TRIGGER_DEFS.items():
@@ -1756,10 +1824,16 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             return await self.async_step_init()
 
         thresholds_advanced = _advanced_visible(self._advanced_visible, "options_thresholds")
+        thresholds_default = lambda field, default: _advanced_input_default(
+            self._advanced_inputs, "options_thresholds", field, default
+        )
         schema_fields: Dict[Any, Any] = {
             vol.Optional(
                 "temperature_comfort_mode",
-                default=self._section("temperature_comfort_mode", DEFAULT_TEMPERATURE_COMFORT_MODE),
+                default=thresholds_default(
+                    "temperature_comfort_mode",
+                    self._section("temperature_comfort_mode", DEFAULT_TEMPERATURE_COMFORT_MODE),
+                ),
             ): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in TEMPERATURE_COMFORT_PROFILE_OPTIONS],
@@ -1795,8 +1869,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                     )
                 ),
             })
-            for zone_key in ("zone1", "zone2"):
-                zone = zones.get(zone_key) or {}
+            for zone_key, zone in _configured_zone_items(zones):
                 for trig, trig_def in TRIGGER_DEFS.items():
                     schema_fields[vol.Optional(
                         f"{zone_key}_threshold_{trig}",
@@ -2099,6 +2172,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
 
         if user_input is not None:
             if _should_reveal_advanced(self._advanced_visible, "options_zone_edit", user_input):
+                _remember_advanced_input(self._advanced_inputs, "options_zone_edit", user_input)
                 self._advanced_visible["options_zone_edit"] = True
                 return await self.async_step_options_zone_edit()
 
@@ -2152,15 +2226,19 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         room_options = [SelectOptionDict(value=room, label=room) for room in _rooms_all(self._section("telemetry", []))]
         level_options = [SelectOptionDict(value=o["value"], label=o["label"]) for o in LEVELS]
         zone_advanced = _advanced_visible(self._advanced_visible, "options_zone_edit")
+        zone_default = lambda field, default: _advanced_input_default(
+            self._advanced_inputs, "options_zone_edit", field, default
+        )
+        selected_level_default = zone_default("level", zone.get("level"))
         schema_fields: Dict[Any, Any] = {
-            vol.Optional("enabled", default=zone.get("enabled", True)): selector.BooleanSelector(),
-            vol.Optional("level", default=zone.get("level")): selector.SelectSelector(
+            vol.Optional("enabled", default=zone_default("enabled", zone.get("enabled", True))): selector.BooleanSelector(),
+            vol.Optional("level", default=selected_level_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=level_options,
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
-            vol.Optional("rooms", default=zone.get("rooms", [])): selector.SelectSelector(
+            vol.Optional("rooms", default=zone_default("rooms", zone.get("rooms", []))): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=room_options,
                     multiple=True,
@@ -2168,14 +2246,14 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
-            vol.Optional("triggers", default=selected_triggers): selector.SelectSelector(
+            vol.Optional("triggers", default=zone_default("triggers", selected_triggers)): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=_zone_trigger_options(zone.get("level")),
+                    options=_zone_trigger_options(selected_level_default),
                     multiple=True,
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
-            vol.Optional("outputs", default=_sanitize_entity_ids(zone.get("outputs", []))): selector.EntitySelector(
+            vol.Optional("outputs", default=zone_default("outputs", _sanitize_entity_ids(zone.get("outputs", [])))): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["fan", "switch"], multiple=True)
             ),
             _advanced_toggle(zone_advanced): selector.BooleanSelector(),
@@ -2273,6 +2351,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
 
         if user_input is not None:
             if _should_reveal_advanced(self._advanced_visible, "options_humidifier_edit", user_input):
+                _remember_advanced_input(self._advanced_inputs, "options_humidifier_edit", user_input)
                 self._advanced_visible["options_humidifier_edit"] = True
                 return await self.async_step_options_humidifier_edit()
 
@@ -2295,9 +2374,12 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             return await self.async_step_options_humidifiers()
 
         humidifier_advanced = _advanced_visible(self._advanced_visible, "options_humidifier_edit")
+        humidifier_default = lambda field, default: _advanced_input_default(
+            self._advanced_inputs, "options_humidifier_edit", field, default
+        )
         schema_fields: Dict[Any, Any] = {
-            vol.Optional("enabled", default=cfg.get("enabled", True)): selector.BooleanSelector(),
-            vol.Optional("outputs", default=_sanitize_entity_ids(cfg.get("outputs", []))): selector.EntitySelector(
+            vol.Optional("enabled", default=humidifier_default("enabled", cfg.get("enabled", True))): selector.BooleanSelector(),
+            vol.Optional("outputs", default=humidifier_default("outputs", _sanitize_entity_ids(cfg.get("outputs", [])))): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["humidifier", "fan", "switch"], multiple=True)
             ),
             _advanced_toggle(humidifier_advanced): selector.BooleanSelector(),
@@ -2386,6 +2468,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
 
         if user_input is not None:
             if _should_reveal_advanced(self._advanced_visible, "options_aq_edit", user_input):
+                _remember_advanced_input(self._advanced_inputs, "options_aq_edit", user_input)
                 self._advanced_visible["options_aq_edit"] = True
                 return await self.async_step_options_aq_edit()
 
@@ -2421,16 +2504,19 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
 
         selected_triggers = cfg.get("triggers", []) or []
         aq_advanced = _advanced_visible(self._advanced_visible, "options_aq_edit")
+        aq_default = lambda field, default: _advanced_input_default(
+            self._advanced_inputs, "options_aq_edit", field, default
+        )
         schema_fields: Dict[Any, Any] = {
-            vol.Optional("enabled", default=cfg.get("enabled", False)): selector.BooleanSelector(),
-            vol.Optional("triggers", default=selected_triggers): selector.SelectSelector(
+            vol.Optional("enabled", default=aq_default("enabled", cfg.get("enabled", False))): selector.BooleanSelector(),
+            vol.Optional("triggers", default=aq_default("triggers", selected_triggers)): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=_aq_trigger_options(level),
                     multiple=True,
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
-            vol.Optional("outputs", default=_sanitize_entity_ids(cfg.get("outputs", []))): selector.EntitySelector(
+            vol.Optional("outputs", default=aq_default("outputs", _sanitize_entity_ids(cfg.get("outputs", [])))): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["fan", "air_purifier", "switch"], multiple=True)
             ),
             _advanced_toggle(aq_advanced): selector.BooleanSelector(),
@@ -2573,6 +2659,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
 
         if user_input is not None:
             if _should_reveal_advanced(self._advanced_visible, "options_alert_add", user_input):
+                _remember_advanced_input(self._advanced_inputs, "options_alert_add", user_input)
                 self._advanced_visible["options_alert_add"] = True
                 return await self.async_step_options_alert_add()
 
@@ -2613,6 +2700,21 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 errors["base"] = "alert_save_failed"
 
         alert_advanced = _advanced_visible(self._advanced_visible, "options_alert_add")
+        alert_default = lambda field, default: _advanced_input_default(
+            self._advanced_inputs, "options_alert_add", field, default
+        )
+        trigger_default = _normalize_alert_trigger_type(alert_default("trigger_type", trigger_default))
+        enabled_default = bool(alert_default("enabled", enabled_default))
+        room_default = _sanitize_optional_room_scope(alert_default("room", room_default)) or ""
+        lights_default = _sanitize_entity_ids(alert_default("lights", lights_default))
+        power_entity_default = _sanitize_optional_entity_id(alert_default("power_entity", power_entity_default))
+        flash_mode_default = _normalize_alert_flash_mode(alert_default("flash_mode", flash_mode_default))
+        duration_default = _safe_alert_duration(alert_default("duration", duration_default))
+        threshold_default_value = _alert_threshold_value(
+            trigger_default,
+            alert_default("threshold", threshold_default_value),
+            self._effective_config(),
+        )
         schema_fields: Dict[Any, Any] = {
             vol.Optional("enabled", default=enabled_default): selector.BooleanSelector(),
             vol.Required("trigger_type", default=trigger_default): selector.SelectSelector(
@@ -2736,6 +2838,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
 
         if user_input is not None:
             if _should_reveal_advanced(self._advanced_visible, "options_alert_edit", user_input):
+                _remember_advanced_input(self._advanced_inputs, "options_alert_edit", user_input)
                 self._advanced_visible["options_alert_edit"] = True
                 return await self.async_step_options_alert_edit()
 
@@ -2780,6 +2883,21 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 errors["base"] = "alert_save_failed"
 
         alert_advanced = _advanced_visible(self._advanced_visible, "options_alert_edit")
+        alert_default = lambda field, default: _advanced_input_default(
+            self._advanced_inputs, "options_alert_edit", field, default
+        )
+        trigger_default = _normalize_alert_trigger_type(alert_default("trigger_type", trigger_default))
+        enabled_default = bool(alert_default("enabled", enabled_default))
+        room_default = _sanitize_optional_room_scope(alert_default("room", room_default)) or ""
+        lights_default = _sanitize_entity_ids(alert_default("lights", lights_default))
+        power_entity_default = _sanitize_optional_entity_id(alert_default("power_entity", power_entity_default))
+        flash_mode_default = _normalize_alert_flash_mode(alert_default("flash_mode", flash_mode_default))
+        duration_default = _safe_alert_duration(alert_default("duration", duration_default))
+        threshold_default = _alert_threshold_value(
+            trigger_default,
+            alert_default("threshold", threshold_default),
+            self._effective_config(),
+        )
         schema_fields: Dict[Any, Any] = {
             vol.Optional("enabled", default=enabled_default): selector.BooleanSelector(),
             vol.Optional("trigger_type", default=trigger_default): selector.SelectSelector(
@@ -2861,6 +2979,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         errors: Dict[str, str] = {}
         if user_input is not None:
             if _should_reveal_advanced(self._advanced_visible, "options_slope", user_input):
+                _remember_advanced_input(self._advanced_inputs, "options_slope", user_input)
                 self._advanced_visible["options_slope"] = True
                 return await self.async_step_options_slope()
 
@@ -2893,8 +3012,11 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 return await self.async_step_init()
 
         slope_advanced = _advanced_visible(self._advanced_visible, "options_slope")
+        slope_default = lambda field, default: _advanced_input_default(
+            self._advanced_inputs, "options_slope", field, default
+        )
         schema_fields: Dict[Any, Any] = {
-            vol.Required("slope_mode", default=default_mode): selector.SelectSelector(
+            vol.Required("slope_mode", default=slope_default("slope_mode", default_mode)): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=[
                         SelectOptionDict(value=SLOPE_MODE_CALCULATED, label="HI calculates slope"),
@@ -2908,15 +3030,15 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         }
         if slope_advanced:
             schema_fields.update({
-                vol.Optional("slope_sources", default=default_sources): selector.EntitySelector(
+                vol.Optional("slope_sources", default=slope_default("slope_sources", default_sources)): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="sensor", multiple=True)
                 ),
-                vol.Optional("slope_sensors", default=default_provided): selector.EntitySelector(
+                vol.Optional("slope_sensors", default=slope_default("slope_sensors", default_provided)): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="sensor", multiple=True)
                 ),
                 vol.Optional(
                     CONF_SHOW_TEMPERATURE_CHIPS,
-                    default=default_show_temperature_chips,
+                    default=slope_default(CONF_SHOW_TEMPERATURE_CHIPS, default_show_temperature_chips),
                 ): selector.BooleanSelector(),
             })
         schema = vol.Schema(schema_fields)

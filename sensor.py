@@ -238,7 +238,7 @@ def _compact_ui_config(config: dict, options: dict) -> dict:
         if not isinstance(zone, dict):
             continue
         zones[key] = {
-            "enabled": zone.get("enabled", True),
+            "enabled": bool(zone.get("enabled", False)),
             "level": zone.get("level"),
             "rooms": list(zone.get("rooms") or []),
         }

@@ -13,8 +13,9 @@ This project follows a practical changelog format for Home Assistant and HACS us
 - Added `show_output_entity_details` as a UI-only generated-card option; new installs default to the cleaner V2 output display unless it is enabled.
 - Made `Thresholds & Comfort` easier to scan by keeping comfort mode visible and moving custom comfort/threshold tuning into Advanced.
 - Changed first-install UI export default to `v2_tablet`.
-- Fixed visual alert flashing so indicator lights are explicitly restored to their initial on/off state after the 10-flash sequence.
-- Serialized visual alert flashing per light to avoid overlapping restore races.
+- Kept custom humidity target bounds behind Advanced in post-configuration Global Gates and reviewed setup/options parity for the v2.0.5 UX flow.
+- Preserved canonical `dump_cards` behavior: unscoped exports all cached/generated layouts; scoped `layout` exports only the specified layout.
+- Preserved deterministic runtime lane ordering, alert hierarchy, CO emergency behavior, humidifier independence, and public entity semantics.
 - Bumped integration version to `2.0.5`.
 
 ## 2.0.4

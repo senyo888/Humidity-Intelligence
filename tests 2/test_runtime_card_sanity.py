@@ -6,6 +6,7 @@ import asyncio
 import importlib.util
 import pathlib
 import sys
+import tempfile
 import types
 from types import MethodType, SimpleNamespace
 
@@ -287,6 +288,9 @@ class _FakeConfigEntries:
     def async_get_entry(self, entry_id):
         return self._entry if entry_id == self._entry.entry_id else None
 
+    def async_entries(self, _domain):
+        return [self._entry]
+
 
 class _FakeRegistry:
     def async_get_entity_id(self, domain, _integration, unique_id):
@@ -324,6 +328,43 @@ class _FakeHass:
                         "air_aq_upstairs_run": _FakeTimer(),
                     },
                 }
+            }
+        }
+
+    async def async_add_executor_job(self, func, *args):
+        return func(*args)
+
+
+class _DumpCardsConfig:
+    def __init__(self, root):
+        self._root = pathlib.Path(root)
+
+    def path(self, filename):
+        return str(self._root / filename)
+
+
+class _DumpCardsConfigEntries:
+    def __init__(self, entries):
+        self._entries = list(entries)
+
+    def async_get_entry(self, entry_id):
+        for entry in self._entries:
+            if entry.entry_id == entry_id:
+                return entry
+        return None
+
+    def async_entries(self, _domain):
+        return list(self._entries)
+
+
+class _DumpCardsHass:
+    def __init__(self, tmpdir, entries, cards_by_entry):
+        self.config = _DumpCardsConfig(tmpdir)
+        self.config_entries = _DumpCardsConfigEntries(entries)
+        self.data = {
+            "humidity_intelligence": {
+                entry_id: {"cards": cards}
+                for entry_id, cards in cards_by_entry.items()
             }
         }
 
@@ -1084,6 +1125,43 @@ async def _run_runtime_assertions(engine_mod) -> None:
         and data.get("entity_id") == "fan.zone1"
         and data.get("percentage") == 66
         for domain, service, data, _ in hass_label.services.calls
+    )
+
+    # Zone lane priority must select one ventilation lane per cycle:
+    # zone1 beats zone2 and zone2 must not write its fan output.
+    entry_zone_select_data = _base_entry_data()
+    entry_zone_select_data["alert_handling_enabled"] = False
+    entry_zone_select_data["humidifiers"] = {}
+    entry_zone_select_data["aq"] = {}
+    entry_zone_select = SimpleNamespace(entry_id=ENTRY_ID, data=entry_zone_select_data, options={})
+    hass_zone_select = _FakeHass(
+        entry_zone_select,
+        {
+            "sensor.kitchen_h": _FakeState(90),
+            "sensor.hall_h": _FakeState(40),
+            "sensor.bed_h": _FakeState(90),
+            "sensor.kitchen_t": _FakeState(23),
+            "sensor.hall_t": _FakeState(22),
+            "sensor.bed_t": _FakeState(21),
+            "sensor.co_val": _FakeState(4),
+        },
+    )
+    engine_zone_select = HIAutomationEngine(hass_zone_select, entry_zone_select)
+    await engine_zone_select._evaluate()
+
+    assert hass_zone_select.data["humidity_intelligence"][ENTRY_ID].get("runtime_mode") == "cooking"
+    assert any(
+        domain == "fan"
+        and service == "set_percentage"
+        and data.get("entity_id") == "fan.zone1"
+        and data.get("percentage") == 66
+        for domain, service, data, _ in hass_zone_select.services.calls
+    )
+    assert not any(
+        domain == "fan"
+        and service == "set_percentage"
+        and data.get("entity_id") == "fan.zone2"
+        for domain, service, data, _ in hass_zone_select.services.calls
     )
 
     # AQ-only scenario: no alert and no zone should allow AQ lane execution.
@@ -1941,6 +2019,124 @@ def test_startup_ui_refresh_contract_is_wired():
     assert "automatically shortly after Home Assistant startup" in services_source
     assert "_entry_show_output_entity_details" in init_source
     assert "output entity details" in init_source
+
+
+def test_options_gates_keeps_custom_targets_behind_advanced():
+    config_source = (ROOT / "config_flow.py").read_text()
+    method_source = config_source.split("async def async_step_options_gates", 1)[1].split(
+        "async def async_step_options_presence_states", 1
+    )[0]
+    visible_schema_source = method_source.split("if gates_advanced:", 1)[0]
+    advanced_schema_source = method_source.split("if gates_advanced:", 1)[1]
+
+    assert 'vol.Optional("target_profile"' in visible_schema_source
+    assert 'vol.Optional("custom_target_low"' not in visible_schema_source
+    assert 'vol.Optional("custom_target_high"' not in visible_schema_source
+    assert 'vol.Optional("custom_target_low"' in advanced_schema_source
+    assert 'vol.Optional("custom_target_high"' in advanced_schema_source
+
+
+def test_options_thresholds_only_persists_real_zone_configs():
+    config_source = (ROOT / "config_flow.py").read_text()
+    method_source = config_source.split("async def async_step_options_thresholds", 1)[1].split(
+        "async def async_step_options_sensors", 1
+    )[0]
+
+    assert "_configured_zone_items(zones)" in method_source
+    assert 'for zone_key in ("zone1", "zone2")' not in method_source
+    assert "zones[zone_key] = zone" in method_source
+    assert "zone[\"thresholds\"] = thresholds" in method_source
+
+
+def test_advanced_reveal_remembers_submitted_visible_values():
+    config_source = (ROOT / "config_flow.py").read_text()
+
+    assert "_remember_advanced_input" in config_source
+    for step_id in (
+        '"gates"',
+        '"slope"',
+        "zone_key",
+        '"zone_thresholds"',
+        "step_key",
+        '"aq_thresholds"',
+        '"alert_add"',
+        '"options_gates"',
+        '"options_thresholds"',
+        '"options_zone_edit"',
+        '"options_humidifier_edit"',
+        '"options_aq_edit"',
+        '"options_alert_add"',
+        '"options_alert_edit"',
+        '"options_slope"',
+    ):
+        assert f"_remember_advanced_input(self._advanced_inputs, {step_id}, user_input)" in config_source
+
+
+def test_readme_uses_manifest_version_badge_not_static_ha_compatibility_badge():
+    readme_source = (ROOT / "README.md").read_text()
+
+    assert "dynamic/json" in readme_source
+    assert "manifest.json" in readme_source
+    assert "query=%24.version" in readme_source
+    assert "Home%20Assistant-2026.4.3%2B" not in readme_source
+
+
+def test_dump_cards_without_layout_exports_all_cached_layouts():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID)
+    cards = {
+        "v2_mobile": "mobile-card",
+        "v2_tablet": "tablet-card",
+        "v1_mobile": "legacy-card",
+        "view_cards_button": "button-card",
+    }
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        hass = _DumpCardsHass(tmpdir, [entry], {ENTRY_ID: cards})
+        written = asyncio.run(
+            services_mod._dump_cards_to_file(
+                hass,
+                entry_id=None,
+                filename="humidity_intelligence_cards",
+                layout=None,
+            )
+        )
+
+        assert written == [
+            "/config/humidity_intelligence_cards_v2_mobile.yaml",
+            "/config/humidity_intelligence_cards_v2_tablet.yaml",
+            "/config/humidity_intelligence_cards_v1_mobile.yaml",
+            "/config/humidity_intelligence_cards_view_cards_button.yaml",
+        ]
+        for layout, yaml in cards.items():
+            path = pathlib.Path(tmpdir) / f"humidity_intelligence_cards_{layout}.yaml"
+            assert path.read_text() == yaml
+
+
+def test_dump_cards_with_layout_exports_only_requested_layout():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID)
+    cards = {
+        "v2_mobile": "mobile-card",
+        "v2_tablet": "tablet-card",
+        "v1_mobile": "legacy-card",
+    }
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        hass = _DumpCardsHass(tmpdir, [entry], {ENTRY_ID: cards})
+        written = asyncio.run(
+            services_mod._dump_cards_to_file(
+                hass,
+                entry_id=None,
+                filename="humidity_intelligence_cards",
+                layout="v2_tablet",
+            )
+        )
+
+        assert written == ["/config/humidity_intelligence_cards_v2_tablet.yaml"]
+        assert (pathlib.Path(tmpdir) / "humidity_intelligence_cards_v2_tablet.yaml").read_text() == "tablet-card"
+        assert not (pathlib.Path(tmpdir) / "humidity_intelligence_cards_v2_mobile.yaml").exists()
+        assert not (pathlib.Path(tmpdir) / "humidity_intelligence_cards_v1_mobile.yaml").exists()
 
 
 def test_alert_configuration_contract_uses_internal_sources():

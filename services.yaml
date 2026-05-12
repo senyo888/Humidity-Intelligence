@@ -74,7 +74,7 @@ self_check:
         text: {}
 dump_cards:
   name: Dump Cards
-  description: Write rendered card YAML to a text file in the Home Assistant config folder
+  description: Write rendered card YAML to the Home Assistant config folder. Without layout, all cached layouts are exported; with layout, only that layout is exported.
   fields:
     entry_id:
       name: Entry ID
@@ -88,7 +88,7 @@ dump_cards:
         text: {}
     layout:
       name: Layout (optional)
-      description: Dump a single layout (v2_mobile, v2_tablet, v1_mobile, view_cards_button)
+      description: Optional. Omit to dump all cached layouts, or supply one layout (v2_mobile, v2_tablet, v1_mobile, view_cards_button).
       selector:
         text: {}
 create_dashboard:

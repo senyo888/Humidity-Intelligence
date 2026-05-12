@@ -8,7 +8,7 @@
 
 [![Latest Release](https://img.shields.io/github/v/release/senyo888/Humidity-Intelligence?display_name=tag&sort=semver)](https://github.com/senyo888/Humidity-Intelligence/releases)
 [![HACS](https://img.shields.io/badge/HACS-Custom%20Integration-orange)](https://hacs.xyz)
-[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.4.3%2B-blue)](https://www.home-assistant.io/)
+[![Integration Version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fsenyo888%2FHumidity-Intelligence%2Fmain%2Fmanifest.json&query=%24.version&label=Integration&prefix=v&color=blue)](manifest.json)
 [![License](https://img.shields.io/github/license/senyo888/Humidity-Intelligence)](LICENSE)
 
 ## Contents
@@ -257,7 +257,7 @@ The UI renders.
 - control loop interval, startup UI mapping refresh, custom humidity targets, custom temperature comfort values, slope sources, fan levels, and threshold tuning remain available as advanced controls
 - new installs default the generated V2 dashboard to a cleaner output display
 - `Show output entity details` can re-enable the expandable output details panel when deeper runtime inspection is useful
-- `v2_tablet` is selected by default during UI export; additional layouts remain available through setup and `dump_cards`
+- `v2_tablet` is selected by default during initial UI export; unscoped `dump_cards` still exports all cached/generated layouts unless `layout` is supplied
 - deterministic runtime lane ordering, alert hierarchy, CO emergency behavior, humidifier independence, entity names, and `dump_cards` remain unchanged
 
 Upgrade note: **v2.0.5 is a configuration UX reorganisation release, not a runtime feature release.**
@@ -660,7 +660,7 @@ What to do:
 
 
 Suggested baseline:
-- start with the default `v2_tablet` layout, then add mobile if needed
+- start with the default initial `v2_tablet` layout, then add mobile if needed
 - verify Current Air Control, chips, and outputs
 - re-run `humidity_intelligence.dump_cards` after changing the optional temperature chip row or output entity details option
 - then add second layout if needed
@@ -849,6 +849,8 @@ data:
 Purpose:
 - render and export card YAML to file without dashboard creation.
 - use this after upgrading or changing options when an existing Manual dashboard card needs the latest HI YAML.
+- omit `layout` to export all cached/generated layouts.
+- supply `layout` to export only one layout.
 - paste the generated YAML from `/config/humidity_intelligence_cards_<layout>.yaml` back into the relevant Dashboard Manual card.
 
 Example:

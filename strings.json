@@ -259,7 +259,7 @@
       },
       "ui_install": {
         "title": "UI Cards",
-        "description": "Select which UI layouts to export now. The tablet layout is selected by default. Additional layouts can be exported later with dump_cards.\n\nHI will write one file per layout to /config/humidity_intelligence_cards_layout.yaml and post a notification with the file path.\n\nConfigured alerts:\n{configured_alerts}\n\nWarning: The backend logic will work without frontend dependencies, but the UI cards may render incorrectly unless the required custom cards are installed (card-mod, button-card, mod-card, apexcharts-card).\n\nTo load a card: open File Editor → /config/humidity_intelligence_cards_layout.yaml → copy the YAML → Dashboard → Edit → Add card → Manual → paste YAML.",
+        "description": "Select which UI layouts to export now. The tablet layout is selected by default for initial setup. Later, dump_cards without a layout exports all cached layouts; supply layout to export one layout only.\n\nHI will write one file per selected layout to /config/humidity_intelligence_cards_<layout>.yaml and post a notification with the file path.\n\nConfigured alerts:\n{configured_alerts}\n\nWarning: The backend logic will work without frontend dependencies, but the UI cards may render incorrectly unless the required custom cards are installed (card-mod, button-card, mod-card, apexcharts-card).\n\nTo load a card: open File Editor → /config/humidity_intelligence_cards_<layout>.yaml → copy the YAML → Dashboard → Edit → Add card → Manual → paste YAML.",
         "data": {
           "ui_layouts": "UI layouts to export"
         }
