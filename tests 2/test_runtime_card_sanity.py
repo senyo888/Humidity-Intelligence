@@ -22,6 +22,9 @@ def _install_homeassistant_stubs() -> None:
     core = types.ModuleType("homeassistant.core")
     config_entries = types.ModuleType("homeassistant.config_entries")
     const = types.ModuleType("homeassistant.const")
+    components = types.ModuleType("homeassistant.components")
+    lovelace = types.ModuleType("homeassistant.components.lovelace")
+    lovelace_const = types.ModuleType("homeassistant.components.lovelace.const")
     exceptions = types.ModuleType("homeassistant.exceptions")
     helpers = types.ModuleType("homeassistant.helpers")
     config_validation = types.ModuleType("homeassistant.helpers.config_validation")
@@ -123,6 +126,7 @@ def _install_homeassistant_stubs() -> None:
     exceptions.HomeAssistantError = HomeAssistantError
     const.UnitOfTemperature = UnitOfTemperature
     const.PERCENTAGE = "%"
+    lovelace_const.LOVELACE_DATA = "lovelace"
     config_validation.entity_id = str
     config_validation.entity_ids = _ensure_list
     config_validation.ensure_list = _ensure_list
@@ -143,6 +147,9 @@ def _install_homeassistant_stubs() -> None:
     sys.modules["homeassistant.core"] = core
     sys.modules["homeassistant.config_entries"] = config_entries
     sys.modules["homeassistant.const"] = const
+    sys.modules["homeassistant.components"] = components
+    sys.modules["homeassistant.components.lovelace"] = lovelace
+    sys.modules["homeassistant.components.lovelace.const"] = lovelace_const
     sys.modules["homeassistant.exceptions"] = exceptions
     sys.modules["homeassistant.helpers"] = helpers
     sys.modules["homeassistant.helpers.config_validation"] = config_validation
@@ -333,6 +340,32 @@ class _FakeHass:
 
     async def async_add_executor_job(self, func, *args):
         return func(*args)
+
+
+class _NoStringResource(dict):
+    def __str__(self):
+        raise AssertionError("resource objects must not be stringified")
+
+    def __repr__(self):
+        raise AssertionError("resource objects must not be stringified")
+
+
+class _FakeLovelaceResources:
+    def __init__(self, items, *, loaded=False, load_error=None):
+        self._items = list(items)
+        self.loaded = loaded
+        self.load_error = load_error
+        self.load_calls = 0
+        self.items_calls = 0
+
+    async def async_load(self):
+        self.load_calls += 1
+        if self.load_error is not None:
+            raise self.load_error
+
+    def async_items(self):
+        self.items_calls += 1
+        return list(self._items)
 
 
 class _DumpCardsConfig:
@@ -2200,6 +2233,10 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
         entry,
         runtime_data,
         manifest_version="2.0.5",
+        frontend_dependencies={
+            "status": "not_inspectable",
+            "reason": "Lovelace resource collection is not available in this Home Assistant runtime context.",
+        },
         write_test_exports=True,
         unscoped_written=[
             "/config/humidity_intelligence_v205_release_check_cards_v2_mobile.yaml",
@@ -2219,12 +2256,17 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
     assert checks["dump_cards_unscoped_export_all"]["status"] == "pass"
     assert checks["dump_cards_scoped_export_single_layout"]["status"] == "pass"
     assert checks["generated_cards_text_sanity"]["status"] == "pass"
+    assert checks["frontend_dependencies_reported"]["status"] == "pass"
 
     failed_report = services_mod._build_v205_release_check_entry_report(
         hass,
         entry,
         runtime_data,
         manifest_version="2.0.5",
+        frontend_dependencies={
+            "status": "not_inspectable",
+            "reason": "Lovelace resource collection is not available in this Home Assistant runtime context.",
+        },
         write_test_exports=True,
         unscoped_written=[
             "/config/humidity_intelligence_v205_release_check_cards_v2_tablet.yaml",
@@ -2236,6 +2278,132 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
     failed_checks = {check["id"]: check for check in failed_report["checks"]}
     assert failed_report["status"] == "fail"
     assert failed_checks["dump_cards_unscoped_export_all"]["status"] == "fail"
+
+
+def test_frontend_dependency_status_detects_lovelace_async_items_urls():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+    resources = _FakeLovelaceResources(
+        [
+            _NoStringResource({"url": "/hacsfiles/apexcharts-card/apexcharts-card.js"}),
+            _NoStringResource({"url": "/hacsfiles/button-card/button-card.js"}),
+            _NoStringResource({"url": "/hacsfiles/lovelace-card-mod/card-mod.js"}),
+            _NoStringResource({"url": "/hacsfiles/lovelace-card-mod/mod-card.js"}),
+        ],
+        loaded=False,
+    )
+    hass.data["lovelace"] = SimpleNamespace(resources=resources)
+
+    status = asyncio.run(services_mod._async_frontend_dependency_status(hass))
+
+    assert resources.load_calls == 1
+    assert resources.loaded is True
+    assert resources.items_calls == 1
+    assert status == {
+        "apexcharts-card": {
+            "detected": True,
+            "url": "/hacsfiles/apexcharts-card/apexcharts-card.js",
+        },
+        "button-card": {
+            "detected": True,
+            "url": "/hacsfiles/button-card/button-card.js",
+        },
+        "card-mod": {
+            "detected": True,
+            "url": "/hacsfiles/lovelace-card-mod/card-mod.js",
+        },
+        "mod-card": {
+            "detected": True,
+            "url": "/hacsfiles/lovelace-card-mod/mod-card.js",
+        },
+    }
+
+
+def test_frontend_dependency_status_missing_lovelace_is_not_inspectable():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+
+    status = asyncio.run(services_mod._async_frontend_dependency_status(hass))
+
+    assert status["status"] == "not_inspectable"
+    assert "Lovelace" in status["reason"]
+    for dependency in ("apexcharts-card", "button-card", "card-mod", "mod-card"):
+        assert dependency not in status
+
+    resources = _FakeLovelaceResources([], loaded=False, load_error=RuntimeError("storage offline"))
+    hass.data["lovelace"] = SimpleNamespace(resources=resources)
+    failed_load_status = asyncio.run(services_mod._async_frontend_dependency_status(hass))
+
+    assert failed_load_status["status"] == "not_inspectable"
+    assert "could not be loaded" in failed_load_status["reason"]
+    for dependency in ("apexcharts-card", "button-card", "card-mod", "mod-card"):
+        assert dependency not in failed_load_status
+
+
+def test_frontend_dependency_status_is_non_blocking_for_release_contract_checks():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.hi_runtime_mode": _FakeState("normal"),
+            "sensor.kitchen_h": _FakeState(45),
+            "sensor.hall_h": _FakeState(44),
+            "sensor.bed_h": _FakeState(46),
+            "sensor.kitchen_t": _FakeState(21),
+            "sensor.hall_t": _FakeState(20),
+            "sensor.bed_t": _FakeState(19),
+            "sensor.l1_iaq": _FakeState(35),
+            "sensor.co_val": _FakeState(4),
+            "fan.zone1": _FakeState("off"),
+            "fan.zone2": _FakeState("off"),
+            "fan.aq1": _FakeState("off"),
+            "humidifier.l1": _FakeState("off"),
+            "light.alert": _FakeState("off"),
+            "switch.alert_power": _FakeState("off"),
+        },
+    )
+    runtime_data = {
+        "entity_map": {"runtime_mode": "sensor.hi_runtime_mode"},
+        "cards": {
+            "v2_mobile": "type: markdown\ncontent: Mobile ready\n",
+            "v2_tablet": "type: markdown\ncontent: Tablet ready\n",
+            "v1_mobile": "type: markdown\ncontent: Legacy ready\n",
+            "view_cards_button": "type: button\nname: View cards\n",
+        },
+        "unresolved_placeholders_by_card": {},
+    }
+
+    report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        runtime_data,
+        manifest_version="2.0.5",
+        frontend_dependencies={
+            "status": "not_inspectable",
+            "reason": "Lovelace resource collection is not available in this Home Assistant runtime context.",
+        },
+        write_test_exports=True,
+        unscoped_written=[
+            "/config/humidity_intelligence_v205_release_check_cards_v2_mobile.yaml",
+            "/config/humidity_intelligence_v205_release_check_cards_v2_tablet.yaml",
+            "/config/humidity_intelligence_v205_release_check_cards_v1_mobile.yaml",
+            "/config/humidity_intelligence_v205_release_check_cards_view_cards_button.yaml",
+        ],
+        scoped_written=[
+            "/config/humidity_intelligence_v205_release_check_cards_scoped_v2_tablet.yaml",
+        ],
+    )
+    checks = {check["id"]: check for check in report["checks"]}
+
+    assert report["status"] == "pass"
+    assert checks["frontend_dependencies_reported"]["status"] == "pass"
+    assert checks["frontend_dependencies_reported"]["details"]["status"] == "not_inspectable"
+    assert checks["unresolved_placeholders"]["status"] == "pass"
+    assert checks["configured_entity_availability"]["status"] == "pass"
+    assert checks["generated_cards_text_sanity"]["status"] == "pass"
 
 
 def test_v205_release_check_service_is_documented_and_registered():
