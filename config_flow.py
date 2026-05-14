@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import voluptuous as vol
@@ -15,6 +14,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import selector
 from homeassistant.helpers.selector import SelectOptionDict
 
+from .helpers.frontend_dependencies import async_render_dependency_status
 from .helpers.zone_validation import detect_zone_mapping_duplicates, summarize_zone_mapping_duplicates
 from .const import (
     DOMAIN,
@@ -24,7 +24,6 @@ from .const import (
     ENGINE_INTERVAL_MIN,
     ENGINE_INTERVAL_MINUTES_DEFAULT,
     ENGINE_INTERVAL_STEP,
-    DEPENDENCIES,
     LEVELS,
     MAX_ALERTS,
     OUTSIDE_WINDOW_ACTIONS,
@@ -2957,24 +2956,7 @@ def _presence_state_options(hass: HomeAssistant, entities: List[str]) -> List[st
 
 
 async def _render_dependency_status(hass: HomeAssistant) -> str:
-    lines: List[str] = []
-    resources = hass.data.get("lovelace_resources") or {}
-    custom_components_path = Path(hass.config.path("custom_components"))
-
-    for dep in DEPENDENCIES:
-        status = "Unknown (verify manually)"
-        url = dep.get("url")
-        resource = dep.get("resource")
-        if resource and any(resource in str(v) for v in resources.values()):
-            status = "Installed"
-        else:
-            path = custom_components_path / dep["domain"]
-            if path.exists():
-                status = "Detected"
-        suffix = f" | repo: {url}" if url else ""
-        lines.append(f"- {dep['name']}: {status}{suffix}")
-
-    return "\n".join(lines)
+    return await async_render_dependency_status(hass)
 
 
 def _entry_section(entry: config_entries.ConfigEntry, key: str, default: Any) -> Any:

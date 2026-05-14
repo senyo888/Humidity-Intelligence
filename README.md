@@ -483,7 +483,7 @@ Follow this sequence on first install.
 
 What to do:
 - open the Frontend Dependencies step in config flow
-- review installed/detected status and direct resource links where shown
+- review installed/not detected/not inspectable status and repository links
 - continue even if some are not installed
 
 Reference:
@@ -913,7 +913,8 @@ data: {}
 
 ### `self_check`
 Purpose:
-- run mapping, frontend dependency, and telemetry health checks and write report JSON.
+- run mapping, telemetry, and optional frontend dependency resource checks and write report JSON.
+- frontend dependency status is read from the same Lovelace resource inspection path used by setup/options, `v205_release_check`, and diagnostics.
 
 Example:
 ```yaml
@@ -938,7 +939,7 @@ data:
 
 ### `dump_diagnostics`
 Purpose:
-- export runtime diagnostics, mapping, active target profile, visual alert rules, alert source resolution, unavailable entities, and card info to JSON.
+- export runtime diagnostics, mapping, active target profile, visual alert rules, alert source resolution, optional frontend dependency resource status, unavailable entities, and card info to JSON.
 - `HI Diagnostics` keeps only a compact recorder-safe summary in live state attributes; use this service for the full support bundle.
 
 Example:

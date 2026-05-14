@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import inspect
 import json
 import logging
 import os
@@ -19,6 +18,10 @@ from homeassistant.helpers import config_validation as cv
 
 from .const import CONF_SHOW_OUTPUT_ENTITY_DETAILS, DEFAULT_SHOW_OUTPUT_ENTITY_DETAILS, DOMAIN
 from .helpers.cleanup import list_all_generated_files, list_generated_files, remove_files, remove_dashboard
+from .helpers.frontend_dependencies import (
+    async_frontend_dependency_status,
+    frontend_dependency_not_inspectable,
+)
 from .helpers.seasonal import resolve_target_profile
 from .helpers.zone_validation import detect_zone_mapping_duplicates, summarize_zone_mapping_duplicates
 
@@ -38,7 +41,6 @@ SERVICE_RESUME_CONTROL = "resume_control"
 _FLASH_LIGHT_LOCKS_KEY = "_flash_light_locks"
 
 _ALLOWED_LAYOUTS = {"v2_mobile", "v2_tablet", "v1_mobile", "view_cards_button"}
-_FRONTEND_DEPENDENCIES = ("apexcharts-card", "button-card", "card-mod", "mod-card")
 _SAFE_FILENAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 _SAFE_DASHBOARD_PATH_RE = re.compile(r"^[a-z0-9_-]{1,64}$")
 _SENSITIVE_ATTR_EXACT = {
@@ -272,6 +274,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
             else:
                 entries = hass.config_entries.async_entries(DOMAIN)
 
+            frontend_dependencies = await async_frontend_dependency_status(hass)
             payload = {}
             for entry in entries:
                 data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
@@ -294,6 +297,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
                         data.get("options", {}),
                         entity_map,
                         data,
+                        frontend_dependencies=frontend_dependencies,
                     ),
                     "entity_map": _to_jsonable(entity_map),
                     "cards": list((data.get("cards") or {}).keys()),
@@ -326,7 +330,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
             for ent in mapping.values():
                 if hass.states.get(ent) is None:
                     missing_entities.append(ent)
-            frontend_dependencies = await _async_frontend_dependency_status(hass)
+            frontend_dependencies = await async_frontend_dependency_status(hass)
 
             report[entry.entry_id] = {
                 "missing_entities": missing_entities,
@@ -361,7 +365,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
             "status": "pass",
             "entries": {},
         }
-        frontend_dependencies = await _async_frontend_dependency_status(hass)
+        frontend_dependencies = await async_frontend_dependency_status(hass)
 
         if not entries:
             report["status"] = "fail"
@@ -698,6 +702,8 @@ def _build_diagnostics_summary(
     options: dict,
     entity_map: dict,
     runtime_data: dict,
+    *,
+    frontend_dependencies: Optional[dict] = None,
 ) -> dict:
     """Build a support-focused, truth-only diagnostics summary."""
     effective = dict(config or {})
@@ -719,7 +725,7 @@ def _build_diagnostics_summary(
     if not zones and not effective.get("alert_only_mode"):
         warnings.append("No control zones are configured.")
 
-    return _to_jsonable({
+    summary = {
         "target_profile": {
             "mode": effective.get("target_profile", "auto"),
             "active_profile": profile.key,
@@ -742,7 +748,11 @@ def _build_diagnostics_summary(
         "visual_alerts": _visual_alert_summary(alerts),
         "unavailable_or_unknown_entities": unavailable,
         "warnings": warnings,
-    })
+    }
+    if frontend_dependencies is not None:
+        summary["frontend_dependency_resources"] = frontend_dependencies
+
+    return _to_jsonable(summary)
 
 
 def _build_v205_release_check_entry_report(
@@ -849,7 +859,7 @@ def _build_v205_release_check_entry_report(
         )
 
     if frontend_dependencies is None:
-        frontend_dependencies = _frontend_dependency_not_inspectable(
+        frontend_dependencies = frontend_dependency_not_inspectable(
             "Frontend dependency status was not supplied by the service handler."
         )
     _add_check(
@@ -939,137 +949,8 @@ def _layouts_from_written_paths(paths: List[str]) -> set[str]:
     return layouts
 
 
-async def _async_frontend_dependency_status(hass: HomeAssistant) -> dict:
-    """Inspect current Lovelace resource URLs without making them a blocker."""
-    lovelace_data_key = _lovelace_data_key()
-    if lovelace_data_key is None:
-        return _frontend_dependency_not_inspectable(
-            "Lovelace resource constants are not available in this Home Assistant runtime context."
-        )
-
-    if bool(getattr(getattr(hass, "config", None), "safe_mode", False)):
-        return _frontend_dependency_not_inspectable(
-            "Home Assistant is running in safe mode; Lovelace resources are not inspectable."
-        )
-
-    try:
-        lovelace_data = hass.data.get(lovelace_data_key)
-    except Exception:
-        _LOGGER.debug("Unable to read Lovelace runtime data for dependency inspection", exc_info=True)
-        return _frontend_dependency_not_inspectable(
-            "Lovelace runtime data could not be read in this Home Assistant runtime context."
-        )
-
-    if lovelace_data is None:
-        return _frontend_dependency_not_inspectable(
-            "Lovelace resource collection is not available in this Home Assistant runtime context."
-        )
-
-    resources = _lovelace_resource_collection(lovelace_data)
-    if resources is None:
-        return _frontend_dependency_not_inspectable(
-            "Lovelace resource collection is not available in this Home Assistant runtime context."
-        )
-
-    if getattr(resources, "loaded", True) is False:
-        async_load = getattr(resources, "async_load", None)
-        if not callable(async_load):
-            return _frontend_dependency_not_inspectable(
-                "Lovelace resource collection is not loaded and cannot be loaded in this runtime context."
-            )
-        try:
-            await _maybe_await(async_load())
-            try:
-                resources.loaded = True
-            except Exception:
-                pass
-        except Exception:
-            _LOGGER.debug("Unable to load Lovelace resources for dependency inspection", exc_info=True)
-            return _frontend_dependency_not_inspectable(
-                "Lovelace resource collection could not be loaded for inspection."
-            )
-
-    async_items = getattr(resources, "async_items", None)
-    if not callable(async_items):
-        return _frontend_dependency_not_inspectable(
-            "Lovelace resource collection does not expose async_items() for inspection."
-        )
-
-    try:
-        items = await _maybe_await(async_items())
-    except Exception:
-        _LOGGER.debug("Unable to inspect Lovelace resource URLs", exc_info=True)
-        return _frontend_dependency_not_inspectable(
-            "Lovelace resource URLs could not be inspected in this Home Assistant runtime context."
-        )
-
-    if items is None:
-        return _frontend_dependency_not_inspectable(
-            "Lovelace resource collection returned no inspectable resource list."
-        )
-
-    try:
-        urls = _lovelace_resource_urls(items)
-    except Exception:
-        _LOGGER.debug("Unable to extract Lovelace resource URLs", exc_info=True)
-        return _frontend_dependency_not_inspectable(
-            "Lovelace resource URLs could not be extracted in this Home Assistant runtime context."
-        )
-
-    return _frontend_dependency_status_from_urls(urls)
-
-
-def _lovelace_data_key() -> Any | None:
-    try:
-        from homeassistant.components.lovelace.const import LOVELACE_DATA
-    except Exception:
-        return None
-    return LOVELACE_DATA
-
-
-def _lovelace_resource_collection(lovelace_data: Any) -> Any | None:
-    if isinstance(lovelace_data, dict):
-        return lovelace_data.get("resources")
-    return getattr(lovelace_data, "resources", None)
-
-
-async def _maybe_await(value: Any) -> Any:
-    if inspect.isawaitable(value):
-        return await value
-    return value
-
-
-def _lovelace_resource_urls(items: Any) -> List[str]:
-    if items is None:
-        return []
-    iterable = items.values() if isinstance(items, dict) else items
-
-    urls: List[str] = []
-    for item in iterable:
-        url = item.get("url") if isinstance(item, dict) else getattr(item, "url", None)
-        if isinstance(url, str) and url:
-            urls.append(url)
-    return urls
-
-
-def _frontend_dependency_status_from_urls(urls: List[str]) -> dict:
-    lowered_urls = [(url, url.lower()) for url in urls]
-    status = {}
-    for dependency in _FRONTEND_DEPENDENCIES:
-        match = next(
-            (url for url, lowered in lowered_urls if dependency in lowered),
-            None,
-        )
-        status[dependency] = (
-            {"detected": True, "url": match}
-            if match is not None
-            else {"detected": False}
-        )
-    return status
-
-
-def _frontend_dependency_not_inspectable(reason: str) -> dict:
-    return {"status": "not_inspectable", "reason": reason}
+_async_frontend_dependency_status = async_frontend_dependency_status
+_frontend_dependency_not_inspectable = frontend_dependency_not_inspectable
 
 
 def _safe_report_slug(value: str) -> str:

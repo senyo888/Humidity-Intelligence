@@ -200,6 +200,16 @@ def _load_services_module():
     return _load_module(f"{PKG}.services", ROOT / "services.py")
 
 
+def _load_frontend_dependencies_module():
+    _install_homeassistant_stubs()
+    _install_package_scaffold()
+    _load_module(f"{PKG}.const", ROOT / "const.py")
+    return _load_module(
+        f"{PKG}.helpers.frontend_dependencies",
+        ROOT / "helpers" / "frontend_dependencies.py",
+    )
+
+
 class _FakeState:
     def __init__(self, state, attrs=None):
         self.state = str(state)
@@ -2320,6 +2330,63 @@ def test_frontend_dependency_status_detects_lovelace_async_items_urls():
     }
 
 
+def test_shared_frontend_dependency_helper_renders_form_status_from_lovelace_resources():
+    frontend_mod = _load_frontend_dependencies_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+    with tempfile.TemporaryDirectory() as tmpdir:
+        hass.config = _DumpCardsConfig(tmpdir)
+        resources = _FakeLovelaceResources(
+            [
+                _NoStringResource({"url": "/hacsfiles/button-card/button-card.js"}),
+                _NoStringResource({"url": "/hacsfiles/lovelace-card-mod/card-mod.js"}),
+            ],
+            loaded=True,
+        )
+        hass.data["lovelace"] = SimpleNamespace(resources=resources)
+
+        status = asyncio.run(frontend_mod.async_frontend_dependency_status(hass))
+        lines = asyncio.run(frontend_mod.async_render_dependency_status(hass))
+
+    assert status["button-card"] == {
+        "detected": True,
+        "url": "/hacsfiles/button-card/button-card.js",
+    }
+    assert status["card-mod"] == {
+        "detected": True,
+        "url": "/hacsfiles/lovelace-card-mod/card-mod.js",
+    }
+    assert status["apexcharts-card"] == {"detected": False}
+    assert "- button-card: Installed | repo: https://github.com/custom-cards/button-card" in lines
+    assert "- card-mod: Installed | repo: https://github.com/thomasloven/lovelace-card-mod" in lines
+    assert "- apexcharts-card: Not detected | repo: https://github.com/RomRider/apexcharts-card" in lines
+
+
+def test_frontend_dependency_status_distinguishes_card_mod_and_mod_card_resources():
+    frontend_mod = _load_frontend_dependencies_module()
+
+    status = frontend_mod.frontend_dependency_status_from_urls(
+        ["/hacsfiles/lovelace-card-mod/mod-card.js"]
+    )
+
+    assert status["mod-card"] == {
+        "detected": True,
+        "url": "/hacsfiles/lovelace-card-mod/mod-card.js",
+    }
+    assert status["card-mod"] == {"detected": False}
+
+
+def test_config_flow_dependency_pages_delegate_to_shared_frontend_helper():
+    config_source = (ROOT / "config_flow.py").read_text()
+    dependency_renderer = config_source.split("async def _render_dependency_status", 1)[1].split(
+        "def _entry_section", 1
+    )[0]
+
+    assert "from .helpers.frontend_dependencies import async_render_dependency_status" in config_source
+    assert "async_render_dependency_status(hass)" in dependency_renderer
+    assert "lovelace_resources" not in dependency_renderer
+
+
 def test_frontend_dependency_status_missing_lovelace_is_not_inspectable():
     services_mod = _load_services_module()
     entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
@@ -2340,6 +2407,38 @@ def test_frontend_dependency_status_missing_lovelace_is_not_inspectable():
     assert "could not be loaded" in failed_load_status["reason"]
     for dependency in ("apexcharts-card", "button-card", "card-mod", "mod-card"):
         assert dependency not in failed_load_status
+
+
+def test_diagnostics_summary_can_surface_shared_frontend_dependency_status_without_live_bloat():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+    frontend_status = {
+        "button-card": {
+            "detected": True,
+            "url": "/hacsfiles/button-card/button-card.js",
+        },
+        "card-mod": {"detected": False},
+    }
+
+    full_summary = services_mod._build_diagnostics_summary(
+        hass,
+        entry.data,
+        {},
+        {},
+        {},
+        frontend_dependencies=frontend_status,
+    )
+    live_summary = services_mod._build_diagnostics_summary(
+        hass,
+        entry.data,
+        {},
+        {},
+        {},
+    )
+
+    assert full_summary["frontend_dependency_resources"] == frontend_status
+    assert "frontend_dependency_resources" not in live_summary
 
 
 def test_frontend_dependency_status_is_non_blocking_for_release_contract_checks():
