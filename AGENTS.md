@@ -14,6 +14,14 @@ Humidity Intelligence is a deterministic Home Assistant environmental control en
 - If architecture, runtime behavior, security posture, release flow, contributor expectations, or documentation expectations materially change, update `DESIGN_BRIEF.md` in the same work.
 - Maintainers may keep local-only instructions in `AGENTS.local.md`. That file is intentionally ignored and must not be required for public contributors or public repo correctness.
 
+## Codex Pet Memory Architecture
+
+- Codex pet memory is a first-class subsystem under `.codex/memories/`.
+- Canonical pet memory paths use the placeholder pattern `.codex/memories/pets/<PetName>/`.
+- Shared project memory belongs under `.codex/memories/project/`; shared terminology belongs under `.codex/memories/shared/`.
+- Pet identity definitions may remain under `.codex/pets/`, but pet memory, history, canon, and reporting rules must not be stored there.
+- Repository memory must stay public-safe: no secrets, credentials, private entity IDs, private MCP configuration, or machine-specific local paths.
+
 ## Non-Negotiable Architecture Rules
 
 - Preserve the integration name, domain, HACS identity, and public package positioning unless explicitly instructed otherwise.

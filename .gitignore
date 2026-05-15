@@ -21,6 +21,7 @@ __pycache__/
 *.old
 
 # --- Local planning docs ---
+.codex/
 DESIGN_BRIEF.md
 PROJECT_SUMMARY.md
 ROADMAP.md
