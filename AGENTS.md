@@ -19,7 +19,7 @@ Humidity Intelligence is a deterministic Home Assistant environmental control en
 - Codex pet memory is a first-class subsystem under `.codex/memories/`.
 - Canonical pet memory paths use the placeholder pattern `.codex/memories/pets/<PetName>/`.
 - Shared project memory belongs under `.codex/memories/project/`; shared terminology belongs under `.codex/memories/shared/`.
-- Pet identity definitions may remain under `.codex/pets/`, but pet memory, history, canon, and reporting rules must not be stored there.
+- Pet identity pointers may exist under `.codex/pets_pointer/`. `.codex/pets/` is historical or possible app identity space only; pet memory, history, canon, and reporting rules must not be stored there.
 - Repository memory must stay public-safe: no secrets, credentials, private entity IDs, private MCP configuration, or machine-specific local paths.
 
 ## Non-Negotiable Architecture Rules
