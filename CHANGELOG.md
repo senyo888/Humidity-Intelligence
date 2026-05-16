@@ -6,7 +6,7 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
-## 2.0.5
+## 2.0.5-beta.1
 
 - Reorganised setup and options so essentials stay visible while tuning controls move behind Advanced sections.
 - Changed Advanced tuning from submit-gated reveal toggles to in-form collapsible sections so tuning controls open and retract immediately without changing saved runtime behavior.
@@ -19,7 +19,7 @@ This project follows a practical changelog format for Home Assistant and HACS us
 - Preserved deterministic runtime lane ordering, alert hierarchy, CO emergency behavior, humidifier independence, and public entity semantics.
 - Added `v205_release_check`, a read-only Home Assistant service for test-repo validation of the v2.0.5 generated-card and `dump_cards` contracts.
 - Changed setup/options dependency display, `self_check`, `v205_release_check`, and `dump_diagnostics` frontend dependency reporting to use the same Lovelace resource inspection path via `LOVELACE_DATA.resources.async_items()`, returning detected URLs or a non-blocking `not_inspectable` status instead of legacy false negatives.
-- Bumped integration version to `2.0.5`.
+- Set the testing manifest version to `2.0.5-beta.1` and added branch/version governance checks so stable versions remain limited to `main` and `release/*`.
 
 ## 2.0.4
 

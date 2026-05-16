@@ -76,6 +76,8 @@ Humidity Intelligence is a deterministic Home Assistant environmental control en
 
 - Keep `README.md`, `manifest.json`, `hacs.json`, docs, release notes, UI examples, and runtime behavior aligned.
 - Update related docs when implementation behavior changes.
+- Keep branch/version state explicit: testing branches use prerelease manifest versions, while `main` and `release/*` use stable versions only.
+- Run the version-governance check before release promotion so unstable builds cannot be promoted as stable by accident.
 - Preserve backwards compatibility where practical. If compatibility breaks, call it out explicitly and document the migration path.
 - Keep release notes factual, version-aligned, and free of private local details.
 - Report changed files and validation results at the end of the work.

@@ -260,7 +260,7 @@ The UI renders.
 - `v2_tablet` is selected by default during initial UI export; unscoped `dump_cards` still exports all cached/generated layouts unless `layout` is supplied
 - deterministic runtime lane ordering, alert hierarchy, CO emergency behavior, humidifier independence, entity names, and `dump_cards` remain unchanged
 
-Upgrade note: **v2.0.5 is a configuration UX reorganisation release, not a runtime feature release.**
+Upgrade note: **v2.0.5 is a configuration UX reorganisation release, not a runtime feature release.** Testing branches carry `-beta.N` or `-rc.N` manifest versions until the stable release is promoted to `main` or `release/*`.
 After changing UI visibility options, run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual cards.
 
 ---
@@ -967,7 +967,7 @@ Safety guidance:
 
 ## Release Notes
 
-### v2.0.5
+### v2.0.5-beta.1
 
 - reorganised setup and options around essentials first, with tuning controls behind Advanced sections that open/retract immediately without an extra Submit cycle
 - added recommended-default guidance to setup and post-configuration pages
@@ -977,7 +977,7 @@ Safety guidance:
 - defaulted new generated V2 cards to hide the expandable output details panel unless the option is enabled
 - changed first-install UI export default to `v2_tablet`
 - kept deterministic runtime behavior, lane ordering, alert hierarchy, CO emergency handling, humidifier independence, public entity semantics, and `dump_cards` unchanged
-- bumped integration version to `2.0.5`
+- set the testing manifest version to `2.0.5-beta.1` and added branch/version governance checks so stable versions remain limited to `main` and `release/*`
 
 ### v2.0.4
 
