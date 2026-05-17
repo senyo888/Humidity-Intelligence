@@ -11,7 +11,7 @@
       },
       "gates": {
         "title": "Global Gates",
-        "description": "Configure the essential operating gates for Humidity Intelligence.\n\n{advanced_note}\n\nAdvanced tuning contains control-loop timing, startup UI mapping refresh, custom target bands, and optional output entity details.",
+        "description": "Configure the essential operating gates for Humidity Intelligence.\n\n{advanced_note}\n\nAdvanced tuning contains control-loop timing, startup UI mapping refresh, custom target bands, and generated-card output details visibility.",
         "data": {
           "enable_time_gate": "Enable time gate",
           "start_time": "Start time",
@@ -429,7 +429,7 @@
       },
       "options_gates": {
         "title": "Global Gates Options",
-        "description": "Edit the essential operating gates. Presence can use person, device_tracker, alarm panel, or helper entities. Humidity Intelligence target profile mode controls seasonal vs custom humidity interpretation.\n\n{advanced_note}\n\nAdvanced tuning contains control-loop timing, startup UI mapping refresh, custom target bands, and optional output entity details.",
+        "description": "Edit the essential operating gates. Presence can use person, device_tracker, alarm panel, or helper entities. Humidity Intelligence target profile mode controls seasonal vs custom humidity interpretation.\n\n{advanced_note}\n\nAdvanced tuning contains control-loop timing, startup UI mapping refresh, custom target bands, and generated-card output details visibility.",
         "data": {
           "enable_time_gate": "Enable time gate",
           "start_time": "Start time",

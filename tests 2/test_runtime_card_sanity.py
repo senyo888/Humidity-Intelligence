@@ -2061,7 +2061,8 @@ def test_startup_ui_refresh_contract_is_wired():
     assert "recommended thresholds" in strings_source
     assert "automatically shortly after Home Assistant startup" in services_source
     assert "_entry_show_output_entity_details" in init_source
-    assert "output entity details" in init_source
+    assert "generated-card output details" in init_source
+    assert "UI visibility changes" in init_source
 
 
 def test_options_gates_keeps_custom_targets_behind_advanced():

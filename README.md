@@ -256,7 +256,7 @@ The UI renders.
 - HI applies recommended defaults unless you customise them
 - control loop interval, startup UI mapping refresh, custom humidity targets, custom temperature comfort values, slope sources, fan levels, and threshold tuning remain available as advanced controls
 - new installs default the generated V2 dashboard to a cleaner output display
-- `Show output entity details` can re-enable the expandable output details panel when deeper runtime inspection is useful
+- `Show output entity details` can re-enable the generated-card output details panel when deeper runtime inspection is useful
 - `v2_tablet` is selected by default during initial UI export; unscoped `dump_cards` still exports all cached/generated layouts unless `layout` is supplied
 - deterministic runtime lane ordering, alert hierarchy, CO emergency behavior, humidifier independence, entity names, and `dump_cards` remain unchanged
 
@@ -498,7 +498,7 @@ What to do:
 - define explicit present and away state values
 - set Humidity Intelligence target profile mode
 - leave recommended defaults in place unless you have a clear reason to customise
-- open Advanced in-place only for control loop interval, startup UI mapping refresh, custom humidity targets, custom temperature comfort limits, or output entity details
+- open Advanced in-place only for control loop interval, startup UI mapping refresh, custom humidity targets, custom temperature comfort limits, or generated-card output details visibility
 
 Example baseline:
 - time gate enabled: `06:00` to `23:30`
@@ -507,7 +507,7 @@ Example baseline:
 - present states: `home`, `on`, `disarmed`
 - away states: `not_home`, `off`, `armed_away`, `away`
 - target profile mode: `auto`
-- output entity details: off for a cleaner dashboard unless you want the expandable output panel
+- generated-card output details: off for a cleaner dashboard unless you want the expandable output panel
 
 Example:
 - if everyone is away, HI enters gate hold
@@ -662,7 +662,7 @@ What to do:
 Suggested baseline:
 - start with the default initial `v2_tablet` layout, then add mobile if needed
 - verify Current Air Control, chips, and outputs
-- re-run `humidity_intelligence.dump_cards` after changing the optional temperature chip row or output entity details option
+- re-run `humidity_intelligence.dump_cards` after changing the optional temperature chip row or output-details visibility option
 - then add second layout if needed
 
 Service options:
@@ -785,7 +785,7 @@ When modifying options:
 Post-config sensor/lane management:
 
 1. use `Sensors` to add, edit, or delete any telemetry row (humidity, temperature, IAQ, PM2.5, VOC, CO2, CO)
-2. use `Global Gates` to edit time gate, presence gate, alert-only mode, and target profile; open Advanced for control loop interval, startup UI mapping refresh, custom humidity band, and output entity details
+2. use `Global Gates` to edit time gate, presence gate, alert-only mode, and target profile; open Advanced for control loop interval, startup UI mapping refresh, custom humidity band, and generated-card output details visibility
 3. use `Thresholds & Comfort` to review temperature comfort mode; open Advanced for custom comfort values and per-zone humidity high, AQ, condensation risk, and mould risk thresholds
 4. use `Humidifiers` to add or edit humidifier lanes per level and update output entities; open Advanced for lane removal or band adjustment
 5. use `Air Quality` to add or edit AQ lanes per level and update triggers/outputs; open Advanced for lane removal, run duration, fan level, and AQ thresholds
@@ -794,7 +794,7 @@ Post-config sensor/lane management:
 UI visibility options:
 
 1. keep `Show output entity details` off for the cleaner default V2 display
-2. enable it only when you want the expandable output details panel for deeper troubleshooting
+2. enable it only when you want the generated-card output details panel for deeper troubleshooting
 3. after changing it, run `humidity_intelligence.dump_cards`
 4. paste the refreshed YAML into existing Manual card(s)
 

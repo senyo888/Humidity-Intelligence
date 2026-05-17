@@ -312,7 +312,7 @@ async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> Non
     if prev_alert_only != next_alert_only:
         changed.append("alert-only mode")
     if prev_output_details != next_output_details:
-        changed.append("output entity details")
+        changed.append("generated-card output details")
     await hass.services.async_call(
         "persistent_notification",
         "create",
@@ -321,7 +321,7 @@ async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> Non
             "message": (
                 f"{', '.join(changed).title()} changed. Updated card files were written to "
                 "/config/humidity_intelligence_cards_<layout>.yaml. "
-                "Re-copy/paste the layout YAML into your Manual card to apply control visibility changes."
+                "Re-copy/paste the layout YAML into your Manual card to apply UI visibility changes."
             ),
         },
         blocking=False,
