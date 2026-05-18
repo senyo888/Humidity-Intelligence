@@ -15,6 +15,7 @@
 
 - [What Humidity Intelligence V2 Is](#what-humidity-intelligence-v2-is)
 - [Support Humidity Intelligence](#support-humidity-intelligence)
+- [Getting Help and Issue Reports](#getting-help-and-issue-reports)
 - [Why Environmental Stability Matters](#why-environmental-stability-matters)
 - [Season-Aware Environmental Control](#season-aware-environmental-control)
 - [Architecture Overview](#architecture-overview)
@@ -98,6 +99,40 @@ If you're finding Humidity Intelligence useful, insightful, or just interesting 
 It helps others discover the project, supports ongoing development, and shows that this kind of deterministic, explainable approach to Home Assistant has community value.
 
 [Star Humidity Intelligence on GitHub](https://github.com/senyo888/Humidity-Intelligence)
+
+---
+
+## Getting Help and Issue Reports
+
+When reporting a bug or asking for configuration help, attach the native Home Assistant diagnostics file for Humidity Intelligence where possible.
+
+Download it from:
+
+```text
+Settings -> Devices & services -> Humidity Intelligence -> Download diagnostics
+```
+
+Then drag the downloaded file into the GitHub issue.
+
+This helps maintainers understand your setup without asking lots of follow-up questions.
+
+Please review the bundle before attaching if you are concerned about privacy. The bundle is designed to redact sensitive values, but you remain in control of what you upload.
+
+The diagnostics file includes:
+
+- Humidity Intelligence and Home Assistant versions
+- config entry/options summary
+- selected telemetry, gate, zone, AQ, humidifier, alert, and output entities
+- enabled feature areas
+- current runtime lane/mode, gate state, output state, and reason text
+- active alert resolution
+- frontend dependency status when Home Assistant exposes Lovelace resources
+- generated UI/card summary
+- unavailable/unknown configured entities and support warnings
+
+Sensitive keys and values such as tokens, passwords, API keys, webhook URLs, credential-bearing URLs, location fields, usernames, host/IP/MAC/SSID values, device IDs, and unique IDs are redacted. Entity IDs are included because they are needed to debug mappings; review the file before uploading if your entity names contain personal details.
+
+More detail is in [docs/support.md](docs/support.md).
 
 ---
 
@@ -940,7 +975,8 @@ data:
 ### `dump_diagnostics`
 Purpose:
 - export runtime diagnostics, mapping, active target profile, visual alert rules, alert source resolution, optional frontend dependency resource status, unavailable entities, and card info to JSON.
-- `HI Diagnostics` keeps only a compact recorder-safe summary in live state attributes; use this service for the full support bundle.
+- `HI Diagnostics` keeps only a compact recorder-safe summary in live state attributes; use this service for a full local support export.
+- For GitHub issues, prefer the native Home Assistant diagnostics download from the Humidity Intelligence integration entry.
 
 Example:
 ```yaml
@@ -971,6 +1007,7 @@ Safety guidance:
 
 - reorganised setup and options around essentials first, with tuning controls behind Advanced sections that open/retract immediately without an extra Submit cycle
 - added recommended-default guidance to setup and post-configuration pages
+- added native Home Assistant diagnostics for redacted GitHub issue attachments and updated issue templates to prefer the downloaded diagnostics file
 - kept control loop interval, startup UI mapping refresh, custom humidity targets, slope source selection, temperature chips, fan levels, thresholds, lane removal, and alert visual tuning available as advanced controls
 - made `Thresholds & Comfort` easier to scan by keeping temperature comfort mode visible and moving custom comfort values plus zone thresholds into Advanced
 - added `show_output_entity_details` / `Show output entity details` as a UI-only option for generated V2 cards

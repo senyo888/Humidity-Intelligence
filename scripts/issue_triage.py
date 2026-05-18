@@ -55,8 +55,10 @@ OWNER_DESCRIPTIONS = {
 
 TEMPLATE_IMPROVEMENT_SUGGESTIONS = (
     "Bug, configuration-help, and feature templates now capture the affected area.",
+    "Bug and configuration-help templates ask users to attach the downloaded Home Assistant diagnostics file.",
+    "Issues that attach or mention the native Home Assistant diagnostics download are suggested for `has-diagnostics`; bug/support reports without one are suggested for `needs-bundle`.",
     "Bug and configuration-help templates now capture triage signals for safety, release-blocking, regression, duplicate, maintainer-reply, and proposal-review cases.",
-    "Bug reports now capture checks already tried, including HI services and Home Assistant restart validation.",
+    "Bug reports keep fallback version/check fields for users who cannot download diagnostics.",
     "Feature requests now capture proposal scope before implementation work is inferred.",
     "UI Gallery submissions now capture source layout, frontend dependencies, and whether YAML came from HI export or manual editing.",
 )
@@ -83,6 +85,7 @@ class AnalyzedIssue:
     recommended_action: str
     confidence: str
     signals: list[str]
+    diagnostics_bundle: str
     needs_human_decision: bool
     candidate: bool
 
@@ -367,6 +370,81 @@ def _detect_priority(text: str, category: str, labels_lower: set[str]) -> str:
     return "Watch"
 
 
+def _detect_diagnostics_bundle(text: str, category: str) -> str:
+    """Detect whether the issue body mentions an attached HI diagnostics file."""
+
+    bundle_relevant = category in {"bug", "runtime", "UI", "support"}
+    attachment_context = _contains_any(
+        text,
+        (
+            "attach",
+            "attached",
+            "upload",
+            "uploaded",
+            "download",
+            "downloaded",
+            "file",
+            "bundle",
+            "diagnostic",
+            "diagnostics",
+        ),
+    )
+    native_diagnostics = _contains_any(
+        text,
+        (
+            "home-assistant_humidity_intelligence",
+            "home assistant diagnostics",
+            "downloaded home assistant diagnostics",
+            "downloaded diagnostics",
+            "download diagnostics",
+            "has-diagnostics",
+        ),
+    )
+    generic_diagnostics_file = _contains_any(
+        text,
+        (
+            "diagnostics file",
+            "diagnostic file",
+            "diagnostics bundle",
+            ".json",
+            ".txt",
+            ".zip",
+        ),
+    )
+    missing_native_bundle = _contains_any(
+        text,
+        (
+            "unable to download diagnostics",
+            "cannot download diagnostics",
+            "can't download diagnostics",
+            "could not download diagnostics",
+            "failed to download diagnostics",
+            "no diagnostics file",
+            "no diagnostics bundle",
+            "diagnostics unavailable",
+            "unable to attach diagnostics",
+        ),
+    )
+    local_debug_export = _contains_any(
+        text,
+        (
+            "dump_diagnostics",
+            "dump diagnostics",
+            "humidity_intelligence_diagnostics.json",
+        ),
+    )
+
+    if missing_native_bundle:
+        return "missing" if bundle_relevant else "not applicable"
+    if native_diagnostics and attachment_context:
+        return "present"
+    if generic_diagnostics_file and attachment_context and not local_debug_export:
+        return "present"
+    if bundle_relevant:
+        return "missing"
+    return "not applicable"
+
+
 def _detect_owner(text: str, category: str, priority: str, confidence: str) -> str:
     if confidence == "low":
         return "Human maintainer/Jules"
@@ -428,6 +506,7 @@ def _suggested_labels(
     labels_lower: set[str],
     proposal_required: str,
     release_blocker: str,
+    diagnostics_bundle: str,
 ) -> list[str]:
     labels: list[str] = []
     if not labels_lower:
@@ -442,6 +521,10 @@ def _suggested_labels(
         labels.append("release-blocker")
     if proposal_required == "yes":
         labels.append("proposal-review")
+    if diagnostics_bundle == "present":
+        labels.append("has-diagnostics")
+    elif diagnostics_bundle == "missing":
+        labels.append("needs-bundle")
 
     deduped: list[str] = []
     for label in labels:
@@ -478,17 +561,24 @@ def _recommended_action(
     proposal_required: str,
     release_blocker: str,
     confidence: str,
+    diagnostics_bundle: str,
 ) -> str:
     if confidence == "low":
-        return "Ask Jules to request reproduction detail, logs, version, and affected area before routing."
+        return "Ask Jules to request reproduction detail, affected area, and the downloaded Home Assistant diagnostics file before routing."
     if release_blocker == "yes":
+        if diagnostics_bundle == "missing":
+            return "Create an Aetherwing release-blocker handoff and ask for the Home Assistant diagnostics file in parallel."
         return "Create an Aetherwing release-blocker handoff and validate before any release promotion."
     if proposal_required == "yes":
         return f"Draft a bounded proposal/review note for {owner}; do not implement directly from the issue."
     if category == "duplicate":
         return "Have Jules confirm duplication manually before closing or linking anything."
     if category == "support":
+        if diagnostics_bundle == "missing":
+            return "Ask for the downloaded Home Assistant diagnostics file, then prepare a community-facing support reply with redaction reminders."
         return "Have Jules prepare a community-facing support reply with redaction reminders."
+    if diagnostics_bundle == "missing" and category in {"bug", "runtime", "UI"}:
+        return f"Ask for the downloaded Home Assistant diagnostics file before routing to {owner}, unless the issue is immediately reproducible."
     if priority in {"P1", "P2"}:
         return f"Route to {owner} for a constrained investigation and regression check."
     return f"Queue for {owner} review when active release-validation work allows."
@@ -511,6 +601,7 @@ def analyze_issue(
 
     category = _detect_category(text, labels_lower)
     priority = _detect_priority(text, category, labels_lower)
+    diagnostics_bundle = _detect_diagnostics_bundle(text, category)
     confidence = _confidence(issue, labels_lower=labels_lower, category=category, priority=priority)
     owner = _detect_owner(text, category, priority, confidence)
     proposal_required = _proposal_required(text, category, priority)
@@ -525,6 +616,7 @@ def analyze_issue(
         labels_lower=labels_lower,
         proposal_required=proposal_required,
         release_blocker=release_blocker,
+        diagnostics_bundle=diagnostics_bundle,
     )
     signals, candidate = _issue_signals(
         issue,
@@ -532,6 +624,10 @@ def analyze_issue(
         lookback_days=lookback_days,
         labels_lower=labels_lower,
     )
+    if diagnostics_bundle == "present":
+        signals.append("diagnostics attached or mentioned")
+    elif diagnostics_bundle == "missing":
+        signals.append("diagnostics bundle missing")
     needs_human_decision = (
         owner == "Human maintainer/Jules"
         or confidence == "low"
@@ -562,9 +658,11 @@ def analyze_issue(
             proposal_required=proposal_required,
             release_blocker=release_blocker,
             confidence=confidence,
+            diagnostics_bundle=diagnostics_bundle,
         ),
         confidence=confidence,
         signals=signals,
+        diagnostics_bundle=diagnostics_bundle,
         needs_human_decision=needs_human_decision,
         candidate=candidate,
     )
@@ -600,6 +698,7 @@ def _render_issue(issue: AnalyzedIssue) -> str:
         - Suggested priority: {issue.priority}
         - Suggested owner: {issue.owner}
         - Suggested labels: {suggested_labels}
+        - Diagnostics bundle: {issue.diagnostics_bundle}
         - Proposal required: {issue.proposal_required}
         - Release blocker: {issue.release_blocker}
         - Recommended action: {issue.recommended_action}
@@ -649,6 +748,8 @@ def render_report(
 
     next_actions: list[str] = [
         "Review P0/P1 and release-blocker candidates before any release promotion.",
+        "Prioritise issues marked `has-diagnostics` after urgent safety/release blockers because they are faster to inspect.",
+        "For bug/support reports marked `needs-bundle`, ask for the downloaded Home Assistant diagnostics file before deep investigation when practical.",
         "Apply labels, owner handoffs, assignments, comments, closures, or duplicate links manually only after maintainer review.",
         "Convert proposal-required items into bounded `.codex` proposal or handoff notes before implementation.",
     ]
@@ -706,6 +807,13 @@ def render_report(
         "## Issue template signal notes",
         "",
         _markdown_list(template_suggestions),
+        "",
+        "## Diagnostics bundle guidance",
+        "",
+        "- `has-diagnostics`: issue body mentions or links the downloaded native Home Assistant diagnostics file.",
+        "- `needs-bundle`: bug, runtime, UI, or support issue lacks an attached or mentioned native diagnostics file.",
+        "- `dump_diagnostics` exports are local maintainer/debug output and are not treated as the safe GitHub attachment path.",
+        "- Suggested labels are advisory only; this script does not create, apply, or remove labels.",
     ]
     return "\n".join(sections).strip() + "\n"
 

@@ -93,6 +93,34 @@ Priority mapping:
 - P3: enhancement, polish, wording, future idea
 - Watch: unclear, needs reproduction, potentially duplicate, not enough detail
 
+## Diagnostics Bundle Signal
+
+Bug and configuration-help issues now ask users to attach the downloaded Home Assistant
+diagnostics file for Humidity Intelligence:
+
+```text
+Settings -> Devices & services -> Humidity Intelligence -> Download diagnostics
+```
+
+The triage script detects issue bodies that mention or link the native Home Assistant
+diagnostics download and suggests `has-diagnostics`. Bug, runtime, UI, or support
+issues without an attached or mentioned native diagnostics file are suggested for
+`needs-bundle`.
+
+The existing `humidity_intelligence.dump_diagnostics` JSON export remains a local
+maintainer/debug tool. It should not be counted as the safe GitHub issue attachment
+path unless a maintainer explicitly asks for it.
+
+These are manual label recommendations only. The script does not create labels, apply
+labels, comment, close, assign, or upload anything.
+
+Suggested maintainer flow:
+
+1. Triage safety/release blockers first.
+2. Prioritise `has-diagnostics` issues next because they are faster to inspect.
+3. For `needs-bundle` issues, ask the reporter to attach the downloaded Home Assistant diagnostics file when practical.
+4. Inspect the file locally before deep investigation; it should include versions, selected entities, runtime lane/reason, gates, outputs, frontend dependency status, generated UI summary, and redacted diagnostics.
+
 ## Implemented Issue Template Triage Fields
 
 The GitHub issue templates include maintainer-friendly triage fields so the daily
@@ -120,8 +148,12 @@ Bug reports and configuration help include shared `Triage signals` checkboxes:
 - I think this needs proposal review before implementation.
 
 Bug reports include a `Checks already tried` field for commands or services already
-run, such as `refresh_ui`, `self_check`, `v205_release_check`, `dump_diagnostics`, or
-a Home Assistant restart.
+run, such as downloading diagnostics, `refresh_ui`, `self_check`,
+`v205_release_check`, `dump_diagnostics`, or a Home Assistant restart.
+
+Bug reports and configuration help include an optional diagnostics attachment field.
+Version/setup fallback fields remain available for users who cannot download
+diagnostics.
 
 Feature requests include a required `Proposal scope` dropdown:
 
@@ -141,3 +173,10 @@ UI Gallery submissions include fields for:
 The script still treats all template-derived signals as advisory. Labels, assignments,
 comments, duplicate links, closures, and proposal promotion remain manual maintainer
 actions.
+
+Recommended manual labels after review:
+
+- `needs-triage`
+- `support`
+- `needs-bundle`
+- `has-diagnostics`

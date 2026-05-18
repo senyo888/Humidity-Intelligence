@@ -117,6 +117,84 @@ class IssueTriageTests(unittest.TestCase):
         self.assertIn("## Issue template signal notes", report)
         self.assertIn("Suggested owner: Bella", report)
 
+    def test_issue_with_downloaded_diagnostics_gets_has_diagnostics_label(self) -> None:
+        issue = {
+            "number": 23,
+            "title": "Generated dashboard does not show active alert context",
+            "html_url": "https://github.com/senyo888/humidity-intelligence/issues/23",
+            "user": {"login": "tester"},
+            "created_at": "2026-05-17T08:00:00Z",
+            "updated_at": "2026-05-17T08:30:00Z",
+            "labels": [{"name": "bug"}],
+            "body": (
+                "I attached the downloaded Home Assistant diagnostics file: "
+                "home-assistant_humidity_intelligence_abc123.json"
+            ),
+        }
+
+        analyzed = self.triage.analyze_issue(issue, now=self.generated_at, lookback_days=3)
+
+        self.assertEqual(analyzed.diagnostics_bundle, "present")
+        self.assertIn("has-diagnostics", analyzed.suggested_labels)
+        self.assertNotIn("needs-bundle", analyzed.suggested_labels)
+        self.assertIn("diagnostics attached or mentioned", analyzed.signals)
+
+    def test_bug_without_diagnostics_gets_needs_bundle_label(self) -> None:
+        issue = {
+            "number": 24,
+            "title": "self_check says every frontend dependency is missing",
+            "html_url": "https://github.com/senyo888/humidity-intelligence/issues/24",
+            "user": {"login": "tester"},
+            "created_at": "2026-05-17T08:00:00Z",
+            "updated_at": "2026-05-17T08:30:00Z",
+            "labels": [{"name": "bug"}],
+            "body": "The UI works, but self_check reports missing optional cards.",
+        }
+
+        analyzed = self.triage.analyze_issue(issue, now=self.generated_at, lookback_days=3)
+
+        self.assertEqual(analyzed.diagnostics_bundle, "missing")
+        self.assertIn("needs-bundle", analyzed.suggested_labels)
+
+    def test_unable_to_download_diagnostics_does_not_count_as_attached(self) -> None:
+        issue = {
+            "number": 25,
+            "title": "Config flow help needed",
+            "html_url": "https://github.com/senyo888/humidity-intelligence/issues/25",
+            "user": {"login": "tester"},
+            "created_at": "2026-05-17T08:00:00Z",
+            "updated_at": "2026-05-17T08:30:00Z",
+            "labels": [{"name": "question"}],
+            "body": "Unable to download diagnostics file, but the issue appears after setup.",
+        }
+
+        analyzed = self.triage.analyze_issue(issue, now=self.generated_at, lookback_days=3)
+
+        self.assertEqual(analyzed.diagnostics_bundle, "missing")
+        self.assertIn("needs-bundle", analyzed.suggested_labels)
+        self.assertNotIn("has-diagnostics", analyzed.suggested_labels)
+
+    def test_dump_diagnostics_export_does_not_count_as_native_attachment(self) -> None:
+        issue = {
+            "number": 26,
+            "title": "Runtime issue with diagnostics export",
+            "html_url": "https://github.com/senyo888/humidity-intelligence/issues/26",
+            "user": {"login": "tester"},
+            "created_at": "2026-05-17T08:00:00Z",
+            "updated_at": "2026-05-17T08:30:00Z",
+            "labels": [{"name": "bug"}],
+            "body": (
+                "I attached humidity_intelligence_diagnostics.json from "
+                "humidity_intelligence.dump_diagnostics because I could not download diagnostics."
+            ),
+        }
+
+        analyzed = self.triage.analyze_issue(issue, now=self.generated_at, lookback_days=3)
+
+        self.assertEqual(analyzed.diagnostics_bundle, "missing")
+        self.assertIn("needs-bundle", analyzed.suggested_labels)
+        self.assertNotIn("has-diagnostics", analyzed.suggested_labels)
+
 
 if __name__ == "__main__":
     unittest.main()
