@@ -7,6 +7,21 @@ body:
     attributes:
       value: |
         Please redact private entity IDs, URLs, tokens, addresses, and personal data.
+  - type: dropdown
+    id: affected-area
+    attributes:
+      label: Affected area
+      options:
+        - Runtime/control
+        - Config flow/options
+        - Generated UI/dashboard
+        - Services/diagnostics
+        - Documentation
+        - HACS/install
+        - Governance/release
+        - Unsure
+    validations:
+      required: true
   - type: textarea
     id: goal
     attributes:
@@ -29,3 +44,14 @@ body:
       render: text
     validations:
       required: true
+  - type: checkboxes
+    id: triage-signals
+    attributes:
+      label: Triage signals
+      options:
+        - label: Safety, CO, or emergency behaviour may be affected.
+        - label: This may block a release or HACS install.
+        - label: This looks like a regression from a previous HI version.
+        - label: This may be a duplicate of another issue.
+        - label: I think this needs maintainer/community reply rather than code.
+        - label: I think this needs proposal review before implementation.
