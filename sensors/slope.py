@@ -46,6 +46,10 @@ class HISlopeSensor(SensorEntity):
             manufacturer="Humidity Intelligence",
         )
 
+    def update(self) -> None:
+        """Populate seeded slope state during entity add/poll cycles."""
+        self.update_from_hass()
+
     def update_from_hass(self) -> None:
         self._attr_native_value = self._tracker.get_slope(self._source)
         self._attr_extra_state_attributes = {
@@ -134,8 +138,9 @@ def build_slope_entities(hass: HomeAssistant, entry: ConfigEntry) -> Tuple[List[
         name = f"HI {room_name} Temperature Slope"
         sensor = HISlopeSensor(hass, name, unique_id, entity_id, tracker)
         sensors.append(sensor)
+        sensor_entity_id = getattr(sensor, "entity_id", None)
         source_to_slope[entity_id] = (
-            sensor.entity_id if sensor.entity_id else f"sensor.hi_{object_id}_temperature_slope"
+            sensor_entity_id if sensor_entity_id else f"sensor.hi_{object_id}_temperature_slope"
         )
 
     hass.data.setdefault(DOMAIN, {}).setdefault(entry.entry_id, {})
@@ -167,6 +172,8 @@ def build_slope_entities(hass: HomeAssistant, entry: ConfigEntry) -> Tuple[List[
 
     for source in sources:
         _record_state(source)
+    for sensor in sensors:
+        sensor.update_from_hass()
 
     async def _handle_change(event) -> None:
         entity_id = event.data.get("entity_id")
