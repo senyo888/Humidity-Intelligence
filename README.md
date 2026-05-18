@@ -557,7 +557,7 @@ Example (external):
 
 Example (HI-generated):
 - source sensors selected: `sensor.kitchen_temp`, `sensor.bedroom_temp`
-- slope calculated displayed and used 
+- slope calculated, mapped through HI diagnostics to the registered Home Assistant entity ID, then displayed and used
 
 ### 5) Zones (Zone 1 and Zone 2)
 

@@ -7,6 +7,7 @@ This project follows a practical changelog format for Home Assistant and HACS us
 ## Unreleased
 
 - Fixed calculated room temperature slope sensors so they publish a seeded state immediately after setup instead of waiting for a later source update, preventing restored-but-unavailable slope chips after HI restarts.
+- Fixed calculated temperature slope diagnostics mapping so every configured slope source prefers Home Assistant's registered entity id when it differs from the predicted `sensor.hi_*` fallback.
 
 ## 2.0.5-beta.1
 

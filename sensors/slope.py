@@ -11,6 +11,7 @@ import re
 
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.event import async_track_state_change_event, async_track_time_interval
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
@@ -138,9 +139,12 @@ def build_slope_entities(hass: HomeAssistant, entry: ConfigEntry) -> Tuple[List[
         name = f"HI {room_name} Temperature Slope"
         sensor = HISlopeSensor(hass, name, unique_id, entity_id, tracker)
         sensors.append(sensor)
+        registered_entity_id = _registered_slope_entity_id(hass, unique_id)
         sensor_entity_id = getattr(sensor, "entity_id", None)
         source_to_slope[entity_id] = (
-            sensor_entity_id if sensor_entity_id else f"sensor.hi_{object_id}_temperature_slope"
+            registered_entity_id
+            or sensor_entity_id
+            or f"sensor.hi_{object_id}_temperature_slope"
         )
 
     hass.data.setdefault(DOMAIN, {}).setdefault(entry.entry_id, {})
@@ -242,6 +246,16 @@ def _matches_room(hass: HomeAssistant, entity_id: str, room_key: str) -> bool:
     token_source = " ".join([entity_id, friendly])
     token_key = slugify(re.sub(r"[^A-Za-z0-9]+", " ", token_source))
     return bool(token_key and (room_key in token_key or token_key in room_key))
+
+
+def _registered_slope_entity_id(hass: HomeAssistant, unique_id: str) -> Optional[str]:
+    """Return HA's actual entity id for an existing slope unique_id."""
+    try:
+        registry = er.async_get(hass)
+        entity_id = registry.async_get_entity_id("sensor", DOMAIN, unique_id) if registry else None
+    except (AttributeError, TypeError, ValueError):
+        return None
+    return entity_id if isinstance(entity_id, str) and entity_id else None
 
 
 def _entry_section(entry: ConfigEntry, key: str, default: Any) -> Any:

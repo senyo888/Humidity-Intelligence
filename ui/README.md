@@ -106,6 +106,7 @@ Temperature chips:
 - colour against HI runtime comfort sensors
 - use blue below band, green in band, yellow up to `1°C` above band, red above that
 - show room slope chips only for configured temperature slope sources or provided slope sensors
+- resolve calculated slope chips through diagnostics/backend slope mapping so Home Assistant registry-assigned entity IDs stay truthful
 
 Output details:
 

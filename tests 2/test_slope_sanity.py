@@ -20,6 +20,7 @@ def _install_homeassistant_stubs() -> None:
     config_entries = types.ModuleType("homeassistant.config_entries")
     core = types.ModuleType("homeassistant.core")
     helpers = types.ModuleType("homeassistant.helpers")
+    entity_registry = types.ModuleType("homeassistant.helpers.entity_registry")
     device_registry = types.ModuleType("homeassistant.helpers.device_registry")
     event = types.ModuleType("homeassistant.helpers.event")
     util = types.ModuleType("homeassistant.util")
@@ -60,6 +61,9 @@ def _install_homeassistant_stubs() -> None:
 
         return re.sub(r"^_+|_+$", "", re.sub(r"[^a-z0-9]+", "_", str(value or "").strip().lower()))
 
+    def async_get_registry(hass):
+        return getattr(hass, "entity_registry", None)
+
     core.HomeAssistant = HomeAssistant
     config_entries.ConfigEntry = ConfigEntry
     device_registry.DeviceInfo = DeviceInfo
@@ -67,6 +71,7 @@ def _install_homeassistant_stubs() -> None:
     sensor_mod.SensorStateClass = SensorStateClass
     event.async_track_state_change_event = async_track_state_change_event
     event.async_track_time_interval = async_track_time_interval
+    entity_registry.async_get = async_get_registry
     util.slugify = slugify
     const.UnitOfTemperature = UnitOfTemperature
 
@@ -76,6 +81,7 @@ def _install_homeassistant_stubs() -> None:
     sys.modules["homeassistant.config_entries"] = config_entries
     sys.modules["homeassistant.core"] = core
     sys.modules["homeassistant.helpers"] = helpers
+    sys.modules["homeassistant.helpers.entity_registry"] = entity_registry
     sys.modules["homeassistant.helpers.device_registry"] = device_registry
     sys.modules["homeassistant.helpers.event"] = event
     sys.modules["homeassistant.util"] = util
@@ -132,14 +138,23 @@ class _FakeConfig:
         temperature_unit = "°C"
 
 
+class _FakeRegistry:
+    def __init__(self, entity_ids=None):
+        self._entity_ids = dict(entity_ids or {})
+
+    def async_get_entity_id(self, domain, platform, unique_id):
+        return self._entity_ids.get((domain, platform, unique_id))
+
+
 class _FakeHass:
-    def __init__(self, states):
+    def __init__(self, states, registry=None):
         self.states = _FakeStates(states)
         self.data = {}
         self.config = _FakeConfig()
+        self.entity_registry = registry
 
 
-def test_slope_entities_are_seeded_immediately_on_setup():
+def test_slope_entities_are_seeded_immediately_on_setup_for_all_sources():
     slope_mod = _load_slope_module()
     entry = SimpleNamespace(
         entry_id="entry123",
@@ -149,11 +164,25 @@ def test_slope_entities_are_seeded_immediately_on_setup():
                     "entity_id": "sensor.wirelesstag_willow_s_room_temperature",
                     "sensor_type": "temperature",
                     "room": "Willow's Room",
+                },
+                {
+                    "entity_id": "sensor.wirelesstag_bedroom_temperature",
+                    "sensor_type": "temperature",
+                    "room": "Bedroom",
+                },
+                {
+                    "entity_id": "sensor.wirelesstag_landing_temperature_2",
+                    "sensor_type": "temperature",
+                    "room": "Landing",
                 }
             ],
             "slope": {
                 "mode": "hi_calculates",
-                "source_entities": ["sensor.wirelesstag_willow_s_room_temperature"],
+                "source_entities": [
+                    "sensor.wirelesstag_willow_s_room_temperature",
+                    "sensor.wirelesstag_bedroom_temperature",
+                    "sensor.wirelesstag_landing_temperature_2",
+                ],
             },
         },
         options={},
@@ -163,24 +192,52 @@ def test_slope_entities_are_seeded_immediately_on_setup():
             "sensor.wirelesstag_willow_s_room_temperature": _FakeState(
                 "20.21",
                 {"unit_of_measurement": "°C"},
-            )
-        }
+            ),
+            "sensor.wirelesstag_bedroom_temperature": _FakeState(
+                "20.62",
+                {"unit_of_measurement": "°C"},
+            ),
+            "sensor.wirelesstag_landing_temperature_2": _FakeState(
+                "19.75",
+                {"unit_of_measurement": "°C"},
+            ),
+        },
+        _FakeRegistry(
+            {
+                (
+                    "sensor",
+                    "humidity_intelligence",
+                    "hi_entry123_slope_willow_s_room",
+                ): "sensor.humidity_intelligence_hi_willow_s_room_temperature_slope",
+                (
+                    "sensor",
+                    "humidity_intelligence",
+                    "hi_entry123_slope_bedroom",
+                ): "sensor.hi_bedroom_temperature_slope",
+            }
+        ),
     )
 
     sensors, slope_sources, slope_map = slope_mod.build_slope_entities(hass, entry)
 
-    assert slope_sources == ["sensor.wirelesstag_willow_s_room_temperature"]
+    assert slope_sources == [
+        "sensor.wirelesstag_willow_s_room_temperature",
+        "sensor.wirelesstag_bedroom_temperature",
+        "sensor.wirelesstag_landing_temperature_2",
+    ]
     assert slope_map == {
-        "sensor.wirelesstag_willow_s_room_temperature": "sensor.hi_willow_s_room_temperature_slope"
+        "sensor.wirelesstag_willow_s_room_temperature": "sensor.humidity_intelligence_hi_willow_s_room_temperature_slope",
+        "sensor.wirelesstag_bedroom_temperature": "sensor.hi_bedroom_temperature_slope",
+        "sensor.wirelesstag_landing_temperature_2": "sensor.hi_landing_temperature_slope",
     }
-    assert len(sensors) == 1
-    sensor = sensors[0]
-    assert sensor._attr_native_value == 0.0
-    assert sensor._attr_extra_state_attributes == {
-        "source_entity": "sensor.wirelesstag_willow_s_room_temperature",
-        "window_minutes": 60,
-        "sample_count": 2,
-    }
+    assert len(sensors) == 3
+    for sensor in sensors:
+        assert sensor._attr_native_value == 0.0
+        assert sensor._attr_extra_state_attributes == {
+            "source_entity": sensor._source,
+            "window_minutes": 60,
+            "sample_count": 2,
+        }
 
 
 if __name__ == "__main__":
