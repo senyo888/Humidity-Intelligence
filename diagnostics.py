@@ -24,6 +24,7 @@ from .const import (
     DOMAIN,
     SLOPE_MODE_NONE,
 )
+from .helpers.drift import humidity_drift_dependency_status, humidity_drift_warning
 from .helpers.frontend_dependencies import (
     async_frontend_dependency_status,
     frontend_dependency_not_inspectable,
@@ -485,11 +486,15 @@ def _diagnostics_summary(
     duplicates = detect_zone_mapping_duplicates(telemetry, zones)
     duplicate_summary = summarize_zone_mapping_duplicates(duplicates)
     unavailable = _unavailable_configured_entities(hass, config, entity_map)
+    drift_dependency = humidity_drift_dependency_status(hass)
+    drift_dependency_warning = humidity_drift_warning(drift_dependency)
     warnings = []
     if duplicate_summary:
         warnings.append(duplicate_summary)
     if unavailable:
         warnings.append(f"{len(unavailable)} configured/mapped entity references are missing, unknown, or unavailable.")
+    if drift_dependency_warning:
+        warnings.append(drift_dependency_warning)
     if not telemetry:
         warnings.append("No telemetry sensors are configured.")
     if not zones and not config.get("alert_only_mode"):
@@ -520,6 +525,7 @@ def _diagnostics_summary(
         "alert_mappings": _alert_mapping_summary(alerts),
         "active_alert_resolution": runtime_data.get("alert_telemetry", []),
         "visual_alerts": _visual_alert_summary(alerts),
+        "humidity_drift_7d": drift_dependency,
         "frontend_dependency_resources": frontend_dependencies,
         "unavailable_or_unknown_entities": unavailable,
         "warnings": warnings,

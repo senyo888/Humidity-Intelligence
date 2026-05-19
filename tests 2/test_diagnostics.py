@@ -31,6 +31,10 @@ def _install_homeassistant_stubs() -> None:
     class ConfigEntry:
         pass
 
+    class UnitOfTemperature:
+        CELSIUS = "°C"
+        FAHRENHEIT = "°F"
+
     def async_redact_data(data, to_redact):
         redact = {str(item).lower() for item in to_redact}
 
@@ -50,6 +54,7 @@ def _install_homeassistant_stubs() -> None:
     core.HomeAssistant = HomeAssistant
     config_entries.ConfigEntry = ConfigEntry
     const.__version__ = "2026.5.2"
+    const.UnitOfTemperature = UnitOfTemperature
     lovelace_const.LOVELACE_DATA = "lovelace"
 
     sys.modules["homeassistant"] = ha
@@ -293,6 +298,21 @@ def test_unavailable_entities_are_reported_without_crashing():
     unavailable = payload["runtime"]["unavailable_or_unknown_entities"]
     assert {"entity_id": "sensor.missing_entity", "status": "missing"} in unavailable
     assert {"entity_id": "fan.kitchen_extract", "status": "unavailable"} in unavailable
+
+
+def test_native_diagnostics_reports_house_drift_statistics_dependency():
+    diagnostics = _load_diagnostics_module()
+
+    payload = asyncio.run(
+        diagnostics.async_get_config_entry_diagnostics(_sample_hass(), _sample_entry())
+    )
+
+    drift = payload["diagnostics_summary"]["humidity_drift_7d"]
+    assert drift["required_for"] == "HI House Humidity Drift 7d"
+    assert drift["dependency_entity"] == "sensor.house_humidity_mean_7d"
+    assert drift["dependency_status"] == "missing"
+    assert drift["available"] is False
+    assert any("HI House Humidity Drift 7d" in warning for warning in payload["runtime"]["warnings"])
 
 
 def test_to_redact_covers_required_sensitive_terms():

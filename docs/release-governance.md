@@ -47,3 +47,21 @@ in CI. It rejects:
 
 This is a release-boundary guard only. It does not alter runtime logic, entity
 semantics, generated dashboards, or Home Assistant services.
+
+## HACS Integration Preflight
+
+HACS Integration Preflight is an optional but recommended local/VS Code release-perimeter
+check before promotion. Run it from the release-source checkout or a worktree after
+implementation sanity and before the final release readiness review.
+
+Use it for:
+
+- HACS/install metadata validation
+- release packaging sanity
+- `manifest.json`, `hacs.json`, branding, workflow, and repository hygiene support
+
+Do not treat it as a replacement for pytest, direct runtime/card sanity, Home Assistant
+runtime validation, Bella coherence review, Aetherwing validation, or version governance.
+Preflight findings are packaging/readiness findings only; they must not imply runtime
+behavior, service, diagnostics, UI generation, or configuration-flow changes unless a
+separate implementation patch is explicitly approved.

@@ -220,7 +220,7 @@ Humidity Intelligence V2 operates across three defined layers.
 Transforms raw telemetry into structured environmental signals:
 
 - dynamic house average humidity
-- 7-day mean and drift tracking
+- 7-day mean and drift tracking, using the canonical `sensor.house_humidity_mean_7d` statistics dependency
 - Magnus dew point calculation
 - condensation spread (`temperature - dew_point`)
 - mould risk normalization
@@ -460,6 +460,30 @@ Delete:
 
 Remove any related includes from `configuration.yaml`.
 Restart Home Assistant.
+
+### House Humidity Drift 7d
+
+V2 preserves the existing drift meaning:
+
+```text
+HI House Humidity Drift 7d = current HI house average humidity - sensor.house_humidity_mean_7d
+```
+
+If you remove the v1 package, also make sure the 7-day statistics sensor still exists. Without `sensor.house_humidity_mean_7d`, the drift sensor will stay unavailable. V2.0.5 reports that dependency status in the drift sensor attributes, `self_check`, `v205_release_check`, and diagnostics instead of failing silently.
+
+If needed, recreate the statistics sensor against the actual registered `HI House Average Humidity` entity:
+
+```yaml
+sensor:
+  - platform: statistics
+    name: "House Humidity Mean 7d"
+    entity_id: sensor.hi_house_avg_humidity
+    state_characteristic: mean
+    max_age:
+      days: 7
+```
+
+Do not fabricate history. Home Assistant will populate the mean after recorder/statistics samples are available.
 
 ### Step 2 - Remove v1 UI YAML
 
@@ -948,7 +972,7 @@ data: {}
 
 ### `self_check`
 Purpose:
-- run mapping, telemetry, and optional frontend dependency resource checks and write report JSON.
+- run mapping, telemetry, house humidity drift dependency, and optional frontend dependency resource checks and write report JSON.
 - frontend dependency status is read from the same Lovelace resource inspection path used by setup/options, `v205_release_check`, and diagnostics.
 
 Example:
@@ -960,7 +984,7 @@ data: {}
 ### `v205_release_check`
 Purpose:
 - run a read-only v2.0.5 release-validation report in Home Assistant.
-- verify generated-card output-details visibility, cached layout coverage, unresolved placeholders, card text sanity, configured entity availability, and optional frontend dependency status.
+- verify generated-card output-details visibility, cached layout coverage, unresolved placeholders, card text sanity, configured entity availability, house humidity drift dependency status, and optional frontend dependency status.
 - with `write_test_exports: true`, write test card exports proving unscoped `dump_cards` exports all layouts and scoped export writes only `v2_tablet`.
 - no runtime outputs, helpers, lanes, or configured entities are changed.
 
@@ -974,7 +998,7 @@ data:
 
 ### `dump_diagnostics`
 Purpose:
-- export runtime diagnostics, mapping, active target profile, visual alert rules, alert source resolution, optional frontend dependency resource status, unavailable entities, and card info to JSON.
+- export runtime diagnostics, mapping, active target profile, visual alert rules, alert source resolution, house humidity drift dependency status, optional frontend dependency resource status, unavailable entities, and card info to JSON.
 - `HI Diagnostics` keeps only a compact recorder-safe summary in live state attributes; use this service for a full local support export.
 - For GitHub issues, prefer the native Home Assistant diagnostics download from the Humidity Intelligence integration entry.
 

@@ -146,12 +146,52 @@ class _FakeRegistry:
         return self._entity_ids.get((domain, platform, unique_id))
 
 
+class _RaisingRegistry:
+    def __init__(self, exc):
+        self._exc = exc
+
+    def async_get_entity_id(self, domain, platform, unique_id):
+        raise self._exc
+
+
 class _FakeHass:
     def __init__(self, states, registry=None):
         self.states = _FakeStates(states)
         self.data = {}
         self.config = _FakeConfig()
         self.entity_registry = registry
+
+
+def _single_temperature_entry():
+    return SimpleNamespace(
+        entry_id="entry123",
+        data={
+            "telemetry": [
+                {
+                    "entity_id": "sensor.kitchen_temperature",
+                    "sensor_type": "temperature",
+                    "room": "Kitchen",
+                }
+            ],
+            "slope": {
+                "mode": "hi_calculates",
+                "source_entities": ["sensor.kitchen_temperature"],
+            },
+        },
+        options={},
+    )
+
+
+def _single_temperature_hass(registry=None):
+    return _FakeHass(
+        {
+            "sensor.kitchen_temperature": _FakeState(
+                "21.0",
+                {"unit_of_measurement": "°C"},
+            )
+        },
+        registry,
+    )
 
 
 def test_slope_entities_are_seeded_immediately_on_setup_for_all_sources():
@@ -238,6 +278,58 @@ def test_slope_entities_are_seeded_immediately_on_setup_for_all_sources():
             "window_minutes": 60,
             "sample_count": 2,
         }
+
+
+def test_slope_mapping_uses_fallback_for_invalid_registered_entity_ids():
+    slope_mod = _load_slope_module()
+    unique_key = ("sensor", "humidity_intelligence", "hi_entry123_slope_kitchen")
+
+    for invalid_entity_id in ("", 0, object()):
+        hass = _single_temperature_hass(
+            _FakeRegistry({unique_key: invalid_entity_id})
+        )
+
+        _, slope_sources, slope_map = slope_mod.build_slope_entities(
+            hass,
+            _single_temperature_entry(),
+        )
+
+        assert slope_sources == ["sensor.kitchen_temperature"]
+        assert slope_map == {
+            "sensor.kitchen_temperature": "sensor.hi_kitchen_temperature_slope"
+        }
+
+
+def test_slope_mapping_uses_fallback_when_registry_lookup_raises():
+    slope_mod = _load_slope_module()
+
+    for exc in (AttributeError("missing"), TypeError("bad type"), ValueError("bad value")):
+        hass = _single_temperature_hass(_RaisingRegistry(exc))
+
+        _, slope_sources, slope_map = slope_mod.build_slope_entities(
+            hass,
+            _single_temperature_entry(),
+        )
+
+        assert slope_sources == ["sensor.kitchen_temperature"]
+        assert slope_map == {
+            "sensor.kitchen_temperature": "sensor.hi_kitchen_temperature_slope"
+        }
+
+
+def test_slope_mapping_uses_fallback_before_registry_entry_exists():
+    slope_mod = _load_slope_module()
+    hass = _single_temperature_hass()
+
+    _, slope_sources, slope_map = slope_mod.build_slope_entities(
+        hass,
+        _single_temperature_entry(),
+    )
+
+    assert slope_sources == ["sensor.kitchen_temperature"]
+    assert slope_map == {
+        "sensor.kitchen_temperature": "sensor.hi_kitchen_temperature_slope"
+    }
 
 
 if __name__ == "__main__":

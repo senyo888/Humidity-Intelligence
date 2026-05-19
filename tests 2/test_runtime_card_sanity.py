@@ -23,13 +23,18 @@ def _install_homeassistant_stubs() -> None:
     config_entries = types.ModuleType("homeassistant.config_entries")
     const = types.ModuleType("homeassistant.const")
     components = types.ModuleType("homeassistant.components")
+    sensor_mod = types.ModuleType("homeassistant.components.sensor")
+    binary_sensor_mod = types.ModuleType("homeassistant.components.binary_sensor")
     lovelace = types.ModuleType("homeassistant.components.lovelace")
     lovelace_const = types.ModuleType("homeassistant.components.lovelace.const")
     exceptions = types.ModuleType("homeassistant.exceptions")
     helpers = types.ModuleType("homeassistant.helpers")
     config_validation = types.ModuleType("homeassistant.helpers.config_validation")
     event = types.ModuleType("homeassistant.helpers.event")
+    device_registry = types.ModuleType("homeassistant.helpers.device_registry")
+    entity_helper = types.ModuleType("homeassistant.helpers.entity")
     entity_registry = types.ModuleType("homeassistant.helpers.entity_registry")
+    util = types.ModuleType("homeassistant.util")
     voluptuous = types.ModuleType("voluptuous")
 
     class HomeAssistant:
@@ -44,6 +49,24 @@ def _install_homeassistant_stubs() -> None:
 
     class HomeAssistantError(Exception):
         pass
+
+    class Entity:
+        pass
+
+    class SensorEntity(Entity):
+        pass
+
+    class BinarySensorEntity(Entity):
+        pass
+
+    class DeviceInfo(dict):
+        pass
+
+    class SensorDeviceClass:
+        TEMPERATURE = "temperature"
+
+    class SensorStateClass:
+        MEASUREMENT = "measurement"
 
     class UnitOfTemperature:
         CELSIUS = "°C"
@@ -126,6 +149,10 @@ def _install_homeassistant_stubs() -> None:
     exceptions.HomeAssistantError = HomeAssistantError
     const.UnitOfTemperature = UnitOfTemperature
     const.PERCENTAGE = "%"
+    sensor_mod.SensorEntity = SensorEntity
+    sensor_mod.SensorDeviceClass = SensorDeviceClass
+    sensor_mod.SensorStateClass = SensorStateClass
+    binary_sensor_mod.BinarySensorEntity = BinarySensorEntity
     lovelace_const.LOVELACE_DATA = "lovelace"
     config_validation.entity_id = str
     config_validation.entity_ids = _ensure_list
@@ -133,7 +160,10 @@ def _install_homeassistant_stubs() -> None:
     config_validation.string = str
     event.async_track_state_change_event = async_track_state_change_event
     event.async_track_time_interval = async_track_time_interval
+    device_registry.DeviceInfo = DeviceInfo
+    entity_helper.Entity = Entity
     entity_registry.async_get = lambda hass: None
+    util.slugify = lambda value: str(value).lower().replace(" ", "_")
     voluptuous.Schema = Schema
     voluptuous.Optional = _SchemaKey
     voluptuous.Required = _SchemaKey
@@ -148,13 +178,18 @@ def _install_homeassistant_stubs() -> None:
     sys.modules["homeassistant.config_entries"] = config_entries
     sys.modules["homeassistant.const"] = const
     sys.modules["homeassistant.components"] = components
+    sys.modules["homeassistant.components.sensor"] = sensor_mod
+    sys.modules["homeassistant.components.binary_sensor"] = binary_sensor_mod
     sys.modules["homeassistant.components.lovelace"] = lovelace
     sys.modules["homeassistant.components.lovelace.const"] = lovelace_const
     sys.modules["homeassistant.exceptions"] = exceptions
     sys.modules["homeassistant.helpers"] = helpers
     sys.modules["homeassistant.helpers.config_validation"] = config_validation
     sys.modules["homeassistant.helpers.event"] = event
+    sys.modules["homeassistant.helpers.device_registry"] = device_registry
+    sys.modules["homeassistant.helpers.entity"] = entity_helper
     sys.modules["homeassistant.helpers.entity_registry"] = entity_registry
+    sys.modules["homeassistant.util"] = util
     sys.modules["voluptuous"] = voluptuous
 
 
@@ -164,7 +199,7 @@ def _install_package_scaffold() -> None:
     pkg.__path__ = [str(ROOT)]
     sys.modules[PKG] = pkg
 
-    for sub in ("automations", "ui", "helpers"):
+    for sub in ("automations", "ui", "helpers", "sensors"):
         mod = types.ModuleType(f"{PKG}.{sub}")
         mod.__path__ = [str(ROOT / sub)]
         sys.modules[f"{PKG}.{sub}"] = mod
@@ -198,6 +233,13 @@ def _load_services_module():
     _install_package_scaffold()
     _load_module(f"{PKG}.const", ROOT / "const.py")
     return _load_module(f"{PKG}.services", ROOT / "services.py")
+
+
+def _load_core_module():
+    _install_homeassistant_stubs()
+    _install_package_scaffold()
+    _load_module(f"{PKG}.const", ROOT / "const.py")
+    return _load_module(f"{PKG}.sensors.core", ROOT / "sensors" / "core.py")
 
 
 def _load_frontend_dependencies_module():
@@ -486,6 +528,67 @@ def _base_entry_data():
             }
         ],
     }
+
+
+def _minimal_humidity_entry():
+    return SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data={
+            "target_profile": "winter",
+            "telemetry": [
+                {
+                    "entity_id": "sensor.kitchen_h",
+                    "sensor_type": "humidity",
+                    "level": "level1",
+                    "room": "Kitchen",
+                }
+            ],
+        },
+        options={},
+    )
+
+
+def _find_sensor(sensors, unique_suffix):
+    for sensor in sensors:
+        if getattr(sensor, "_attr_unique_id", "").endswith(unique_suffix):
+            return sensor
+    raise AssertionError(f"sensor ending {unique_suffix!r} was not built")
+
+
+def test_house_humidity_drift_7d_reports_missing_statistics_dependency():
+    core_mod = _load_core_module()
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(entry, {"sensor.kitchen_h": _FakeState(55)})
+
+    sensors, _binary_sensors, sources = core_mod.build_entities(hass, entry)
+    drift = _find_sensor(sensors, "house_drift_7d")
+
+    assert "sensor.house_humidity_mean_7d" in sources
+    assert drift._attr_native_value is None
+    attrs = drift._attr_extra_state_attributes
+    assert attrs["status"] == "unavailable"
+    assert attrs["reason"] == "statistics_dependency_missing"
+    assert attrs["required_dependency"] == "sensor.house_humidity_mean_7d"
+    assert attrs["dependency_status"] == "missing"
+    assert attrs["current_house_humidity"] == 55.0
+
+
+def test_house_humidity_drift_7d_preserves_valid_statistics_calculation():
+    core_mod = _load_core_module()
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(55),
+            "sensor.house_humidity_mean_7d": _FakeState(50),
+        },
+    )
+
+    sensors, _binary_sensors, _sources = core_mod.build_entities(hass, entry)
+    drift = _find_sensor(sensors, "house_drift_7d")
+
+    assert drift._attr_native_value == 5.0
+    assert drift._attr_extra_state_attributes == {}
 
 
 async def _run_runtime_assertions(engine_mod) -> None:
@@ -2214,6 +2317,7 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
             "sensor.kitchen_h": _FakeState(45),
             "sensor.hall_h": _FakeState(44),
             "sensor.bed_h": _FakeState(46),
+            "sensor.house_humidity_mean_7d": _FakeState(43),
             "sensor.kitchen_t": _FakeState(21),
             "sensor.hall_t": _FakeState(20),
             "sensor.bed_t": _FakeState(19),
@@ -2442,6 +2546,27 @@ def test_diagnostics_summary_can_surface_shared_frontend_dependency_status_witho
     assert "frontend_dependency_resources" not in live_summary
 
 
+def test_diagnostics_summary_surfaces_house_drift_statistics_dependency():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+
+    summary = services_mod._build_diagnostics_summary(
+        hass,
+        entry.data,
+        {},
+        {},
+        {},
+    )
+
+    drift = summary["humidity_drift_7d"]
+    assert drift["required_for"] == "HI House Humidity Drift 7d"
+    assert drift["dependency_entity"] == "sensor.house_humidity_mean_7d"
+    assert drift["dependency_status"] == "missing"
+    assert drift["available"] is False
+    assert any("HI House Humidity Drift 7d" in warning for warning in summary["warnings"])
+
+
 def test_frontend_dependency_status_is_non_blocking_for_release_contract_checks():
     services_mod = _load_services_module()
     entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
@@ -2452,6 +2577,7 @@ def test_frontend_dependency_status_is_non_blocking_for_release_contract_checks(
             "sensor.kitchen_h": _FakeState(45),
             "sensor.hall_h": _FakeState(44),
             "sensor.bed_h": _FakeState(46),
+            "sensor.house_humidity_mean_7d": _FakeState(43),
             "sensor.kitchen_t": _FakeState(21),
             "sensor.hall_t": _FakeState(20),
             "sensor.bed_t": _FakeState(19),
@@ -2503,6 +2629,7 @@ def test_frontend_dependency_status_is_non_blocking_for_release_contract_checks(
     assert checks["frontend_dependencies_reported"]["details"]["status"] == "not_inspectable"
     assert checks["unresolved_placeholders"]["status"] == "pass"
     assert checks["configured_entity_availability"]["status"] == "pass"
+    assert checks["house_humidity_drift_7d_dependency"]["status"] == "pass"
     assert checks["generated_cards_text_sanity"]["status"] == "pass"
 
 

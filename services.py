@@ -18,6 +18,7 @@ from homeassistant.helpers import config_validation as cv
 
 from .const import CONF_SHOW_OUTPUT_ENTITY_DETAILS, DEFAULT_SHOW_OUTPUT_ENTITY_DETAILS, DOMAIN
 from .helpers.cleanup import list_all_generated_files, list_generated_files, remove_files, remove_dashboard
+from .helpers.drift import humidity_drift_dependency_status, humidity_drift_warning
 from .helpers.frontend_dependencies import (
     async_frontend_dependency_status,
     frontend_dependency_not_inspectable,
@@ -331,10 +332,12 @@ async def async_register_services(hass: HomeAssistant) -> None:
                 if hass.states.get(ent) is None:
                     missing_entities.append(ent)
             frontend_dependencies = await async_frontend_dependency_status(hass)
+            drift_dependency = humidity_drift_dependency_status(hass)
 
             report[entry.entry_id] = {
                 "missing_entities": missing_entities,
                 "frontend_dependency_resources": frontend_dependencies,
+                "humidity_drift_7d": drift_dependency,
                 "telemetry_count": len(entry.data.get("telemetry", [])),
                 "unresolved_placeholders": data.get("unresolved_placeholders", []),
                 "unresolved_placeholders_by_card": data.get("unresolved_placeholders_by_card", {}),
@@ -714,12 +717,16 @@ def _build_diagnostics_summary(
     profile = resolve_target_profile(effective)
     duplicates = detect_zone_mapping_duplicates(telemetry, zones if isinstance(zones, dict) else {})
     unavailable = _unavailable_configured_entities(hass, effective, entity_map)
+    drift_dependency = humidity_drift_dependency_status(hass)
+    drift_dependency_warning = humidity_drift_warning(drift_dependency)
     warnings = []
     duplicate_summary = summarize_zone_mapping_duplicates(duplicates)
     if duplicate_summary:
         warnings.append(duplicate_summary)
     if unavailable:
         warnings.append(f"{len(unavailable)} configured/mapped entity references are missing, unknown, or unavailable.")
+    if drift_dependency_warning:
+        warnings.append(drift_dependency_warning)
     if not telemetry:
         warnings.append("No telemetry sensors are configured.")
     if not zones and not effective.get("alert_only_mode"):
@@ -746,6 +753,7 @@ def _build_diagnostics_summary(
         "alert_mappings": _alert_mapping_summary(alerts),
         "active_alert_resolution": runtime_data.get("alert_telemetry", []),
         "visual_alerts": _visual_alert_summary(alerts),
+        "humidity_drift_7d": drift_dependency,
         "unavailable_or_unknown_entities": unavailable,
         "warnings": warnings,
     }
@@ -868,6 +876,17 @@ def _build_v205_release_check_entry_report(
         "pass",
         "Optional frontend dependency resource status was reported without blocking backend validation.",
         frontend_dependencies,
+    )
+
+    drift_dependency = humidity_drift_dependency_status(hass)
+    _add_check(
+        checks,
+        "house_humidity_drift_7d_dependency",
+        "pass" if drift_dependency.get("available") else "warn",
+        "House humidity drift 7d statistics dependency is available."
+        if drift_dependency.get("available")
+        else "House humidity drift 7d is unavailable until its statistics dependency reports a numeric value.",
+        drift_dependency,
     )
 
     unavailable = _unavailable_configured_entities(hass, effective, entity_map)

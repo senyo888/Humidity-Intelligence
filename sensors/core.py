@@ -16,6 +16,11 @@ from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.util import slugify
 
 from ..const import DOMAIN
+from ..helpers.drift import (
+    HOUSE_HUMIDITY_MEAN_7D_ENTITY,
+    house_drift_unavailable_attributes,
+    humidity_drift_dependency_status,
+)
 from ..helpers.parsing import format_temperature, hass_temperature_unit, parse_numeric, parse_temperature
 from ..helpers.seasonal import (
     condensation_risk as seasonal_condensation_risk,
@@ -110,6 +115,8 @@ def build_entities(hass: HomeAssistant, entry: ConfigEntry) -> Tuple[List[Sensor
     """Build computed sensors and the list of source entity IDs."""
     telemetry: List[Dict[str, Any]] = _entry_section(entry, "telemetry", [])
     sources = [t["entity_id"] for t in telemetry if t.get("entity_id")]
+    if HOUSE_HUMIDITY_MEAN_7D_ENTITY not in sources:
+        sources.append(HOUSE_HUMIDITY_MEAN_7D_ENTITY)
     core = _CoreComputations(hass, entry, telemetry)
     sensors = core.build_sensors()
     binary_sensors = core.build_binary_sensors()
@@ -638,9 +645,10 @@ class _CoreComputations:
 
     def _compute_house_drift_7d(self) -> Tuple[Optional[float], Dict[str, Any]]:
         current = self._compute_house_avg_humidity()[0]
-        mean = _get_float(self.hass, "sensor.house_humidity_mean_7d")
+        dependency = humidity_drift_dependency_status(self.hass)
+        mean = dependency.get("mean_7d")
         if current is None or mean is None:
-            return None, {}
+            return None, house_drift_unavailable_attributes(current, dependency)
         return round(current - mean, 1), {}
 
     def _compute_humidity_danger(self) -> Tuple[bool, Dict[str, Any]]:

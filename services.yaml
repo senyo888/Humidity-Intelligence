@@ -51,7 +51,7 @@ refresh_ui:
         text: {}
 dump_diagnostics:
   name: Dump Diagnostics
-  description: Write diagnostics (config, options, mapping, active target profile, alert resolution, visual alert config, unavailable entities, cards) to a JSON file in the Home Assistant config folder
+  description: Write diagnostics (config, options, mapping, active target profile, alert resolution, visual alert config, house humidity drift dependency, unavailable entities, cards) to a JSON file in the Home Assistant config folder
   fields:
     entry_id:
       name: Entry ID
@@ -65,7 +65,7 @@ dump_diagnostics:
         text: {}
 self_check:
   name: Self Check
-  description: Validate entity mapping, frontend dependencies, and telemetry setup
+  description: Validate entity mapping, frontend dependencies, house humidity drift dependency, and telemetry setup
   fields:
     entry_id:
       name: Entry ID
@@ -74,7 +74,7 @@ self_check:
         text: {}
 v205_release_check:
   name: v2.0.5 Release Check
-  description: Run a read-only v2.0.5 validation report for generated-card visibility, dump_cards scope behavior, cached layouts, unresolved placeholders, frontend dependency status, and configured entity availability.
+  description: Run a read-only v2.0.5 validation report for generated-card visibility, dump_cards scope behavior, cached layouts, unresolved placeholders, frontend dependency status, house humidity drift dependency status, and configured entity availability.
   fields:
     entry_id:
       name: Entry ID

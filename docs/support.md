@@ -24,6 +24,7 @@ Please review the bundle before attaching if you are concerned about privacy. Th
 - gate states
 - output state summary
 - active alert resolution
+- house humidity drift 7d statistics dependency status
 - optional frontend dependency status when Home Assistant exposes Lovelace resources
 - generated UI/card summary
 - unavailable or unknown configured entities
