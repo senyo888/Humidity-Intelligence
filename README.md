@@ -37,7 +37,7 @@
 
 ## TL;DR
 
-Humidity Intelligence is a domestic environmental control engine for Home Assistant.
+A deterministic environmental control engine for Home Assistant.
 
 It reads humidity, temperature, air quality, condensation, mould-risk, CO, presence, time, pause, and override signals, then resolves **one explainable control decision per evaluation cycle**.
 
@@ -45,7 +45,7 @@ What it gives you:
 
 - season-aware humidity targets
 - deterministic lane priority
-- safe degraded behavior when inputs are missing
+- safe degraded behaviour when inputs are missing
 - generated Lovelace dashboards backed by runtime truth
 - native Home Assistant diagnostics for support and triage
 - services for dashboard export, self-check, diagnostics, pause/resume, and release validation
