@@ -47,6 +47,12 @@ Feature parity is maintained.
 
 ## UI Preview
 
+### Canonical V2 Mobile Gate State
+<img src="../assets/v2_ui_gallery/v204_presence_gate_reason.png" width="320" alt="HI v2 mobile Current Air Control presence gate active preview">
+
+<details>
+<summary>Additional layout previews</summary>
+
 ### v1 Mobile (Legacy-Compatible Skin)
 <img src="../assets/readme/ui_v1_mobile.png" width="320" alt="HI v1 mobile UI preview">
 
@@ -55,6 +61,8 @@ Feature parity is maintained.
 
 ### v2 Tablet (Zone State Example)
 <img src="../assets/readme/ui_v2_tablet_zone_2.png" width="320" alt="HI v2 tablet zone UI preview">
+
+</details>
 
 ---
 
@@ -168,17 +176,27 @@ If mismatch occurs:
 
 ---
 
-## v2.0.2 UI Contract Updates
+## Versioned UI Contract Notes
+
+### v2.0.5 Current Contract
+
+- `show_output_entity_details` controls only the expandable generated-card output details panel.
+- Hiding output details must not affect lane selection, output writes, isolation switches, diagnostics, or entity names.
+- New generated V2 cards default to the cleaner output display unless output details are enabled.
+- `v2_tablet` is the default first-install UI export layout.
+- `humidity_intelligence.dump_cards` remains the supported export path after UI visibility or mapping changes.
+
+### Historical v2.0.2 UI Contract Updates
 
 - Humidity badge colors are now target-relative:
   - `below_target` = blue
   - `in_target` = green
   - `above_target` = yellow
   - `high_risk` = red
-- Target humidity display now includes the active season/profile label (`Spring`, `Summer`, `Autumn`, `Winter`, or `Custom`).
-- Reason window now includes expanded humidifier logic context from runtime telemetry (lane scope, trigger condition, thresholds, and recovery behavior).
+- Target humidity display includes the active season/profile label (`Spring`, `Summer`, `Autumn`, `Winter`, or `Custom`).
+- Reason window includes expanded humidifier logic context from runtime telemetry (lane scope, trigger condition, thresholds, and recovery behavior).
 
-## v2.0.4 UI Contract Updates
+### Historical v2.0.4 UI Contract Updates
 
 - Alert chipsets must not add redundant helper-switch chips after the resolved alert context.
 - Chip rows expose a longer scroll reset delay marker (`15000ms`) so mobile/touch layouts are not aggressively snapped back while being read.
@@ -195,10 +213,7 @@ It does not reintroduce:
 - v1 backend templates
 - v1 packages
 
-Backend must be fully removed before using V2 runtime
-
-
-```
+Backend must be fully removed before using V2 runtime.
 
 ---
 
@@ -210,4 +225,4 @@ Backend must be fully removed before using V2 runtime
 - gate border sync maintained
 - reason text remains readable
 
-Humidity Intelligence V2 UI a structured runtime interface for a deterministic environmental engine.
+Humidity Intelligence V2 UI is a structured runtime interface for a deterministic environmental engine.

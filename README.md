@@ -15,9 +15,11 @@
 
 - [TL;DR](#tldr)
 - [What Is Humidity Intelligence](#what-is-humidity-intelligence)
-- [V2 UI Examples](#v2-ui-examples)
+- [V2 UI Example](#v2-ui-example)
+- [Support Project](#support-project)
 - [Why Environmental Stability Matters](#why-environmental-stability-matters)
 - [Season-Aware Environmental Control](#season-aware-environmental-control)
+- [Design Philosophy](#design-philosophy)
 - [Architecture Overview](#architecture-overview)
 - [Current Release Highlights](#current-release-highlights)
 - [Installation](#installation)
@@ -29,23 +31,21 @@
 - [Post-Configuration Workflow](#post-configuration-workflow)
 - [How to Use Services](#how-to-use-services)
 - [Support, Diagnostics, and Issue Triage](#support-diagnostics-and-issue-triage)
-- [Support the Project](#support-the-project)
 - [Release Notes](#release-notes)
-- [Design Philosophy](#design-philosophy)
 
 ---
 
 ## TL;DR
 
-A deterministic environmental control engine for Home Assistant.
+Humidity Intelligence is a domestic environmental control engine for Home Assistant.
 
 It reads humidity, temperature, air quality, condensation, mould-risk, CO, presence, time, pause, and override signals, then resolves **one explainable control decision per evaluation cycle**.
 
-What it gives you:
+it give you:
 
 - season-aware humidity targets
 - deterministic lane priority
-- safe degraded behaviour when inputs are missing
+- safe degraded behavior when inputs are missing
 - generated Lovelace dashboards backed by runtime truth
 - native Home Assistant diagnostics for support and triage
 - services for dashboard export, self-check, diagnostics, pause/resume, and release validation
@@ -92,41 +92,27 @@ At its core, Humidity Intelligence is about creating a calmer, healthier, and mo
 
 ---
 
-## V2 UI Examples
-
-Six selected screenshots show the main visual story without overwhelming the front page.
-
-### Tablet Examples
+## V2 UI Example
 
 <p>
-  <img src="assets/v2_ui_gallery/v204_current_air_control_ready.png" width="300" alt="V2 tablet normal Current Air Control state">
-  <img src="assets/v2_ui_gallery/v204_zone_alert_boost.png" width="300" alt="V2 tablet zone-bound alert boost state">
-  <img src="assets/v2_ui_gallery/v204_presence_gate_reason.png" width="300" alt="V2 tablet global gate reason state">
-</p>
-
-### Mobile Examples
-
-<p>
-  <img src="assets/v2_ui_gallery/ui_v2_mobile_aq.png" width="260" alt="V2 mobile air quality lane state">
-  <img src="assets/v2_ui_gallery/IMG_0323.png" width="260" alt="V2 mobile Zone 2 moisture stabilisation state">
-</p>
-
-### Expanded Detail Example
-
-<p>
-  <img src="assets/v2_ui_gallery/IMG_0324.png" width="280" alt="V2 expanded output details example">
+  <img src="assets/v2_ui_gallery/v204_presence_gate_reason.png" width="320" alt="V2 mobile Current Air Control presence gate active state">
 </p>
 
 <details>
-<summary><strong>View More UI Images</strong></summary>
+<summary><strong>More UI Examples</strong></summary>
 
-The remaining UI screenshots are kept out of the main flow so the README stays readable.
+Additional screenshots are kept collapsed so the front page stays focused.
 
 - [Open the full V2 UI image folder](assets/v2_ui_gallery/)
 - [Open the reusable UI Gallery](ui-gallery/README.md)
 
 Additional image files:
 
+- [Current Air Control ready state](assets/v2_ui_gallery/v204_current_air_control_ready.png)
+- [Zone-bound alert boost state](assets/v2_ui_gallery/v204_zone_alert_boost.png)
+- [V2 mobile air quality lane state](assets/v2_ui_gallery/ui_v2_mobile_aq.png)
+- [V2 mobile Zone 2 moisture stabilisation state](assets/v2_ui_gallery/IMG_0323.png)
+- [Expanded output details example](assets/v2_ui_gallery/IMG_0324.png)
 - [Unmapped alert degraded context](assets/v2_ui_gallery/v204_unmapped_alert_context.png)
 - [Zone 2 temperature chip state](assets/v2_ui_gallery/v204_zone2_temperature_chips.png)
 - [V2 gallery image 5665](assets/v2_ui_gallery/IMG_5665.png)
@@ -138,6 +124,14 @@ Additional image files:
 - [V2 tablet Zone 2 compact example](assets/v2_ui_gallery/ui_v2_tablet_zone_2.png)
 
 </details>
+
+---
+
+## Support Project
+
+If Humidity Intelligence is useful, interesting, or helping you reason about your home environment more clearly, a GitHub star helps other Home Assistant users find it.
+
+[Star Humidity Intelligence on GitHub](https://github.com/senyo888/Humidity-Intelligence)
 
 ---
 
@@ -213,6 +207,27 @@ Default temperature comfort bands:
 - Spring: `20°C` to `21°C`
 - Summer: `20°C` to `22.5°C`
 - Autumn: `19.5°C` to `21°C`
+
+---
+
+## Design Philosophy
+
+Humidity Intelligence is built around a simple premise: a home should not be regulated by a loose pile of automations competing for control. It should have one visible environmental controller that reads configured telemetry, applies a stable priority hierarchy, and resolves one explainable outcome per evaluation cycle.
+
+The engine is deterministic by design. It does not guess, learn hidden preferences, or invent state. It evaluates season-aware humidity targets, safety gates, alert conditions, zone demand, air quality state, and humidifier needs through explicit rules so runtime behavior can be inspected, predicted, and explained.
+
+The UI is a truth surface, not a second controller. Current Air Control, chips, diagnostics, and exported cards must reflect backend telemetry, entity mappings, runtime mode, and degraded-state reasons. If an input is missing or an output is unavailable, Humidity Intelligence should show that condition and fall back safely instead of pretending the home is stable.
+
+The architectural preference is calm regulation over automation chaos:
+
+- one selected ventilation lane per evaluation cycle
+- CO emergency and alert hierarchy before comfort correction
+- humidifier lanes kept independent from ventilation resolution
+- global gates and overrides visible when they suppress control
+- generated dashboards aligned with backend truth only
+- safe degraded behavior before blind output writes
+
+The result should feel steady in a domestic environment: readable, conservative, and accountable when conditions change.
 
 ---
 
@@ -1021,14 +1036,6 @@ More detail:
 
 ---
 
-## Support the Project
-
-If Humidity Intelligence is useful, interesting, or helping you reason about your home environment more clearly, a GitHub star helps other Home Assistant users find it.
-
-[Star Humidity Intelligence on GitHub](https://github.com/senyo888/Humidity-Intelligence)
-
----
-
 ## Release Notes
 
 ### v2.0.5
@@ -1128,15 +1135,3 @@ If Humidity Intelligence is useful, interesting, or helping you reason about you
 - if your dashboard uses Manual cards, re-copy/paste the latest exported YAML after changing `alert_only_mode` so the UI and reason panel match the selected mode.
 
 </details>
-
----
-
-## Design Philosophy
-
-- determinism over cleverness
-- transparency over magic
-- one authoritative state
-- explicit override hierarchy
-- safe fallback over silent failure
-
-Humidity Intelligence is environmental runtime architecture for a real home.

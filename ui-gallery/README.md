@@ -4,6 +4,8 @@ Reusable Lovelace examples built on the Humidity Intelligence V2 generated card 
 
 These examples are public documentation artifacts. They should demonstrate safe, canonical UI patterns without exposing private Home Assistant entity IDs, addresses, screenshots, or personal data.
 
+The root README keeps one canonical V2 UI screenshot near the top. This gallery carries the broader example set for users who want to inspect layout variants without loading the front page with screenshots.
+
 ## Available Layouts
 
 ### Default V2 Mobile AQ
