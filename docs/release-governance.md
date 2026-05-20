@@ -6,34 +6,29 @@ testing and validation branches.
 ## Canonical Version Model
 
 - `2.0.5-beta.1`, `2.0.5-beta.2`: testing builds.
-- `2.0.5-rc.1`: release-candidate builds on `develop` when the branch is ready for
-  final validation.
-- `2.0.5`: stable production release on `main` or `release/*` only.
+- `2.0.5-rc.1`: release-candidate builds.
+- `2.0.5`: stable version label.
 
 The integration version in `manifest.json` is the release-state source of truth for
 Home Assistant and HACS metadata checks.
 
 ## Branch Responsibilities
 
-- `senyo888-patch-1`: beta/testing state only. Local Home Assistant validation should
-  clearly show a `-beta.N` manifest version.
-- `develop`: beta or release-candidate state. Use `-beta.N` while fixes are still
-  moving, then `-rc.N` for final release validation.
-- `main`: stable production state only. No prerelease suffix is allowed.
-- `release/*`: stable production state only. No prerelease suffix is allowed.
+- `senyo888-patch-1`: staging lane for all manifest labels. It may carry beta, rc,
+  or stable version metadata while work is being prepared and reviewed.
+- `develop`: release-candidate or stable version metadata only. Beta labels stay on
+  `senyo888-patch-1`.
+- `main`: stable production version metadata only. No prerelease suffix is allowed.
 - Short-lived development branches, including `Bella/*`, `codex/*`, `feature/*`,
   `fix/*`, `patch/*`, and `test/*`, must not carry stable manifest versions.
 
 ## Promotion Rules
 
-1. Beta work starts on `senyo888-patch-1` as `MAJOR.MINOR.PATCH-beta.N`.
-2. Each local Home Assistant validation build increments the beta number when the
-   manifest changes.
-3. Promotion to `develop` keeps a prerelease version: either the current beta or an
-   `rc.N` once the release candidate is frozen.
-4. Promotion to `main` or `release/*` removes the prerelease suffix and updates release
-   notes to the stable version.
-5. A GitHub release is created only from a stable version on `main` or `release/*`.
+1. Beta, rc, and stable labels may be staged on `senyo888-patch-1`.
+2. Promotion to `develop` uses `MAJOR.MINOR.PATCH-rc.N` or stable
+   `MAJOR.MINOR.PATCH` version metadata only.
+3. Promotion to `main` uses stable `MAJOR.MINOR.PATCH` version metadata only.
+4. A GitHub release is created only from a stable version on `main`.
 
 ## Hard Release Gates
 
@@ -52,17 +47,18 @@ until all of these gates are satisfied:
 - The README has maintainer approval before release tagging.
 
 If any gate is missing, the release state is `not ready`, even when the manifest version
-already carries a stable number on `main` or `release/*`.
+already carries a stable number on `senyo888-patch-1`, `develop`, or `main`.
 
 ## Enforcement
 
 `scripts/check_version_governance.py` validates the branch/version contract locally and
 in CI. It rejects:
 
-- stable versions on testing branches
-- beta or release-candidate versions on `main` or `release/*`
-- non-beta versions on `senyo888-patch-1`
-- non-beta/non-rc versions on `develop`
+- prerelease versions on `main`
+- beta versions on `develop`
+- stable versions on short-lived testing branches
+- stable versions on unapproved branches outside `senyo888-patch-1`, `develop`, and
+  `main`
 
 This is a release-boundary guard only. It does not alter runtime logic, entity
 semantics, generated dashboards, or Home Assistant services.

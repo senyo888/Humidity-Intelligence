@@ -28,6 +28,8 @@ TESTING_BRANCH_PREFIXES = (
     "test/",
 )
 
+STABLE_ALLOWED_BRANCHES = {"senyo888-patch-1", "develop", "main"}
+
 
 def _git_branch() -> str:
     result = subprocess.run(
@@ -57,12 +59,8 @@ def _manifest_version() -> str:
     return version
 
 
-def _is_stable_branch(branch: str) -> bool:
-    return branch == "main" or branch.startswith("release/")
-
-
 def _is_testing_branch(branch: str) -> bool:
-    return branch == "senyo888-patch-1" or branch.startswith(TESTING_BRANCH_PREFIXES)
+    return branch.startswith(TESTING_BRANCH_PREFIXES)
 
 
 def main() -> int:
@@ -82,30 +80,30 @@ def main() -> int:
 
     label = match.group("label")
 
-    if _is_stable_branch(branch) and label:
+    if branch == "main" and label:
         print(
-            f"Stable branch '{branch}' must not use prerelease version '{version}'.",
+            f"Main branch must use stable versioning, not '{version}'.",
             file=sys.stderr,
         )
         return 1
 
-    if branch == "develop" and label not in {"beta", "rc"}:
+    if branch == "develop" and label == "beta":
         print(
-            f"Develop branch must use beta or rc versioning, not '{version}'.",
+            f"Develop branch must use rc or stable versioning, not '{version}'.",
             file=sys.stderr,
         )
         return 1
 
-    if branch == "senyo888-patch-1" and label != "beta":
+    if not label and branch not in STABLE_ALLOWED_BRANCHES:
         print(
-            f"Testing branch 'senyo888-patch-1' must use beta versioning, not '{version}'.",
+            f"Branch '{branch}' must not carry stable version '{version}'.",
             file=sys.stderr,
         )
         return 1
 
     if _is_testing_branch(branch) and not label:
         print(
-            f"Testing branch '{branch}' must not carry stable version '{version}'.",
+            f"Testing branch '{branch}' must use beta or rc versioning, not '{version}'.",
             file=sys.stderr,
         )
         return 1

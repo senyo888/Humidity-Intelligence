@@ -1045,7 +1045,7 @@ If Humidity Intelligence is useful, interesting, or helping you reason about you
 - defaulted new generated V2 cards to hide the expandable output details panel unless the option is enabled
 - changed first-install UI export default to `v2_tablet`
 - kept deterministic runtime behavior, lane ordering, alert hierarchy, CO emergency handling, humidifier independence, public entity semantics, and `dump_cards` unchanged
-- promoted integration metadata to stable `2.0.5`; branch/version governance remains in place so stable versions stay limited to `main` and `release/*`
+- promoted integration metadata to stable `2.0.5`; branch/version governance now allows beta, rc, or stable labels on `senyo888-patch-1`, rc or stable labels on `develop`, and stable releases on `main`
 
 ### v2.0.4
 
