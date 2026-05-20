@@ -35,6 +35,25 @@ Home Assistant and HACS metadata checks.
    notes to the stable version.
 5. A GitHub release is created only from a stable version on `main` or `release/*`.
 
+## Hard Release Gates
+
+No Humidity Intelligence version release, GitHub release, or release tag may be created
+until all of these gates are satisfied:
+
+- Bella verification has confirmed source-of-truth alignment, UI truth consistency,
+  deterministic release boundaries, and README/release-note coherence.
+- AetherCore verification has confirmed governance coherence, role-boundary integrity,
+  proposal/release-process consistency, and local/public boundary safety. This is a
+  governance verification gate; it does not make AetherCore a runtime authority or
+  release approver.
+- Release sanity validation has passed for the change scope, including version
+  governance, HACS/package metadata checks, and the relevant Home Assistant runtime,
+  direct sanity, service, or generated-card checks.
+- The README has maintainer approval before release tagging.
+
+If any gate is missing, the release state is `not ready`, even when the manifest version
+already carries a stable number on `main` or `release/*`.
+
 ## Enforcement
 
 `scripts/check_version_governance.py` validates the branch/version contract locally and
