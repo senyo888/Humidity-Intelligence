@@ -127,12 +127,15 @@ Additional image files:
 
 ---
 
-## Support Project
+## Support Humidity Intelligence
 
-If Humidity Intelligence is useful, interesting, or helping you reason about your home environment more clearly, a GitHub star helps other Home Assistant users find it.
+### ⭐ Enjoying Humidity Intelligence?
+
+If you're finding Humidity Intelligence useful, insightful, or just interesting to explore, consider giving the repository a star.
+
+It helps others discover the project, supports ongoing development, and shows that this kind of deterministic, explainable approach to Home Assistant has community value.
 
 [Star Humidity Intelligence on GitHub](https://github.com/senyo888/Humidity-Intelligence)
-
 ---
 
 ## Why Environmental Stability Matters
@@ -214,9 +217,9 @@ Default temperature comfort bands:
 
 Humidity Intelligence is built around a simple premise: a home should not be regulated by a loose pile of automations competing for control. It should have one visible environmental controller that reads configured telemetry, applies a stable priority hierarchy, and resolves one explainable outcome per evaluation cycle.
 
-The engine is deterministic by design. It does not guess, learn hidden preferences, or invent state. It evaluates season-aware humidity targets, safety gates, alert conditions, zone demand, air quality state, and humidifier needs through explicit rules so runtime behavior can be inspected, predicted, and explained.
+The engine is deterministic by design. Avoids guesses, and learns hidden preferences. It evaluates season-aware humidity targets, safety gates, alert conditions, zone demand, air quality state, and humidifier needs through explicit rules so runtime behavior can be inspected, predicted, and explained.
 
-The UI is a truth surface, not a second controller. Current Air Control, chips, diagnostics, and exported cards must reflect backend telemetry, entity mappings, runtime mode, and degraded-state reasons. If an input is missing or an output is unavailable, Humidity Intelligence should show that condition and fall back safely instead of pretending the home is stable.
+The UI is a truth surface. Current Air Control, chips, diagnostics, and exported cards  reflect backend telemetry, entity mappings, runtime mode, and degraded-state reasons. If an input is missing or an output is unavailable, Humidity Intelligence show that condition and fall back safely without pretending the home is stable.
 
 The architectural preference is calm regulation over automation chaos:
 
@@ -227,7 +230,7 @@ The architectural preference is calm regulation over automation chaos:
 - generated dashboards aligned with backend truth only
 - safe degraded behavior before blind output writes
 
-The result should feel steady in a domestic environment: readable, conservative, and accountable when conditions change.
+The result  feel steady in a domestic environment: readable, conservative, and accountable when conditions change.
 
 ---
 
@@ -307,8 +310,8 @@ The UI renders.
 
 ## Current Release Highlights
 
-- setup and options now present essentials first, with tuning controls behind Advanced sections that open/retract immediately in the form
-- HI applies recommended defaults unless you customise them
+- setup and options now present essentials first, with tuning controls behind Advanced sections that open/retract immediately within the form
+- HI applies recommended defaults unless you customise them 
 - control loop interval, startup UI mapping refresh, custom humidity targets, custom temperature comfort values, slope sources, fan levels, threshold tuning, lane removal, AQ tuning, and visual-alert tuning remain available as advanced controls
 - new installs default the generated V2 dashboard to a cleaner output display
 - `Show output entity details` can re-enable the generated-card output details panel when deeper runtime inspection is useful
