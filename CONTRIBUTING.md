@@ -75,4 +75,6 @@ Update `README.md`, docs, services documentation, or UI Gallery README files whe
 
 Use the GitHub issue forms for bugs, feature requests, configuration help, and UI Gallery submissions. A good bug report includes the Humidity Intelligence version, Home Assistant version, install method, logs, expected behavior, actual behavior, and steps to reproduce.
 
+Maintainers can use the report-only daily triage helper documented in [docs/issue-triage.md](docs/issue-triage.md) to review new, untriaged, or recently updated issues without mutating GitHub issue state.
+
 Pull requests are reviewed for correctness, Home Assistant compatibility, HACS readiness, privacy safety, and documentation quality. The maintainer may ask for a smaller scope, additional testing, or clearer docs before merging.

@@ -313,9 +313,18 @@ class HIAutomationEngine:
             # Humidifiers are independent from zone/AQ lane order.
             humidifier_details = await self._handle_humidifiers()
 
-            # Requested lane order: zone1 -> zone2 -> AQ.
+            # Requested lane order: zone1 -> zone2 -> AQ. Only the selected
+            # ventilation lane may write fan outputs in a cycle.
             zone1_active, zone1_mode, zone1_detail = await self._handle_zone_by_key("zone1")
-            zone2_active, zone2_mode, zone2_detail = await self._handle_zone_by_key("zone2")
+            zone2_active = False
+            zone2_mode = None
+            zone2_detail = None
+            if zone1_active:
+                await self._set_zone_outputs_auto(exclude=zone1_detail.get("outputs", []) if zone1_detail else [])
+            else:
+                zone2_active, zone2_mode, zone2_detail = await self._handle_zone_by_key("zone2")
+                if zone2_active:
+                    await self._set_zone_outputs_auto(exclude=zone2_detail.get("outputs", []) if zone2_detail else [])
             zone_outputs_active = zone1_active or zone2_active
 
             # AQ lane only runs when no alert or zone lane is active.

@@ -1480,6 +1480,7 @@ card:
             action: toggle
           hold_action:
             action: more-info
+    # hi:output-details:start
     - type: custom:button-card
       entity: input_boolean.air_control_output_expanded
       name: Outputs
@@ -1655,3 +1656,4 @@ card:
             - type: section
             - entity: humidifier.downstairs_humidifier
             - entity: humidifier.upstairs_humidifier
+    # hi:output-details:end

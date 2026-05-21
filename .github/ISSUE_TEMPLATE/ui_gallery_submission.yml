@@ -16,6 +16,41 @@ body:
       placeholder: "/ui-gallery/<card-id>/"
     validations:
       required: true
+  - type: dropdown
+    id: source-layout
+    attributes:
+      label: Source layout
+      options:
+        - v2_tablet
+        - v2_mobile
+        - v2_mobile_aq
+        - v1_mobile
+        - Custom or hand-built
+        - Unsure
+    validations:
+      required: true
+  - type: textarea
+    id: frontend-dependencies
+    attributes:
+      label: Frontend dependencies used
+      description: List any custom cards or Lovelace resources this example expects.
+      placeholder: |
+        button-card
+        card-mod
+        mod-card
+        apexcharts-card
+      render: text
+  - type: dropdown
+    id: yaml-source
+    attributes:
+      label: YAML source
+      options:
+        - Exported by Humidity Intelligence
+        - Exported by HI and lightly edited
+        - Hand-written
+        - Unsure
+    validations:
+      required: true
   - type: textarea
     id: files
     attributes:

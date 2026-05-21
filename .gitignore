@@ -15,15 +15,32 @@ secrets.yaml
 .storage/
 __pycache__/
 
+# --- Local Home Assistant API access ---
+.env
+.env.local
+.env.*.local
+.ha-token
+.ha-token.*
+.ha-session*
+
 # --- Temp / cache ---
 *.tmp
 *.bak
 *.old
 
 # --- Local planning docs ---
+.codex/
+/Issue-Triage.md
 DESIGN_BRIEF.md
 PROJECT_SUMMARY.md
 ROADMAP.md
+PROPOSALS.md
+
+# --- Local AI-agent instructions ---
+AGENTS.local.md
+
+# --- Local developer tooling ---
+scripts/local/
 
 # --- Node / build (future-safe) ---
 node_modules/

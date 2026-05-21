@@ -6,6 +6,7 @@ import asyncio
 import importlib.util
 import pathlib
 import sys
+import tempfile
 import types
 from types import MethodType, SimpleNamespace
 
@@ -21,19 +22,120 @@ def _install_homeassistant_stubs() -> None:
     core = types.ModuleType("homeassistant.core")
     config_entries = types.ModuleType("homeassistant.config_entries")
     const = types.ModuleType("homeassistant.const")
+    components = types.ModuleType("homeassistant.components")
+    sensor_mod = types.ModuleType("homeassistant.components.sensor")
+    binary_sensor_mod = types.ModuleType("homeassistant.components.binary_sensor")
+    lovelace = types.ModuleType("homeassistant.components.lovelace")
+    lovelace_const = types.ModuleType("homeassistant.components.lovelace.const")
+    exceptions = types.ModuleType("homeassistant.exceptions")
     helpers = types.ModuleType("homeassistant.helpers")
+    config_validation = types.ModuleType("homeassistant.helpers.config_validation")
     event = types.ModuleType("homeassistant.helpers.event")
+    device_registry = types.ModuleType("homeassistant.helpers.device_registry")
+    entity_helper = types.ModuleType("homeassistant.helpers.entity")
     entity_registry = types.ModuleType("homeassistant.helpers.entity_registry")
+    util = types.ModuleType("homeassistant.util")
+    voluptuous = types.ModuleType("voluptuous")
 
     class HomeAssistant:
         pass
 
+    class ServiceCall:
+        def __init__(self, data=None):
+            self.data = data or {}
+
     class ConfigEntry:
         pass
+
+    class HomeAssistantError(Exception):
+        pass
+
+    class Entity:
+        pass
+
+    class SensorEntity(Entity):
+        pass
+
+    class BinarySensorEntity(Entity):
+        pass
+
+    class DeviceInfo(dict):
+        pass
+
+    class SensorDeviceClass:
+        TEMPERATURE = "temperature"
+
+    class SensorStateClass:
+        MEASUREMENT = "measurement"
 
     class UnitOfTemperature:
         CELSIUS = "°C"
         FAHRENHEIT = "°F"
+
+    class Invalid(Exception):
+        pass
+
+    class _SchemaKey:
+        def __init__(self, key, default=None):
+            self.key = key
+            self.default = default
+
+        def __hash__(self):
+            try:
+                return hash((self.key, self.default))
+            except TypeError:
+                return hash((self.key, repr(self.default)))
+
+    class Schema:
+        def __init__(self, schema):
+            self.schema = schema
+
+        def __call__(self, value):
+            return value
+
+    def _ensure_list(value):
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return value
+        if isinstance(value, tuple):
+            return list(value)
+        return [value]
+
+    def _coerce(kind):
+        return lambda value: kind(value)
+
+    def _range(min=None, max=None):
+        def validate(value):
+            if min is not None and value < min:
+                raise Invalid("value below range")
+            if max is not None and value > max:
+                raise Invalid("value above range")
+            return value
+
+        return validate
+
+    def _all(*validators):
+        def validate(value):
+            for validator in validators:
+                value = validator(value)
+            return value
+
+        return validate
+
+    def _any(*validators):
+        def validate(value):
+            for validator in validators:
+                if validator is None and value is None:
+                    return value
+                if callable(validator):
+                    try:
+                        return validator(value)
+                    except Exception:
+                        continue
+            raise Invalid("no validator accepted value")
+
+        return validate
 
     def async_track_state_change_event(*args, **kwargs):
         return lambda: None
@@ -42,20 +144,53 @@ def _install_homeassistant_stubs() -> None:
         return lambda: None
 
     core.HomeAssistant = HomeAssistant
+    core.ServiceCall = ServiceCall
     config_entries.ConfigEntry = ConfigEntry
+    exceptions.HomeAssistantError = HomeAssistantError
     const.UnitOfTemperature = UnitOfTemperature
     const.PERCENTAGE = "%"
+    sensor_mod.SensorEntity = SensorEntity
+    sensor_mod.SensorDeviceClass = SensorDeviceClass
+    sensor_mod.SensorStateClass = SensorStateClass
+    binary_sensor_mod.BinarySensorEntity = BinarySensorEntity
+    lovelace_const.LOVELACE_DATA = "lovelace"
+    config_validation.entity_id = str
+    config_validation.entity_ids = _ensure_list
+    config_validation.ensure_list = _ensure_list
+    config_validation.string = str
     event.async_track_state_change_event = async_track_state_change_event
     event.async_track_time_interval = async_track_time_interval
+    device_registry.DeviceInfo = DeviceInfo
+    entity_helper.Entity = Entity
     entity_registry.async_get = lambda hass: None
+    util.slugify = lambda value: str(value).lower().replace(" ", "_")
+    voluptuous.Schema = Schema
+    voluptuous.Optional = _SchemaKey
+    voluptuous.Required = _SchemaKey
+    voluptuous.Invalid = Invalid
+    voluptuous.Coerce = _coerce
+    voluptuous.Range = _range
+    voluptuous.All = _all
+    voluptuous.Any = _any
 
     sys.modules["homeassistant"] = ha
     sys.modules["homeassistant.core"] = core
     sys.modules["homeassistant.config_entries"] = config_entries
     sys.modules["homeassistant.const"] = const
+    sys.modules["homeassistant.components"] = components
+    sys.modules["homeassistant.components.sensor"] = sensor_mod
+    sys.modules["homeassistant.components.binary_sensor"] = binary_sensor_mod
+    sys.modules["homeassistant.components.lovelace"] = lovelace
+    sys.modules["homeassistant.components.lovelace.const"] = lovelace_const
+    sys.modules["homeassistant.exceptions"] = exceptions
     sys.modules["homeassistant.helpers"] = helpers
+    sys.modules["homeassistant.helpers.config_validation"] = config_validation
     sys.modules["homeassistant.helpers.event"] = event
+    sys.modules["homeassistant.helpers.device_registry"] = device_registry
+    sys.modules["homeassistant.helpers.entity"] = entity_helper
     sys.modules["homeassistant.helpers.entity_registry"] = entity_registry
+    sys.modules["homeassistant.util"] = util
+    sys.modules["voluptuous"] = voluptuous
 
 
 def _install_package_scaffold() -> None:
@@ -64,7 +199,7 @@ def _install_package_scaffold() -> None:
     pkg.__path__ = [str(ROOT)]
     sys.modules[PKG] = pkg
 
-    for sub in ("automations", "ui", "helpers"):
+    for sub in ("automations", "ui", "helpers", "sensors"):
         mod = types.ModuleType(f"{PKG}.{sub}")
         mod.__path__ = [str(ROOT / sub)]
         sys.modules[f"{PKG}.{sub}"] = mod
@@ -91,6 +226,30 @@ def _load_target_modules():
     engine_mod = _load_module(f"{PKG}.automations.engine", ROOT / "automations" / "engine.py")
     register_mod = _load_module(f"{PKG}.ui.register", ROOT / "ui" / "register.py")
     return engine_mod, register_mod
+
+
+def _load_services_module():
+    _install_homeassistant_stubs()
+    _install_package_scaffold()
+    _load_module(f"{PKG}.const", ROOT / "const.py")
+    return _load_module(f"{PKG}.services", ROOT / "services.py")
+
+
+def _load_core_module():
+    _install_homeassistant_stubs()
+    _install_package_scaffold()
+    _load_module(f"{PKG}.const", ROOT / "const.py")
+    return _load_module(f"{PKG}.sensors.core", ROOT / "sensors" / "core.py")
+
+
+def _load_frontend_dependencies_module():
+    _install_homeassistant_stubs()
+    _install_package_scaffold()
+    _load_module(f"{PKG}.const", ROOT / "const.py")
+    return _load_module(
+        f"{PKG}.helpers.frontend_dependencies",
+        ROOT / "helpers" / "frontend_dependencies.py",
+    )
 
 
 class _FakeState:
@@ -120,6 +279,39 @@ class _FakeServices:
 
     async def async_call(self, domain, service, data=None, blocking=False):
         self.calls.append((domain, service, dict(data or {}), bool(blocking)))
+
+
+class _FlashServiceRegistry:
+    def __init__(self, states):
+        self.states = states
+        self.calls = []
+        self.handlers = {}
+
+    def has_service(self, domain, service):
+        return True
+
+    def async_register(self, domain, service, handler, schema=None):
+        self.handlers[(domain, service)] = handler
+
+    async def async_call(self, domain, service, data=None, blocking=False):
+        payload = dict(data or {})
+        self.calls.append((domain, service, payload, bool(blocking)))
+        if domain == "light":
+            entity_id = payload.get("entity_id")
+            current = self.states.get(entity_id)
+            attrs = dict(current.attributes) if current is not None else {}
+            if service == "turn_on":
+                attrs.update({key: value for key, value in payload.items() if key != "entity_id"})
+                self.states._values[entity_id] = _FakeState("on", attrs)
+            elif service == "turn_off":
+                self.states._values[entity_id] = _FakeState("off", attrs)
+
+
+class _FlashHass:
+    def __init__(self, states):
+        self.states = _FakeStates(states)
+        self.services = _FlashServiceRegistry(self.states)
+        self.data = {}
 
 
 class _FakeBool:
@@ -154,6 +346,9 @@ class _FakeConfigEntries:
 
     def async_get_entry(self, entry_id):
         return self._entry if entry_id == self._entry.entry_id else None
+
+    def async_entries(self, _domain):
+        return [self._entry]
 
 
 class _FakeRegistry:
@@ -192,6 +387,69 @@ class _FakeHass:
                         "air_aq_upstairs_run": _FakeTimer(),
                     },
                 }
+            }
+        }
+
+    async def async_add_executor_job(self, func, *args):
+        return func(*args)
+
+
+class _NoStringResource(dict):
+    def __str__(self):
+        raise AssertionError("resource objects must not be stringified")
+
+    def __repr__(self):
+        raise AssertionError("resource objects must not be stringified")
+
+
+class _FakeLovelaceResources:
+    def __init__(self, items, *, loaded=False, load_error=None):
+        self._items = list(items)
+        self.loaded = loaded
+        self.load_error = load_error
+        self.load_calls = 0
+        self.items_calls = 0
+
+    async def async_load(self):
+        self.load_calls += 1
+        if self.load_error is not None:
+            raise self.load_error
+
+    def async_items(self):
+        self.items_calls += 1
+        return list(self._items)
+
+
+class _DumpCardsConfig:
+    def __init__(self, root):
+        self._root = pathlib.Path(root)
+
+    def path(self, filename):
+        return str(self._root / filename)
+
+
+class _DumpCardsConfigEntries:
+    def __init__(self, entries):
+        self._entries = list(entries)
+
+    def async_get_entry(self, entry_id):
+        for entry in self._entries:
+            if entry.entry_id == entry_id:
+                return entry
+        return None
+
+    def async_entries(self, _domain):
+        return list(self._entries)
+
+
+class _DumpCardsHass:
+    def __init__(self, tmpdir, entries, cards_by_entry):
+        self.config = _DumpCardsConfig(tmpdir)
+        self.config_entries = _DumpCardsConfigEntries(entries)
+        self.data = {
+            "humidity_intelligence": {
+                entry_id: {"cards": cards}
+                for entry_id, cards in cards_by_entry.items()
             }
         }
 
@@ -270,6 +528,67 @@ def _base_entry_data():
             }
         ],
     }
+
+
+def _minimal_humidity_entry():
+    return SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data={
+            "target_profile": "winter",
+            "telemetry": [
+                {
+                    "entity_id": "sensor.kitchen_h",
+                    "sensor_type": "humidity",
+                    "level": "level1",
+                    "room": "Kitchen",
+                }
+            ],
+        },
+        options={},
+    )
+
+
+def _find_sensor(sensors, unique_suffix):
+    for sensor in sensors:
+        if getattr(sensor, "_attr_unique_id", "").endswith(unique_suffix):
+            return sensor
+    raise AssertionError(f"sensor ending {unique_suffix!r} was not built")
+
+
+def test_house_humidity_drift_7d_reports_missing_statistics_dependency():
+    core_mod = _load_core_module()
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(entry, {"sensor.kitchen_h": _FakeState(55)})
+
+    sensors, _binary_sensors, sources = core_mod.build_entities(hass, entry)
+    drift = _find_sensor(sensors, "house_drift_7d")
+
+    assert "sensor.house_humidity_mean_7d" in sources
+    assert drift._attr_native_value is None
+    attrs = drift._attr_extra_state_attributes
+    assert attrs["status"] == "unavailable"
+    assert attrs["reason"] == "statistics_dependency_missing"
+    assert attrs["required_dependency"] == "sensor.house_humidity_mean_7d"
+    assert attrs["dependency_status"] == "missing"
+    assert attrs["current_house_humidity"] == 55.0
+
+
+def test_house_humidity_drift_7d_preserves_valid_statistics_calculation():
+    core_mod = _load_core_module()
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(55),
+            "sensor.house_humidity_mean_7d": _FakeState(50),
+        },
+    )
+
+    sensors, _binary_sensors, _sources = core_mod.build_entities(hass, entry)
+    drift = _find_sensor(sensors, "house_drift_7d")
+
+    assert drift._attr_native_value == 5.0
+    assert drift._attr_extra_state_attributes == {}
 
 
 async def _run_runtime_assertions(engine_mod) -> None:
@@ -834,6 +1153,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
         all(isinstance(channel, int) for channel in data.get("color"))
         for data in dynamic_flash_calls
     )
+    assert len(engine_room_alert_dynamic._visual_alert_tasks) == 1
     await engine_room_alert_dynamic._evaluate()
     dynamic_flash_calls_after_repeat_eval = [
         data
@@ -841,6 +1161,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
         if domain == "humidity_intelligence" and service == "flash_lights"
     ]
     assert len(dynamic_flash_calls_after_repeat_eval) == len(dynamic_flash_calls)
+    assert len(engine_room_alert_dynamic._visual_alert_tasks) == 1
     await engine_room_alert_dynamic.async_stop()
 
     # Alerts without target lights should still activate runtime alert mode,
@@ -950,6 +1271,43 @@ async def _run_runtime_assertions(engine_mod) -> None:
         and data.get("entity_id") == "fan.zone1"
         and data.get("percentage") == 66
         for domain, service, data, _ in hass_label.services.calls
+    )
+
+    # Zone lane priority must select one ventilation lane per cycle:
+    # zone1 beats zone2 and zone2 must not write its fan output.
+    entry_zone_select_data = _base_entry_data()
+    entry_zone_select_data["alert_handling_enabled"] = False
+    entry_zone_select_data["humidifiers"] = {}
+    entry_zone_select_data["aq"] = {}
+    entry_zone_select = SimpleNamespace(entry_id=ENTRY_ID, data=entry_zone_select_data, options={})
+    hass_zone_select = _FakeHass(
+        entry_zone_select,
+        {
+            "sensor.kitchen_h": _FakeState(90),
+            "sensor.hall_h": _FakeState(40),
+            "sensor.bed_h": _FakeState(90),
+            "sensor.kitchen_t": _FakeState(23),
+            "sensor.hall_t": _FakeState(22),
+            "sensor.bed_t": _FakeState(21),
+            "sensor.co_val": _FakeState(4),
+        },
+    )
+    engine_zone_select = HIAutomationEngine(hass_zone_select, entry_zone_select)
+    await engine_zone_select._evaluate()
+
+    assert hass_zone_select.data["humidity_intelligence"][ENTRY_ID].get("runtime_mode") == "cooking"
+    assert any(
+        domain == "fan"
+        and service == "set_percentage"
+        and data.get("entity_id") == "fan.zone1"
+        and data.get("percentage") == 66
+        for domain, service, data, _ in hass_zone_select.services.calls
+    )
+    assert not any(
+        domain == "fan"
+        and service == "set_percentage"
+        and data.get("entity_id") == "fan.zone2"
+        for domain, service, data, _ in hass_zone_select.services.calls
     )
 
     # AQ-only scenario: no alert and no zone should allow AQ lane execution.
@@ -1590,6 +1948,37 @@ async def _run_card_assertions(register_mod) -> None:
     assert not _has_invalid_conditional_block(tablet)
 
 
+async def _run_output_detail_visibility_assertions(register_mod) -> None:
+    sys.modules["homeassistant.helpers.entity_registry"].async_get = lambda hass: _FakeRegistry()
+
+    hidden_data = _base_entry_data()
+    hidden_data["show_output_entity_details"] = False
+    hidden_entry = SimpleNamespace(entry_id=ENTRY_ID, data=hidden_data, options={})
+    hidden_hass = _FakeHass(hidden_entry, {})
+    hidden_mapping = await register_mod.async_build_entity_mapping(hidden_hass, ENTRY_ID)
+    hidden_cards = await register_mod.async_register_cards(hidden_hass, ENTRY_ID, hidden_mapping)
+
+    for card in (hidden_cards.get("v2_mobile", ""), hidden_cards.get("v2_tablet", "")):
+        assert "name: Outputs" not in card
+        assert "entity: switch.hi_input_air_control_output_expanded" not in card
+        assert "entity: input_boolean.air_control_output_expanded" not in card
+        assert "hi:output-details" not in card
+        assert not _has_empty_cards_block(card)
+        assert not _has_invalid_conditional_block(card)
+
+    shown_data = _base_entry_data()
+    shown_data["show_output_entity_details"] = True
+    shown_entry = SimpleNamespace(entry_id=ENTRY_ID, data=shown_data, options={})
+    shown_hass = _FakeHass(shown_entry, {})
+    shown_mapping = await register_mod.async_build_entity_mapping(shown_hass, ENTRY_ID)
+    shown_cards = await register_mod.async_register_cards(shown_hass, ENTRY_ID, shown_mapping)
+
+    for card in (shown_cards.get("v2_mobile", ""), shown_cards.get("v2_tablet", "")):
+        assert "name: Outputs" in card
+        assert "air_control_output_expanded" in card
+        assert "hi:output-details" not in card
+
+
 async def _run_alert_only_card_assertions(register_mod) -> None:
     sys.modules["homeassistant.helpers.entity_registry"].async_get = lambda hass: _FakeRegistry()
 
@@ -1636,6 +2025,11 @@ def test_card_render_sanity_and_placeholder_resolution():
     asyncio.run(_run_card_assertions(register_mod))
 
 
+def test_output_detail_visibility_option_prunes_v2_cards():
+    _, register_mod = _load_target_modules()
+    asyncio.run(_run_output_detail_visibility_assertions(register_mod))
+
+
 def test_card_render_hides_controls_in_alert_only_mode():
     _, register_mod = _load_target_modules()
     asyncio.run(_run_alert_only_card_assertions(register_mod))
@@ -1662,6 +2056,78 @@ def test_temperature_normalization_respects_source_units():
     assert from_missing_unit is not None and abs(from_missing_unit - 21.0) < 0.05
 
 
+async def _registered_flash_handler(services_mod, hass):
+    await services_mod.async_register_services(hass)
+    return hass.services.handlers[(services_mod.DOMAIN, services_mod.SERVICE_FLASH_LIGHTS)]
+
+
+def _light_service_calls(hass):
+    return [
+        (service, data)
+        for domain, service, data, _blocking in hass.services.calls
+        if domain == "light"
+    ]
+
+
+async def _run_visual_flash_restore_assertions(services_mod) -> None:
+    original_sleep = services_mod.asyncio.sleep
+
+    async def fast_sleep(_delay):
+        await original_sleep(0)
+
+    services_mod.asyncio.sleep = fast_sleep
+    try:
+        attrs = {
+            "supported_color_modes": ["rgb"],
+            "brightness": 77,
+            "rgb_color": (1, 2, 3),
+        }
+        payload = {
+            "lights": ["light.alert"],
+            "color": [255, 0, 0],
+            "duration": 10,
+            "flash_count": 10,
+        }
+
+        hass_on = _FlashHass({"light.alert": _FakeState("on", attrs)})
+        handler_on = await _registered_flash_handler(services_mod, hass_on)
+        await handler_on(SimpleNamespace(data=payload))
+        on_calls = _light_service_calls(hass_on)
+        assert [service for service, _data in on_calls[:20]] == ["turn_on", "turn_off"] * 10
+        assert len(on_calls) == 21
+        assert on_calls[-1][0] == "turn_on"
+        assert on_calls[-1][1]["brightness"] == 77
+        assert on_calls[-1][1]["rgb_color"] == (1, 2, 3)
+        assert hass_on.states.get("light.alert").state == "on"
+
+        hass_off = _FlashHass({"light.alert": _FakeState("off", attrs)})
+        handler_off = await _registered_flash_handler(services_mod, hass_off)
+        await handler_off(SimpleNamespace(data=payload))
+        off_calls = _light_service_calls(hass_off)
+        assert [service for service, _data in off_calls[:20]] == ["turn_on", "turn_off"] * 10
+        assert len(off_calls) == 21
+        assert off_calls[-1][0] == "turn_off"
+        assert hass_off.states.get("light.alert").state == "off"
+
+        hass_overlap = _FlashHass({"light.alert": _FakeState("on", attrs)})
+        handler_overlap = await _registered_flash_handler(services_mod, hass_overlap)
+        await asyncio.gather(
+            handler_overlap(SimpleNamespace(data=payload)),
+            handler_overlap(SimpleNamespace(data=payload)),
+        )
+        overlap_services = [service for service, _data in _light_service_calls(hass_overlap)]
+        one_sequence = ["turn_on", "turn_off"] * 10 + ["turn_on"]
+        assert overlap_services == one_sequence + one_sequence
+        assert hass_overlap.states.get("light.alert").state == "on"
+    finally:
+        services_mod.asyncio.sleep = original_sleep
+
+
+def test_visual_alert_flash_restores_initial_light_state_and_serializes_overlap():
+    services_mod = _load_services_module()
+    asyncio.run(_run_visual_flash_restore_assertions(services_mod))
+
+
 def test_startup_ui_refresh_contract_is_wired():
     init_source = (ROOT / "__init__.py").read_text()
     const_source = (ROOT / "const.py").read_text()
@@ -1679,13 +2145,507 @@ def test_startup_ui_refresh_contract_is_wired():
     assert "STARTUP_UI_REFRESH_DELAY_SECONDS" in init_source
     assert "blocking=True" in init_source
     assert "auto_refresh_ui_on_startup" in const_source
+    assert "show_output_entity_details" in const_source
     assert "CONF_AUTO_REFRESH_UI_ON_STARTUP" in config_source
     assert "DEFAULT_AUTO_REFRESH_UI_ON_STARTUP" in config_source
+    assert "CONF_SHOW_OUTPUT_ENTITY_DETAILS" in config_source
+    assert "DEFAULT_SHOW_OUTPUT_ENTITY_DETAILS" in config_source
+    assert "ADVANCED_OPTIONS_FIELD" in config_source
+    assert "show_advanced_options" in config_source
+    assert '"show_advanced_options": "Show advanced tuning"' in strings_source
+    assert "show_output_entity_details" in strings_source
+    assert "Show output entity details" in strings_source
+    assert "['v2_tablet']" in config_source or 'default=["v2_tablet"]' in config_source
     assert "async_step_options_thresholds" in config_source
     assert "zone1_threshold_humidity_high" in strings_source
     assert "temperature_comfort_mode" in strings_source
     assert "auto_refresh_ui_on_startup" in strings_source
+    assert "recommended defaults" in config_source
+    assert "recommended thresholds" in strings_source
     assert "automatically shortly after Home Assistant startup" in services_source
+    assert "_entry_show_output_entity_details" in init_source
+    assert "generated-card output details" in init_source
+    assert "UI visibility changes" in init_source
+
+
+def test_options_gates_keeps_custom_targets_behind_advanced():
+    config_source = (ROOT / "config_flow.py").read_text()
+    method_source = config_source.split("async def async_step_options_gates", 1)[1].split(
+        "async def async_step_options_presence_states", 1
+    )[0]
+    schema_source = method_source.split("schema_fields: Dict[Any, Any]", 1)[1]
+    visible_schema_source = schema_source.split("vol.Optional(ADVANCED_OPTIONS_FIELD", 1)[0]
+    advanced_schema_source = schema_source.split("vol.Optional(ADVANCED_OPTIONS_FIELD", 1)[1]
+
+    assert 'vol.Optional("target_profile"' in visible_schema_source
+    assert '"custom_target_low"' not in visible_schema_source
+    assert '"custom_target_high"' not in visible_schema_source
+    assert '"custom_target_low"' in advanced_schema_source
+    assert '"custom_target_high"' in advanced_schema_source
+
+
+def test_options_thresholds_only_persists_real_zone_configs():
+    config_source = (ROOT / "config_flow.py").read_text()
+    method_source = config_source.split("async def async_step_options_thresholds", 1)[1].split(
+        "async def async_step_options_sensors", 1
+    )[0]
+
+    assert "_configured_zone_items(zones)" in method_source
+    assert 'for zone_key in ("zone1", "zone2")' not in method_source
+    assert "zones[zone_key] = zone" in method_source
+    assert "zone[\"thresholds\"] = thresholds" in method_source
+
+
+def test_advanced_tuning_uses_collapsible_sections_not_submit_reveal():
+    config_source = (ROOT / "config_flow.py").read_text()
+
+    assert "from homeassistant.data_entry_flow import section" in config_source
+    assert "def _advanced_section(" in config_source
+    assert "section(vol.Schema(fields), {\"collapsed\": True})" in config_source
+    assert "_flatten_advanced_section_input(user_input)" in config_source
+    assert "_should_reveal_advanced" not in config_source
+    assert "_advanced_toggle" not in config_source
+    assert "self._advanced_visible" not in config_source
+    assert "self._advanced_inputs" not in config_source
+    assert 'slope_sources = user_input.get("slope_sources", temp_entities)' in config_source
+    assert 'slope_sources = _sanitize_entity_ids(user_input.get("slope_sources", default_sources))' in config_source
+    assert '"run_duration": user_input.get("run_duration", existing.get("run_duration", 30))' in config_source
+
+    advanced_steps = (
+        "async_step_gates",
+        "async_step_slope",
+        "_async_step_zone_config",
+        "async_step_zone_thresholds",
+        "_async_step_humidifier",
+        "_async_step_aq",
+        "async_step_aq_thresholds",
+        "async_step_alert_add",
+        "async_step_options_gates",
+        "async_step_options_thresholds",
+        "async_step_options_zone_edit",
+        "async_step_options_humidifier_edit",
+        "async_step_options_aq_edit",
+        "async_step_options_alert_add",
+        "async_step_options_alert_edit",
+        "async_step_options_slope",
+    )
+    for step_name in advanced_steps:
+        method_source = config_source.split(f"async def {step_name}", 1)[1].split(
+            "\n    async def ",
+            1,
+        )[0]
+        assert "user_input = _flatten_advanced_section_input(user_input)" in method_source
+        assert "_advanced_section(" in method_source
+
+
+def test_readme_uses_manifest_version_badge_not_static_ha_compatibility_badge():
+    readme_source = (ROOT / "README.md").read_text()
+
+    assert "dynamic/json" in readme_source
+    assert "manifest.json" in readme_source
+    assert "query=%24.version" in readme_source
+    assert "Home%20Assistant-2026.4.3%2B" not in readme_source
+
+
+def test_dump_cards_without_layout_exports_all_cached_layouts():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID)
+    cards = {
+        "v2_mobile": "mobile-card",
+        "v2_tablet": "tablet-card",
+        "v1_mobile": "legacy-card",
+        "view_cards_button": "button-card",
+    }
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        hass = _DumpCardsHass(tmpdir, [entry], {ENTRY_ID: cards})
+        written = asyncio.run(
+            services_mod._dump_cards_to_file(
+                hass,
+                entry_id=None,
+                filename="humidity_intelligence_cards",
+                layout=None,
+            )
+        )
+
+        assert written == [
+            "/config/humidity_intelligence_cards_v2_mobile.yaml",
+            "/config/humidity_intelligence_cards_v2_tablet.yaml",
+            "/config/humidity_intelligence_cards_v1_mobile.yaml",
+            "/config/humidity_intelligence_cards_view_cards_button.yaml",
+        ]
+        for layout, yaml in cards.items():
+            path = pathlib.Path(tmpdir) / f"humidity_intelligence_cards_{layout}.yaml"
+            assert path.read_text() == yaml
+
+
+def test_dump_cards_with_layout_exports_only_requested_layout():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID)
+    cards = {
+        "v2_mobile": "mobile-card",
+        "v2_tablet": "tablet-card",
+        "v1_mobile": "legacy-card",
+    }
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        hass = _DumpCardsHass(tmpdir, [entry], {ENTRY_ID: cards})
+        written = asyncio.run(
+            services_mod._dump_cards_to_file(
+                hass,
+                entry_id=None,
+                filename="humidity_intelligence_cards",
+                layout="v2_tablet",
+            )
+        )
+
+        assert written == ["/config/humidity_intelligence_cards_v2_tablet.yaml"]
+        assert (pathlib.Path(tmpdir) / "humidity_intelligence_cards_v2_tablet.yaml").read_text() == "tablet-card"
+        assert not (pathlib.Path(tmpdir) / "humidity_intelligence_cards_v2_mobile.yaml").exists()
+        assert not (pathlib.Path(tmpdir) / "humidity_intelligence_cards_v1_mobile.yaml").exists()
+
+
+def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
+    services_mod = _load_services_module()
+    entry_data = _base_entry_data()
+    entry_data["show_output_entity_details"] = False
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=entry_data, options={})
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.hi_runtime_mode": _FakeState("normal"),
+            "sensor.kitchen_h": _FakeState(45),
+            "sensor.hall_h": _FakeState(44),
+            "sensor.bed_h": _FakeState(46),
+            "sensor.house_humidity_mean_7d": _FakeState(43),
+            "sensor.kitchen_t": _FakeState(21),
+            "sensor.hall_t": _FakeState(20),
+            "sensor.bed_t": _FakeState(19),
+            "sensor.l1_iaq": _FakeState(35),
+            "sensor.co_val": _FakeState(4),
+            "fan.zone1": _FakeState("off"),
+            "fan.zone2": _FakeState("off"),
+            "fan.aq1": _FakeState("off"),
+            "humidifier.l1": _FakeState("off"),
+            "light.alert": _FakeState("off"),
+            "switch.alert_power": _FakeState("off"),
+        },
+    )
+    cards = {
+        "v2_mobile": "type: vertical-stack\ncards:\n  - type: markdown\n    content: Mobile ready\n",
+        "v2_tablet": "type: vertical-stack\ncards:\n  - type: markdown\n    content: Tablet ready\n",
+        "v1_mobile": "type: markdown\ncontent: Legacy ready\n",
+        "view_cards_button": "type: button\nname: View cards\n",
+    }
+    runtime_data = {
+        "entity_map": {"runtime_mode": "sensor.hi_runtime_mode"},
+        "cards": cards,
+        "unresolved_placeholders_by_card": {},
+    }
+
+    report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        runtime_data,
+        manifest_version="2.0.5",
+        frontend_dependencies={
+            "status": "not_inspectable",
+            "reason": "Lovelace resource collection is not available in this Home Assistant runtime context.",
+        },
+        write_test_exports=True,
+        unscoped_written=[
+            "/config/humidity_intelligence_v205_release_check_cards_v2_mobile.yaml",
+            "/config/humidity_intelligence_v205_release_check_cards_v2_tablet.yaml",
+            "/config/humidity_intelligence_v205_release_check_cards_v1_mobile.yaml",
+            "/config/humidity_intelligence_v205_release_check_cards_view_cards_button.yaml",
+        ],
+        scoped_written=[
+            "/config/humidity_intelligence_v205_release_check_cards_scoped_v2_tablet.yaml",
+        ],
+    )
+    checks = {check["id"]: check for check in report["checks"]}
+
+    assert report["status"] == "pass"
+    assert checks["manifest_version"]["status"] == "pass"
+    assert checks["output_details_visibility"]["status"] == "pass"
+    assert checks["dump_cards_unscoped_export_all"]["status"] == "pass"
+    assert checks["dump_cards_scoped_export_single_layout"]["status"] == "pass"
+    assert checks["generated_cards_text_sanity"]["status"] == "pass"
+    assert checks["frontend_dependencies_reported"]["status"] == "pass"
+
+    failed_report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        runtime_data,
+        manifest_version="2.0.5",
+        frontend_dependencies={
+            "status": "not_inspectable",
+            "reason": "Lovelace resource collection is not available in this Home Assistant runtime context.",
+        },
+        write_test_exports=True,
+        unscoped_written=[
+            "/config/humidity_intelligence_v205_release_check_cards_v2_tablet.yaml",
+        ],
+        scoped_written=[
+            "/config/humidity_intelligence_v205_release_check_cards_scoped_v2_tablet.yaml",
+        ],
+    )
+    failed_checks = {check["id"]: check for check in failed_report["checks"]}
+    assert failed_report["status"] == "fail"
+    assert failed_checks["dump_cards_unscoped_export_all"]["status"] == "fail"
+
+
+def test_frontend_dependency_status_detects_lovelace_async_items_urls():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+    resources = _FakeLovelaceResources(
+        [
+            _NoStringResource({"url": "/hacsfiles/apexcharts-card/apexcharts-card.js"}),
+            _NoStringResource({"url": "/hacsfiles/button-card/button-card.js"}),
+            _NoStringResource({"url": "/hacsfiles/lovelace-card-mod/card-mod.js"}),
+            _NoStringResource({"url": "/hacsfiles/lovelace-card-mod/mod-card.js"}),
+        ],
+        loaded=False,
+    )
+    hass.data["lovelace"] = SimpleNamespace(resources=resources)
+
+    status = asyncio.run(services_mod._async_frontend_dependency_status(hass))
+
+    assert resources.load_calls == 1
+    assert resources.loaded is True
+    assert resources.items_calls == 1
+    assert status == {
+        "apexcharts-card": {
+            "detected": True,
+            "url": "/hacsfiles/apexcharts-card/apexcharts-card.js",
+        },
+        "button-card": {
+            "detected": True,
+            "url": "/hacsfiles/button-card/button-card.js",
+        },
+        "card-mod": {
+            "detected": True,
+            "url": "/hacsfiles/lovelace-card-mod/card-mod.js",
+        },
+        "mod-card": {
+            "detected": True,
+            "url": "/hacsfiles/lovelace-card-mod/mod-card.js",
+        },
+    }
+
+
+def test_shared_frontend_dependency_helper_renders_form_status_from_lovelace_resources():
+    frontend_mod = _load_frontend_dependencies_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+    with tempfile.TemporaryDirectory() as tmpdir:
+        hass.config = _DumpCardsConfig(tmpdir)
+        resources = _FakeLovelaceResources(
+            [
+                _NoStringResource({"url": "/hacsfiles/button-card/button-card.js"}),
+                _NoStringResource({"url": "/hacsfiles/lovelace-card-mod/card-mod.js"}),
+            ],
+            loaded=True,
+        )
+        hass.data["lovelace"] = SimpleNamespace(resources=resources)
+
+        status = asyncio.run(frontend_mod.async_frontend_dependency_status(hass))
+        lines = asyncio.run(frontend_mod.async_render_dependency_status(hass))
+
+    assert status["button-card"] == {
+        "detected": True,
+        "url": "/hacsfiles/button-card/button-card.js",
+    }
+    assert status["card-mod"] == {
+        "detected": True,
+        "url": "/hacsfiles/lovelace-card-mod/card-mod.js",
+    }
+    assert status["apexcharts-card"] == {"detected": False}
+    assert "- button-card: Installed | repo: https://github.com/custom-cards/button-card" in lines
+    assert "- card-mod: Installed | repo: https://github.com/thomasloven/lovelace-card-mod" in lines
+    assert "- apexcharts-card: Not detected | repo: https://github.com/RomRider/apexcharts-card" in lines
+
+
+def test_frontend_dependency_status_distinguishes_card_mod_and_mod_card_resources():
+    frontend_mod = _load_frontend_dependencies_module()
+
+    status = frontend_mod.frontend_dependency_status_from_urls(
+        ["/hacsfiles/lovelace-card-mod/mod-card.js"]
+    )
+
+    assert status["mod-card"] == {
+        "detected": True,
+        "url": "/hacsfiles/lovelace-card-mod/mod-card.js",
+    }
+    assert status["card-mod"] == {"detected": False}
+
+
+def test_config_flow_dependency_pages_delegate_to_shared_frontend_helper():
+    config_source = (ROOT / "config_flow.py").read_text()
+    dependency_renderer = config_source.split("async def _render_dependency_status", 1)[1].split(
+        "def _entry_section", 1
+    )[0]
+
+    assert "from .helpers.frontend_dependencies import async_render_dependency_status" in config_source
+    assert "async_render_dependency_status(hass)" in dependency_renderer
+    assert "lovelace_resources" not in dependency_renderer
+
+
+def test_frontend_dependency_status_missing_lovelace_is_not_inspectable():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+
+    status = asyncio.run(services_mod._async_frontend_dependency_status(hass))
+
+    assert status["status"] == "not_inspectable"
+    assert "Lovelace" in status["reason"]
+    for dependency in ("apexcharts-card", "button-card", "card-mod", "mod-card"):
+        assert dependency not in status
+
+    resources = _FakeLovelaceResources([], loaded=False, load_error=RuntimeError("storage offline"))
+    hass.data["lovelace"] = SimpleNamespace(resources=resources)
+    failed_load_status = asyncio.run(services_mod._async_frontend_dependency_status(hass))
+
+    assert failed_load_status["status"] == "not_inspectable"
+    assert "could not be loaded" in failed_load_status["reason"]
+    for dependency in ("apexcharts-card", "button-card", "card-mod", "mod-card"):
+        assert dependency not in failed_load_status
+
+
+def test_diagnostics_summary_can_surface_shared_frontend_dependency_status_without_live_bloat():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+    frontend_status = {
+        "button-card": {
+            "detected": True,
+            "url": "/hacsfiles/button-card/button-card.js",
+        },
+        "card-mod": {"detected": False},
+    }
+
+    full_summary = services_mod._build_diagnostics_summary(
+        hass,
+        entry.data,
+        {},
+        {},
+        {},
+        frontend_dependencies=frontend_status,
+    )
+    live_summary = services_mod._build_diagnostics_summary(
+        hass,
+        entry.data,
+        {},
+        {},
+        {},
+    )
+
+    assert full_summary["frontend_dependency_resources"] == frontend_status
+    assert "frontend_dependency_resources" not in live_summary
+
+
+def test_diagnostics_summary_surfaces_house_drift_statistics_dependency():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+
+    summary = services_mod._build_diagnostics_summary(
+        hass,
+        entry.data,
+        {},
+        {},
+        {},
+    )
+
+    drift = summary["humidity_drift_7d"]
+    assert drift["required_for"] == "HI House Humidity Drift 7d"
+    assert drift["dependency_entity"] == "sensor.house_humidity_mean_7d"
+    assert drift["dependency_status"] == "missing"
+    assert drift["available"] is False
+    assert any("HI House Humidity Drift 7d" in warning for warning in summary["warnings"])
+
+
+def test_frontend_dependency_status_is_non_blocking_for_release_contract_checks():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.hi_runtime_mode": _FakeState("normal"),
+            "sensor.kitchen_h": _FakeState(45),
+            "sensor.hall_h": _FakeState(44),
+            "sensor.bed_h": _FakeState(46),
+            "sensor.house_humidity_mean_7d": _FakeState(43),
+            "sensor.kitchen_t": _FakeState(21),
+            "sensor.hall_t": _FakeState(20),
+            "sensor.bed_t": _FakeState(19),
+            "sensor.l1_iaq": _FakeState(35),
+            "sensor.co_val": _FakeState(4),
+            "fan.zone1": _FakeState("off"),
+            "fan.zone2": _FakeState("off"),
+            "fan.aq1": _FakeState("off"),
+            "humidifier.l1": _FakeState("off"),
+            "light.alert": _FakeState("off"),
+            "switch.alert_power": _FakeState("off"),
+        },
+    )
+    runtime_data = {
+        "entity_map": {"runtime_mode": "sensor.hi_runtime_mode"},
+        "cards": {
+            "v2_mobile": "type: markdown\ncontent: Mobile ready\n",
+            "v2_tablet": "type: markdown\ncontent: Tablet ready\n",
+            "v1_mobile": "type: markdown\ncontent: Legacy ready\n",
+            "view_cards_button": "type: button\nname: View cards\n",
+        },
+        "unresolved_placeholders_by_card": {},
+    }
+
+    report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        runtime_data,
+        manifest_version="2.0.5",
+        frontend_dependencies={
+            "status": "not_inspectable",
+            "reason": "Lovelace resource collection is not available in this Home Assistant runtime context.",
+        },
+        write_test_exports=True,
+        unscoped_written=[
+            "/config/humidity_intelligence_v205_release_check_cards_v2_mobile.yaml",
+            "/config/humidity_intelligence_v205_release_check_cards_v2_tablet.yaml",
+            "/config/humidity_intelligence_v205_release_check_cards_v1_mobile.yaml",
+            "/config/humidity_intelligence_v205_release_check_cards_view_cards_button.yaml",
+        ],
+        scoped_written=[
+            "/config/humidity_intelligence_v205_release_check_cards_scoped_v2_tablet.yaml",
+        ],
+    )
+    checks = {check["id"]: check for check in report["checks"]}
+
+    assert report["status"] == "pass"
+    assert checks["frontend_dependencies_reported"]["status"] == "pass"
+    assert checks["frontend_dependencies_reported"]["details"]["status"] == "not_inspectable"
+    assert checks["unresolved_placeholders"]["status"] == "pass"
+    assert checks["configured_entity_availability"]["status"] == "pass"
+    assert checks["house_humidity_drift_7d_dependency"]["status"] == "pass"
+    assert checks["generated_cards_text_sanity"]["status"] == "pass"
+
+
+def test_v205_release_check_service_is_documented_and_registered():
+    services_source = (ROOT / "services.py").read_text()
+    services_yaml = (ROOT / "services.yaml").read_text()
+    readme_source = (ROOT / "README.md").read_text()
+
+    assert 'SERVICE_V205_RELEASE_CHECK = "v205_release_check"' in services_source
+    assert "SERVICE_V205_RELEASE_CHECK_SCHEMA" in services_source
+    assert "handle_v205_release_check" in services_source
+    assert "SERVICE_V205_RELEASE_CHECK" in services_source.split("async_unregister_services", 1)[1]
+    assert "v205_release_check:" in services_yaml
+    assert "write_test_exports" in services_yaml
+    assert "humidity_intelligence.v205_release_check" in readme_source
+    assert "humidity_intelligence_v205_release_check.json" in readme_source
 
 
 def test_alert_configuration_contract_uses_internal_sources():
@@ -1759,3 +2719,14 @@ def test_level_average_ignores_unknown_unavailable_and_non_numeric_states():
 
     engine = engine_mod.HIAutomationEngine(hass, entry)
     assert engine._level_avg("iaq", "level1") == 57.2
+
+
+if __name__ == "__main__":
+    tests = [
+        (name, value)
+        for name, value in sorted(globals().items())
+        if name.startswith("test_") and callable(value)
+    ]
+    for name, test in tests:
+        test()
+    print(f"{len(tests)} direct sanity checks passed.")

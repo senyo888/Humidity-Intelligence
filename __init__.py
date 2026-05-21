@@ -11,7 +11,9 @@ from homeassistant.helpers import config_validation as cv
 
 from .const import (
     CONF_AUTO_REFRESH_UI_ON_STARTUP,
+    CONF_SHOW_OUTPUT_ENTITY_DETAILS,
     DEFAULT_AUTO_REFRESH_UI_ON_STARTUP,
+    DEFAULT_SHOW_OUTPUT_ENTITY_DETAILS,
     DOMAIN,
     STARTUP_UI_REFRESH_DELAY_SECONDS,
 )
@@ -285,26 +287,41 @@ async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> Non
         hass.data.get(DOMAIN, {}).get(entry.entry_id, {}).get("config", {}) or {}
     )
     prev_alert_only = bool(previous_cfg.get("alert_only_mode", _entry_alert_only_mode(entry)))
+    prev_output_details = bool(
+        previous_cfg.get(
+            CONF_SHOW_OUTPUT_ENTITY_DETAILS,
+            _entry_show_output_entity_details(entry),
+        )
+    )
     next_alert_only = _entry_alert_only_mode(entry)
+    next_output_details = _entry_show_output_entity_details(entry)
     await hass.config_entries.async_reload(entry.entry_id)
-    if prev_alert_only == next_alert_only:
+    ui_visibility_changed = (
+        prev_alert_only != next_alert_only
+        or prev_output_details != next_output_details
+    )
+    if not ui_visibility_changed:
         return
 
     _LOGGER.info(
-        "HI entry %s alert-only mode changed to %s; regenerating UI card exports.",
+        "HI entry %s UI visibility changed; regenerating UI card exports.",
         entry.entry_id,
-        next_alert_only,
     )
     await _async_refresh_and_dump_cards(hass, entry.entry_id)
+    changed = []
+    if prev_alert_only != next_alert_only:
+        changed.append("alert-only mode")
+    if prev_output_details != next_output_details:
+        changed.append("generated-card output details")
     await hass.services.async_call(
         "persistent_notification",
         "create",
         {
             "title": "Humidity Intelligence UI Updated",
             "message": (
-                "Alert-only mode changed. Updated card files were written to "
+                f"{', '.join(changed).title()} changed. Updated card files were written to "
                 "/config/humidity_intelligence_cards_<layout>.yaml. "
-                "Re-copy/paste the layout YAML into your Manual card to apply control visibility changes."
+                "Re-copy/paste the layout YAML into your Manual card to apply UI visibility changes."
             ),
         },
         blocking=False,
@@ -317,3 +334,13 @@ def _entry_alert_only_mode(entry: ConfigEntry) -> bool:
         return bool(options.get("alert_only_mode"))
     data = getattr(entry, "data", None) or {}
     return bool(data.get("alert_only_mode", False))
+
+
+def _entry_show_output_entity_details(entry: ConfigEntry) -> bool:
+    options = getattr(entry, "options", None) or {}
+    if CONF_SHOW_OUTPUT_ENTITY_DETAILS in options:
+        return bool(options.get(CONF_SHOW_OUTPUT_ENTITY_DETAILS))
+    data = getattr(entry, "data", None) or {}
+    if CONF_SHOW_OUTPUT_ENTITY_DETAILS in data:
+        return bool(data.get(CONF_SHOW_OUTPUT_ENTITY_DETAILS))
+    return DEFAULT_SHOW_OUTPUT_ENTITY_DETAILS

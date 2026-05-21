@@ -3,6 +3,34 @@ description: Suggest an improvement.
 title: "[Feature]: "
 labels: ["enhancement"]
 body:
+  - type: dropdown
+    id: affected-area
+    attributes:
+      label: Affected area
+      options:
+        - Runtime/control
+        - Config flow/options
+        - Generated UI/dashboard
+        - Services/diagnostics
+        - Documentation
+        - HACS/install
+        - Governance/release
+        - Unsure
+    validations:
+      required: true
+  - type: dropdown
+    id: proposal-scope
+    attributes:
+      label: Proposal scope
+      options:
+        - Small bugfix-sized change
+        - UI polish
+        - Runtime semantics
+        - Release/governance
+        - v2.1 or later exploration
+        - Unsure
+    validations:
+      required: true
   - type: textarea
     id: request
     attributes:
@@ -20,7 +48,7 @@ body:
   - type: checkboxes
     id: areas
     attributes:
-      label: Area
+      label: Additional areas
       options:
         - label: Backend/runtime
         - label: UI/dashboard

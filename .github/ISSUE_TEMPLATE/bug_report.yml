@@ -6,21 +6,31 @@ body:
   - type: markdown
     attributes:
       value: |
-        Please redact private entity IDs, URLs, tokens, addresses, and personal data.
+        Before opening a bug report, download the Home Assistant diagnostics file for Humidity Intelligence if you can:
+
+        Settings -> Devices & services -> Humidity Intelligence -> Download diagnostics
+
+        Attach the downloaded file below. This helps maintainers understand your setup without asking lots of follow-up questions.
+
+        Please review the bundle before attaching if you are concerned about privacy. The bundle is designed to redact sensitive values, but you remain in control of what you upload.
+  - type: textarea
+    id: diagnostics-file
+    attributes:
+      label: Attach your Humidity Intelligence diagnostics file
+      description: Drag the downloaded Home Assistant diagnostics file here, or write "Unable to download diagnostics" and fill in the fallback fields below.
+      render: text
   - type: input
     id: hi-version
     attributes:
-      label: Humidity Intelligence version
+      label: Humidity Intelligence version (fallback)
+      description: Optional if diagnostics are attached.
       placeholder: "2.0.4"
-    validations:
-      required: true
   - type: input
     id: ha-version
     attributes:
-      label: Home Assistant version
+      label: Home Assistant version (fallback)
+      description: Optional if diagnostics are attached.
       placeholder: "2026.4.3"
-    validations:
-      required: true
   - type: dropdown
     id: install-method
     attributes:
@@ -29,6 +39,21 @@ body:
         - HACS
         - Manual
         - Other / unsure
+    validations:
+      required: true
+  - type: dropdown
+    id: affected-area
+    attributes:
+      label: Affected area
+      options:
+        - Runtime/control
+        - Config flow/options
+        - Generated UI/dashboard
+        - Services/diagnostics
+        - Documentation
+        - HACS/install
+        - Governance/release
+        - Unsure
     validations:
       required: true
   - type: input
@@ -43,6 +68,17 @@ body:
       description: Include expected behaviour, actual behaviour, and steps to reproduce.
     validations:
       required: true
+  - type: checkboxes
+    id: triage-signals
+    attributes:
+      label: Triage signals
+      options:
+        - label: Safety, CO, or emergency behaviour may be affected.
+        - label: This may block a release or HACS install.
+        - label: This looks like a regression from a previous HI version.
+        - label: This may be a duplicate of another issue.
+        - label: I think this needs maintainer/community reply rather than code.
+        - label: I think this needs proposal review before implementation.
   - type: dropdown
     id: refresh-ui
     attributes:
@@ -54,6 +90,12 @@ body:
         - "Unsure"
     validations:
       required: true
+  - type: textarea
+    id: validation-tried
+    attributes:
+      label: Checks already tried
+      description: List any relevant checks, such as downloading diagnostics, refresh_ui, self_check, v205_release_check, dump_diagnostics, or a Home Assistant restart.
+      render: text
   - type: textarea
     id: logs
     attributes:
