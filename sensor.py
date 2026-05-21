@@ -210,6 +210,7 @@ def _compact_diagnostics_summary(summary: dict) -> dict:
         "alert_mappings": _compact_alert_mappings(summary.get("alert_mappings", [])),
         "visual_alerts": _compact_visual_alerts(summary.get("visual_alerts", [])),
         "active_alert_resolution": active_alerts,
+        "humidity_drift_7d": summary.get("humidity_drift_7d", {}),
         "unavailable_or_unknown_entities_count": len(unavailable),
         "unavailable_or_unknown_entities_sample": unavailable[:20],
         "warnings": list(summary.get("warnings") or [])[:10],
@@ -238,7 +239,7 @@ def _compact_ui_config(config: dict, options: dict) -> dict:
         if not isinstance(zone, dict):
             continue
         zones[key] = {
-            "enabled": zone.get("enabled", True),
+            "enabled": bool(zone.get("enabled", False)),
             "level": zone.get("level"),
             "rooms": list(zone.get("rooms") or []),
         }

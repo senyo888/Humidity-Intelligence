@@ -91,6 +91,9 @@ jobs:
               print(f"Valid JSON: {path}")
           PY
 
+      - name: Validate branch/version policy
+        run: python scripts/check_version_governance.py
+
       - name: Validate YAML if PyYAML is available
         shell: bash
         run: |

@@ -20,6 +20,8 @@ CONF_ALERT_HANDLING_ENABLED = "alert_handling_enabled"
 DEFAULT_ALERT_HANDLING_ENABLED = True
 CONF_SHOW_TEMPERATURE_CHIPS = "show_temperature_chips"
 DEFAULT_SHOW_TEMPERATURE_CHIPS = False
+CONF_SHOW_OUTPUT_ENTITY_DETAILS = "show_output_entity_details"
+DEFAULT_SHOW_OUTPUT_ENTITY_DETAILS = False
 STARTUP_UI_REFRESH_DELAY_SECONDS = 5
 
 # Supported sensor types for telemetry input

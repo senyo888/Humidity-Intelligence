@@ -36,5 +36,8 @@ jobs:
               print(f"{path}: {data['version']}")
           PY
 
+      - name: Validate branch/version policy
+        run: python scripts/check_version_governance.py
+
       - name: Note
         run: echo "This workflow validates release readiness only; it does not publish."
