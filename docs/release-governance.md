@@ -19,6 +19,9 @@ Home Assistant and HACS metadata checks.
 - `develop`: release-candidate or stable version metadata only. Beta labels stay on
   `senyo888-patch-1`.
 - `main`: stable production version metadata only. No prerelease suffix is allowed.
+- `vMAJOR.MINOR.PATCH`: release-verification branch for the exact matching stable
+  manifest version only. For example, `v2.0.5` may carry `2.0.5`, but not
+  `2.0.5-rc.1` or `2.0.6`.
 - Short-lived development branches, including `Bella/*`, `codex/*`, `feature/*`,
   `fix/*`, `patch/*`, and `test/*`, must not carry stable manifest versions.
 
@@ -28,7 +31,9 @@ Home Assistant and HACS metadata checks.
 2. Promotion to `develop` uses `MAJOR.MINOR.PATCH-rc.N` or stable
    `MAJOR.MINOR.PATCH` version metadata only.
 3. Promotion to `main` uses stable `MAJOR.MINOR.PATCH` version metadata only.
-4. A GitHub release is created only from a stable version on `main`.
+4. Exact `vMAJOR.MINOR.PATCH` branches may be used for stable release-verification CI,
+   but they do not replace the `main` release/tag gate.
+5. A GitHub release is created only from a stable version on `main`.
 
 ## Hard Release Gates
 
@@ -57,8 +62,9 @@ in CI. It rejects:
 - prerelease versions on `main`
 - beta versions on `develop`
 - stable versions on short-lived testing branches
+- prerelease or mismatched stable versions on `vMAJOR.MINOR.PATCH` branches
 - stable versions on unapproved branches outside `senyo888-patch-1`, `develop`, and
-  `main`
+  `main`, plus exact matching `vMAJOR.MINOR.PATCH` release-verification branches
 
 This is a release-boundary guard only. It does not alter runtime logic, entity
 semantics, generated dashboards, or Home Assistant services.
