@@ -871,9 +871,17 @@ def fetch_open_issues(repo: str, *, max_pages: int, token: str | None) -> FetchR
         )
         url = f"https://api.github.com/repos/{repo}/issues?{query}"
         request = urllib.request.Request(url, headers=headers, method="GET")
+        parsed_url = urllib.parse.urlparse(request.full_url)
+        if parsed_url.scheme != "https":
+            raise ValueError(f"Refusing non-HTTPS URL: {parsed_url.scheme}")
 
         try:
-            with urllib.request.urlopen(request, timeout=20, context=_ssl_context()) as response:
+            # URL scheme is validated as HTTPS above.
+            with urllib.request.urlopen(  # nosec B310
+                request,
+                timeout=20,
+                context=_ssl_context(),
+            ) as response:
                 payload = json.loads(response.read().decode("utf-8"))
                 remaining = response.headers.get("X-RateLimit-Remaining")
                 reset = response.headers.get("X-RateLimit-Reset")

@@ -7,6 +7,7 @@ import pathlib
 import sys
 import unittest
 from datetime import datetime, timezone
+from unittest import mock
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -194,6 +195,21 @@ class IssueTriageTests(unittest.TestCase):
         self.assertEqual(analyzed.diagnostics_bundle, "missing")
         self.assertIn("needs-bundle", analyzed.suggested_labels)
         self.assertNotIn("has-diagnostics", analyzed.suggested_labels)
+
+    def test_fetch_open_issues_refuses_non_https_request_before_urlopen(self) -> None:
+        request = mock.Mock(full_url="file:///tmp/issues.json")
+
+        def fail_urlopen(*_args, **_kwargs):
+            raise AssertionError("urlopen should not be called for non-HTTPS URLs")
+
+        with mock.patch.object(self.triage.urllib.request, "Request", return_value=request):
+            with mock.patch.object(self.triage.urllib.request, "urlopen", side_effect=fail_urlopen):
+                with self.assertRaisesRegex(ValueError, "Refusing non-HTTPS URL: file"):
+                    self.triage.fetch_open_issues(
+                        "senyo888/humidity-intelligence",
+                        max_pages=1,
+                        token=None,
+                    )
 
 
 if __name__ == "__main__":
