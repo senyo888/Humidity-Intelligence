@@ -17,6 +17,9 @@ VERSION_PATTERN = re.compile(
     r"(?P<patch>0|[1-9]\d*)"
     r"(?:-(?P<label>beta|rc)\.(?P<number>[1-9]\d*))?$"
 )
+RELEASE_BRANCH_PATTERN = re.compile(
+    r"^v(?P<version>(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))$"
+)
 
 TESTING_BRANCH_PREFIXES = (
     "Bella/",
@@ -63,6 +66,13 @@ def _is_testing_branch(branch: str) -> bool:
     return branch.startswith(TESTING_BRANCH_PREFIXES)
 
 
+def _release_branch_version(branch: str) -> str | None:
+    match = RELEASE_BRANCH_PATTERN.fullmatch(branch)
+    if not match:
+        return None
+    return match.group("version")
+
+
 def main() -> int:
     branch = _active_branch()
     version = _manifest_version()
@@ -79,6 +89,15 @@ def main() -> int:
         return 1
 
     label = match.group("label")
+    release_branch_version = _release_branch_version(branch)
+
+    if release_branch_version and version != release_branch_version:
+        print(
+            f"Release branch '{branch}' must carry matching stable version "
+            f"'{release_branch_version}', not '{version}'.",
+            file=sys.stderr,
+        )
+        return 1
 
     if branch == "main" and label:
         print(
@@ -94,7 +113,7 @@ def main() -> int:
         )
         return 1
 
-    if not label and branch not in STABLE_ALLOWED_BRANCHES:
+    if not label and branch not in STABLE_ALLOWED_BRANCHES and not release_branch_version:
         print(
             f"Branch '{branch}' must not carry stable version '{version}'.",
             file=sys.stderr,
