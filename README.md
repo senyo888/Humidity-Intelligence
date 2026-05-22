@@ -961,7 +961,8 @@ data: {}
 
 ### `v205_release_check`
 Purpose:
-- run a read-only v2.0.5 release-validation report in Home Assistant.
+- run a read-only release-validation report in Home Assistant for the v2.0.5/v2.0.6 maintenance line.
+- keep the `v205_release_check` service name for compatibility; v2.0.6 beta/rc/stable builds still use the same generated-card and `dump_cards` contract.
 - verify generated-card output-details visibility, cached layout coverage, unresolved placeholders, card text sanity, configured entity availability, house humidity drift dependency status, and optional frontend dependency status.
 - with `write_test_exports: true`, write test card exports proving unscoped `dump_cards` exports all layouts and scoped export writes only `v2_tablet`.
 - no runtime outputs, helpers, lanes, or configured entities are changed.
