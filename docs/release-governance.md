@@ -12,6 +12,9 @@ testing and validation branches.
 The integration version in `manifest.json` is the release-state source of truth for
 Home Assistant and HACS metadata checks.
 
+v2.0.5 is a completed stable release milestone. The rules below remain the active
+promotion model for future versions and for any v2.0.5 maintenance patch.
+
 ## Branch Responsibilities
 
 - `senyo888-patch-1`: staging lane for all manifest labels. It may carry beta, rc,
@@ -51,8 +54,9 @@ until all of these gates are satisfied:
   direct sanity, service, or generated-card checks.
 - The README has maintainer approval before release tagging.
 
-If any gate is missing, the release state is `not ready`, even when the manifest version
-already carries a stable number on `senyo888-patch-1`, `develop`, or `main`.
+If any gate is missing for the version being prepared, the release state is `not ready`,
+even when the manifest version already carries a stable number on `senyo888-patch-1`,
+`develop`, or `main`.
 
 ## Enforcement
 
