@@ -4,11 +4,11 @@
 
 # Humidity Intelligence
 
-## Domestic Environmental Control Engine for Home Assistant
+## Domestic Environmental Stabilisation Engine for Home Assistant
 
 [![Latest Release](https://img.shields.io/github/v/release/senyo888/Humidity-Intelligence?display_name=tag&sort=semver)](https://github.com/senyo888/Humidity-Intelligence/releases)
 [![HACS](https://img.shields.io/badge/HACS-Custom%20Integration-orange)](https://hacs.xyz)
-[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.4.3%2B-blue)](https://www.home-assistant.io/)
+[![Integration Version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fsenyo888%2FHumidity-Intelligence%2Fmain%2Fmanifest.json&query=%24.version&label=Integration&prefix=v&color=blue)](manifest.json)
 [![License](https://img.shields.io/github/license/senyo888/Humidity-Intelligence)](LICENSE)
 
 ## Contents
@@ -16,7 +16,7 @@
 - [TL;DR](#tldr)
 - [What Is Humidity Intelligence](#what-is-humidity-intelligence)
 - [V2 UI Example](#v2-ui-example)
-- [Support Project](#support-project)
+- [Support Humidity Intelligence](#support-humidity-intelligence)
 - [Why Environmental Stability Matters](#why-environmental-stability-matters)
 - [Season-Aware Environmental Control](#season-aware-environmental-control)
 - [Design Philosophy](#design-philosophy)
@@ -37,11 +37,11 @@
 
 ## TL;DR
 
-Humidity Intelligence is a domestic environmental control engine for Home Assistant.
+Humidity Intelligence is a domestic environmental stabilisation engine for Home Assistant.
 
 It reads humidity, temperature, air quality, condensation, mould-risk, CO, presence, time, pause, and override signals, then resolves **one explainable control decision per evaluation cycle**.
 
-it give you:
+It gives you:
 
 - season-aware humidity targets
 - deterministic lane priority
@@ -56,7 +56,7 @@ Current release: **v2.0.5**.
 
 ## What Is Humidity Intelligence
 
-Humidity Intelligence is designed to help stabilise the environment inside a home using real-world sensor telemetry and smart environmental control.
+Humidity Intelligence is designed to help stabilise the environment inside a home through real-world sensor telemetry, deterministic control, and practical environmental balancing.
 
 Rather than simply displaying humidity or temperature readings, Humidity Intelligence continuously interprets conditions across the property to understand how the environment is behaving over time. It monitors factors such as humidity, temperature, temperature drift, air quality, condensation risk, mould risk, and seasonal comfort patterns, then reacts using connected smart devices to gently guide the home back toward balance.
 
@@ -217,9 +217,9 @@ Default temperature comfort bands:
 
 Humidity Intelligence is built around a simple premise: a home should not be regulated by a loose pile of automations competing for control. It should have one visible environmental controller that reads configured telemetry, applies a stable priority hierarchy, and resolves one explainable outcome per evaluation cycle.
 
-The engine is deterministic by design. Avoids guesses, and learns hidden preferences. It evaluates season-aware humidity targets, safety gates, alert conditions, zone demand, air quality state, and humidifier needs through explicit rules so runtime behavior can be inspected, predicted, and explained.
+The engine is deterministic by design. It does not guess, learn hidden preferences, or invent state. It evaluates season-aware humidity targets, safety gates, alert conditions, zone demand, air quality state, and humidifier needs through explicit rules so runtime behavior can be inspected, anticipated, and explained.
 
-The UI is a truth surface. Current Air Control, chips, diagnostics, and exported cards  reflect backend telemetry, entity mappings, runtime mode, and degraded-state reasons. If an input is missing or an output is unavailable, Humidity Intelligence show that condition and fall back safely without pretending the home is stable.
+The UI is a truth surface, not a second controller. Current Air Control, chips, diagnostics, and exported cards reflect backend telemetry, entity mappings, runtime mode, and degraded-state reasons. If an input is missing or an output is unavailable, Humidity Intelligence shows that condition and falls back safely without pretending the home is stable.
 
 The architectural preference is calm regulation over automation chaos:
 
@@ -230,7 +230,7 @@ The architectural preference is calm regulation over automation chaos:
 - generated dashboards aligned with backend truth only
 - safe degraded behavior before blind output writes
 
-The result  feel steady in a domestic environment: readable, conservative, and accountable when conditions change.
+The result should feel steady in a domestic environment: readable, conservative, and accountable when conditions change.
 
 ---
 
@@ -310,13 +310,13 @@ The UI renders.
 
 ## Current Release Highlights
 
-- setup and options now present essentials first, with tuning controls behind Advanced sections that open/retract immediately within the form
-- HI applies recommended defaults unless you customise them 
+- setup and options now present essentials first, with tuning controls behind Advanced sections that open/retract immediately in the form
+- HI applies recommended defaults unless you customise them
 - control loop interval, startup UI mapping refresh, custom humidity targets, custom temperature comfort values, slope sources, fan levels, threshold tuning, lane removal, AQ tuning, and visual-alert tuning remain available as advanced controls
 - new installs default the generated V2 dashboard to a cleaner output display
 - `Show output entity details` can re-enable the generated-card output details panel when deeper runtime inspection is useful
 - `v2_tablet` is selected by default during initial UI export; unscoped `dump_cards` still exports all cached/generated layouts unless `layout` is supplied
-- native diagnostics, issue-template triage, house humidity drift dependency reporting, seeded slope startup state, and registered slope mapping improve supportability without adding hidden control paths
+- native Home Assistant diagnostics, issue-template triage, house humidity drift dependency reporting, seeded slope startup state, and registered slope mapping improve supportability without adding hidden control paths
 - deterministic runtime lane ordering, alert hierarchy, CO emergency behavior, humidifier independence, entity names, and `dump_cards` remain unchanged
 
 Upgrade note: **v2.0.5 concentrates on configuration UX, generated-card visibility, diagnostics, issue support, drift dependency reporting, and slope mapping correctness.** The control engine semantics remain stable.
@@ -961,7 +961,8 @@ data: {}
 
 ### `v205_release_check`
 Purpose:
-- run a read-only v2.0.5 release-validation report in Home Assistant.
+- run a read-only release-validation report in Home Assistant for the v2.0.5/v2.0.6 maintenance line.
+- keep the `v205_release_check` service name for compatibility; v2.0.6 beta/rc/stable builds still use the same generated-card and `dump_cards` contract.
 - verify generated-card output-details visibility, cached layout coverage, unresolved placeholders, card text sanity, configured entity availability, house humidity drift dependency status, and optional frontend dependency status.
 - with `write_test_exports: true`, write test card exports proving unscoped `dump_cards` exports all layouts and scoped export writes only `v2_tablet`.
 - no runtime outputs, helpers, lanes, or configured entities are changed.

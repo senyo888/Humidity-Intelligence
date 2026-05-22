@@ -74,7 +74,7 @@ self_check:
         text: {}
 v205_release_check:
   name: v2.0.5 Release Check
-  description: Run a read-only v2.0.5 validation report for generated-card visibility, dump_cards scope behavior, cached layouts, unresolved placeholders, frontend dependency status, house humidity drift dependency status, and configured entity availability.
+  description: Run a read-only v2.0.5/v2.0.6 maintenance-line validation report for generated-card visibility, dump_cards scope behavior, cached layouts, unresolved placeholders, frontend dependency status, house humidity drift dependency status, and configured entity availability. The service name remains v205_release_check for compatibility.
   fields:
     entry_id:
       name: Entry ID
