@@ -17,13 +17,9 @@ Before opening a PR:
 
 ## HACS custom integration context
 
-Humidity Intelligence is a structured Home Assistant custom integration. HACS integration repositories should contain one integration per repository, with runtime files under:
+Humidity Intelligence is a structured Home Assistant custom integration. This repository currently uses root-content HACS packaging (`content_in_root: true`), and CI stages the package into `custom_components/humidity_intelligence/` for Home Assistant/Hassfest validation.
 
-```text
-custom_components/humidity_intelligence/
-```
-
-Do not add unrelated integrations to this repository. Keep HACS metadata, integration metadata, and documentation aligned with the current release.
+Do not add unrelated integrations to this repository. Keep `hacs.json`, `manifest.json`, README installation guidance, release notes, and CI packaging assumptions aligned with the current release layout.
 
 ## UI Gallery submissions
 
@@ -73,7 +69,7 @@ Update `README.md`, docs, services documentation, or UI Gallery README files whe
 
 ## Bug reports and review process
 
-Use the GitHub issue forms for bugs, feature requests, configuration help, and UI Gallery submissions. A good bug report includes the Humidity Intelligence version, Home Assistant version, install method, logs, expected behavior, actual behavior, and steps to reproduce.
+Use the GitHub issue forms for bugs, feature requests, configuration help, and UI Gallery submissions. For bug/configuration reports, attach the native Home Assistant diagnostics file for Humidity Intelligence when possible. If diagnostics cannot be downloaded, include the Humidity Intelligence version, Home Assistant version, install method, logs, expected behavior, actual behavior, checks already tried, and steps to reproduce.
 
 Maintainers can use the report-only daily triage helper documented in [docs/issue-triage.md](docs/issue-triage.md) to review new, untriaged, or recently updated issues without mutating GitHub issue state.
 

@@ -4,7 +4,7 @@ Humidity Intelligence includes a report-only Codex workspace helper for daily Gi
 issue triage.
 
 The helper fetches open GitHub issues, identifies new, untriaged, or recently updated
-items, and writes a structured Markdown report for Bella, Aetherwing, Aethermite, or
+items, and writes a structured Markdown report for Bella, Aetherwing, Aetherbite, or
 the human maintainer to review.
 
 It does not close, edit, label, assign, or comment on GitHub issues.
@@ -25,6 +25,10 @@ Default output:
 
 `.codex/` is local workspace output. Keep generated triage reports ignored/local unless
 the maintainer explicitly asks to publish a sanitized summary.
+
+Generated triage reports are timestamped support snapshots. They do not override the
+current release state recorded in `CHANGELOG.md`, `ROADMAP.md`, or
+`docs/release-governance.md`.
 
 ## Authentication
 
@@ -82,7 +86,7 @@ Suggested owner mapping:
 
 - Bella: architecture, roadmap, governance, proposals, coherence, documentation truth
 - Aetherwing: runtime safety, regression protection, release validation, deterministic lane logic, issue fixes
-- Aethermite: UI ideas, visual polish, brainstorms, experimental UX proposals
+- Aetherbite: UI ideas, visual polish, brainstorms, experimental UX proposals
 - Human maintainer/Jules: unclear reports, repo policy decisions, community-facing replies, release approval
 
 Priority mapping:

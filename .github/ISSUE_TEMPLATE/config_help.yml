@@ -10,7 +10,7 @@ body:
 
         Settings -> Devices & services -> Humidity Intelligence -> Download diagnostics
 
-        Attach the downloaded file below. This helps maintainers understand your setup without asking lots of follow-up questions.
+        Attach the downloaded file below. This is preferred over pasting a dump_diagnostics export unless a maintainer asks for that fuller local JSON.
 
         Please review the bundle before attaching if you are concerned about privacy. The bundle is designed to redact sensitive values, but you remain in control of what you upload.
   - type: textarea
@@ -19,6 +19,18 @@ body:
       label: Attach your Humidity Intelligence diagnostics file
       description: Drag the downloaded Home Assistant diagnostics file here, or write "Unable to download diagnostics" and answer the setup questions below.
       render: text
+  - type: input
+    id: hi-version
+    attributes:
+      label: Humidity Intelligence version (fallback)
+      description: Optional if diagnostics are attached.
+      placeholder: "2.0.5"
+  - type: input
+    id: ha-version
+    attributes:
+      label: Home Assistant version (fallback)
+      description: Optional if diagnostics are attached.
+      placeholder: "2026.4.3"
   - type: dropdown
     id: affected-area
     attributes:

@@ -6,7 +6,7 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
-No changes yet.
+- Synchronized roadmap, governance, support, and contributor documentation to treat v2.0.5 as a completed release milestone while keeping future v2.1 work explicitly staged.
 
 ## 2.0.5
 
