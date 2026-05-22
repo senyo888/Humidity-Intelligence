@@ -8,7 +8,7 @@ import logging
 import os
 import re
 import tempfile
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import voluptuous as vol
@@ -22,6 +22,18 @@ from .helpers.drift import humidity_drift_dependency_status, humidity_drift_warn
 from .helpers.frontend_dependencies import (
     async_frontend_dependency_status,
     frontend_dependency_not_inspectable,
+)
+from .helpers.local_versions import (
+    DEFAULT_MAX_TOTAL_BYTES,
+    DEFAULT_RETAIN_COUNT,
+    HARD_MAX_TOTAL_BYTES,
+    MAX_RETAIN_COUNT,
+    MIN_RETAIN_COUNT,
+    LocalVersionError,
+    async_create_local_backup,
+    async_list_saved_versions,
+    async_local_version_status,
+    cached_local_version_status,
 )
 from .helpers.seasonal import resolve_target_profile
 from .helpers.zone_validation import detect_zone_mapping_duplicates, summarize_zone_mapping_duplicates
@@ -39,11 +51,16 @@ SERVICE_VIEW_CARDS = "view_cards"
 SERVICE_PURGE_FILES = "purge_files"
 SERVICE_PAUSE_CONTROL = "pause_control"
 SERVICE_RESUME_CONTROL = "resume_control"
+SERVICE_CREATE_LOCAL_BACKUP = "create_local_backup"
+SERVICE_LIST_SAVED_VERSIONS = "list_saved_versions"
 _FLASH_LIGHT_LOCKS_KEY = "_flash_light_locks"
 
 _ALLOWED_LAYOUTS = {"v2_mobile", "v2_tablet", "v1_mobile", "view_cards_button"}
 _SAFE_FILENAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 _SAFE_DASHBOARD_PATH_RE = re.compile(r"^[a-z0-9_-]{1,64}$")
+_RELEASE_CHECK_MANIFEST_VERSION_RE = re.compile(
+    r"^2\.0\.(?:5|6(?:-(?:beta|rc)\.[1-9]\d*)?)$"
+)
 _SENSITIVE_ATTR_EXACT = {
     "access_token",
     "token",
@@ -167,6 +184,8 @@ SERVICE_V205_RELEASE_CHECK_SCHEMA = vol.Schema({
     vol.Optional("entry_id"): cv.string,
     vol.Optional("filename", default="humidity_intelligence_v205_release_check.json"): _validate_safe_filename,
     vol.Optional("write_test_exports", default=False): _validate_bool,
+    vol.Optional("require_local_hi_snapshot", default=False): _validate_bool,
+    vol.Optional("max_snapshot_age_minutes", default=60): vol.All(vol.Coerce(int), vol.Range(min=1, max=10080)),
 })
 SERVICE_DUMP_CARDS_SCHEMA = vol.Schema({
     vol.Optional("entry_id"): cv.string,
@@ -194,6 +213,17 @@ SERVICE_PAUSE_CONTROL_SCHEMA = vol.Schema({
 SERVICE_RESUME_CONTROL_SCHEMA = vol.Schema({
     vol.Optional("entry_id"): cv.string,
 })
+SERVICE_CREATE_LOCAL_BACKUP_SCHEMA = vol.Schema({
+    vol.Optional("retain_count", default=DEFAULT_RETAIN_COUNT): vol.All(
+        vol.Coerce(int),
+        vol.Range(min=MIN_RETAIN_COUNT, max=MAX_RETAIN_COUNT),
+    ),
+    vol.Optional("max_total_bytes", default=DEFAULT_MAX_TOTAL_BYTES): vol.All(
+        vol.Coerce(int),
+        vol.Range(min=1, max=HARD_MAX_TOTAL_BYTES),
+    ),
+})
+SERVICE_LIST_SAVED_VERSIONS_SCHEMA = vol.Schema({})
 
 
 async def async_register_services(hass: HomeAssistant) -> None:
@@ -276,6 +306,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
                 entries = hass.config_entries.async_entries(DOMAIN)
 
             frontend_dependencies = await async_frontend_dependency_status(hass)
+            local_version_status = await async_local_version_status(hass)
             payload = {}
             for entry in entries:
                 data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
@@ -299,6 +330,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
                         entity_map,
                         data,
                         frontend_dependencies=frontend_dependencies,
+                        local_version_status=local_version_status,
                     ),
                     "entity_map": _to_jsonable(entity_map),
                     "cards": list((data.get("cards") or {}).keys()),
@@ -313,6 +345,60 @@ async def async_register_services(hass: HomeAssistant) -> None:
 
     hass.services.async_register(DOMAIN, SERVICE_DUMP_DIAGNOSTICS, handle_dump, schema=SERVICE_DUMP_SCHEMA)
 
+    async def handle_create_local_backup(call: ServiceCall) -> dict:
+        try:
+            result = await async_create_local_backup(
+                hass,
+                retain_count=call.data.get("retain_count", DEFAULT_RETAIN_COUNT),
+                max_total_bytes=call.data.get("max_total_bytes", DEFAULT_MAX_TOTAL_BYTES),
+            )
+        except LocalVersionError as err:
+            await _notify_local_version_result(
+                hass,
+                "Humidity Intelligence Local Snapshot Failed",
+                f"FAILED: {err.message}\n\nCategory: `{err.category}`\n\nNo runtime control behavior was changed.",
+            )
+            raise HomeAssistantError(f"Local HI-only snapshot failed: {err.message}") from err
+
+        await _notify_local_version_result(
+            hass,
+            "Humidity Intelligence Local Snapshot Created",
+            _format_local_backup_created_message(result),
+        )
+        return result
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_CREATE_LOCAL_BACKUP,
+        handle_create_local_backup,
+        schema=SERVICE_CREATE_LOCAL_BACKUP_SCHEMA,
+    )
+
+    async def handle_list_saved_versions(call: ServiceCall) -> dict:
+        try:
+            result = await async_list_saved_versions(hass)
+        except LocalVersionError as err:
+            await _notify_local_version_result(
+                hass,
+                "Humidity Intelligence Local Snapshots Failed",
+                f"FAILED: {err.message}\n\nCategory: `{err.category}`",
+            )
+            raise HomeAssistantError(f"Local HI-only snapshot list failed: {err.message}") from err
+
+        await _notify_local_version_result(
+            hass,
+            "Humidity Intelligence Local Snapshots",
+            _format_local_versions_list_message(result),
+        )
+        return result
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_LIST_SAVED_VERSIONS,
+        handle_list_saved_versions,
+        schema=SERVICE_LIST_SAVED_VERSIONS_SCHEMA,
+    )
+
     async def handle_self_check(call: ServiceCall) -> None:
         entry_id = call.data.get("entry_id")
         entries = []
@@ -323,6 +409,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
         else:
             entries = hass.config_entries.async_entries(DOMAIN)
 
+        local_version_status = await async_local_version_status(hass)
         report = {}
         for entry in entries:
             data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
@@ -338,6 +425,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
                 "missing_entities": missing_entities,
                 "frontend_dependency_resources": frontend_dependencies,
                 "humidity_drift_7d": drift_dependency,
+                "local_version_preservation": local_version_status,
                 "telemetry_count": len(entry.data.get("telemetry", [])),
                 "unresolved_placeholders": data.get("unresolved_placeholders", []),
                 "unresolved_placeholders_by_card": data.get("unresolved_placeholders_by_card", {}),
@@ -354,6 +442,8 @@ async def async_register_services(hass: HomeAssistant) -> None:
         entry_id = call.data.get("entry_id")
         filename = call.data.get("filename", "humidity_intelligence_v205_release_check.json")
         write_test_exports = bool(call.data.get("write_test_exports", False))
+        require_local_hi_snapshot = bool(call.data.get("require_local_hi_snapshot", False))
+        max_snapshot_age_minutes = int(call.data.get("max_snapshot_age_minutes", 60))
         entries = []
         if entry_id:
             entry = hass.config_entries.async_get_entry(entry_id)
@@ -369,6 +459,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
             "entries": {},
         }
         frontend_dependencies = await async_frontend_dependency_status(hass)
+        local_version_status = await async_local_version_status(hass)
 
         if not entries:
             report["status"] = "fail"
@@ -404,6 +495,9 @@ async def async_register_services(hass: HomeAssistant) -> None:
                     domain_data,
                     manifest_version=manifest_version,
                     frontend_dependencies=frontend_dependencies,
+                    local_version_status=local_version_status,
+                    require_local_hi_snapshot=require_local_hi_snapshot,
+                    max_snapshot_age_minutes=max_snapshot_age_minutes,
                     write_test_exports=write_test_exports,
                     unscoped_written=unscoped_written,
                     scoped_written=scoped_written,
@@ -419,7 +513,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
             "persistent_notification",
             "create",
             {
-                "title": "Humidity Intelligence v2.0.5 Release Check",
+                "title": "Humidity Intelligence Release Check",
                 "message": f"{report['status'].upper()}: report written to /config/{filename}",
             },
             blocking=False,
@@ -625,6 +719,10 @@ async def async_unregister_services(hass: HomeAssistant) -> None:
         hass.services.async_remove(DOMAIN, SERVICE_PAUSE_CONTROL)
     if hass.services.has_service(DOMAIN, SERVICE_RESUME_CONTROL):
         hass.services.async_remove(DOMAIN, SERVICE_RESUME_CONTROL)
+    if hass.services.has_service(DOMAIN, SERVICE_CREATE_LOCAL_BACKUP):
+        hass.services.async_remove(DOMAIN, SERVICE_CREATE_LOCAL_BACKUP)
+    if hass.services.has_service(DOMAIN, SERVICE_LIST_SAVED_VERSIONS):
+        hass.services.async_remove(DOMAIN, SERVICE_LIST_SAVED_VERSIONS)
 
 
 def _write_json(path: str, payload: dict) -> None:
@@ -707,6 +805,7 @@ def _build_diagnostics_summary(
     runtime_data: dict,
     *,
     frontend_dependencies: Optional[dict] = None,
+    local_version_status: Optional[dict] = None,
 ) -> dict:
     """Build a support-focused, truth-only diagnostics summary."""
     effective = dict(config or {})
@@ -754,6 +853,7 @@ def _build_diagnostics_summary(
         "active_alert_resolution": runtime_data.get("alert_telemetry", []),
         "visual_alerts": _visual_alert_summary(alerts),
         "humidity_drift_7d": drift_dependency,
+        "local_version_preservation": local_version_status or cached_local_version_status(hass),
         "unavailable_or_unknown_entities": unavailable,
         "warnings": warnings,
     }
@@ -770,21 +870,25 @@ def _build_v205_release_check_entry_report(
     *,
     manifest_version: Optional[str],
     frontend_dependencies: Optional[dict] = None,
+    local_version_status: Optional[dict] = None,
+    require_local_hi_snapshot: bool = False,
+    max_snapshot_age_minutes: int = 60,
     write_test_exports: bool = False,
     unscoped_written: Optional[List[str]] = None,
     scoped_written: Optional[List[str]] = None,
 ) -> dict:
-    """Build a truth-only v2.0.5 release-validation report for one entry."""
+    """Build a truth-only release-validation report for one entry."""
     cards = runtime_data.get("cards", {}) or {}
     entity_map = runtime_data.get("entity_map", {}) or {}
     effective = _effective_entry_config(entry)
     checks: List[Dict[str, Any]] = []
+    manifest_status, manifest_message = _release_check_manifest_status(manifest_version)
 
     _add_check(
         checks,
         "manifest_version",
-        "pass" if manifest_version == "2.0.5" else "fail",
-        f"Manifest version is {manifest_version or 'unknown'}; expected 2.0.5.",
+        manifest_status,
+        manifest_message,
     )
 
     show_output_details = bool(
@@ -889,6 +993,19 @@ def _build_v205_release_check_entry_report(
         drift_dependency,
     )
 
+    local_snapshot_status, local_snapshot_message, local_snapshot_details = _local_snapshot_release_check(
+        local_version_status or cached_local_version_status(hass),
+        require_local_hi_snapshot=require_local_hi_snapshot,
+        max_snapshot_age_minutes=max_snapshot_age_minutes,
+    )
+    _add_check(
+        checks,
+        "local_hi_snapshot",
+        local_snapshot_status,
+        local_snapshot_message,
+        local_snapshot_details,
+    )
+
     unavailable = _unavailable_configured_entities(hass, effective, entity_map)
     _add_check(
         checks,
@@ -903,6 +1020,73 @@ def _build_v205_release_check_entry_report(
         "entry_id": getattr(entry, "entry_id", None),
         "checks": checks,
     }
+
+
+def _release_check_manifest_status(manifest_version: Optional[str]) -> Tuple[str, str]:
+    version = manifest_version or "unknown"
+    if manifest_version and _RELEASE_CHECK_MANIFEST_VERSION_RE.fullmatch(manifest_version):
+        return (
+            "pass",
+            f"Manifest version is {version}; release-check contract is valid for the v2.0.5/v2.0.6 line.",
+        )
+    return (
+        "fail",
+        f"Manifest version is {version}; expected v2.0.5 or a v2.0.6 beta/rc/stable version.",
+    )
+
+
+def _local_snapshot_release_check(
+    local_version_status: dict,
+    *,
+    require_local_hi_snapshot: bool,
+    max_snapshot_age_minutes: int,
+) -> Tuple[str, str, dict]:
+    latest_id = local_version_status.get("latest_snapshot_id")
+    details = {
+        "required": bool(require_local_hi_snapshot),
+        "max_snapshot_age_minutes": int(max_snapshot_age_minutes),
+        "status": _to_jsonable(local_version_status),
+    }
+    if not latest_id:
+        status = "fail" if require_local_hi_snapshot else "info"
+        message = (
+            "No local HI-only snapshot is available and this release check requires one."
+            if require_local_hi_snapshot
+            else "No local HI-only snapshot is available. This optional advanced maintenance feature is not required for normal release validation."
+        )
+        return status, message, details
+
+    created_at = _parse_utc(local_version_status.get("latest_snapshot_created_at_utc"))
+    if require_local_hi_snapshot and created_at is not None:
+        age_minutes = (datetime.now(timezone.utc) - created_at).total_seconds() / 60
+        details["latest_snapshot_age_minutes"] = round(age_minutes, 1)
+        if age_minutes > max_snapshot_age_minutes:
+            return (
+                "fail",
+                "Latest local HI-only snapshot is older than the required maximum age.",
+                details,
+            )
+
+    return (
+        "pass",
+        "Local HI-only snapshot status was reported. Creating or listing snapshots does not change running code.",
+        details,
+    )
+
+
+def _parse_utc(value: Any) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        text = str(value)
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        parsed = datetime.fromisoformat(text)
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def _effective_entry_config(entry: Any) -> dict:
@@ -1121,6 +1305,48 @@ def _format_cards_message(paths: List[str]) -> str:
         return f"Card written to {paths[0]}. Open in File Editor to copy YAML."
     lines = "\n".join(paths)
     return f"Cards written:\n{lines}\n\nOpen any file in File Editor to copy YAML."
+
+
+async def _notify_local_version_result(hass: HomeAssistant, title: str, message: str) -> None:
+    await hass.services.async_call(
+        "persistent_notification",
+        "create",
+        {
+            "title": title,
+            "message": message,
+        },
+        blocking=False,
+    )
+
+
+def _format_local_backup_created_message(result: dict) -> str:
+    deleted = result.get("deleted_snapshots") or []
+    return (
+        "Created local HI-only snapshot.\n\n"
+        f"Snapshot ID: `{result.get('snapshot_id')}`\n"
+        f"Manifest version: `{result.get('manifest_version')}`\n"
+        f"Files: `{result.get('file_count')}`\n"
+        f"Bytes: `{result.get('total_bytes')}`\n"
+        f"Retained snapshots: `{result.get('retained_count')}`\n"
+        f"Deleted by retention: `{len(deleted)}`\n\n"
+        "This is not a Home Assistant backup and does not change running code until Home Assistant is restarted."
+    )
+
+
+def _format_local_versions_list_message(result: dict) -> str:
+    latest = result.get("latest_snapshot") or {}
+    invalid = result.get("invalid_snapshots") or []
+    latest_id = latest.get("snapshot_id") or "none"
+    latest_version = latest.get("manifest_version") or "unknown"
+    return (
+        "Listed local HI-only snapshots.\n\n"
+        f"Valid snapshots: `{len(result.get('valid_snapshots') or [])}`\n"
+        f"Invalid snapshots: `{len(invalid)}`\n"
+        f"Latest snapshot: `{latest_id}`\n"
+        f"Latest version: `{latest_version}`\n"
+        f"Total bytes: `{result.get('total_size', 0)}`\n\n"
+        "This is not a Home Assistant backup and does not change running code."
+    )
 
 
 def _supports_color(state) -> bool:

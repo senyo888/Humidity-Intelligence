@@ -29,6 +29,7 @@ from .helpers.frontend_dependencies import (
     async_frontend_dependency_status,
     frontend_dependency_not_inspectable,
 )
+from .helpers.local_versions import async_local_version_status, cached_local_version_status
 from .helpers.seasonal import resolve_target_profile, resolve_temperature_comfort_profile
 from .helpers.zone_validation import detect_zone_mapping_duplicates, summarize_zone_mapping_duplicates
 
@@ -131,6 +132,7 @@ async def async_get_config_entry_diagnostics(
     effective = _effective_entry_config(entry)
     entity_map = runtime_data.get("entity_map") or {}
     frontend_dependencies = await _safe_frontend_dependency_status(hass)
+    local_version_status = await async_local_version_status(hass)
     manifest_version = await _async_read_manifest_version(hass)
     diagnostics_summary = _diagnostics_summary(
         hass,
@@ -138,6 +140,7 @@ async def async_get_config_entry_diagnostics(
         entity_map,
         runtime_data,
         frontend_dependencies=frontend_dependencies,
+        local_version_status=local_version_status,
     )
 
     payload = {
@@ -477,6 +480,7 @@ def _diagnostics_summary(
     runtime_data: dict[str, Any],
     *,
     frontend_dependencies: dict[str, Any],
+    local_version_status: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     telemetry = _list(config.get("telemetry"))
     zones = _dict(config.get("zones"))
@@ -527,6 +531,7 @@ def _diagnostics_summary(
         "visual_alerts": _visual_alert_summary(alerts),
         "humidity_drift_7d": drift_dependency,
         "frontend_dependency_resources": frontend_dependencies,
+        "local_version_preservation": local_version_status or cached_local_version_status(hass),
         "unavailable_or_unknown_entities": unavailable,
         "warnings": warnings,
     }

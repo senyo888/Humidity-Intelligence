@@ -2394,6 +2394,15 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
     assert failed_report["status"] == "fail"
     assert failed_checks["dump_cards_unscoped_export_all"]["status"] == "fail"
 
+    beta_report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        runtime_data,
+        manifest_version="2.0.6-beta.1",
+    )
+    beta_checks = {check["id"]: check for check in beta_report["checks"]}
+    assert beta_checks["manifest_version"]["status"] == "pass"
+
 
 def test_frontend_dependency_status_detects_lovelace_async_items_urls():
     services_mod = _load_services_module()
@@ -2627,6 +2636,7 @@ def test_frontend_dependency_status_is_non_blocking_for_release_contract_checks(
     assert report["status"] == "pass"
     assert checks["frontend_dependencies_reported"]["status"] == "pass"
     assert checks["frontend_dependencies_reported"]["details"]["status"] == "not_inspectable"
+    assert checks["local_hi_snapshot"]["status"] == "info"
     assert checks["unresolved_placeholders"]["status"] == "pass"
     assert checks["configured_entity_availability"]["status"] == "pass"
     assert checks["house_humidity_drift_7d_dependency"]["status"] == "pass"
@@ -2646,6 +2656,95 @@ def test_v205_release_check_service_is_documented_and_registered():
     assert "write_test_exports" in services_yaml
     assert "humidity_intelligence.v205_release_check" in readme_source
     assert "humidity_intelligence_v205_release_check.json" in readme_source
+
+
+def test_v205_release_check_only_fails_local_snapshot_when_required():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(45),
+            "sensor.hall_h": _FakeState(44),
+            "sensor.bed_h": _FakeState(46),
+            "sensor.house_humidity_mean_7d": _FakeState(43),
+            "sensor.kitchen_t": _FakeState(21),
+            "sensor.hall_t": _FakeState(20),
+            "sensor.bed_t": _FakeState(19),
+            "sensor.l1_iaq": _FakeState(35),
+            "sensor.co_val": _FakeState(4),
+            "fan.zone1": _FakeState("off"),
+            "fan.zone2": _FakeState("off"),
+            "fan.aq1": _FakeState("off"),
+            "humidifier.l1": _FakeState("off"),
+            "light.alert": _FakeState("off"),
+            "switch.alert_power": _FakeState("off"),
+        },
+    )
+    runtime_data = {
+        "entity_map": {},
+        "cards": {
+            "v2_mobile": "type: markdown\ncontent: Mobile ready\n",
+            "v2_tablet": "type: markdown\ncontent: Tablet ready\n",
+            "v1_mobile": "type: markdown\ncontent: Legacy ready\n",
+            "view_cards_button": "type: button\nname: View cards\n",
+        },
+        "unresolved_placeholders_by_card": {},
+    }
+
+    optional_report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        runtime_data,
+        manifest_version="2.0.5",
+        local_version_status={
+            "status": "listed",
+            "snapshot_count": 0,
+            "latest_snapshot_id": None,
+            "latest_snapshot_version": None,
+            "latest_snapshot_created_at_utc": None,
+        },
+    )
+    required_report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        runtime_data,
+        manifest_version="2.0.5",
+        local_version_status={
+            "status": "listed",
+            "snapshot_count": 0,
+            "latest_snapshot_id": None,
+            "latest_snapshot_version": None,
+            "latest_snapshot_created_at_utc": None,
+        },
+        require_local_hi_snapshot=True,
+        max_snapshot_age_minutes=60,
+    )
+    fresh_required_report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        runtime_data,
+        manifest_version="2.0.5",
+        local_version_status={
+            "status": "listed",
+            "snapshot_count": 1,
+            "latest_snapshot_id": "2.0.5_2999-01-01T000000Z_fixture",
+            "latest_snapshot_version": "2.0.5",
+            "latest_snapshot_created_at_utc": "2999-01-01T00:00:00Z",
+        },
+        require_local_hi_snapshot=True,
+        max_snapshot_age_minutes=60,
+    )
+
+    optional_checks = {check["id"]: check for check in optional_report["checks"]}
+    required_checks = {check["id"]: check for check in required_report["checks"]}
+    fresh_required_checks = {check["id"]: check for check in fresh_required_report["checks"]}
+
+    assert optional_report["status"] == "pass"
+    assert optional_checks["local_hi_snapshot"]["status"] == "info"
+    assert required_report["status"] == "fail"
+    assert required_checks["local_hi_snapshot"]["status"] == "fail"
+    assert fresh_required_checks["local_hi_snapshot"]["status"] == "pass"
 
 
 def test_alert_configuration_contract_uses_internal_sources():

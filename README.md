@@ -48,9 +48,10 @@ It gives you:
 - safe degraded behavior when inputs are missing
 - generated Lovelace dashboards backed by runtime truth
 - native Home Assistant diagnostics for support and triage
-- services for dashboard export, self-check, diagnostics, pause/resume, and release validation
+- services for dashboard export, self-check, diagnostics, pause/resume, release validation, and manual local HI-only snapshots
 
-Current release: **v2.0.5**.
+Current beta track: **v2.0.6-beta.1**.
+Current stable release: **v2.0.5**.
 
 ---
 
@@ -310,6 +311,11 @@ The UI renders.
 
 ## Current Release Highlights
 
+- v2.0.6-beta.1 adds manual local HI-only snapshot services for the installed `custom_components/humidity_intelligence` folder
+- local snapshots are written under `/config/humidity_intelligence_local_snapshots/`, include compact metadata and content hashing, and retain the latest two snapshots by default
+- `humidity_intelligence.create_local_backup` and `humidity_intelligence.list_saved_versions` are maintenance services only; they are not Home Assistant backups
+- restore, rollback, HACS interception, startup snapshot creation, live folder replacement, runtime entities, and dashboard changes are intentionally not implemented
+- compact local snapshot status is exposed through diagnostics, `self_check`, and the release check; normal release validation does not fail just because snapshot tooling is unused
 - setup and options now present essentials first, with tuning controls behind Advanced sections that open/retract immediately in the form
 - HI applies recommended defaults unless you customise them
 - control loop interval, startup UI mapping refresh, custom humidity targets, custom temperature comfort values, slope sources, fan levels, threshold tuning, lane removal, AQ tuning, and visual-alert tuning remain available as advanced controls
@@ -317,9 +323,9 @@ The UI renders.
 - `Show output entity details` can re-enable the generated-card output details panel when deeper runtime inspection is useful
 - `v2_tablet` is selected by default during initial UI export; unscoped `dump_cards` still exports all cached/generated layouts unless `layout` is supplied
 - native Home Assistant diagnostics, issue-template triage, house humidity drift dependency reporting, seeded slope startup state, and registered slope mapping improve supportability without adding hidden control paths
-- deterministic runtime lane ordering, alert hierarchy, CO emergency behavior, humidifier independence, entity names, and `dump_cards` remain unchanged
+- deterministic runtime lane ordering, alert hierarchy, CO emergency behavior, humidifier independence, entity names, generated dashboards, and `dump_cards` remain unchanged
 
-Upgrade note: **v2.0.5 concentrates on configuration UX, generated-card visibility, diagnostics, issue support, drift dependency reporting, and slope mapping correctness.** The control engine semantics remain stable.
+Upgrade note: **v2.0.6-beta.1 concentrates on local HI-only snapshot tooling and release-safety reporting.** The control engine semantics remain stable.
 After changing UI visibility options, run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual cards.
 
 ---
@@ -961,8 +967,9 @@ data: {}
 
 ### `v205_release_check`
 Purpose:
-- run a read-only v2.0.5 release-validation report in Home Assistant.
+- run a read-only v2.0.5/v2.0.6 release-validation report in Home Assistant.
 - verify generated-card output-details visibility, cached layout coverage, unresolved placeholders, card text sanity, configured entity availability, house humidity drift dependency status, and optional frontend dependency status.
+- report local HI-only snapshot status as optional info unless explicitly required.
 - with `write_test_exports: true`, write test card exports proving unscoped `dump_cards` exports all layouts and scoped export writes only `v2_tablet`.
 - no runtime outputs, helpers, lanes, or configured entities are changed.
 
@@ -971,12 +978,40 @@ Example:
 service: humidity_intelligence.v205_release_check
 data:
   write_test_exports: true
+  require_local_hi_snapshot: false
   filename: humidity_intelligence_v205_release_check.json
+```
+
+### `create_local_backup`
+Purpose:
+- create one local HI-only snapshot of the installed `custom_components/humidity_intelligence` folder.
+- write compact metadata, verify copied files, and enforce deterministic retention.
+- this is not a Home Assistant backup and does not change running code until Home Assistant is restarted.
+- restore, rollback, HACS interception, startup snapshot creation, and arbitrary delete are not implemented.
+
+Example:
+```yaml
+service: humidity_intelligence.create_local_backup
+data:
+  retain_count: 2
+  max_total_bytes: 52428800
+```
+
+### `list_saved_versions`
+Purpose:
+- list valid and invalid local HI-only snapshots under `/config/humidity_intelligence_local_snapshots/`.
+- report latest snapshot, retained count, total size, and latest error category when present.
+- this is not a Home Assistant backup and does not change running code.
+
+Example:
+```yaml
+service: humidity_intelligence.list_saved_versions
+data: {}
 ```
 
 ### `dump_diagnostics`
 Purpose:
-- export runtime diagnostics, mapping, active target profile, visual alert rules, alert source resolution, house humidity drift dependency status, optional frontend dependency resource status, unavailable entities, and card info to JSON.
+- export runtime diagnostics, mapping, active target profile, visual alert rules, alert source resolution, house humidity drift dependency status, optional frontend dependency resource status, compact local snapshot status, unavailable entities, and card info to JSON.
 - `HI Diagnostics` keeps only a compact recorder-safe summary in live state attributes; use this service for a full local support export.
 - For GitHub issues, prefer the native Home Assistant diagnostics download from the Humidity Intelligence integration entry.
 
@@ -1040,6 +1075,16 @@ More detail:
 ---
 
 ## Release Notes
+
+### v2.0.6-beta.1
+
+- added manual local HI-only snapshot services: `humidity_intelligence.create_local_backup` and `humidity_intelligence.list_saved_versions`
+- snapshots are stored locally under `/config/humidity_intelligence_local_snapshots/` with manifest validation, copied-file verification, content hashing, compact metadata, stale partial cleanup, and deterministic retention
+- added compact local snapshot status to diagnostics, `self_check`, and `v205_release_check`
+- `v205_release_check` only fails on snapshot freshness when explicitly called with `require_local_hi_snapshot: true`
+- added `dependencies: []` to integration metadata for cleaner Home Assistant/HACS manifest hygiene
+- restore, rollback, HACS interception, startup snapshot creation, live folder replacement, arbitrary delete, runtime entities, and backup-platform integration remain unimplemented
+- runtime lane ordering, output control, humidifier behavior, alert hierarchy, entity semantics, generated dashboards, and dashboard export behavior are unchanged
 
 ### v2.0.5
 
