@@ -44,6 +44,9 @@ _FLASH_LIGHT_LOCKS_KEY = "_flash_light_locks"
 _ALLOWED_LAYOUTS = {"v2_mobile", "v2_tablet", "v1_mobile", "view_cards_button"}
 _SAFE_FILENAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 _SAFE_DASHBOARD_PATH_RE = re.compile(r"^[a-z0-9_-]{1,64}$")
+_V205_RELEASE_CHECK_COMPATIBLE_VERSION_RE = re.compile(
+    r"^2\.0\.(?:5|6(?:-(?:beta|rc)\.[1-9]\d*)?)$"
+)
 _SENSITIVE_ATTR_EXACT = {
     "access_token",
     "token",
@@ -779,12 +782,13 @@ def _build_v205_release_check_entry_report(
     entity_map = runtime_data.get("entity_map", {}) or {}
     effective = _effective_entry_config(entry)
     checks: List[Dict[str, Any]] = []
+    manifest_status, manifest_message = _v205_release_check_manifest_status(manifest_version)
 
     _add_check(
         checks,
         "manifest_version",
-        "pass" if manifest_version == "2.0.5" else "fail",
-        f"Manifest version is {manifest_version or 'unknown'}; expected 2.0.5.",
+        manifest_status,
+        manifest_message,
     )
 
     show_output_details = bool(
@@ -903,6 +907,19 @@ def _build_v205_release_check_entry_report(
         "entry_id": getattr(entry, "entry_id", None),
         "checks": checks,
     }
+
+
+def _v205_release_check_manifest_status(manifest_version: Optional[str]) -> Tuple[str, str]:
+    version = manifest_version or "unknown"
+    if manifest_version and _V205_RELEASE_CHECK_COMPATIBLE_VERSION_RE.fullmatch(manifest_version):
+        return (
+            "pass",
+            f"Manifest version is {version}; v205_release_check is compatible with the v2.0.5/v2.0.6 maintenance line.",
+        )
+    return (
+        "fail",
+        f"Manifest version is {version}; expected 2.0.5 or a v2.0.6 beta/rc/stable version.",
+    )
 
 
 def _effective_entry_config(entry: Any) -> dict:
