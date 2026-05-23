@@ -14,6 +14,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import selector
 from homeassistant.helpers.selector import SelectOptionDict
 
+from .helpers.drift import humidity_drift_dependency_status
 from .helpers.frontend_dependencies import async_render_dependency_status
 from .helpers.zone_validation import detect_zone_mapping_duplicates, summarize_zone_mapping_duplicates
 from .const import (
@@ -2956,7 +2957,54 @@ def _presence_state_options(hass: HomeAssistant, entities: List[str]) -> List[st
 
 
 async def _render_dependency_status(hass: HomeAssistant) -> str:
-    return await async_render_dependency_status(hass)
+    frontend_status = await async_render_dependency_status(hass)
+    drift_statistics_status = _render_drift_statistics_status(
+        humidity_drift_dependency_status(hass)
+    )
+    return f"{frontend_status}\n\n{drift_statistics_status}"
+
+
+def _render_drift_statistics_status(status: dict[str, Any]) -> str:
+    """Render setup/options guidance for the drift Statistics helper dependency."""
+    if status.get("available"):
+        return "House humidity drift statistics source: OK."
+    if status.get("repair_kind") == "missing_helper":
+        source = status.get("source_entity") or "the registered HI House Average Humidity entity"
+        return (
+            "House humidity drift statistics source: missing. Create a Home Assistant "
+            "Statistics helper named House Humidity Mean 7d using "
+            f"{source} as the source, state characteristic mean, and max age 7 days. "
+            "The helper entity ID must be sensor.house_humidity_mean_7d; rename it "
+            "manually if Home Assistant creates a different entity ID."
+        )
+    if status.get("repair_kind") == "history_not_ready":
+        coverage = status.get("age_coverage_ratio")
+        required = status.get("required_age_coverage_ratio")
+        return (
+            "House humidity drift statistics source: history not ready. The helper "
+            f"exists, but recorder/statistics coverage is {coverage} and must reach "
+            f"{required} before drift is available."
+        )
+    if status.get("repair_kind") == "helper_source_not_valid":
+        return (
+            "House humidity drift statistics source: source value not valid. The "
+            "Statistics helper exists, but Home Assistant is not reporting a valid "
+            "source value yet."
+        )
+    if status.get("source_entity_status") in {"missing", "unresolved"}:
+        return (
+            "House humidity drift statistics source: source unresolved. HI cannot "
+            "confirm the registered HI House Average Humidity entity yet."
+        )
+    if status.get("repair_kind") == "helper_misconfigured_or_non_numeric":
+        return (
+            "House humidity drift statistics source: misconfigured or non-numeric. "
+            "The Statistics helper exists but is not reporting a numeric 7-day mean."
+        )
+    return (
+        "House humidity drift statistics source: not ready or unavailable. The "
+        "Statistics helper exists but is not reporting a ready 7-day mean yet."
+    )
 
 
 def _entry_section(entry: config_entries.ConfigEntry, key: str, default: Any) -> Any:

@@ -312,7 +312,51 @@ def test_native_diagnostics_reports_house_drift_statistics_dependency():
     assert drift["dependency_entity"] == "sensor.house_humidity_mean_7d"
     assert drift["dependency_status"] == "missing"
     assert drift["available"] is False
+    assert drift["repair_kind"] == "missing_helper"
+    assert drift["repair_required"] is True
     assert any("HI House Humidity Drift 7d" in warning for warning in payload["runtime"]["warnings"])
+
+
+def test_native_diagnostics_distinguishes_existing_not_ready_drift_helper():
+    diagnostics = _load_diagnostics_module()
+    hass = _sample_hass()
+    hass.states._values["sensor.house_humidity_mean_7d"] = _FakeState("unknown")
+
+    payload = asyncio.run(
+        diagnostics.async_get_config_entry_diagnostics(hass, _sample_entry())
+    )
+
+    drift = payload["diagnostics_summary"]["humidity_drift_7d"]
+    assert drift["dependency_status"] == "unknown"
+    assert drift["repair_kind"] == "helper_not_ready_or_unavailable"
+    assert drift["repair_required"] is False
+    assert drift["history_status"] == "not_ready_or_unavailable"
+
+
+def test_native_diagnostics_reports_low_statistics_coverage_as_history_not_ready():
+    diagnostics = _load_diagnostics_module()
+    hass = _sample_hass()
+    hass.states._values["sensor.house_humidity_mean_7d"] = _FakeState(
+        50,
+        {
+            "age_coverage_ratio": 0.03,
+            "source_value_valid": True,
+        },
+    )
+
+    payload = asyncio.run(
+        diagnostics.async_get_config_entry_diagnostics(hass, _sample_entry())
+    )
+
+    drift = payload["diagnostics_summary"]["humidity_drift_7d"]
+    assert drift["dependency_status"] == "history_not_ready"
+    assert drift["available"] is False
+    assert drift["repair_kind"] == "history_not_ready"
+    assert drift["repair_required"] is False
+    assert drift["age_coverage_ratio"] == 0.03
+    assert drift["required_age_coverage_ratio"] == 0.85
+    assert drift["source_value_valid"] is True
+    assert any("history_not_ready" in warning for warning in payload["runtime"]["warnings"])
 
 
 def test_to_redact_covers_required_sensitive_terms():

@@ -364,7 +364,7 @@ The following projects power the visual layer of Humidity Intelligence:
 - [button-card](https://github.com/custom-cards/button-card)  
   Core building block for badges, status indicators, and interactive UI elements.
 - [mod-card](https://github.com/thomasloven/lovelace-card-mod)  
-  Structural wrapper used to apply styling cleanly across complex card layouts.
+  Structural wrapper used to apply styling cleanly across complex card layouts. Current `lovelace-card-mod` releases provide this through `card-mod.js`; a separate `mod-card.js` resource is not required.
 - [apexcharts-card](https://github.com/RomRider/apexcharts-card)  
   Powers historical graphs, trend analysis, and environmental visualisation.
 
@@ -476,9 +476,22 @@ V2 preserves the existing drift meaning:
 HI House Humidity Drift 7d = current HI house average humidity - sensor.house_humidity_mean_7d
 ```
 
-If you remove the v1 package, also make sure the 7-day statistics sensor still exists. Without `sensor.house_humidity_mean_7d`, the drift sensor will stay unavailable. V2.0.5 reports that dependency status in the drift sensor attributes, `self_check`, `v205_release_check`, and diagnostics instead of failing silently.
+V1 created `sensor.house_humidity_mean_7d` with Home Assistant's Statistics helper.
+Clean V2 installs need the same helper unless it already exists.
 
-If needed, recreate the statistics sensor against the actual registered `HI House Average Humidity` entity:
+Create a Statistics helper:
+
+- Name: `House Humidity Mean 7d`
+- Source entity: the registered `HI House Average Humidity` entity, for example `sensor.humidity_intelligence_hi_house_average_humidity`
+- State characteristic: `mean`
+- Max age: `7 days`
+- Entity ID: exactly `sensor.house_humidity_mean_7d`
+
+Home Assistant may create a different entity ID from the helper name, such as a
+prefixed `sensor.humidity_intelligence_house_humidity_mean_7d`. If that happens,
+rename the helper entity ID manually to `sensor.house_humidity_mean_7d`.
+
+If you manage this helper in YAML, use the actual registered `HI House Average Humidity` entity:
 
 ```yaml
 sensor:
@@ -490,7 +503,18 @@ sensor:
       days: 7
 ```
 
-Do not fabricate history. Home Assistant will populate the mean after recorder/statistics samples are available.
+If the helper is missing, HI reports setup/repair guidance in the drift sensor
+attributes, diagnostics, `self_check`, `v205_release_check`, setup/options, and
+Home Assistant Repairs. If the helper exists but reports `unknown`, `unavailable`,
+or a non-numeric state, HI reports it as not ready or unavailable instead of telling
+you to recreate it. If the helper is numeric but its Statistics helper
+`age_coverage_ratio` is below `0.85`, HI reports `history_not_ready` and keeps drift
+unavailable until recorder/statistics coverage is sufficient. If Home Assistant
+reports `source_value_valid: false`, HI keeps drift unavailable until the source is
+valid again.
+
+Do not fabricate history. Drift remains unavailable until Home Assistant reports a
+numeric 7-day mean with sufficient recorder/statistics coverage.
 
 ### Step 2 - Remove v1 UI YAML
 
@@ -1082,6 +1106,8 @@ More detail:
 - snapshots are stored locally under `/config/humidity_intelligence_local_snapshots/` with manifest validation, copied-file verification, content hashing, compact metadata, stale partial cleanup, and deterministic retention
 - added compact local snapshot status to diagnostics, `self_check`, and `v205_release_check`
 - `v205_release_check` only fails on snapshot freshness when explicitly called with `require_local_hi_snapshot: true`
+- added setup/repair guidance for the `HI House Humidity Drift 7d` Statistics helper dependency on clean installs
+- differentiated missing helper guidance from existing helper not ready or unavailable states without changing the drift calculation
 - added `dependencies: []` to integration metadata for cleaner Home Assistant/HACS manifest hygiene
 - restore, rollback, HACS interception, startup snapshot creation, live folder replacement, arbitrary delete, runtime entities, and backup-platform integration remain unimplemented
 - runtime lane ordering, output control, humidifier behavior, alert hierarchy, entity semantics, generated dashboards, and dashboard export behavior are unchanged

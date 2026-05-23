@@ -12,11 +12,12 @@ from datetime import datetime, timedelta
 from homeassistant.components.sensor import SensorEntity
 
 from .const import DOMAIN
+from .helpers.drift_repairs import async_update_humidity_drift_repair_issue
+from .helpers.zone_validation import detect_zone_mapping_duplicates, summarize_zone_mapping_duplicates
 from .services import _build_diagnostics_summary
 from .sensors.core import build_entities
 from .sensors.slope import build_slope_entities
 from homeassistant.helpers.device_registry import DeviceInfo
-from .helpers.zone_validation import detect_zone_mapping_duplicates, summarize_zone_mapping_duplicates
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             entry.entry_id,
         )
     async_add_entities(sensors + slope_sensors + timer_sensors + [diagnostics], update_before_add=True)
+    await async_update_humidity_drift_repair_issue(hass)
 
     hass.data.setdefault(DOMAIN, {}).setdefault(entry.entry_id, {})
     hass.data[DOMAIN][entry.entry_id]["core_sensors"] = sensors
@@ -56,6 +58,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         for sensor in binary_sensors:
             sensor.update_from_hass()
             sensor.async_write_ha_state()
+        await async_update_humidity_drift_repair_issue(hass)
 
     all_sources = list(set(sources + slope_sources))
     unsub = async_track_state_change_event(hass, all_sources, _handle_change)
