@@ -6,20 +6,7 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
-## 2.0.6-beta.1
-
-- Added manual local HI-only snapshot services: `humidity_intelligence.create_local_backup` and `humidity_intelligence.list_saved_versions`.
-- Added executor-backed local snapshot creation/listing with manifest validation, copied-file verification, compact metadata, content hashing, scoped stale partial cleanup, global HI maintenance locking, duplicate snapshot rejection, and deterministic retention.
-- Added compact local snapshot status to diagnostics, `self_check`, and `v205_release_check`; release validation treats unused snapshot tooling as info and only fails snapshot freshness when explicitly required.
-- Added clean-install setup/repair guidance for the `HI House Humidity Drift 7d` Statistics helper dependency.
-- Preserved the existing drift calculation and legacy `sensor.house_humidity_mean_7d` compatibility.
-- Differentiated missing helper guidance from existing helper not ready or unavailable states.
-- Tightened 7-day drift readiness so numeric Statistics helpers remain unavailable with `history_not_ready` until `age_coverage_ratio` reaches `0.85` and `source_value_valid` is not false.
-- Added direct sanity coverage for snapshot creation, listing, retention, byte-cap retention, stale partial cleanup, duplicate IDs, bad copied hashes, active-tree changes, lock contention, and failure categories.
-- Added `dependencies: []` to integration metadata for cleaner Home Assistant/HACS manifest hygiene.
-- Kept restore, rollback, HACS interception, startup snapshot creation, live folder replacement, arbitrary delete, runtime entities, generated dashboard changes, config-entry migration snapshotting, and backup-platform integration unimplemented.
-- Preserved deterministic lane ordering, runtime evaluation, output control, humidifier logic, alert hierarchy, entity semantics, and generated dashboard behavior.
-- Synchronized roadmap, governance, support, and contributor documentation to treat v2.0.5 as a completed release milestone while keeping future v2.1 work explicitly staged.
+No changes yet.
 
 ## 2.0.5
 

@@ -76,7 +76,6 @@ Humidity Intelligence is a deterministic Home Assistant environmental control en
 
 - Keep `README.md`, `manifest.json`, `hacs.json`, docs, release notes, UI examples, and runtime behavior aligned.
 - Update related docs when implementation behavior changes.
-- Treat completed milestones as completed. Do not leave shipped v2.0.5 functionality in planned, pending, or proposal-only roadmap buckets.
 - Keep branch/version state explicit: `senyo888-patch-1` may carry beta, rc, or stable labels; `develop` may carry rc or stable labels; `main` carries stable releases only.
 - Run the version-governance check before release promotion so unstable builds cannot be promoted as stable by accident.
 - Treat release tagging as blocked until Bella verification, AetherCore governance verification, release sanity validation, and maintainer README approval are complete.

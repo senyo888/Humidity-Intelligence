@@ -2,38 +2,6 @@
 
 <!-- What changed and why? -->
 
-## Scope
-
-<!-- Files/areas affected. Keep the scope small and explicit. -->
-
-## Reason
-
-<!-- Why this change is needed now. -->
-
-## Files affected
-
-<!-- List the main files or folders touched. -->
-
-## Runtime impact
-
-<!-- State whether lane ordering, entity semantics, services, outputs, diagnostics, or migrations changed. -->
-
-## UI impact
-
-<!-- State whether generated dashboards, cards, gallery examples, or frontend dependency assumptions changed. -->
-
-## Migration impact
-
-<!-- State whether users need to take action. If none, say "None". -->
-
-## Rollback safety
-
-<!-- State how this can be reverted safely if it regresses. -->
-
-## Validation performed
-
-<!-- Commands, Home Assistant checks, generated-card checks, or docs checks run. -->
-
 ## Type
 
 - [ ] Fix
@@ -52,10 +20,6 @@
 - [ ] Support docs, diagnostics guidance, and issue templates updated where support flow changed.
 - [ ] No private entity IDs, secrets, addresses, or personal data included.
 - [ ] HACS/custom integration metadata still looks correct.
-- [ ] Deterministic lane ordering is preserved, or the PR explicitly explains an approved semantic change.
-- [ ] UI truth consistency is preserved; generated UI does not invent backend state.
-- [ ] Migration impact is documented, including "none" when no migration is required.
-- [ ] Release/readiness impact is stated, including whether Bella/Aetherwing/AetherCore review is needed.
 
 ## UI Gallery submissions
 

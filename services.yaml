@@ -65,7 +65,7 @@ dump_diagnostics:
         text: {}
 self_check:
   name: Self Check
-  description: Validate entity mapping, frontend dependencies, house humidity drift dependency, local HI-only snapshot status, and telemetry setup
+  description: Validate entity mapping, frontend dependencies, house humidity drift dependency, and telemetry setup
   fields:
     entry_id:
       name: Entry ID
@@ -73,8 +73,8 @@ self_check:
       selector:
         text: {}
 v205_release_check:
-  name: Release Check
-  description: Run a read-only v2.0.5/v2.0.6 validation report for generated-card visibility, dump_cards scope behavior, cached layouts, unresolved placeholders, frontend dependency status, house humidity drift dependency status, optional local HI-only snapshot status, and configured entity availability.
+  name: v2.0.5 Release Check
+  description: Run a read-only v2.0.5 validation report for generated-card visibility, dump_cards scope behavior, cached layouts, unresolved placeholders, frontend dependency status, house humidity drift dependency status, and configured entity availability.
   fields:
     entry_id:
       name: Entry ID
@@ -91,48 +91,6 @@ v205_release_check:
       description: When enabled, writes test card export files to verify unscoped dump_cards exports all layouts and scoped layout exports only v2_tablet. No devices or runtime outputs are changed.
       selector:
         boolean: {}
-    require_local_hi_snapshot:
-      name: Require local HI snapshot
-      description: Optional release gate. When enabled, the release check fails if there is no fresh local HI-only snapshot. Leave disabled for normal validation.
-      selector:
-        boolean: {}
-    max_snapshot_age_minutes:
-      name: Maximum snapshot age
-      description: Maximum local HI-only snapshot age in minutes when require_local_hi_snapshot is enabled.
-      selector:
-        number:
-          min: 1
-          max: 10080
-          step: 1
-          mode: box
-          unit_of_measurement: min
-create_local_backup:
-  name: Create Local HI Snapshot
-  description: Create a local HI-only snapshot of /config/custom_components/humidity_intelligence. This is not a Home Assistant backup, does not intercept HACS updates, and does not change running code until Home Assistant is restarted.
-  fields:
-    retain_count:
-      name: Snapshots to retain
-      description: Number of finalized local HI-only snapshots to retain after a successful create operation (1-5, default 2).
-      selector:
-        number:
-          min: 1
-          max: 5
-          step: 1
-          mode: box
-    max_total_bytes:
-      name: Maximum total bytes
-      description: Maximum total bytes for finalized local HI-only snapshots after retention cleanup (default 52428800, hard maximum 262144000).
-      selector:
-        number:
-          min: 1
-          max: 262144000
-          step: 1048576
-          mode: box
-          unit_of_measurement: B
-list_saved_versions:
-  name: List Local HI Snapshots
-  description: List finalized local HI-only snapshots and invalid snapshot folders. This is not a Home Assistant backup and does not change running code.
-  fields: {}
 dump_cards:
   name: Dump Cards
   description: Write rendered card YAML to the Home Assistant config folder. Without layout, all cached layouts are exported; with layout, only that layout is exported.

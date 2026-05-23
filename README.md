@@ -4,11 +4,11 @@
 
 # Humidity Intelligence
 
-## Domestic Environmental Stabilisation Engine for Home Assistant
+## Domestic Environmental Control Engine for Home Assistant
 
 [![Latest Release](https://img.shields.io/github/v/release/senyo888/Humidity-Intelligence?display_name=tag&sort=semver)](https://github.com/senyo888/Humidity-Intelligence/releases)
 [![HACS](https://img.shields.io/badge/HACS-Custom%20Integration-orange)](https://hacs.xyz)
-[![Integration Version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fsenyo888%2FHumidity-Intelligence%2Fmain%2Fmanifest.json&query=%24.version&label=Integration&prefix=v&color=blue)](manifest.json)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.4.3%2B-blue)](https://www.home-assistant.io/)
 [![License](https://img.shields.io/github/license/senyo888/Humidity-Intelligence)](LICENSE)
 
 ## Contents
@@ -16,7 +16,7 @@
 - [TL;DR](#tldr)
 - [What Is Humidity Intelligence](#what-is-humidity-intelligence)
 - [V2 UI Example](#v2-ui-example)
-- [Support Humidity Intelligence](#support-humidity-intelligence)
+- [Support Project](#support-project)
 - [Why Environmental Stability Matters](#why-environmental-stability-matters)
 - [Season-Aware Environmental Control](#season-aware-environmental-control)
 - [Design Philosophy](#design-philosophy)
@@ -37,27 +37,26 @@
 
 ## TL;DR
 
-Humidity Intelligence is a domestic environmental stabilisation engine for Home Assistant.
+Humidity Intelligence is a domestic environmental control engine for Home Assistant.
 
 It reads humidity, temperature, air quality, condensation, mould-risk, CO, presence, time, pause, and override signals, then resolves **one explainable control decision per evaluation cycle**.
 
-It gives you:
+it give you:
 
 - season-aware humidity targets
 - deterministic lane priority
 - safe degraded behavior when inputs are missing
 - generated Lovelace dashboards backed by runtime truth
 - native Home Assistant diagnostics for support and triage
-- services for dashboard export, self-check, diagnostics, pause/resume, release validation, and manual local HI-only snapshots
+- services for dashboard export, self-check, diagnostics, pause/resume, and release validation
 
-Current beta track: **v2.0.6-beta.1**.
-Current stable release: **v2.0.5**.
+Current release: **v2.0.5**.
 
 ---
 
 ## What Is Humidity Intelligence
 
-Humidity Intelligence is designed to help stabilise the environment inside a home through real-world sensor telemetry, deterministic control, and practical environmental balancing.
+Humidity Intelligence is designed to help stabilise the environment inside a home using real-world sensor telemetry and smart environmental control.
 
 Rather than simply displaying humidity or temperature readings, Humidity Intelligence continuously interprets conditions across the property to understand how the environment is behaving over time. It monitors factors such as humidity, temperature, temperature drift, air quality, condensation risk, mould risk, and seasonal comfort patterns, then reacts using connected smart devices to gently guide the home back toward balance.
 
@@ -218,9 +217,9 @@ Default temperature comfort bands:
 
 Humidity Intelligence is built around a simple premise: a home should not be regulated by a loose pile of automations competing for control. It should have one visible environmental controller that reads configured telemetry, applies a stable priority hierarchy, and resolves one explainable outcome per evaluation cycle.
 
-The engine is deterministic by design. It does not guess, learn hidden preferences, or invent state. It evaluates season-aware humidity targets, safety gates, alert conditions, zone demand, air quality state, and humidifier needs through explicit rules so runtime behavior can be inspected, anticipated, and explained.
+The engine is deterministic by design. Avoids guesses, and learns hidden preferences. It evaluates season-aware humidity targets, safety gates, alert conditions, zone demand, air quality state, and humidifier needs through explicit rules so runtime behavior can be inspected, predicted, and explained.
 
-The UI is a truth surface, not a second controller. Current Air Control, chips, diagnostics, and exported cards reflect backend telemetry, entity mappings, runtime mode, and degraded-state reasons. If an input is missing or an output is unavailable, Humidity Intelligence shows that condition and falls back safely without pretending the home is stable.
+The UI is a truth surface. Current Air Control, chips, diagnostics, and exported cards  reflect backend telemetry, entity mappings, runtime mode, and degraded-state reasons. If an input is missing or an output is unavailable, Humidity Intelligence show that condition and fall back safely without pretending the home is stable.
 
 The architectural preference is calm regulation over automation chaos:
 
@@ -231,7 +230,7 @@ The architectural preference is calm regulation over automation chaos:
 - generated dashboards aligned with backend truth only
 - safe degraded behavior before blind output writes
 
-The result should feel steady in a domestic environment: readable, conservative, and accountable when conditions change.
+The result  feel steady in a domestic environment: readable, conservative, and accountable when conditions change.
 
 ---
 
@@ -311,21 +310,16 @@ The UI renders.
 
 ## Current Release Highlights
 
-- v2.0.6-beta.1 adds manual local HI-only snapshot services for the installed `custom_components/humidity_intelligence` folder
-- local snapshots are written under `/config/humidity_intelligence_local_snapshots/`, include compact metadata and content hashing, and retain the latest two snapshots by default
-- `humidity_intelligence.create_local_backup` and `humidity_intelligence.list_saved_versions` are maintenance services only; they are not Home Assistant backups
-- restore, rollback, HACS interception, startup snapshot creation, live folder replacement, runtime entities, and dashboard changes are intentionally not implemented
-- compact local snapshot status is exposed through diagnostics, `self_check`, and the release check; normal release validation does not fail just because snapshot tooling is unused
-- setup and options now present essentials first, with tuning controls behind Advanced sections that open/retract immediately in the form
-- HI applies recommended defaults unless you customise them
+- setup and options now present essentials first, with tuning controls behind Advanced sections that open/retract immediately within the form
+- HI applies recommended defaults unless you customise them 
 - control loop interval, startup UI mapping refresh, custom humidity targets, custom temperature comfort values, slope sources, fan levels, threshold tuning, lane removal, AQ tuning, and visual-alert tuning remain available as advanced controls
 - new installs default the generated V2 dashboard to a cleaner output display
 - `Show output entity details` can re-enable the generated-card output details panel when deeper runtime inspection is useful
 - `v2_tablet` is selected by default during initial UI export; unscoped `dump_cards` still exports all cached/generated layouts unless `layout` is supplied
-- native Home Assistant diagnostics, issue-template triage, house humidity drift dependency reporting, seeded slope startup state, and registered slope mapping improve supportability without adding hidden control paths
-- deterministic runtime lane ordering, alert hierarchy, CO emergency behavior, humidifier independence, entity names, generated dashboards, and `dump_cards` remain unchanged
+- native diagnostics, issue-template triage, house humidity drift dependency reporting, seeded slope startup state, and registered slope mapping improve supportability without adding hidden control paths
+- deterministic runtime lane ordering, alert hierarchy, CO emergency behavior, humidifier independence, entity names, and `dump_cards` remain unchanged
 
-Upgrade note: **v2.0.6-beta.1 concentrates on local HI-only snapshot tooling and release-safety reporting.** The control engine semantics remain stable.
+Upgrade note: **v2.0.5 concentrates on configuration UX, generated-card visibility, diagnostics, issue support, drift dependency reporting, and slope mapping correctness.** The control engine semantics remain stable.
 After changing UI visibility options, run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual cards.
 
 ---
@@ -364,7 +358,7 @@ The following projects power the visual layer of Humidity Intelligence:
 - [button-card](https://github.com/custom-cards/button-card)  
   Core building block for badges, status indicators, and interactive UI elements.
 - [mod-card](https://github.com/thomasloven/lovelace-card-mod)  
-  Structural wrapper used to apply styling cleanly across complex card layouts. Current `lovelace-card-mod` releases provide this through `card-mod.js`; a separate `mod-card.js` resource is not required.
+  Structural wrapper used to apply styling cleanly across complex card layouts.
 - [apexcharts-card](https://github.com/RomRider/apexcharts-card)  
   Powers historical graphs, trend analysis, and environmental visualisation.
 
@@ -476,22 +470,9 @@ V2 preserves the existing drift meaning:
 HI House Humidity Drift 7d = current HI house average humidity - sensor.house_humidity_mean_7d
 ```
 
-V1 created `sensor.house_humidity_mean_7d` with Home Assistant's Statistics helper.
-Clean V2 installs need the same helper unless it already exists.
+If you remove the v1 package, also make sure the 7-day statistics sensor still exists. Without `sensor.house_humidity_mean_7d`, the drift sensor will stay unavailable. V2.0.5 reports that dependency status in the drift sensor attributes, `self_check`, `v205_release_check`, and diagnostics instead of failing silently.
 
-Create a Statistics helper:
-
-- Name: `House Humidity Mean 7d`
-- Source entity: the registered `HI House Average Humidity` entity, for example `sensor.humidity_intelligence_hi_house_average_humidity`
-- State characteristic: `mean`
-- Max age: `7 days`
-- Entity ID: exactly `sensor.house_humidity_mean_7d`
-
-Home Assistant may create a different entity ID from the helper name, such as a
-prefixed `sensor.humidity_intelligence_house_humidity_mean_7d`. If that happens,
-rename the helper entity ID manually to `sensor.house_humidity_mean_7d`.
-
-If you manage this helper in YAML, use the actual registered `HI House Average Humidity` entity:
+If needed, recreate the statistics sensor against the actual registered `HI House Average Humidity` entity:
 
 ```yaml
 sensor:
@@ -503,18 +484,7 @@ sensor:
       days: 7
 ```
 
-If the helper is missing, HI reports setup/repair guidance in the drift sensor
-attributes, diagnostics, `self_check`, `v205_release_check`, setup/options, and
-Home Assistant Repairs. If the helper exists but reports `unknown`, `unavailable`,
-or a non-numeric state, HI reports it as not ready or unavailable instead of telling
-you to recreate it. If the helper is numeric but its Statistics helper
-`age_coverage_ratio` is below `0.85`, HI reports `history_not_ready` and keeps drift
-unavailable until recorder/statistics coverage is sufficient. If Home Assistant
-reports `source_value_valid: false`, HI keeps drift unavailable until the source is
-valid again.
-
-Do not fabricate history. Drift remains unavailable until Home Assistant reports a
-numeric 7-day mean with sufficient recorder/statistics coverage.
+Do not fabricate history. Home Assistant will populate the mean after recorder/statistics samples are available.
 
 ### Step 2 - Remove v1 UI YAML
 
@@ -991,9 +961,8 @@ data: {}
 
 ### `v205_release_check`
 Purpose:
-- run a read-only v2.0.5/v2.0.6 release-validation report in Home Assistant.
+- run a read-only v2.0.5 release-validation report in Home Assistant.
 - verify generated-card output-details visibility, cached layout coverage, unresolved placeholders, card text sanity, configured entity availability, house humidity drift dependency status, and optional frontend dependency status.
-- report local HI-only snapshot status as optional info unless explicitly required.
 - with `write_test_exports: true`, write test card exports proving unscoped `dump_cards` exports all layouts and scoped export writes only `v2_tablet`.
 - no runtime outputs, helpers, lanes, or configured entities are changed.
 
@@ -1002,40 +971,12 @@ Example:
 service: humidity_intelligence.v205_release_check
 data:
   write_test_exports: true
-  require_local_hi_snapshot: false
   filename: humidity_intelligence_v205_release_check.json
-```
-
-### `create_local_backup`
-Purpose:
-- create one local HI-only snapshot of the installed `custom_components/humidity_intelligence` folder.
-- write compact metadata, verify copied files, and enforce deterministic retention.
-- this is not a Home Assistant backup and does not change running code until Home Assistant is restarted.
-- restore, rollback, HACS interception, startup snapshot creation, and arbitrary delete are not implemented.
-
-Example:
-```yaml
-service: humidity_intelligence.create_local_backup
-data:
-  retain_count: 2
-  max_total_bytes: 52428800
-```
-
-### `list_saved_versions`
-Purpose:
-- list valid and invalid local HI-only snapshots under `/config/humidity_intelligence_local_snapshots/`.
-- report latest snapshot, retained count, total size, and latest error category when present.
-- this is not a Home Assistant backup and does not change running code.
-
-Example:
-```yaml
-service: humidity_intelligence.list_saved_versions
-data: {}
 ```
 
 ### `dump_diagnostics`
 Purpose:
-- export runtime diagnostics, mapping, active target profile, visual alert rules, alert source resolution, house humidity drift dependency status, optional frontend dependency resource status, compact local snapshot status, unavailable entities, and card info to JSON.
+- export runtime diagnostics, mapping, active target profile, visual alert rules, alert source resolution, house humidity drift dependency status, optional frontend dependency resource status, unavailable entities, and card info to JSON.
 - `HI Diagnostics` keeps only a compact recorder-safe summary in live state attributes; use this service for a full local support export.
 - For GitHub issues, prefer the native Home Assistant diagnostics download from the Humidity Intelligence integration entry.
 
@@ -1099,18 +1040,6 @@ More detail:
 ---
 
 ## Release Notes
-
-### v2.0.6-beta.1
-
-- added manual local HI-only snapshot services: `humidity_intelligence.create_local_backup` and `humidity_intelligence.list_saved_versions`
-- snapshots are stored locally under `/config/humidity_intelligence_local_snapshots/` with manifest validation, copied-file verification, content hashing, compact metadata, stale partial cleanup, and deterministic retention
-- added compact local snapshot status to diagnostics, `self_check`, and `v205_release_check`
-- `v205_release_check` only fails on snapshot freshness when explicitly called with `require_local_hi_snapshot: true`
-- added setup/repair guidance for the `HI House Humidity Drift 7d` Statistics helper dependency on clean installs
-- differentiated missing helper guidance from existing helper not ready or unavailable states without changing the drift calculation
-- added `dependencies: []` to integration metadata for cleaner Home Assistant/HACS manifest hygiene
-- restore, rollback, HACS interception, startup snapshot creation, live folder replacement, arbitrary delete, runtime entities, and backup-platform integration remain unimplemented
-- runtime lane ordering, output control, humidifier behavior, alert hierarchy, entity semantics, generated dashboards, and dashboard export behavior are unchanged
 
 ### v2.0.5
 
