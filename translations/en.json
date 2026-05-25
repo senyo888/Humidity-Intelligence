@@ -63,9 +63,10 @@
         }
       },
       "telemetry_add": {
-        "title": "Add Sensor",
-        "description": "Add a humidity, temperature or air-quality sensor.\n\nExisting sensors:\n{existing}",
+        "title": "Add Telemetry Sensor",
+        "description": "Add a humidity, temperature or air-quality sensor.\n\nExisting sensors:\n{existing}\n\nCancel returns to Telemetry Inputs without saving this sensor.",
         "data": {
+          "action": "Action",
           "entity_id": "Sensor entity",
           "sensor_type": "Sensor type",
           "friendly_name": "Friendly name (optional)",
@@ -74,7 +75,7 @@
         }
       },
       "telemetry_manage": {
-        "title": "Manage Sensors",
+        "title": "Manage Telemetry Sensors",
         "description": "Edit or delete an existing sensor.\n\nExisting sensors:\n{existing}",
         "data": {
           "selection": "Sensor",
@@ -82,9 +83,10 @@
         }
       },
       "telemetry_edit": {
-        "title": "Edit Sensor",
-        "description": "Update the selected sensor entry.",
+        "title": "Edit Telemetry Sensor",
+        "description": "Update the selected sensor entry.\n\nCancel returns to Telemetry Inputs without saving changes to this sensor.",
         "data": {
+          "action": "Action",
           "entity_id": "Sensor entity",
           "sensor_type": "Sensor type",
           "friendly_name": "Friendly name (optional)",
@@ -396,6 +398,7 @@
     "error": {
       "overlap": "A state cannot be both present and away.",
       "duplicate_entity": "This sensor has already been added.",
+      "required": "This field is required.",
       "alert_save_failed": "Failed to save alert configuration. Check logs and try again.",
       "room_unknown": "Selected room is not in configured telemetry.",
       "room_missing_humidity": "Selected room has no humidity telemetry for room-scoped humidity danger.",
@@ -513,8 +516,9 @@
       },
       "options_telemetry_add": {
         "title": "Add Telemetry Sensor",
-        "description": "Add a sensor and knit it into HI telemetry.\n\nConfigured telemetry:\n{telemetry_summary}",
+        "description": "Add a sensor and knit it into HI telemetry.\n\nConfigured telemetry:\n{telemetry_summary}\n\nCancel returns to Telemetry Options without saving this sensor.",
         "data": {
+          "action": "Action",
           "entity_id": "Sensor entity",
           "sensor_type": "Sensor type",
           "friendly_name": "Friendly name (display only)",
@@ -532,8 +536,9 @@
       },
       "options_telemetry_edit": {
         "title": "Edit Telemetry Sensor",
-        "description": "Editing sensor {sensor_position} of {sensor_total}.\n\n{selected_sensor}",
+        "description": "Editing sensor {sensor_position} of {sensor_total}.\n\n{selected_sensor}\n\nCancel returns to Telemetry Options without saving changes to this sensor.",
         "data": {
+          "action": "Action",
           "entity_id": "Sensor entity",
           "sensor_type": "Sensor type",
           "friendly_name": "Friendly name (display only)",
@@ -744,6 +749,7 @@
     "error": {
       "overlap": "A state cannot be both present and away.",
       "duplicate_entity": "This sensor has already been added.",
+      "required": "This field is required.",
       "alert_save_failed": "Failed to save alert configuration. Check logs and try again.",
       "room_unknown": "Selected room is not in configured telemetry.",
       "room_missing_humidity": "Selected room has no humidity telemetry for room-scoped humidity danger.",
