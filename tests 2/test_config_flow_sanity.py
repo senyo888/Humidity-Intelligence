@@ -53,6 +53,9 @@ def _install_homeassistant_stubs() -> None:
         def async_create_entry(self, **kwargs):
             return {"type": "create_entry", **kwargs}
 
+        def async_abort(self, **kwargs):
+            return {"type": "abort", **kwargs}
+
     class ConfigFlow(_BaseFlow):
         async def async_set_unique_id(self, unique_id):
             self._unique_id = unique_id
@@ -207,11 +210,21 @@ def _schema_select_values(result: dict, field: str):
     raise AssertionError(f"{field!r} not present in schema")
 
 
+def _schema_select_labels(result: dict, field: str):
+    for key, selector_obj in result["data_schema"].schema.items():
+        if getattr(key, "key", key) == field:
+            return [
+                option["label"]
+                for option in getattr(selector_obj.config, "options", [])
+            ]
+    raise AssertionError(f"{field!r} not present in schema")
+
+
 def _option_labels(options):
     return [option["label"] for option in options]
 
 
-def test_setup_add_sensor_can_cancel_without_required_sensor_and_preserves_entries():
+def test_setup_add_sensor_cancel_requires_confirmation_and_preserves_entries():
     config_flow = _load_config_flow_module()
     flow = config_flow.HumidityIntelligenceConfigFlow()
     flow.hass = SimpleNamespace()
@@ -228,12 +241,27 @@ def test_setup_add_sensor_can_cancel_without_required_sensor_and_preserves_entri
     result = asyncio.run(flow.async_step_telemetry_add({"action": "cancel"}))
 
     assert result["type"] == "form"
-    assert result["step_id"] == "telemetry"
+    assert result["step_id"] == "cancel_confirm"
+    assert _schema_select_values(result, "action") == ["return", "close"]
+    assert _schema_select_labels(result, "action") == [
+        "Cancel close / return to setup",
+        "Close without saving",
+    ]
+
+    returned = asyncio.run(flow.async_step_cancel_confirm({"action": "return"}))
+
+    assert returned["type"] == "form"
+    assert returned["step_id"] == "telemetry"
     assert flow._telemetry == [existing]
     assert flow._data["telemetry"] == [existing]
 
+    closed = asyncio.run(flow.async_step_cancel_confirm({"action": "close"}))
 
-def test_options_add_sensor_can_cancel_without_required_sensor_and_preserves_options():
+    assert closed["type"] == "abort"
+    assert closed["reason"] == "user_cancelled"
+
+
+def test_options_add_sensor_cancel_requires_confirmation_and_preserves_options():
     config_flow = _load_config_flow_module()
     existing = {
         "entity_id": "sensor.kitchen_humidity",
@@ -249,8 +277,23 @@ def test_options_add_sensor_can_cancel_without_required_sensor_and_preserves_opt
     result = asyncio.run(flow.async_step_options_telemetry_add({"action": "cancel"}))
 
     assert result["type"] == "form"
-    assert result["step_id"] == "options_telemetry"
+    assert result["step_id"] == "options_cancel_confirm"
+    assert _schema_select_values(result, "action") == ["return", "close"]
+    assert _schema_select_labels(result, "action") == [
+        "Cancel close / return to options",
+        "Close without saving",
+    ]
+
+    returned = asyncio.run(flow.async_step_options_cancel_confirm({"action": "return"}))
+
+    assert returned["type"] == "form"
+    assert returned["step_id"] == "options_telemetry"
     assert flow._options == {}
+
+    closed = asyncio.run(flow.async_step_options_cancel_confirm({"action": "close"}))
+
+    assert closed["type"] == "abort"
+    assert closed["reason"] == "user_cancelled"
 
 
 def test_zone2_setup_defaults_to_level2_and_trigger_labels_name_zone_and_level():

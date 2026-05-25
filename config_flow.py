@@ -85,6 +85,8 @@ ADVANCED_DEFAULTS_NOTE = (
 )
 FORM_ACTION_SAVE = "save"
 FORM_ACTION_CANCEL = "cancel"
+FORM_ACTION_RETURN = "return"
+FORM_ACTION_CLOSE = "close"
 
 
 def _advanced_section(fields: Dict[Any, Any]) -> Any:
@@ -113,6 +115,13 @@ def _save_cancel_options(save_label: str) -> List[SelectOptionDict]:
     return [
         SelectOptionDict(value=FORM_ACTION_SAVE, label=save_label),
         SelectOptionDict(value=FORM_ACTION_CANCEL, label="Cancel"),
+    ]
+
+
+def _cancel_confirm_options(return_label: str) -> List[SelectOptionDict]:
+    return [
+        SelectOptionDict(value=FORM_ACTION_RETURN, label=return_label),
+        SelectOptionDict(value=FORM_ACTION_CLOSE, label="Close without saving"),
     ]
 
 
@@ -146,6 +155,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._alerts: List[Dict[str, Any]] = []
         self._pending_zone_key: Optional[str] = None
         self._pending_aq_level: Optional[str] = None
+        self._cancel_return_step = "telemetry"
 
     async def async_step_user(self, user_input: Optional[Dict[str, Any]] = None):
         """Entry point for the flow. Present the frontend dependencies page first."""
@@ -437,7 +447,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             action = user_input.get("action", FORM_ACTION_SAVE)
             if action == FORM_ACTION_CANCEL:
-                return await self.async_step_telemetry()
+                return await self._async_show_cancel_confirm("telemetry")
 
             entity_id = _sanitize_optional_entity_id(user_input.get("entity_id"))
             if not entity_id:
@@ -512,6 +522,28 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_telemetry_back(self, user_input: Optional[Dict[str, Any]] = None):
         return await self.async_step_gates()
 
+    async def _async_show_cancel_confirm(self, return_step: str = "telemetry"):
+        self._cancel_return_step = return_step
+        return await self.async_step_cancel_confirm()
+
+    async def async_step_cancel_confirm(self, user_input: Optional[Dict[str, Any]] = None):
+        """Confirm closing a setup flow that has unsaved progress."""
+        if user_input is not None:
+            action = user_input.get("action", FORM_ACTION_RETURN)
+            if action == FORM_ACTION_CLOSE:
+                return self.async_abort(reason="user_cancelled")
+            return await self.async_step_telemetry()
+
+        schema = vol.Schema({
+            vol.Required("action", default=FORM_ACTION_RETURN): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=_cancel_confirm_options("Cancel close / return to setup"),
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            ),
+        })
+        return self.async_show_form(step_id="cancel_confirm", data_schema=schema)
+
     async def async_step_telemetry_manage(self, user_input: Optional[Dict[str, Any]] = None):
         """Edit or delete an existing telemetry entry."""
         if not self._telemetry:
@@ -522,7 +554,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             selection = user_input.get("selection")
             action = user_input.get("action")
             if action == FORM_ACTION_CANCEL:
-                return await self.async_step_telemetry()
+                return await self._async_show_cancel_confirm("telemetry")
             if selection is None:
                 errors["selection"] = "required"
             else:
@@ -575,7 +607,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             action = user_input.get("action", FORM_ACTION_SAVE)
             if action == FORM_ACTION_CANCEL:
-                return await self.async_step_telemetry()
+                return await self._async_show_cancel_confirm("telemetry")
 
             entity_id = _sanitize_optional_entity_id(user_input.get("entity_id"))
             if not entity_id:
@@ -1365,6 +1397,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         self._pending_aq_level: Optional[str] = None
         self._pending_alert_index: Optional[int] = None
         self._pending_presence_gate: Optional[Dict[str, Any]] = None
+        self._cancel_return_step = "options_telemetry"
 
     def _section(self, key: str, default: Any) -> Any:
         if key in self._options:
@@ -1376,6 +1409,28 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         config.update(dict(getattr(self._entry, "options", None) or {}))
         config.update(dict(self._options))
         return config
+
+    async def _async_show_options_cancel_confirm(self, return_step: str = "options_telemetry"):
+        self._cancel_return_step = return_step
+        return await self.async_step_options_cancel_confirm()
+
+    async def async_step_options_cancel_confirm(self, user_input: Optional[Dict[str, Any]] = None):
+        """Confirm closing an options flow with unsaved changes."""
+        if user_input is not None:
+            action = user_input.get("action", FORM_ACTION_RETURN)
+            if action == FORM_ACTION_CLOSE:
+                return self.async_abort(reason="user_cancelled")
+            return await self.async_step_options_telemetry()
+
+        schema = vol.Schema({
+            vol.Required("action", default=FORM_ACTION_RETURN): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=_cancel_confirm_options("Cancel close / return to options"),
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            ),
+        })
+        return self.async_show_form(step_id="options_cancel_confirm", data_schema=schema)
 
     def _sync_slope_after_telemetry_add(self, telemetry_entry: Dict[str, Any]) -> None:
         """Keep slope source associations in sync when adding temperature telemetry."""
@@ -1907,7 +1962,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             action = user_input.get("action", FORM_ACTION_SAVE)
             if action == FORM_ACTION_CANCEL:
-                return await self.async_step_options_telemetry()
+                return await self._async_show_options_cancel_confirm("options_telemetry")
 
             entity_id = _sanitize_optional_entity_id(user_input.get("entity_id"))
             if not entity_id:
@@ -1990,7 +2045,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             selection = user_input.get("selection")
             action = user_input.get("action")
             if action == FORM_ACTION_CANCEL:
-                return await self.async_step_options_telemetry()
+                return await self._async_show_options_cancel_confirm("options_telemetry")
             try:
                 idx = int(selection)
             except (TypeError, ValueError):
@@ -2050,7 +2105,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             action = user_input.get("action", FORM_ACTION_SAVE)
             if action == FORM_ACTION_CANCEL:
-                return await self.async_step_options_telemetry()
+                return await self._async_show_options_cancel_confirm("options_telemetry")
 
             selected_entity = _sanitize_optional_entity_id(user_input.get("entity_id"))
             if selected_entity and any(i != idx and item.get("entity_id") == selected_entity for i, item in enumerate(telemetry)):

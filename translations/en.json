@@ -94,6 +94,13 @@
           "room": "Room"
         }
       },
+      "cancel_confirm": {
+        "title": "Close Setup?",
+        "description": "This setup has not been saved. Closing will lose entered information.\n\nHome Assistant controls the top-left close button directly, so Humidity Intelligence can show this warning only from its own Cancel actions.",
+        "data": {
+          "action": "Action"
+        }
+      },
       "slope": {
         "title": "Temperature Slope",
         "description": "Choose the slope mode. HI can calculate slope automatically from configured temperature telemetry.\n\n{advanced_note}\n\nUse source overrides, provided slope sensors, or the optional temperature chip row only when you need custom UI/runtime tuning.",
@@ -403,6 +410,9 @@
       "room_unknown": "Selected room is not in configured telemetry.",
       "room_missing_humidity": "Selected room has no humidity telemetry for room-scoped humidity danger.",
       "room_missing_temp_humidity": "Selected room needs both humidity and temperature telemetry for this room-scoped trigger."
+    },
+    "abort": {
+      "user_cancelled": "Setup closed without saving."
     }
   },
   "options": {
@@ -544,6 +554,13 @@
           "friendly_name": "Friendly name (display only)",
           "level": "Level",
           "room": "Room"
+        }
+      },
+      "options_cancel_confirm": {
+        "title": "Close Options?",
+        "description": "These configuration changes have not been saved. Closing will lose entered information.\n\nHome Assistant controls the top-left close button directly, so Humidity Intelligence can show this warning only from its own Cancel actions.",
+        "data": {
+          "action": "Action"
         }
       },
       "options_zones": {
@@ -754,6 +771,9 @@
       "room_unknown": "Selected room is not in configured telemetry.",
       "room_missing_humidity": "Selected room has no humidity telemetry for room-scoped humidity danger.",
       "room_missing_temp_humidity": "Selected room needs both humidity and temperature telemetry for this room-scoped trigger."
+    },
+    "abort": {
+      "user_cancelled": "Options closed without saving."
     }
   },
   "issues": {
