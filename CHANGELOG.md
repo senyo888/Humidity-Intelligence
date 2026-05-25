@@ -6,6 +6,7 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+- Removed the House Humidity Mean 7d drift statistics helper status from setup/options Frontend Dependencies pages; drift dependency truth remains available through diagnostics, self-check, and release-check surfaces.
 - Fixed setup/options telemetry add and edit pages so users can cancel back to the previous telemetry page without losing already-saved flow data, with explicit close-without-saving confirmation on HI-controlled Cancel actions.
 - Fixed Zone 2 setup/options defaults and trigger labels so Zone 2 trigger ownership is shown and stored as Zone 2 / Level 2 unless explicitly changed.
 

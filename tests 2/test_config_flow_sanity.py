@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
+import json
 import pathlib
 import sys
 import types
@@ -384,6 +385,37 @@ def test_options_new_zone2_defaults_to_level2_and_preserves_trigger_ownership():
     assert saved["step_id"] == "options_zones"
     assert flow._options["zones"]["zone2"]["level"] == "level2"
     assert flow._options["zones"]["zone2"]["triggers"] == ["humidity_high"]
+
+
+def test_frontend_dependency_page_excludes_drift_helper_status_and_keeps_card_deps_truthful():
+    config_flow = _load_config_flow_module()
+    const = sys.modules[f"{PKG}.const"]
+    strings = json.loads((ROOT / "strings.json").read_text())
+    translations = json.loads((ROOT / "translations" / "en.json").read_text())
+
+    dependency_source = (ROOT / "config_flow.py").read_text().split(
+        "async def _render_dependency_status", 1
+    )[1].split("def _entry_section", 1)[0]
+    dependency_names = [dependency["name"] for dependency in const.DEPENDENCIES]
+    generated_card_text = "\n".join(
+        (ROOT / path).read_text()
+        for path in ("ui/cards/v1_mobile.yaml", "ui/cards/v2_mobile.yaml", "ui/cards/v2_tablet.yaml")
+    )
+
+    assert "humidity_drift_dependency_status" not in dependency_source
+    assert "_render_drift_statistics_status" not in dependency_source
+    for payload in (strings, translations):
+        setup_description = payload["config"]["step"]["dependencies"]["description"]
+        options_description = payload["options"]["step"]["options_dependencies"]["description"]
+        assert "House Humidity Mean 7d" not in setup_description
+        assert "House Humidity Mean 7d" not in options_description
+        assert "drift statistics helper status" not in setup_description
+        assert "drift statistics helper status" not in options_description
+
+    assert "mod-card" in dependency_names
+    assert "type: custom:mod-card" in generated_card_text
+    assert "bubble-card" not in dependency_names
+    assert "custom:bubble-card" not in generated_card_text
 
 
 if __name__ == "__main__":
