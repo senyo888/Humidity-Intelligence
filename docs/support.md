@@ -1,6 +1,6 @@
 # Support and Diagnostics
 
-Use Home Assistant's native diagnostics download when reporting a Humidity Intelligence issue.
+Use Home Assistant's native diagnostics download when reporting a Humidity Intelligence issue. This is the preferred GitHub support bundle for v2.0.5 and later.
 
 ## Download Diagnostics
 
@@ -24,7 +24,9 @@ Please review the bundle before attaching if you are concerned about privacy. Th
 - gate states
 - output state summary
 - active alert resolution
-- house humidity drift 7d statistics dependency status
+- house humidity drift 7d statistics dependency status, including helper readiness
+  fields such as `age_coverage_ratio`, `required_age_coverage_ratio`,
+  `source_value_valid`, `repair_required`, and `repair_kind` when available
 - optional frontend dependency status when Home Assistant exposes Lovelace resources
 - generated UI/card summary
 - unavailable or unknown configured entities
@@ -59,4 +61,4 @@ Open the issue anyway and fill in the fallback fields:
 
 ## Maintainer Notes
 
-Native diagnostics are the preferred GitHub attachment. The existing `humidity_intelligence.dump_diagnostics` service remains useful for local Home Assistant validation and writes a fuller JSON export to `/config`, but users should attach the native Home Assistant diagnostics download unless asked otherwise.
+Native diagnostics are the preferred GitHub attachment. The existing `humidity_intelligence.dump_diagnostics` service remains useful for local Home Assistant validation and writes a fuller JSON export to `/config`, but users should attach the native Home Assistant diagnostics download unless asked otherwise. Review any full `dump_diagnostics` export before sharing it publicly because it intentionally contains more local troubleshooting context than the native issue bundle.

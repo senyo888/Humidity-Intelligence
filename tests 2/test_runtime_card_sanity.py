@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
+import json
 import pathlib
 import sys
 import tempfile
@@ -250,6 +251,27 @@ def _load_frontend_dependencies_module():
         f"{PKG}.helpers.frontend_dependencies",
         ROOT / "helpers" / "frontend_dependencies.py",
     )
+
+
+def _install_issue_registry_stub(events):
+    issue_registry = types.ModuleType("homeassistant.helpers.issue_registry")
+
+    class IssueSeverity:
+        WARNING = "warning"
+
+    def async_create_issue(hass, domain, issue_id, **kwargs):
+        events.append(("create", domain, issue_id, kwargs))
+
+    def async_delete_issue(hass, domain, issue_id):
+        events.append(("delete", domain, issue_id, {}))
+
+    issue_registry.IssueSeverity = IssueSeverity
+    issue_registry.async_create_issue = async_create_issue
+    issue_registry.async_delete_issue = async_delete_issue
+    sys.modules["homeassistant.helpers.issue_registry"] = issue_registry
+    helpers = sys.modules.get("homeassistant.helpers")
+    if helpers is not None:
+        helpers.issue_registry = issue_registry
 
 
 class _FakeState:
@@ -571,6 +593,286 @@ def test_house_humidity_drift_7d_reports_missing_statistics_dependency():
     assert attrs["required_dependency"] == "sensor.house_humidity_mean_7d"
     assert attrs["dependency_status"] == "missing"
     assert attrs["current_house_humidity"] == 55.0
+    assert attrs["repair_kind"] == "missing_helper"
+    assert attrs["repair_required"] is True
+    assert attrs["history_status"] == "not_ready_or_unavailable"
+
+
+def test_house_humidity_drift_dependency_status_marks_missing_helper_as_repair_required():
+    _load_core_module()
+    drift_mod = sys.modules[f"{PKG}.helpers.drift"]
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(entry, {"sensor.kitchen_h": _FakeState(55)})
+
+    status = drift_mod.humidity_drift_dependency_status(hass)
+
+    assert status["dependency_entity"] == "sensor.house_humidity_mean_7d"
+    assert status["dependency_status"] == "missing"
+    assert status["repair_required"] is True
+    assert status["repair_kind"] == "missing_helper"
+    assert status["repair_issue_id"] == "house_humidity_mean_7d_missing"
+    assert "Statistics helper" in status["repair_summary"]
+    assert any("House Humidity Mean 7d" in step for step in status["repair_steps"])
+    assert status["history_status"] == "not_ready_or_unavailable"
+
+
+def test_house_humidity_drift_dependency_status_marks_existing_unknown_helper_as_not_ready():
+    _load_core_module()
+    drift_mod = sys.modules[f"{PKG}.helpers.drift"]
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(55),
+            "sensor.house_humidity_mean_7d": _FakeState("unknown"),
+        },
+    )
+
+    status = drift_mod.humidity_drift_dependency_status(hass)
+
+    assert status["dependency_status"] == "unknown"
+    assert status["repair_required"] is False
+    assert status["repair_kind"] == "helper_not_ready_or_unavailable"
+    assert "create" not in status["repair_summary"].lower()
+    assert status["history_status"] == "not_ready_or_unavailable"
+
+
+def test_house_humidity_drift_dependency_status_marks_low_statistics_coverage_not_ready():
+    _load_core_module()
+    drift_mod = sys.modules[f"{PKG}.helpers.drift"]
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(55),
+            "sensor.house_humidity_mean_7d": _FakeState(
+                50,
+                {
+                    "age_coverage_ratio": 0.03,
+                    "source_value_valid": True,
+                },
+            ),
+        },
+    )
+
+    status = drift_mod.humidity_drift_dependency_status(hass)
+
+    assert status["dependency_status"] == "history_not_ready"
+    assert status["available"] is False
+    assert status["repair_required"] is False
+    assert status["repair_kind"] == "history_not_ready"
+    assert status["dependency_state"] == "50"
+    assert status["age_coverage_ratio"] == 0.03
+    assert status["required_age_coverage_ratio"] == 0.85
+    assert status["source_value_valid"] is True
+    assert status["history_status"] == "not_ready_or_unavailable"
+    assert "mean_7d" not in status
+
+
+def test_house_humidity_drift_dependency_status_marks_existing_non_numeric_helper_as_misconfigured():
+    _load_core_module()
+    drift_mod = sys.modules[f"{PKG}.helpers.drift"]
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(55),
+            "sensor.house_humidity_mean_7d": _FakeState("warming-up"),
+        },
+    )
+
+    status = drift_mod.humidity_drift_dependency_status(hass)
+
+    assert status["dependency_status"] == "non_numeric"
+    assert status["repair_required"] is False
+    assert status["repair_kind"] == "helper_misconfigured_or_non_numeric"
+    assert status["dependency_state"] == "warming-up"
+
+
+def test_house_humidity_drift_dependency_status_marks_invalid_statistics_source_not_ready():
+    _load_core_module()
+    drift_mod = sys.modules[f"{PKG}.helpers.drift"]
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(55),
+            "sensor.house_humidity_mean_7d": _FakeState(
+                50,
+                {
+                    "age_coverage_ratio": 1.0,
+                    "source_value_valid": False,
+                },
+            ),
+        },
+    )
+
+    status = drift_mod.humidity_drift_dependency_status(hass)
+
+    assert status["dependency_status"] == "source_not_valid"
+    assert status["available"] is False
+    assert status["repair_required"] is False
+    assert status["repair_kind"] == "helper_source_not_valid"
+    assert status["age_coverage_ratio"] == 1.0
+    assert status["required_age_coverage_ratio"] == 0.85
+    assert status["source_value_valid"] is False
+    assert status["history_status"] == "not_ready_or_unavailable"
+    assert "mean_7d" not in status
+
+
+def test_house_humidity_drift_dependency_status_preserves_numeric_helper_contract():
+    _load_core_module()
+    drift_mod = sys.modules[f"{PKG}.helpers.drift"]
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(55),
+            "sensor.house_humidity_mean_7d": _FakeState(50),
+        },
+    )
+
+    status = drift_mod.humidity_drift_dependency_status(hass)
+
+    assert status["dependency_status"] == "ok"
+    assert status["available"] is True
+    assert status["mean_7d"] == 50.0
+    assert status["repair_required"] is False
+    assert status["repair_kind"] == "none"
+
+
+def test_house_humidity_drift_dependency_status_accepts_sufficient_statistics_coverage():
+    _load_core_module()
+    drift_mod = sys.modules[f"{PKG}.helpers.drift"]
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(55),
+            "sensor.house_humidity_mean_7d": _FakeState(
+                50,
+                {
+                    "age_coverage_ratio": 1.0,
+                    "source_value_valid": True,
+                },
+            ),
+        },
+    )
+
+    status = drift_mod.humidity_drift_dependency_status(hass)
+
+    assert status["dependency_status"] == "ok"
+    assert status["available"] is True
+    assert status["mean_7d"] == 50.0
+    assert status["age_coverage_ratio"] == 1.0
+    assert status["required_age_coverage_ratio"] == 0.85
+    assert status["source_value_valid"] is True
+    assert status["repair_required"] is False
+    assert status["repair_kind"] == "none"
+
+
+def test_house_humidity_drift_dependency_status_reports_source_entity_status():
+    _load_core_module()
+    sys.modules["homeassistant.helpers.entity_registry"].async_get = lambda hass: _FakeRegistry()
+    drift_mod = sys.modules[f"{PKG}.helpers.drift"]
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(55),
+            "sensor.house_humidity_mean_7d": _FakeState("unknown"),
+            "sensor.hi_house_avg_humidity": _FakeState(55),
+        },
+    )
+
+    status = drift_mod.humidity_drift_dependency_status(hass)
+
+    assert status["source_entity"] == "sensor.hi_house_avg_humidity"
+    assert status["source_entity_status"] == "ok"
+
+
+def test_house_humidity_drift_7d_blocks_numeric_helper_until_statistics_coverage_ready():
+    core_mod = _load_core_module()
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(55),
+            "sensor.house_humidity_mean_7d": _FakeState(
+                50,
+                {
+                    "age_coverage_ratio": 0.03,
+                    "source_value_valid": True,
+                },
+            ),
+        },
+    )
+
+    sensors, _binary_sensors, _sources = core_mod.build_entities(hass, entry)
+    drift = _find_sensor(sensors, "house_drift_7d")
+
+    assert drift._attr_native_value is None
+    attrs = drift._attr_extra_state_attributes
+    assert attrs["status"] == "unavailable"
+    assert attrs["reason"] == "statistics_dependency_history_not_ready"
+    assert attrs["dependency_status"] == "history_not_ready"
+    assert attrs["age_coverage_ratio"] == 0.03
+    assert attrs["required_age_coverage_ratio"] == 0.85
+    assert attrs["source_value_valid"] is True
+    assert attrs["repair_required"] is False
+    assert attrs["repair_kind"] == "history_not_ready"
+
+
+def test_drift_repair_issue_created_only_for_missing_helper():
+    events = []
+    _install_homeassistant_stubs()
+    _install_package_scaffold()
+    _install_issue_registry_stub(events)
+    _load_module(f"{PKG}.const", ROOT / "const.py")
+    _load_module(f"{PKG}.helpers.drift", ROOT / "helpers" / "drift.py")
+    repairs_mod = _load_module(
+        f"{PKG}.helpers.drift_repairs",
+        ROOT / "helpers" / "drift_repairs.py",
+    )
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(entry, {"sensor.kitchen_h": _FakeState(55)})
+
+    asyncio.run(repairs_mod.async_update_humidity_drift_repair_issue(hass))
+
+    assert events
+    assert events[0][0] == "create"
+    assert events[0][2] == "house_humidity_mean_7d_missing"
+    assert events[0][3]["is_fixable"] is False
+    assert events[0][3]["severity"] == "warning"
+
+
+def test_drift_repair_issue_deleted_for_existing_not_ready_helper():
+    events = []
+    _install_homeassistant_stubs()
+    _install_package_scaffold()
+    _install_issue_registry_stub(events)
+    _load_module(f"{PKG}.const", ROOT / "const.py")
+    _load_module(f"{PKG}.helpers.drift", ROOT / "helpers" / "drift.py")
+    repairs_mod = _load_module(
+        f"{PKG}.helpers.drift_repairs",
+        ROOT / "helpers" / "drift_repairs.py",
+    )
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(
+        entry,
+        {"sensor.house_humidity_mean_7d": _FakeState("unknown")},
+    )
+
+    asyncio.run(repairs_mod.async_update_humidity_drift_repair_issue(hass))
+
+    assert events == [
+        (
+            "delete",
+            "humidity_intelligence",
+            "house_humidity_mean_7d_missing",
+            {},
+        )
+    ]
 
 
 def test_house_humidity_drift_7d_preserves_valid_statistics_calculation():
@@ -2394,6 +2696,15 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
     assert failed_report["status"] == "fail"
     assert failed_checks["dump_cards_unscoped_export_all"]["status"] == "fail"
 
+    beta_report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        runtime_data,
+        manifest_version="2.0.6-beta.1",
+    )
+    beta_checks = {check["id"]: check for check in beta_report["checks"]}
+    assert beta_checks["manifest_version"]["status"] == "pass"
+
 
 def test_frontend_dependency_status_detects_lovelace_async_items_urls():
     services_mod = _load_services_module()
@@ -2461,9 +2772,15 @@ def test_shared_frontend_dependency_helper_renders_form_status_from_lovelace_res
         "detected": True,
         "url": "/hacsfiles/lovelace-card-mod/card-mod.js",
     }
+    assert status["mod-card"] == {
+        "detected": True,
+        "url": "/hacsfiles/lovelace-card-mod/card-mod.js",
+        "provided_by": "card-mod",
+    }
     assert status["apexcharts-card"] == {"detected": False}
     assert "- button-card: Installed | repo: https://github.com/custom-cards/button-card" in lines
     assert "- card-mod: Installed | repo: https://github.com/thomasloven/lovelace-card-mod" in lines
+    assert "- mod-card: Installed | repo: https://github.com/thomasloven/lovelace-card-mod" in lines
     assert "- apexcharts-card: Not detected | repo: https://github.com/RomRider/apexcharts-card" in lines
 
 
@@ -2481,6 +2798,24 @@ def test_frontend_dependency_status_distinguishes_card_mod_and_mod_card_resource
     assert status["card-mod"] == {"detected": False}
 
 
+def test_frontend_dependency_status_accepts_mod_card_from_card_mod_resource():
+    frontend_mod = _load_frontend_dependencies_module()
+
+    status = frontend_mod.frontend_dependency_status_from_urls(
+        ["/hacsfiles/lovelace-card-mod/card-mod.js"]
+    )
+
+    assert status["card-mod"] == {
+        "detected": True,
+        "url": "/hacsfiles/lovelace-card-mod/card-mod.js",
+    }
+    assert status["mod-card"] == {
+        "detected": True,
+        "url": "/hacsfiles/lovelace-card-mod/card-mod.js",
+        "provided_by": "card-mod",
+    }
+
+
 def test_config_flow_dependency_pages_delegate_to_shared_frontend_helper():
     config_source = (ROOT / "config_flow.py").read_text()
     dependency_renderer = config_source.split("async def _render_dependency_status", 1)[1].split(
@@ -2489,7 +2824,25 @@ def test_config_flow_dependency_pages_delegate_to_shared_frontend_helper():
 
     assert "from .helpers.frontend_dependencies import async_render_dependency_status" in config_source
     assert "async_render_dependency_status(hass)" in dependency_renderer
+    assert "humidity_drift_dependency_status" not in dependency_renderer
+    assert "_render_drift_statistics_status" not in config_source
     assert "lovelace_resources" not in dependency_renderer
+
+
+def test_config_flow_dependency_pages_keep_drift_statistics_status_out_of_frontend_text():
+    config_source = (ROOT / "config_flow.py").read_text()
+    strings = json.loads((ROOT / "strings.json").read_text())
+    translations = json.loads((ROOT / "translations" / "en.json").read_text())
+
+    assert "drift_statistics" not in config_source
+    assert "_render_drift_statistics_status" not in config_source
+    for payload in (strings, translations):
+        setup_description = payload["config"]["step"]["dependencies"]["description"]
+        options_description = payload["options"]["step"]["options_dependencies"]["description"]
+        assert "House Humidity Mean 7d" not in setup_description
+        assert "House Humidity Mean 7d" not in options_description
+        assert "drift statistics helper status" not in setup_description
+        assert "house_humidity_mean_7d_missing" in payload["issues"]
 
 
 def test_frontend_dependency_status_missing_lovelace_is_not_inspectable():
@@ -2564,7 +2917,142 @@ def test_diagnostics_summary_surfaces_house_drift_statistics_dependency():
     assert drift["dependency_entity"] == "sensor.house_humidity_mean_7d"
     assert drift["dependency_status"] == "missing"
     assert drift["available"] is False
+    assert drift["repair_kind"] == "missing_helper"
+    assert drift["repair_required"] is True
     assert any("HI House Humidity Drift 7d" in warning for warning in summary["warnings"])
+
+
+def test_diagnostics_summary_distinguishes_missing_drift_helper_from_existing_not_ready_helper():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    missing_hass = _FakeHass(entry, {})
+    not_ready_hass = _FakeHass(
+        entry,
+        {"sensor.house_humidity_mean_7d": _FakeState("unknown")},
+    )
+
+    missing_summary = services_mod._build_diagnostics_summary(
+        missing_hass,
+        entry.data,
+        {},
+        {},
+        {},
+    )
+    not_ready_summary = services_mod._build_diagnostics_summary(
+        not_ready_hass,
+        entry.data,
+        {},
+        {},
+        {},
+    )
+
+    assert missing_summary["humidity_drift_7d"]["repair_kind"] == "missing_helper"
+    assert missing_summary["humidity_drift_7d"]["repair_required"] is True
+    assert not_ready_summary["humidity_drift_7d"]["repair_kind"] == "helper_not_ready_or_unavailable"
+    assert not_ready_summary["humidity_drift_7d"]["repair_required"] is False
+
+
+def test_diagnostics_summary_reports_low_statistics_coverage_as_not_ready():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.house_humidity_mean_7d": _FakeState(
+                50,
+                {
+                    "age_coverage_ratio": 0.03,
+                    "source_value_valid": True,
+                },
+            ),
+        },
+    )
+
+    summary = services_mod._build_diagnostics_summary(
+        hass,
+        entry.data,
+        {},
+        {},
+        {},
+    )
+
+    drift = summary["humidity_drift_7d"]
+    assert drift["dependency_status"] == "history_not_ready"
+    assert drift["available"] is False
+    assert drift["repair_required"] is False
+    assert drift["repair_kind"] == "history_not_ready"
+    assert drift["age_coverage_ratio"] == 0.03
+    assert drift["required_age_coverage_ratio"] == 0.85
+    assert any("history_not_ready" in warning for warning in summary["warnings"])
+
+
+def test_v205_release_check_warns_on_drift_dependency_without_hidden_pass():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+
+    report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        {
+            "entity_map": {},
+            "cards": {
+                "v2_mobile": "type: markdown\ncontent: Mobile ready\n",
+                "v2_tablet": "type: markdown\ncontent: Tablet ready\n",
+                "v1_mobile": "type: markdown\ncontent: Legacy ready\n",
+                "view_cards_button": "type: button\nname: View cards\n",
+            },
+            "unresolved_placeholders_by_card": {},
+        },
+        manifest_version="2.0.6-beta.1",
+        frontend_dependencies={"status": "not_inspectable"},
+    )
+    checks = {check["id"]: check for check in report["checks"]}
+
+    assert checks["house_humidity_drift_7d_dependency"]["status"] == "warn"
+    assert checks["house_humidity_drift_7d_dependency"]["details"]["repair_kind"] == "missing_helper"
+
+
+def test_v205_release_check_warns_on_low_statistics_coverage():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.house_humidity_mean_7d": _FakeState(
+                50,
+                {
+                    "age_coverage_ratio": 0.03,
+                    "source_value_valid": True,
+                },
+            ),
+        },
+    )
+
+    report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        {
+            "entity_map": {},
+            "cards": {
+                "v2_mobile": "type: markdown\ncontent: Mobile ready\n",
+                "v2_tablet": "type: markdown\ncontent: Tablet ready\n",
+                "v1_mobile": "type: markdown\ncontent: Legacy ready\n",
+                "view_cards_button": "type: button\nname: View cards\n",
+            },
+            "unresolved_placeholders_by_card": {},
+        },
+        manifest_version="2.0.6-beta.1",
+        frontend_dependencies={"status": "not_inspectable"},
+    )
+    checks = {check["id"]: check for check in report["checks"]}
+
+    assert checks["house_humidity_drift_7d_dependency"]["status"] == "warn"
+    details = checks["house_humidity_drift_7d_dependency"]["details"]
+    assert details["dependency_status"] == "history_not_ready"
+    assert details["repair_required"] is False
+    assert details["age_coverage_ratio"] == 0.03
+    assert details["required_age_coverage_ratio"] == 0.85
 
 
 def test_frontend_dependency_status_is_non_blocking_for_release_contract_checks():
@@ -2627,6 +3115,7 @@ def test_frontend_dependency_status_is_non_blocking_for_release_contract_checks(
     assert report["status"] == "pass"
     assert checks["frontend_dependencies_reported"]["status"] == "pass"
     assert checks["frontend_dependencies_reported"]["details"]["status"] == "not_inspectable"
+    assert checks["local_hi_snapshot"]["status"] == "info"
     assert checks["unresolved_placeholders"]["status"] == "pass"
     assert checks["configured_entity_availability"]["status"] == "pass"
     assert checks["house_humidity_drift_7d_dependency"]["status"] == "pass"
@@ -2646,6 +3135,95 @@ def test_v205_release_check_service_is_documented_and_registered():
     assert "write_test_exports" in services_yaml
     assert "humidity_intelligence.v205_release_check" in readme_source
     assert "humidity_intelligence_v205_release_check.json" in readme_source
+
+
+def test_v205_release_check_only_fails_local_snapshot_when_required():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(45),
+            "sensor.hall_h": _FakeState(44),
+            "sensor.bed_h": _FakeState(46),
+            "sensor.house_humidity_mean_7d": _FakeState(43),
+            "sensor.kitchen_t": _FakeState(21),
+            "sensor.hall_t": _FakeState(20),
+            "sensor.bed_t": _FakeState(19),
+            "sensor.l1_iaq": _FakeState(35),
+            "sensor.co_val": _FakeState(4),
+            "fan.zone1": _FakeState("off"),
+            "fan.zone2": _FakeState("off"),
+            "fan.aq1": _FakeState("off"),
+            "humidifier.l1": _FakeState("off"),
+            "light.alert": _FakeState("off"),
+            "switch.alert_power": _FakeState("off"),
+        },
+    )
+    runtime_data = {
+        "entity_map": {},
+        "cards": {
+            "v2_mobile": "type: markdown\ncontent: Mobile ready\n",
+            "v2_tablet": "type: markdown\ncontent: Tablet ready\n",
+            "v1_mobile": "type: markdown\ncontent: Legacy ready\n",
+            "view_cards_button": "type: button\nname: View cards\n",
+        },
+        "unresolved_placeholders_by_card": {},
+    }
+
+    optional_report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        runtime_data,
+        manifest_version="2.0.5",
+        local_version_status={
+            "status": "listed",
+            "snapshot_count": 0,
+            "latest_snapshot_id": None,
+            "latest_snapshot_version": None,
+            "latest_snapshot_created_at_utc": None,
+        },
+    )
+    required_report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        runtime_data,
+        manifest_version="2.0.5",
+        local_version_status={
+            "status": "listed",
+            "snapshot_count": 0,
+            "latest_snapshot_id": None,
+            "latest_snapshot_version": None,
+            "latest_snapshot_created_at_utc": None,
+        },
+        require_local_hi_snapshot=True,
+        max_snapshot_age_minutes=60,
+    )
+    fresh_required_report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        runtime_data,
+        manifest_version="2.0.5",
+        local_version_status={
+            "status": "listed",
+            "snapshot_count": 1,
+            "latest_snapshot_id": "2.0.5_2999-01-01T000000Z_fixture",
+            "latest_snapshot_version": "2.0.5",
+            "latest_snapshot_created_at_utc": "2999-01-01T00:00:00Z",
+        },
+        require_local_hi_snapshot=True,
+        max_snapshot_age_minutes=60,
+    )
+
+    optional_checks = {check["id"]: check for check in optional_report["checks"]}
+    required_checks = {check["id"]: check for check in required_report["checks"]}
+    fresh_required_checks = {check["id"]: check for check in fresh_required_report["checks"]}
+
+    assert optional_report["status"] == "pass"
+    assert optional_checks["local_hi_snapshot"]["status"] == "info"
+    assert required_report["status"] == "fail"
+    assert required_checks["local_hi_snapshot"]["status"] == "fail"
+    assert fresh_required_checks["local_hi_snapshot"]["status"] == "pass"
 
 
 def test_alert_configuration_contract_uses_internal_sources():
@@ -2694,6 +3272,19 @@ def test_alert_configuration_contract_uses_internal_sources():
     assert "alert_handling_enabled" in strings_source
     assert "Boost settings should normally be higher" in config_source
     assert "existing configured ventilation outputs" in strings_source
+
+
+def test_v206_drift_statistics_helper_docs_preserve_repair_status_split():
+    readme = (ROOT / "README.md").read_text()
+    changelog = (ROOT / "CHANGELOG.md").read_text()
+
+    assert "House Humidity Mean 7d" in readme
+    assert "Statistics helper" in readme
+    assert "Do not fabricate history" in readme
+    assert "not ready or unavailable" in readme
+    assert "2.0.6" in changelog
+    assert "setup/repair" in changelog
+    assert "algorithm" not in changelog.lower()
 
 
 def test_level_average_ignores_unknown_unavailable_and_non_numeric_states():

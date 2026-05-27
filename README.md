@@ -311,7 +311,7 @@ The UI renders.
 ## Current Release Highlights
 
 - setup and options now present essentials first, with tuning controls behind Advanced sections that open/retract immediately within the form
-- HI applies recommended defaults unless you customise them 
+- HI applies recommended defaults unless you customise them
 - control loop interval, startup UI mapping refresh, custom humidity targets, custom temperature comfort values, slope sources, fan levels, threshold tuning, lane removal, AQ tuning, and visual-alert tuning remain available as advanced controls
 - new installs default the generated V2 dashboard to a cleaner output display
 - `Show output entity details` can re-enable the generated-card output details panel when deeper runtime inspection is useful
@@ -353,13 +353,13 @@ Install via HACS before anything else.
 
 The following projects power the visual layer of Humidity Intelligence:
 
-- [card-mod](https://github.com/thomasloven/lovelace-card-mod)  
+- [card-mod](https://github.com/thomasloven/lovelace-card-mod)
   Advanced styling engine used for dynamic visuals, glow states, and conditional UI rendering.
-- [button-card](https://github.com/custom-cards/button-card)  
+- [button-card](https://github.com/custom-cards/button-card)
   Core building block for badges, status indicators, and interactive UI elements.
-- [mod-card](https://github.com/thomasloven/lovelace-card-mod)  
+- [mod-card](https://github.com/thomasloven/lovelace-card-mod)
   Structural wrapper used to apply styling cleanly across complex card layouts.
-- [apexcharts-card](https://github.com/RomRider/apexcharts-card)  
+- [apexcharts-card](https://github.com/RomRider/apexcharts-card)
   Powers historical graphs, trend analysis, and environmental visualisation.
 
 ### Installation Notes
@@ -470,21 +470,31 @@ V2 preserves the existing drift meaning:
 HI House Humidity Drift 7d = current HI house average humidity - sensor.house_humidity_mean_7d
 ```
 
-If you remove the v1 package, also make sure the 7-day statistics sensor still exists. Without `sensor.house_humidity_mean_7d`, the drift sensor will stay unavailable. V2.0.5 reports that dependency status in the drift sensor attributes, `self_check`, `v205_release_check`, and diagnostics instead of failing silently.
+V1 created `sensor.house_humidity_mean_7d` with Home Assistant's Statistics helper. Clean V2 installs need the same helper unless it already exists.
 
-If needed, recreate the statistics sensor against the actual registered `HI House Average Humidity` entity:
+Create or verify the Statistics helper:
+
+- Name: `House Humidity Mean 7d`
+- Source entity: the actual registered `HI House Average Humidity` entity
+- State characteristic: `mean`
+- Max age: `7 days`
+- Entity ID: `sensor.house_humidity_mean_7d`
 
 ```yaml
 sensor:
   - platform: statistics
     name: "House Humidity Mean 7d"
-    entity_id: sensor.hi_house_avg_humidity
+    entity_id: <actual registered HI House Average Humidity entity>
     state_characteristic: mean
     max_age:
       days: 7
 ```
 
-Do not fabricate history. Home Assistant will populate the mean after recorder/statistics samples are available.
+In v2.0.6-beta.1, HI reports missing-helper guidance through the drift sensor attributes, diagnostics, `self_check`, `v205_release_check`, and Home Assistant Repairs. The setup/options Frontend Dependencies pages remain frontend-only; drift helper truth belongs on diagnostics and repair surfaces.
+
+If the helper exists but reports `unknown`, `unavailable`, a non-numeric state, low `age_coverage_ratio`, or `source_value_valid: false`, HI reports it as not ready or unavailable instead of telling you to recreate the helper.
+
+Do not fabricate history. Drift remains unavailable until Home Assistant reports enough recorder/statistics samples for a numeric 7-day mean. Once the helper is numeric and ready, `HI House Humidity Drift 7d` becomes numeric automatically.
 
 ### Step 2 - Remove v1 UI YAML
 
@@ -592,7 +602,7 @@ Example:
 
 What to do:
 - add source entities for humidity and temperature
-- add optional AQ telemetry (`iaq`, `pm25`, `voc`, `co2`, `co`) 
+- add optional AQ telemetry (`iaq`, `pm25`, `voc`, `co2`, `co`)
 - added sensors will appear in the UI Chip
 - assign EVERY sensor to level and room regardless of intended use
 
@@ -1040,6 +1050,15 @@ More detail:
 ---
 
 ## Release Notes
+
+### v2.0.6-beta.1
+
+- added clean-install setup/repair guidance for the `HI House Humidity Drift 7d` Statistics helper dependency
+- added a non-blocking Home Assistant Repairs issue only when `sensor.house_humidity_mean_7d` is missing
+- differentiated missing helper, not ready or unavailable helper, non-numeric helper, low history coverage, and invalid source states without fabricating drift values
+- kept the setup/options Frontend Dependencies pages frontend-only; drift dependency truth remains on the drift sensor, diagnostics, `self_check`, `v205_release_check`, and Repairs
+- preserved the existing drift calculation and legacy `sensor.house_humidity_mean_7d` compatibility
+- kept lane ordering, AQ, humidifier, alert, output, and generated-dashboard behavior unchanged
 
 ### v2.0.5
 

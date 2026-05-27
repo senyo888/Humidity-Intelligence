@@ -6,9 +6,17 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
-- Removed the House Humidity Mean 7d drift statistics helper status from setup/options Frontend Dependencies pages; drift dependency truth remains available through diagnostics, self-check, and release-check surfaces.
 - Fixed setup/options telemetry add and edit pages so users can cancel back to the previous telemetry page without losing already-saved flow data, with explicit close-without-saving confirmation on HI-controlled Cancel actions.
 - Fixed Zone 2 setup/options defaults and trigger labels so Zone 2 trigger ownership is shown and stored as Zone 2 / Level 2 unless explicitly changed.
+
+## 2.0.6-beta.1
+
+- Added clean-install setup/repair guidance for the `HI House Humidity Drift 7d` Statistics helper dependency.
+- Added a non-blocking Home Assistant Repairs issue only when `sensor.house_humidity_mean_7d` is missing.
+- Differentiated missing helper, helper not ready or unavailable, non-numeric helper, low history coverage, and invalid source states without fabricating drift values.
+- Kept setup/options Frontend Dependencies pages frontend-only; drift dependency truth remains available through diagnostics, self-check, release-check, drift sensor attributes, and Repairs.
+- Preserved the existing drift calculation and legacy `sensor.house_humidity_mean_7d` compatibility.
+- Kept lane ordering, AQ, humidifier, alert, output, and generated-dashboard behavior unchanged.
 
 ## 2.0.5
 

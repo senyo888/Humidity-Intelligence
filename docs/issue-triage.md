@@ -26,6 +26,10 @@ Default output:
 `.codex/` is local workspace output. Keep generated triage reports ignored/local unless
 the maintainer explicitly asks to publish a sanitized summary.
 
+Generated triage reports are timestamped support snapshots. They do not override the
+current release state recorded in `CHANGELOG.md`, `ROADMAP.md`, or
+`docs/release-governance.md`.
+
 ## Authentication
 
 The script works without `GITHUB_TOKEN` for public, low-volume checks. Unauthenticated
