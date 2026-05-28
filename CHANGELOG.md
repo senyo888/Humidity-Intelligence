@@ -11,6 +11,8 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## 2.0.6-beta.1
 
+- Added a Community Ideas & Proposals issue form for ideas, dashboard suggestions, compatibility requests, documentation improvements, diagnostics/support-flow ideas, and automation/control suggestions.
+- Updated contributor, support, and report-only triage wording so community ideas remain manual intake signals, not implementation authority.
 - Added clean-install setup/repair guidance for the `HI House Humidity Drift 7d` Statistics helper dependency.
 - Added a non-blocking Home Assistant Repairs issue only when `sensor.house_humidity_mean_7d` is missing.
 - Differentiated missing helper, helper not ready or unavailable, non-numeric helper, low history coverage, and invalid source states without fabricating drift values.

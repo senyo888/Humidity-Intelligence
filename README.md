@@ -1042,6 +1042,8 @@ Sensitive keys and values such as tokens, passwords, API keys, webhook URLs, cre
 
 Issue triage expects diagnostics-first reports where practical. Issues with native diagnostics are faster to classify and usually need fewer follow-up questions; issues without diagnostics may be marked as needing a support bundle.
 
+For wider ideas, dashboard suggestions, compatibility requests, documentation improvements, or automation/control suggestions, use the Community Ideas & Proposals issue form. These issues are intake signals only: reactions and comments may inform visibility, but they do not approve implementation, runtime changes, release scope, or Home Assistant behavior changes. Submitting an idea does not guarantee implementation, release scheduling, or acceptance.
+
 More detail:
 
 - [Support and diagnostics](docs/support.md)
@@ -1053,6 +1055,8 @@ More detail:
 
 ### v2.0.6-beta.1
 
+- added a Community Ideas & Proposals issue form for ideas, dashboard suggestions, compatibility requests, documentation improvements, diagnostics/support-flow ideas, and automation/control suggestions
+- updated contributor, support, and report-only triage wording so community ideas remain manual intake signals, not implementation authority
 - added clean-install setup/repair guidance for the `HI House Humidity Drift 7d` Statistics helper dependency
 - added a non-blocking Home Assistant Repairs issue only when `sensor.house_humidity_mean_7d` is missing
 - differentiated missing helper, not ready or unavailable helper, non-numeric helper, low history coverage, and invalid source states without fabricating drift values

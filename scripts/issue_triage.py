@@ -47,7 +47,7 @@ UNTRIAGED_LABEL_HINTS = {
 }
 
 OWNER_DESCRIPTIONS = {
-    "Bella": "architecture, roadmap, governance, proposals, coherence, documentation truth",
+    "Bella": "architecture, roadmap, governance, proposals, community ideas/proposals intake, coherence, documentation truth",
     "Aetherwing": "runtime safety, regression protection, release validation, deterministic lane logic, issue fixes",
     "Aethermite": "UI ideas, visual polish, brainstorms, experimental UX proposals",
     "Human maintainer/Jules": "unclear reports, repo policy decisions, community replies, release approval",
@@ -60,6 +60,9 @@ TEMPLATE_IMPROVEMENT_SUGGESTIONS = (
     "Bug and configuration-help templates now capture triage signals for safety, release-blocking, regression, duplicate, maintainer-reply, and proposal-review cases.",
     "Bug reports keep fallback version/check fields for users who cannot download diagnostics.",
     "Feature requests now capture proposal scope before implementation work is inferred.",
+    "Community Ideas & Proposals form captures problem, affected area, avoided behavior, and user benefit without granting implementation authority.",
+    "Submitting an idea does not guarantee implementation, release scheduling, or acceptance.",
+    "Community ideas are intake signals only; reactions and comments inform visibility but never approve implementation.",
     "UI Gallery submissions now capture source layout, frontend dependencies, and whether YAML came from HI export or manual editing.",
 )
 
@@ -231,6 +234,19 @@ def _issue_signals(
 def _detect_category(text: str, labels_lower: set[str]) -> str:
     if "duplicate" in labels_lower or _contains_any(text, ("duplicate", "same as #")):
         return "duplicate"
+    if labels_lower.intersection({"community-proposal"}) or _contains_any(
+        text,
+        (
+            "community proposal",
+            "community ideas",
+            "community ideas & proposals",
+            "what problem are you trying to solve",
+            "what would you like hi to improve",
+            "what should hi avoid doing",
+            "community interest",
+        ),
+    ):
+        return "community-proposal"
     if labels_lower.intersection({"question", "support"}) or _contains_any(
         text,
         (
@@ -365,7 +381,7 @@ def _detect_priority(text: str, category: str, labels_lower: set[str]) -> str:
         return "P1"
     if category in {"runtime", "bug"} or labels_lower.intersection({"bug", "p2"}):
         return "P2"
-    if category in {"enhancement", "UI", "docs", "governance"}:
+    if category in {"enhancement", "UI", "docs", "governance", "community-proposal"}:
         return "P3"
     return "Watch"
 
@@ -450,6 +466,8 @@ def _detect_owner(text: str, category: str, priority: str, confidence: str) -> s
         return "Human maintainer/Jules"
     if priority in {"P0", "P1"} and category in {"runtime", "bug", "UI"}:
         return "Aetherwing"
+    if category == "community-proposal":
+        return "Bella"
     if category in {"docs", "governance"} or _contains_any(
         text,
         ("architecture", "roadmap", "proposal", "coherence", "documentation truth", "release wording"),
@@ -470,6 +488,8 @@ def _detect_owner(text: str, category: str, priority: str, confidence: str) -> s
 def _proposal_required(text: str, category: str, priority: str) -> str:
     if priority == "P0":
         return "no"
+    if category == "community-proposal":
+        return "yes"
     if category in {"enhancement", "governance"}:
         return "yes"
     if category == "UI" and _contains_any(text, ("experimental", "future", "strategy", "orchestration")):
@@ -511,6 +531,8 @@ def _suggested_labels(
     labels: list[str] = []
     if not labels_lower:
         labels.append("needs-triage")
+    if category == "community-proposal":
+        labels.append("community-proposal")
     if category != "support":
         labels.append(category.lower())
     if category == "support":
@@ -569,6 +591,8 @@ def _recommended_action(
         if diagnostics_bundle == "missing":
             return "Create an Aetherwing release-blocker handoff and ask for the Home Assistant diagnostics file in parallel."
         return "Create an Aetherwing release-blocker handoff and validate before any release promotion."
+    if category == "community-proposal":
+        return "Triage as Community Ideas & Proposals intake for Bella/Jules; create a formal HI proposal only if warranted and do not treat reactions as approval."
     if proposal_required == "yes":
         return f"Draft a bounded proposal/review note for {owner}; do not implement directly from the issue."
     if category == "duplicate":
@@ -750,8 +774,9 @@ def render_report(
         "Review P0/P1 and release-blocker candidates before any release promotion.",
         "Prioritise issues marked `has-diagnostics` after urgent safety/release blockers because they are faster to inspect.",
         "For bug/support reports marked `needs-bundle`, ask for the downloaded Home Assistant diagnostics file before deep investigation when practical.",
+        "Community ideas are intake signals only; use interest/comments for visibility, not approval or release authority.",
         "Apply labels, owner handoffs, assignments, comments, closures, or duplicate links manually only after maintainer review.",
-        "Convert proposal-required items into bounded `.codex` proposal or handoff notes before implementation.",
+        "Convert community ideas into formal HI proposal or handoff notes only if warranted before implementation.",
     ]
     if not report_issues:
         next_actions.append("No issue handoff is required from this run unless GitHub API status needs investigation.")
@@ -760,7 +785,7 @@ def render_report(
 
     generated = generated_at.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     sections = [
-        "# Daily GitHub Issue Triage",
+        "# Report-Only GitHub Issue Triage",
         "",
         f"Generated: {generated}",
         f"Repository: {repo}",

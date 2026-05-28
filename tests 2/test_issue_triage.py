@@ -71,6 +71,36 @@ class IssueTriageTests(unittest.TestCase):
         self.assertIn("proposal-review", analyzed.suggested_labels)
         self.assertIn("ui", analyzed.suggested_labels)
 
+    def test_community_proposal_routes_to_bella_as_intake_signal(self) -> None:
+        issue = {
+            "number": 31,
+            "title": "[Idea]: Add a dashboard idea queue",
+            "html_url": "https://github.com/senyo888/humidity-intelligence/issues/31",
+            "user": {"login": "community-user"},
+            "created_at": "2026-05-17T08:00:00Z",
+            "updated_at": "2026-05-17T08:30:00Z",
+            "labels": [{"name": "community-proposal"}, {"name": "needs-triage"}],
+            "body": (
+                "What problem are you trying to solve? I want a clearer way to suggest "
+                "dashboard improvements. What should HI avoid doing? Do not change fan "
+                "control automatically."
+            ),
+        }
+
+        analyzed = self.triage.analyze_issue(issue, now=self.generated_at, lookback_days=3)
+
+        self.assertEqual(analyzed.category, "community-proposal")
+        self.assertEqual(analyzed.priority, "P3")
+        self.assertEqual(analyzed.owner, "Bella")
+        self.assertEqual(analyzed.proposal_required, "yes")
+        self.assertEqual(analyzed.release_blocker, "no")
+        self.assertEqual(analyzed.diagnostics_bundle, "not applicable")
+        self.assertTrue(analyzed.needs_human_decision)
+        self.assertIn("proposal-review", analyzed.suggested_labels)
+        self.assertNotIn("needs-bundle", analyzed.suggested_labels)
+        self.assertIn("Community Ideas & Proposals intake", analyzed.recommended_action)
+        self.assertIn("formal HI proposal only if warranted", analyzed.recommended_action)
+
     def test_malformed_issue_is_reported_instead_of_crashing(self) -> None:
         analyzed = self.triage.analyze_issue({}, now=self.generated_at, lookback_days=3)
 
@@ -109,6 +139,7 @@ class IssueTriageTests(unittest.TestCase):
             rate_limit_note="not checked",
         )
 
+        self.assertIn("# Report-Only GitHub Issue Triage", report)
         self.assertIn("Mode: report-only / dry-run", report)
         self.assertIn("No GitHub issues were closed, edited, labelled, assigned, or commented on.", report)
         self.assertIn("## Recommended next actions", report)
@@ -116,6 +147,9 @@ class IssueTriageTests(unittest.TestCase):
         self.assertIn("## Potential labels to apply manually", report)
         self.assertIn("## Possible owner handoff", report)
         self.assertIn("## Issue template signal notes", report)
+        self.assertIn("Community ideas are intake signals only", report)
+        self.assertIn("Community Ideas & Proposals form captures problem", report)
+        self.assertIn("does not guarantee implementation, release scheduling, or acceptance", report)
         self.assertIn("Suggested owner: Bella", report)
 
     def test_issue_with_downloaded_diagnostics_gets_has_diagnostics_label(self) -> None:

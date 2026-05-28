@@ -1,13 +1,16 @@
-# Daily Issue Triage
+# Report-Only Issue Triage
 
-Humidity Intelligence includes a report-only Codex workspace helper for daily GitHub
-issue triage.
+Humidity Intelligence includes a report-only Codex workspace helper for GitHub issue
+triage.
 
 The helper fetches open GitHub issues, identifies new, untriaged, or recently updated
 items, and writes a structured Markdown report for Bella, Aetherwing, Aethermite, or
 the human maintainer to review.
 
 It does not close, edit, label, assign, or comment on GitHub issues.
+It also treats Community Ideas & Proposals issues as intake signals only: interest and
+comments can inform visibility, but they do not grant implementation, runtime, release,
+or Home Assistant authority.
 
 ## Manual Run
 
@@ -59,21 +62,23 @@ python3 scripts/issue_triage.py --output .codex/reports/issue_triage/weekly_issu
 python3 scripts/issue_triage.py --input-json /path/to/issues.json
 ```
 
-## Safe Daily Scheduling
+## Safe Optional Scheduling
 
-Use a read-only workspace schedule. The scheduled command should run from the repository
-root and should only write local `.codex/reports/` output.
+Use a read-only workspace schedule only if it matches maintainer capacity. For
+community ideas, weekly or maintainer-capacity triage is safer than promising daily
+attention. The scheduled command should run from the repository root and should only
+write local `.codex/reports/` output.
 
-Cron-style example:
+Weekly cron-style example:
 
 ```cron
-0 8 * * * cd <repo> && GITHUB_REPOSITORY=senyo888/humidity-intelligence python3 scripts/issue_triage.py --dry-run >> .codex/reports/issue_triage/issue_triage.log 2>&1
+0 8 * * 1 cd <repo> && GITHUB_REPOSITORY=senyo888/humidity-intelligence python3 scripts/issue_triage.py --dry-run >> .codex/reports/issue_triage/issue_triage.log 2>&1
 ```
 
 Codex workspace automation wording:
 
 ```text
-Every day at 08:00, run from the Humidity Intelligence repository root:
+Every Monday at 08:00, run from the Humidity Intelligence repository root:
 GITHUB_REPOSITORY=senyo888/humidity-intelligence python3 scripts/issue_triage.py --dry-run
 
 Keep the task read-only/report-only. Do not close, edit, label, assign, or comment on
@@ -84,7 +89,7 @@ GitHub issues.
 
 Suggested owner mapping:
 
-- Bella: architecture, roadmap, governance, proposals, coherence, documentation truth
+- Bella: architecture, roadmap, governance, proposals, community ideas/proposals intake, coherence, documentation truth
 - Aetherwing: runtime safety, regression protection, release validation, deterministic lane logic, issue fixes
 - Aethermite: UI ideas, visual polish, brainstorms, experimental UX proposals
 - Human maintainer/Jules: unclear reports, repo policy decisions, community-facing replies, release approval
@@ -123,12 +128,13 @@ Suggested maintainer flow:
 1. Triage safety/release blockers first.
 2. Prioritise `has-diagnostics` issues next because they are faster to inspect.
 3. For `needs-bundle` issues, ask the reporter to attach the downloaded Home Assistant diagnostics file when practical.
-4. Inspect the file locally before deep investigation; it should include versions, selected entities, runtime lane/reason, gates, outputs, frontend dependency status, generated UI summary, and redacted diagnostics.
+4. Route `community-proposal` issues through maintainer/Bella review before any implementation planning. Convert a community idea into a formal HI proposal only if warranted.
+5. Inspect diagnostics locally before deep investigation; the file should include versions, selected entities, runtime lane/reason, gates, outputs, frontend dependency status, generated UI summary, and redacted diagnostics.
 
 ## Implemented Issue Template Triage Fields
 
-The GitHub issue templates include maintainer-friendly triage fields so the daily
-report has better signals without needing a bot to edit public issues.
+The GitHub issue templates include maintainer-friendly triage fields so the report has
+better signals without needing a bot to edit public issues.
 
 Bug reports, configuration help, and feature requests include a shared `Affected area`
 dropdown:
@@ -168,6 +174,33 @@ Feature requests include a required `Proposal scope` dropdown:
 - v2.1 or later exploration
 - Unsure
 
+Community Ideas & Proposals issues include user-friendly intake fields:
+
+- problem being solved
+- requested improvement
+- kind of idea
+- affected area
+- affected rooms, devices, integrations, or dashboards
+- behavior HI should avoid
+- practical benefit
+- similar issues or proposals
+- optional screenshots, examples, diagnostics, or workaround
+
+Community idea labels are advisory workflow signals. They do not make the idea
+accepted, scheduled, or implementation-ready. Submitting an idea does not guarantee
+implementation, release scheduling, or acceptance.
+
+Expected public lifecycle wording:
+
+- Submitted
+- Needs Info
+- Triaged
+- Accepted for Review
+- Proposal Drafted
+- Planned
+- Not Accepted
+- Archived
+
 UI Gallery submissions include fields for:
 
 - source layout
@@ -181,6 +214,8 @@ actions.
 Recommended manual labels after review:
 
 - `needs-triage`
+- `community-proposal`
+- `proposal-review`
 - `support`
 - `needs-bundle`
 - `has-diagnostics`
