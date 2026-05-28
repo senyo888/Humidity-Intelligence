@@ -9,6 +9,7 @@ import pathlib
 import sys
 import tempfile
 import types
+from datetime import datetime
 from types import MethodType, SimpleNamespace
 
 
@@ -2218,6 +2219,12 @@ async def _run_card_assertions(register_mod) -> None:
         assert "slope_map" in card
         assert "sensor.hi_house_temperature_comfort_low" in card
         assert "sensor.hi_house_temperature_comfort_high" in card
+        assert "warm_high" in card
+        assert "warmHigh" in card
+        assert "comfortHigh + 1" not in card
+        temperature_block = card[card.index("temperature: |"):]
+        assert "const attrNum" in temperature_block
+        assert temperature_block.index("const attrNum") < temperature_block.index("const warmHigh")
         assert "tempColor(tempValueC(entity))" in card
         assert "slopeEntityFor(item)" in card
         assert "states['sensor.hi_diagnostics']" in card
@@ -2356,6 +2363,51 @@ def test_temperature_normalization_respects_source_units():
     assert from_f is not None and abs(from_f - 20.0) < 0.05
     assert from_c is not None and abs(from_c - 20.0) < 0.05
     assert from_missing_unit is not None and abs(from_missing_unit - 21.0) < 0.05
+
+
+def test_temperature_comfort_profiles_use_explicit_seasonal_warm_boundaries():
+    core_mod = _load_core_module()
+    cases = [
+        (datetime(2026, 1, 15), "winter", 20.0, 21.0, 21.5),
+        (datetime(2026, 4, 15), "spring", 20.5, 21.5, 22.0),
+        (datetime(2026, 7, 15), "summer", 21.0, 23.0, 25.0),
+        (datetime(2026, 10, 15), "autumn", 20.0, 21.5, 23.0),
+    ]
+
+    for now, key, low, high, warm_high in cases:
+        profile = core_mod.resolve_temperature_comfort_profile(
+            {"temperature_comfort_mode": "auto"},
+            now,
+        )
+
+        assert profile.key == key
+        assert profile.low == low
+        assert profile.high == high
+        assert profile.warm_high == warm_high
+        assert core_mod.temperature_comfort_state(low - 0.1, profile) == "below_comfort"
+        assert core_mod.temperature_comfort_state(high, profile) == "in_comfort"
+        assert core_mod.temperature_comfort_state((high + warm_high) / 2, profile) == "above_comfort_watch"
+        assert core_mod.temperature_comfort_state(warm_high + 0.1, profile) == "above_comfort_high"
+
+
+def test_custom_temperature_comfort_keeps_high_plus_one_warm_boundary():
+    core_mod = _load_core_module()
+
+    profile = core_mod.resolve_temperature_comfort_profile(
+        {
+            "temperature_comfort_mode": "custom",
+            "temperature_comfort_custom_low": 18.5,
+            "temperature_comfort_custom_high": 22.0,
+        },
+        datetime(2026, 7, 15),
+    )
+
+    assert profile.key == "custom"
+    assert profile.low == 18.5
+    assert profile.high == 22.0
+    assert profile.warm_high == 23.0
+    assert core_mod.temperature_comfort_state(22.5, profile) == "above_comfort_watch"
+    assert core_mod.temperature_comfort_state(23.1, profile) == "above_comfort_high"
 
 
 async def _registered_flash_handler(services_mod, hass):
@@ -2897,6 +2949,36 @@ def test_diagnostics_summary_can_surface_shared_frontend_dependency_status_witho
 
     assert full_summary["frontend_dependency_resources"] == frontend_status
     assert "frontend_dependency_resources" not in live_summary
+
+
+def test_diagnostics_summary_surfaces_temperature_comfort_warm_boundary():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data=_base_entry_data(),
+        options={
+            "temperature_comfort_mode": "custom",
+            "temperature_comfort_custom_low": 18.5,
+            "temperature_comfort_custom_high": 22.0,
+        },
+    )
+    hass = _FakeHass(entry, {})
+
+    summary = services_mod._build_diagnostics_summary(
+        hass,
+        entry.data,
+        entry.options,
+        {},
+        {},
+    )
+
+    comfort = summary["temperature_comfort"]
+    assert comfort["mode"] == "custom"
+    assert comfort["active_profile"] == "custom"
+    assert comfort["target_low"] == 18.5
+    assert comfort["target_high"] == 22.0
+    assert comfort["warm_high"] == 23.0
+    assert comfort["watch_high"] == 23.0
 
 
 def test_diagnostics_summary_surfaces_house_drift_statistics_dependency():

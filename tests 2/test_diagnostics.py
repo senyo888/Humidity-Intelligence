@@ -359,6 +359,26 @@ def test_native_diagnostics_reports_low_statistics_coverage_as_history_not_ready
     assert any("history_not_ready" in warning for warning in payload["runtime"]["warnings"])
 
 
+def test_native_diagnostics_reports_temperature_comfort_warm_boundary():
+    diagnostics = _load_diagnostics_module()
+    entry = _sample_entry()
+    entry.options["temperature_comfort_mode"] = "custom"
+    entry.options["temperature_comfort_custom_low"] = 18.5
+    entry.options["temperature_comfort_custom_high"] = 22.0
+
+    payload = asyncio.run(
+        diagnostics.async_get_config_entry_diagnostics(_sample_hass(), entry)
+    )
+
+    comfort = payload["diagnostics_summary"]["temperature_comfort"]
+    assert comfort["mode"] == "custom"
+    assert comfort["active_profile"] == "custom"
+    assert comfort["target_low"] == 18.5
+    assert comfort["target_high"] == 22.0
+    assert comfort["warm_high"] == 23.0
+    assert comfort["watch_high"] == 23.0
+
+
 def test_to_redact_covers_required_sensitive_terms():
     diagnostics = _load_diagnostics_module()
     redacted = {str(item).lower() for item in diagnostics.TO_REDACT}

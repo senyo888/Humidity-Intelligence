@@ -35,7 +35,7 @@ from .helpers.local_versions import (
     async_local_version_status,
     cached_local_version_status,
 )
-from .helpers.seasonal import resolve_target_profile
+from .helpers.seasonal import resolve_target_profile, resolve_temperature_comfort_profile
 from .helpers.zone_validation import detect_zone_mapping_duplicates, summarize_zone_mapping_duplicates
 
 _LOGGER = logging.getLogger(__name__)
@@ -814,6 +814,7 @@ def _build_diagnostics_summary(
     zones = effective.get("zones", {}) if isinstance(effective, dict) else {}
     alerts = effective.get("alerts", []) if isinstance(effective, dict) else []
     profile = resolve_target_profile(effective)
+    comfort_profile = resolve_temperature_comfort_profile(effective)
     duplicates = detect_zone_mapping_duplicates(telemetry, zones if isinstance(zones, dict) else {})
     unavailable = _unavailable_configured_entities(hass, effective, entity_map)
     drift_dependency = humidity_drift_dependency_status(hass)
@@ -844,6 +845,12 @@ def _build_diagnostics_summary(
         },
         "temperature_comfort": {
             "mode": effective.get("temperature_comfort_mode", "auto"),
+            "active_profile": comfort_profile.key,
+            "active_label": comfort_profile.label,
+            "target_low": comfort_profile.low,
+            "target_high": comfort_profile.high,
+            "warm_high": comfort_profile.warm_high,
+            "watch_high": comfort_profile.warm_high,
             "custom_low": effective.get("temperature_comfort_custom_low"),
             "custom_high": effective.get("temperature_comfort_custom_high"),
         },

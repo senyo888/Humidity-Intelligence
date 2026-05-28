@@ -760,6 +760,10 @@ card:
               const v = parseFloat(states[id]?.state);
               return isNaN(v) ? null : v;
             };
+            const attrNum = (id, attr) => {
+              const v = parseFloat(states[id]?.attributes?.[attr]);
+              return isNaN(v) ? null : v;
+            };
             const diagAttrs = states['sensor.hi_diagnostics']?.attributes || {};
             const cfg = diagAttrs.config || {};
             const slopeCfg = cfg.slope || {};
@@ -790,6 +794,10 @@ card:
               .filter(Boolean);
             const comfortLow = num('sensor.house_temperature_comfort_low');
             const comfortHigh = num('sensor.house_temperature_comfort_high');
+            const warmHigh = (() => {
+              const explicit = attrNum('sensor.house_temperature_comfort_high', 'warm_high');
+              return explicit === null ? attrNum('sensor.house_temperature_comfort_high', 'watch_high') : explicit;
+            })();
             const tempValueC = (id) => {
               const value = num(id);
               if (value === null) return null;
@@ -800,7 +808,8 @@ card:
               if (valueC === null || comfortLow === null || comfortHigh === null) return '#94a3b8';
               if (valueC < comfortLow) return '#38bdf8';
               if (valueC <= comfortHigh) return '#4ade80';
-              if (valueC <= comfortHigh + 1) return '#facc15';
+              if (warmHigh === null) return '#94a3b8';
+              if (valueC <= warmHigh) return '#facc15';
               return '#ef4444';
             };
             const tempDisplay = (id) => {

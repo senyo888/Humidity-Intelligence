@@ -14,9 +14,11 @@ This project follows a practical changelog format for Home Assistant and HACS us
 - Added clean-install setup/repair guidance for the `HI House Humidity Drift 7d` Statistics helper dependency.
 - Added a non-blocking Home Assistant Repairs issue only when `sensor.house_humidity_mean_7d` is missing.
 - Differentiated missing helper, helper not ready or unavailable, non-numeric helper, low history coverage, and invalid source states without fabricating drift values.
+- Refined optional Current Air Control temperature chip colours to use backend-owned seasonal cold, comfort, warm, and hot boundaries.
+- Exposed the resolved temperature warm boundary through comfort sensor attributes and diagnostics so generated cards do not hard-code seasonal thresholds.
 - Kept setup/options Frontend Dependencies pages frontend-only; drift dependency truth remains available through diagnostics, self-check, release-check, drift sensor attributes, and Repairs.
 - Preserved the existing drift calculation and legacy `sensor.house_humidity_mean_7d` compatibility.
-- Kept lane ordering, AQ, humidifier, alert, output, and generated-dashboard behavior unchanged.
+- Kept lane ordering, AQ, humidifier, alert, output, service, and migration behavior unchanged.
 
 ## 2.0.5
 

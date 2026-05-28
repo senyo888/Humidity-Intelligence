@@ -521,6 +521,8 @@ def _diagnostics_summary(
             "active_label": comfort_profile.label,
             "target_low": comfort_profile.low,
             "target_high": comfort_profile.high,
+            "warm_high": comfort_profile.warm_high,
+            "watch_high": comfort_profile.warm_high,
             "custom_low": config.get("temperature_comfort_custom_low"),
             "custom_high": config.get("temperature_comfort_custom_high"),
         },

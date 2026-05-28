@@ -200,16 +200,16 @@ This keeps stability as the primary goal while making evaluation season-correct 
 
 Temperature comfort uses the same source-of-truth approach for display:
 
-- Automatic mode resolves the active seasonal comfort band
-- Custom mode allows a fixed lower/upper comfort band
+- Automatic mode resolves the active seasonal comfort band and warm boundary
+- Custom mode allows a fixed lower/upper comfort band and derives the warm boundary as custom high + `1.0°C`
 - Temperature chips use HI comfort sensors, not card-only thresholds
 
 Default temperature comfort bands:
 
-- Winter: `19.5°C` to `20.5°C`
-- Spring: `20°C` to `21°C`
-- Summer: `20°C` to `22.5°C`
-- Autumn: `19.5°C` to `21°C`
+- Winter: blue below `20°C`, green `20-21°C`, yellow `21-21.5°C`, red above `21.5°C`
+- Spring: blue below `20.5°C`, green `20.5-21.5°C`, yellow `21.5-22°C`, red above `22°C`
+- Summer: blue below `21°C`, green `21-23°C`, yellow `23-25°C`, red above `25°C`
+- Autumn: blue below `20°C`, green `20-21.5°C`, yellow `21.5-23°C`, red above `23°C`
 
 ---
 
@@ -1056,9 +1056,11 @@ More detail:
 - added clean-install setup/repair guidance for the `HI House Humidity Drift 7d` Statistics helper dependency
 - added a non-blocking Home Assistant Repairs issue only when `sensor.house_humidity_mean_7d` is missing
 - differentiated missing helper, not ready or unavailable helper, non-numeric helper, low history coverage, and invalid source states without fabricating drift values
+- refined optional Current Air Control temperature chip colours to use backend-owned seasonal cold, comfort, warm, and hot boundaries
+- exposed the resolved temperature warm boundary through comfort sensor attributes and diagnostics so generated cards do not hard-code seasonal thresholds
 - kept the setup/options Frontend Dependencies pages frontend-only; drift dependency truth remains on the drift sensor, diagnostics, `self_check`, `v205_release_check`, and Repairs
 - preserved the existing drift calculation and legacy `sensor.house_humidity_mean_7d` compatibility
-- kept lane ordering, AQ, humidifier, alert, output, and generated-dashboard behavior unchanged
+- kept lane ordering, AQ, humidifier, alert, output, service, and migration behavior unchanged
 
 ### v2.0.5
 

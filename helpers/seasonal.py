@@ -33,6 +33,7 @@ class TemperatureComfortProfile:
     label: str
     low: float
     high: float
+    warm_high: float
 
 
 SEASONAL_PROFILES: dict[str, TargetProfile] = {
@@ -96,10 +97,10 @@ SEASONAL_PROFILES: dict[str, TargetProfile] = {
 
 
 SEASONAL_TEMPERATURE_COMFORT: dict[str, TemperatureComfortProfile] = {
-    "winter": TemperatureComfortProfile(key="winter", label="Winter", low=19.5, high=20.5),
-    "spring": TemperatureComfortProfile(key="spring", label="Spring", low=20.0, high=21.0),
-    "summer": TemperatureComfortProfile(key="summer", label="Summer", low=20.0, high=22.5),
-    "autumn": TemperatureComfortProfile(key="autumn", label="Autumn", low=19.5, high=21.0),
+    "winter": TemperatureComfortProfile(key="winter", label="Winter", low=20.0, high=21.0, warm_high=21.5),
+    "spring": TemperatureComfortProfile(key="spring", label="Spring", low=20.5, high=21.5, warm_high=22.0),
+    "summer": TemperatureComfortProfile(key="summer", label="Summer", low=21.0, high=23.0, warm_high=25.0),
+    "autumn": TemperatureComfortProfile(key="autumn", label="Autumn", low=20.0, high=21.5, warm_high=23.0),
 }
 
 
@@ -139,6 +140,7 @@ def resolve_temperature_comfort_profile(
                 label="Custom",
                 low=round(low, 1),
                 high=round(high, 1),
+                warm_high=round(high + 1.0, 1),
             )
     return SEASONAL_TEMPERATURE_COMFORT[_season_key_from_month(now.month)]
 
@@ -154,7 +156,7 @@ def temperature_comfort_state(
         return "below_comfort"
     if temperature <= profile.high:
         return "in_comfort"
-    if temperature <= profile.high + 1.0:
+    if temperature <= profile.warm_high:
         return "above_comfort_watch"
     return "above_comfort_high"
 

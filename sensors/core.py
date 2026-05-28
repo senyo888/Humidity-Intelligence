@@ -511,6 +511,8 @@ class _CoreComputations:
             "season": profile.label,
             "profile": profile.key,
             "comfort_high": profile.high,
+            "warm_high": profile.warm_high,
+            "watch_high": profile.warm_high,
         }
 
     def _compute_temperature_comfort_high(self) -> Tuple[float, Dict[str, Any]]:
@@ -519,7 +521,8 @@ class _CoreComputations:
             "season": profile.label,
             "profile": profile.key,
             "comfort_low": profile.low,
-            "watch_high": round(profile.high + 1.0, 1),
+            "warm_high": profile.warm_high,
+            "watch_high": profile.warm_high,
         }
 
     def _compute_house_temperature_comfort_state(self) -> Tuple[str, Dict[str, Any]]:
@@ -530,7 +533,8 @@ class _CoreComputations:
             "temperature": temperature,
             "comfort_low": profile.low,
             "comfort_high": profile.high,
-            "watch_high": round(profile.high + 1.0, 1),
+            "warm_high": profile.warm_high,
+            "watch_high": profile.warm_high,
             "season": profile.label,
             "profile": profile.key,
         }
@@ -543,7 +547,8 @@ class _CoreComputations:
             "temperature": temperature,
             "comfort_low": profile.low,
             "comfort_high": profile.high,
-            "watch_high": round(profile.high + 1.0, 1),
+            "warm_high": profile.warm_high,
+            "watch_high": profile.warm_high,
             "season": profile.label,
             "profile": profile.key,
         }
