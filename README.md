@@ -974,6 +974,7 @@ Purpose:
 - run a read-only v2.0.5 release-validation report in Home Assistant.
 - verify generated-card output-details visibility, cached layout coverage, unresolved placeholders, card text sanity, configured entity availability, house humidity drift dependency status, and optional frontend dependency status.
 - with `write_test_exports: true`, write test card exports proving unscoped `dump_cards` exports all layouts and scoped export writes only `v2_tablet`.
+- reports optional local HI-only snapshot status; `require_local_hi_snapshot` can be enabled for maintainer validation when a fresh package-local snapshot is required.
 - no runtime outputs, helpers, lanes, or configured entities are changed.
 
 Example:
@@ -984,9 +985,34 @@ data:
   filename: humidity_intelligence_v205_release_check.json
 ```
 
+### `create_local_backup`
+Purpose:
+- create a local HI-only snapshot of the installed `/config/custom_components/humidity_intelligence` package.
+- support beta validation and rollback preparation for advanced maintainers.
+- this is not a Home Assistant backup, does not intercept HACS updates, does not restore code, and does not change running code until Home Assistant is restarted after any separate manual file work.
+
+Example:
+```yaml
+service: humidity_intelligence.create_local_backup
+data:
+  retain_count: 2
+  max_total_bytes: 52428800
+```
+
+### `list_saved_versions`
+Purpose:
+- list finalized local HI-only snapshots and invalid snapshot folders.
+- report snapshot metadata without changing running code.
+
+Example:
+```yaml
+service: humidity_intelligence.list_saved_versions
+data: {}
+```
+
 ### `dump_diagnostics`
 Purpose:
-- export runtime diagnostics, mapping, active target profile, visual alert rules, alert source resolution, house humidity drift dependency status, optional frontend dependency resource status, unavailable entities, and card info to JSON.
+- export runtime diagnostics, mapping, active target profile, visual alert rules, alert source resolution, house humidity drift dependency status, local HI-only snapshot status, optional frontend dependency resource status, unavailable entities, and card info to JSON.
 - `HI Diagnostics` keeps only a compact recorder-safe summary in live state attributes; use this service for a full local support export.
 - For GitHub issues, prefer the native Home Assistant diagnostics download from the Humidity Intelligence integration entry.
 
@@ -1055,6 +1081,9 @@ More detail:
 
 ### v2.0.6-beta.1
 
+- added explicit local HI-only snapshot services for advanced maintenance: `create_local_backup` and `list_saved_versions`
+- exposed compact local snapshot status through diagnostics, `self_check`, and optional `v205_release_check` freshness inputs
+- kept local snapshot support manual and package-local only; no restore flow, automatic rollback, HACS interception, startup snapshotting, or whole-instance backup behavior is included
 - added a Community Ideas & Proposals issue form for ideas, dashboard suggestions, compatibility requests, documentation improvements, diagnostics/support-flow ideas, and automation/control suggestions
 - updated contributor, support, and report-only triage wording so community ideas remain manual intake signals, not implementation authority
 - added clean-install setup/repair guidance for the `HI House Humidity Drift 7d` Statistics helper dependency
@@ -1064,7 +1093,7 @@ More detail:
 - exposed the resolved temperature warm boundary through comfort sensor attributes and diagnostics so generated cards do not hard-code seasonal thresholds
 - kept the setup/options Frontend Dependencies pages frontend-only; drift dependency truth remains on the drift sensor, diagnostics, `self_check`, `v205_release_check`, and Repairs
 - preserved the existing drift calculation and legacy `sensor.house_humidity_mean_7d` compatibility
-- kept lane ordering, AQ, humidifier, alert, output, service, and migration behavior unchanged
+- kept lane ordering, AQ, humidifier, alert, output, entity, migration, restore, HACS update, and runtime-control behavior unchanged
 
 ### v2.0.5
 

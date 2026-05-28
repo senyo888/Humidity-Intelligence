@@ -11,6 +11,9 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## 2.0.6-beta.1
 
+- Added explicit local HI-only snapshot services for advanced maintenance: `create_local_backup` and `list_saved_versions`.
+- Exposed compact local snapshot status through diagnostics, self-check, and optional release-check freshness inputs.
+- Kept local snapshot support manual and package-local only; no restore flow, automatic rollback, HACS interception, startup snapshotting, or whole-instance backup behavior is included.
 - Added a Community Ideas & Proposals issue form for ideas, dashboard suggestions, compatibility requests, documentation improvements, diagnostics/support-flow ideas, and automation/control suggestions.
 - Updated contributor, support, and report-only triage wording so community ideas remain manual intake signals, not implementation authority.
 - Added clean-install setup/repair guidance for the `HI House Humidity Drift 7d` Statistics helper dependency.
@@ -20,7 +23,7 @@ This project follows a practical changelog format for Home Assistant and HACS us
 - Exposed the resolved temperature warm boundary through comfort sensor attributes and diagnostics so generated cards do not hard-code seasonal thresholds.
 - Kept setup/options Frontend Dependencies pages frontend-only; drift dependency truth remains available through diagnostics, self-check, release-check, drift sensor attributes, and Repairs.
 - Preserved the existing drift calculation and legacy `sensor.house_humidity_mean_7d` compatibility.
-- Kept lane ordering, AQ, humidifier, alert, output, service, and migration behavior unchanged.
+- Kept lane ordering, AQ, humidifier, alert, output, entity, migration, restore, HACS update, and runtime-control behavior unchanged.
 
 ## 2.0.5
 

@@ -24,6 +24,7 @@ Please review the bundle before attaching if you are concerned about privacy. Th
 - gate states
 - output state summary
 - active alert resolution
+- compact local HI-only snapshot status
 - house humidity drift 7d statistics dependency status, including helper readiness
   fields such as `age_coverage_ratio`, `required_age_coverage_ratio`,
   `source_value_valid`, `repair_required`, and `repair_kind` when available
