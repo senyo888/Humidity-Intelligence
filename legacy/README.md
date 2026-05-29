@@ -3,7 +3,7 @@
 Version v1.1.2
 
 
-<img width="1536" height="1024" alt="Banner-4" src="https://github.com/user-attachments/assets/71a0714c-b20f-46da-868c-d52f28193416" />
+![Humidity Intelligence canonical banner](../assets/header.png)
 
 
 **Smart humidity intelligence for Home Assistant — insights, not just numbers.**
@@ -29,7 +29,7 @@ This Advanced Edition reflects the system I run at home and is designed to be:
 
 Humidity Intelligence builds a **decision-making layer** on top of your existing room sensors.
 
-![IMG_5368](https://github.com/user-attachments/assets/8cc1a546-2318-4f31-9d91-0cd2bf1c3437)
+![Humidity Intelligence legacy UI overview](ui-gallery/default-lovelace-ui/default_ui_collapsed.png)
 
 ### House-level intelligence
 
@@ -603,8 +603,7 @@ If it helps you understand your building better, a ⭐ or a screenshot in Discus
 
 ## Constellation Open
 
-<img width="603" height="921" alt="IMG_5369" src="https://github.com/user-attachments/assets/07aad31a-01ad-4d19-a540-e52937901594" />
-
+![Humidity Intelligence legacy constellation open](ui-gallery/default-lovelace-ui/default_ui_expanded.png)
 
 
 
