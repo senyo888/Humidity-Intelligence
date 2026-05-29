@@ -8,8 +8,8 @@ Parent URN: `urn:hi:proposal:20260529:002:agent-memory-usage-auditor`
 This is not a standalone proposal. It is a completion slice of the Bella Draft - HI
 Agent Memory Usage Auditor and Candidate Update Report.
 
-Authority status: implementation-authorized under the parent proposal, with Bella
-post-implementation review and maintainer approval required before final checkout
+Authority status: implemented under the parent proposal, with Bella
+post-implementation review and maintainer approval recorded before final checkout
 commitment.
 
 ## Purpose

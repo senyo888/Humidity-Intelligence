@@ -9,7 +9,7 @@ title: HI Agent Memory Usage Auditor and Candidate Update Report
 created: 2026-05-29
 category: governance
 target_version: none
-authority_status: implementation-authorized
+authority_status: implemented
 state: TESTED
 owner: Bella
 risk_level: medium
@@ -36,8 +36,8 @@ stable_runtime_risk: false
 - Implementation status: Aetherwing local implementation complete; Bella
   post-implementation review passed
 - Release authority: none
-- Final checkout commitment: blocked until Bella post-implementation review and
-  maintainer review
+- Final checkout commitment: completed locally and pushed to `senyo888-patch-1`
+  after Bella post-implementation review and maintainer approval
 
 ## Objective
 
