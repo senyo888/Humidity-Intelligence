@@ -1,4 +1,4 @@
-![Humidity Intelligence agent header](assets/agents/humidity_intelligence_com_verse_2.png)
+![Humidity Intelligence agent header](assets/agent-banner.png)
 
 # Humidity Intelligence Agent Guide
 
