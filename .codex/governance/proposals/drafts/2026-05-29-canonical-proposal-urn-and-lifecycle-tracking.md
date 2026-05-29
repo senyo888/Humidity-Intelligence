@@ -11,8 +11,8 @@ title: Canonical Proposal URN and Lifecycle Tracking System
 created: 2026-05-29
 category: governance
 target_version: v2.1
-authority_status: review-only
-state: REVIEW
+authority_status: governance-only
+state: TESTED
 owner: Senyo
 risk_level: low
 runtime_impact: governance-only
@@ -32,8 +32,8 @@ stable_runtime_risk: false
 
 Pruning classification: keep as governance metadata normalisation draft.
 
-Status: Bella-approved review recommendations implemented locally by Aetherwing /
-review-only / governance-only / not promoted to root `PROPOSALS.md`.
+Status: Bella-approved review recommendations implemented and tested locally by
+Aetherwing / governance-only / not promoted to root `PROPOSALS.md`.
 
 Owner: Senyo
 

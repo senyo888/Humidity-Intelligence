@@ -15,7 +15,7 @@ generated UI, service/entity contracts, or HA Lab work.
 | Draft | Pruning classification | State | Review / expiry date | Authority boundary |
 | --- | --- | --- | --- | --- |
 | Bella Draft - HA Lab Branch/Worktree Package Deploy Gate | keep | TESTED | 2026-06-28 | Stage A deploy-only copy completed and manual restart by Senyo plus read-only validation passed with log caveat; no release-candidate authority or stable access. |
-| Bella Draft - Canonical Proposal URN and Lifecycle Tracking System | keep | REVIEW | 2026-06-28 | Governance metadata normalisation only; no runtime, registry, automation, root promotion, or release authority. |
+| Bella Draft - Canonical Proposal URN and Lifecycle Tracking System | keep | TESTED | 2026-06-28 | Governance metadata normalisation tested and committed on `senyo888-patch-1`; no runtime, registry, automation, root promotion, or release authority. |
 | Bella Draft - HI Agent Memory Usage Auditor and Candidate Update Report | keep | TESTED | 2026-06-28 | Aetherwing local implementation, Bella review, approved memory mutation, and report-only automation activation completed; no root promotion or release authority. |
 | Bella Amendment - HA Lab Phase 3D Follow-Up Hardening & Risk Closure | keep | TESTED | 2026-06-07 | Stopped after completed read-only readiness; current governance hardening gate only; no mutation authority. |
 | AetherMite Draft - HI Lab Mock Telemetry & Boundary Exploration Layer | keep | TESTED | 2026-06-14 | Lab-only first-slice boundary and accepted-residue record; Phase 3A/3B/3C achieved; not release authority. |
@@ -64,7 +64,7 @@ v2.1 proposals when they are next touched.
 | Draft | proposal_id | proposal_urn | title | created | category | target_version | authority_status | state | owner | risk_level | runtime_impact | affected_surfaces | rollback_defined | expiry_or_review_date | bella_approved | aetherwing_validated | ha_lab_validated | release_candidate_validated | entity_contract_changed | service_contract_changed | lane_order_risk | stable_runtime_risk |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Bella Draft - HA Lab Branch/Worktree Package Deploy Gate | legacy-unassigned | legacy-unassigned | Bella Draft - HA Lab Branch/Worktree Package Deploy Gate | legacy-unassigned | legacy-unassigned | legacy-unassigned | legacy-unassigned | TESTED | Bella | high | ha-lab-filesystem-stage-a-plus-manual-stage-b-validation | proposal-governance; ha-lab-evidence; validation-tooling; lab-deploy-link; runtime-protection-contracts | true | 2026-06-28 | true | true | stage_b_post_restart_read_only | false | false | false | false | false |
-| Bella Draft - Canonical Proposal URN and Lifecycle Tracking System | HI-PROP-20260529-001 | urn:hi:proposal:20260529:001:urn-lifecycle-tracking | Canonical Proposal URN and Lifecycle Tracking System | 2026-05-29 | governance | v2.1 | review-only | REVIEW | Senyo | low | governance-only | proposal-governance | false | 2026-06-28 | true | true | false | false | false | false | false | false |
+| Bella Draft - Canonical Proposal URN and Lifecycle Tracking System | HI-PROP-20260529-001 | urn:hi:proposal:20260529:001:urn-lifecycle-tracking | Canonical Proposal URN and Lifecycle Tracking System | 2026-05-29 | governance | v2.1 | governance-only | TESTED | Senyo | low | governance-only | proposal-governance | false | 2026-06-28 | true | true | false | false | false | false | false | false |
 | Bella Draft - HI Agent Memory Usage Auditor and Candidate Update Report | HI-PROP-20260529-002 | urn:hi:proposal:20260529:002:agent-memory-usage-auditor | HI Agent Memory Usage Auditor and Candidate Update Report | 2026-05-29 | governance | none | implemented | TESTED | Bella | medium | governance-only | proposal-governance; validation-tooling | true | 2026-06-28 | true | true | false | false | false | false | false | false |
 | Bella Amendment - HA Lab Phase 3D Follow-Up Hardening & Risk Closure | legacy-unassigned | legacy-unassigned | Bella Amendment - HA Lab Phase 3D Follow-Up Hardening & Risk Closure | legacy-unassigned | legacy-unassigned | legacy-unassigned | legacy-unassigned | TESTED | Bella | high | governance-only | proposal-governance; ha-lab-evidence; diagnostics | true | 2026-06-07 | true | true | true | false | false | false | false | false |
 | AetherMite Draft - HI Lab Mock Telemetry & Boundary Exploration Layer | legacy-unassigned | legacy-unassigned | AetherMite Draft - HI Lab Mock Telemetry & Boundary Exploration Layer | legacy-unassigned | legacy-unassigned | legacy-unassigned | legacy-unassigned | TESTED | Aetherbite | medium | governance-only | proposal-governance; ha-lab-evidence; diagnostics; generated-ui | false | 2026-06-14 | true | true | true | false | false | false | false | false |
@@ -135,8 +135,8 @@ Automation id: `hi-memory-usage-auditor`.
 
 ### Bella Draft - Canonical Proposal URN and Lifecycle Tracking System
 
-Status: Draft / Bella-approved recommendations implemented locally by Aetherwing /
-governance metadata normalisation only / review-only authority.
+Status: Draft / Bella-approved recommendations implemented and tested locally by
+Aetherwing / governance metadata normalisation only / governance-only authority.
 
 Owner label: Senyo. Bella supplied the approved review recommendations. Aetherwing
 validated the local governance-record implementation.

@@ -2,7 +2,8 @@
 
 Date: 2026-05-29
 
-Status: Local governance implementation applied / no commit / Jules review pending.
+Status: Local governance implementation applied, validated, and committed on
+`senyo888-patch-1` as governance-only records.
 
 Source proposal:
 
@@ -41,7 +42,7 @@ Not implemented:
 - no root `AGENTS.md` edit
 - no root `PROPOSALS.md` promotion
 - no separate `PROPOSAL_REGISTRY.md`
-- no commit
+- no release authority or root-ledger promotion
 
 ## Files Changed
 
@@ -75,12 +76,12 @@ None.
 No migration, Home Assistant restart, reload, dashboard refresh, service reload, or
 HACS action is required.
 
-## Validation Expected
+## Validation Performed
 
-Minimum local validation:
+Local governance validation:
 
 ```sh
-git diff --check -- .codex/governance/proposals .codex/reports/handoffs
+git diff --check HEAD~1..HEAD -- .codex/governance/proposals .codex/reports/handoffs
 rg -n "HI-PROP-20260529-001|urn:hi:proposal:20260529:001:urn-lifecycle-tracking" .codex/governance/proposals .codex/reports/handoffs
 rg -n "proposal_id|proposal_urn|authority_status" .codex/governance/proposals/proposal_template.md .codex/governance/proposals/drafts.md .codex/governance/proposals/AGENTS.md .codex/governance/proposals/drafts/v2.1/phase-1/README.md
 ```
