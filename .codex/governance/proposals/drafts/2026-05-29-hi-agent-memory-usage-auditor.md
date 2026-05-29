@@ -99,14 +99,15 @@ Blocked:
 - no Home Assistant service calls, reloads, entity mutations, or API writes;
 - no generated UI, dashboard, diagnostics-semantics, service, entity, manifest, HACS,
   release-note, or changelog changes;
-- no ungated edits to `.codex/memories/`;
+- no ungated edits to `.codex/memories/`; the one approved memory update was applied
+  through the exact approved manifest recorded by this proposal;
 - no automatic memory writer that can apply unapproved text;
-- no recurring automation creation or update before Bella review and maintainer
-  approval;
+- no recurring automation creation or update except the approved report-only
+  `hi-memory-usage-auditor` automation;
 - no root `PROPOSALS.md` promotion;
 - no unrestricted scan of private session logs by default;
-- no staging, committing, pushing, or final checkout commitment before Jules reviews the
-  implemented local slice.
+- no further staging, committing, pushing, or final checkout commitment for this
+  proposal without a new maintainer approval.
 
 Included completion slice:
 
@@ -114,11 +115,12 @@ Included completion slice:
 - approved-manifest-only memory update path;
 - dry-run/report-only default mode;
 - explicit privacy and stale-authority rejection rules;
-- Bella post-implementation review before the slice is considered complete.
+- Bella post-implementation review completed before final checkout commitment.
 
 Still blocked until later explicit approval:
 
-- recurring automation activation;
+- additional recurring automation changes beyond the approved report-only
+  `hi-memory-usage-auditor` automation;
 - ungated direct memory mutation;
 - public documentation about local/private memory behaviour.
 
