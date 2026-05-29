@@ -610,6 +610,8 @@ Rules:
 - minimum one humidity + one temperature sensor per active level
 - use `level1` and `level2` consistently
 - keep room labels stable and human-readable
+- in v2.0.6-beta.1, Cancel on setup/options telemetry add and edit pages returns
+  through an explicit confirmation step so already-saved flow data is preserved
 
 Example baseline:
 - Level 1: kitchen humidity, hallway humidity, kitchen temperature
@@ -652,6 +654,8 @@ What to do:
 - use recommended thresholds first; tune later from `Thresholds & Comfort` if observed behaviour needs adjustment
 - open Advanced for normal output stage, boost output stage, and Current Air Control label
 - keep boost higher than the normal zone fan level where possible
+- in v2.0.6-beta.1, Zone 2 setup/options defaults to `level2` and trigger labels
+  show `Zone 2 / Level 2` ownership unless you explicitly choose a different level
 
 Example baseline:
 - Zone 1 label: `Cooking`
@@ -1081,6 +1085,9 @@ More detail:
 
 ### v2.0.6-beta.1
 
+- fixed setup/options telemetry add and edit Cancel handling so users can return to the previous telemetry page without losing already-saved flow data
+- added explicit close-without-saving confirmation for HI-controlled setup/options Cancel actions
+- fixed Zone 2 setup/options defaults and trigger labels so Zone 2 trigger ownership is shown and stored as Zone 2 / Level 2 unless explicitly changed
 - added explicit local HI-only snapshot services for advanced maintenance: `create_local_backup` and `list_saved_versions`
 - exposed compact local snapshot status through diagnostics, `self_check`, and optional `v205_release_check` freshness inputs
 - kept local snapshot support manual and package-local only; no restore flow, automatic rollback, HACS interception, startup snapshotting, or whole-instance backup behavior is included

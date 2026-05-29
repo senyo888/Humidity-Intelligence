@@ -8,11 +8,10 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
-- Fixed setup/options telemetry add and edit pages so users can cancel back to the previous telemetry page without losing already-saved flow data, with explicit close-without-saving confirmation on HI-controlled Cancel actions.
-- Fixed Zone 2 setup/options defaults and trigger labels so Zone 2 trigger ownership is shown and stored as Zone 2 / Level 2 unless explicitly changed.
-
 ## 2.0.6-beta.1
 
+- Fixed setup/options telemetry add and edit pages so users can cancel back to the previous telemetry page without losing already-saved flow data, with explicit close-without-saving confirmation on HI-controlled Cancel actions.
+- Fixed Zone 2 setup/options defaults and trigger labels so Zone 2 trigger ownership is shown and stored as Zone 2 / Level 2 unless explicitly changed.
 - Added explicit local HI-only snapshot services for advanced maintenance: `create_local_backup` and `list_saved_versions`.
 - Exposed compact local snapshot status through diagnostics, self-check, and optional release-check freshness inputs.
 - Kept local snapshot support manual and package-local only; no restore flow, automatic rollback, HACS interception, startup snapshotting, or whole-instance backup behavior is included.
