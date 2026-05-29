@@ -66,7 +66,7 @@ class IssueTriageTests(unittest.TestCase):
 
         self.assertEqual(analyzed.category, "UI")
         self.assertEqual(analyzed.priority, "P3")
-        self.assertEqual(analyzed.owner, "Aethermite")
+        self.assertEqual(analyzed.owner, "Aetherbite")
         self.assertEqual(analyzed.proposal_required, "yes")
         self.assertIn("proposal-review", analyzed.suggested_labels)
         self.assertIn("ui", analyzed.suggested_labels)
@@ -107,7 +107,7 @@ class IssueTriageTests(unittest.TestCase):
         self.assertEqual(analyzed.number, "unknown")
         self.assertEqual(analyzed.title, "Untitled issue")
         self.assertEqual(analyzed.priority, "Watch")
-        self.assertEqual(analyzed.owner, "Human maintainer/Jules")
+        self.assertEqual(analyzed.owner, "Human maintainer/Senyo")
         self.assertEqual(analyzed.release_blocker, "unknown")
         self.assertEqual(analyzed.confidence, "low")
 

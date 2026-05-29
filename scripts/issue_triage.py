@@ -49,8 +49,8 @@ UNTRIAGED_LABEL_HINTS = {
 OWNER_DESCRIPTIONS = {
     "Bella": "architecture, roadmap, governance, proposals, community ideas/proposals intake, coherence, documentation truth",
     "Aetherwing": "runtime safety, regression protection, release validation, deterministic lane logic, issue fixes",
-    "Aethermite": "UI ideas, visual polish, brainstorms, experimental UX proposals",
-    "Human maintainer/Jules": "unclear reports, repo policy decisions, community replies, release approval",
+    "Aetherbite": "UI ideas, visual polish, brainstorms, experimental UX proposals",
+    "Human maintainer/Senyo": "unclear reports, repo policy decisions, community replies, release approval",
 }
 
 TEMPLATE_IMPROVEMENT_SUGGESTIONS = (
@@ -463,7 +463,7 @@ def _detect_diagnostics_bundle(text: str, category: str) -> str:
 
 def _detect_owner(text: str, category: str, priority: str, confidence: str) -> str:
     if confidence == "low":
-        return "Human maintainer/Jules"
+        return "Human maintainer/Senyo"
     if priority in {"P0", "P1"} and category in {"runtime", "bug", "UI"}:
         return "Aetherwing"
     if category == "community-proposal":
@@ -479,10 +479,10 @@ def _detect_owner(text: str, category: str, priority: str, confidence: str) -> s
         text,
         ("idea", "polish", "visual", "experimental", "future", "orchestration display", "dashboard"),
     ):
-        return "Aethermite"
+        return "Aetherbite"
     if category == "enhancement":
-        return "Aethermite"
-    return "Human maintainer/Jules"
+        return "Aetherbite"
+    return "Human maintainer/Senyo"
 
 
 def _proposal_required(text: str, category: str, priority: str) -> str:
@@ -586,21 +586,21 @@ def _recommended_action(
     diagnostics_bundle: str,
 ) -> str:
     if confidence == "low":
-        return "Ask Jules to request reproduction detail, affected area, and the downloaded Home Assistant diagnostics file before routing."
+        return "Ask Senyo to request reproduction detail, affected area, and the downloaded Home Assistant diagnostics file before routing."
     if release_blocker == "yes":
         if diagnostics_bundle == "missing":
             return "Create an Aetherwing release-blocker handoff and ask for the Home Assistant diagnostics file in parallel."
         return "Create an Aetherwing release-blocker handoff and validate before any release promotion."
     if category == "community-proposal":
-        return "Triage as Community Ideas & Proposals intake for Bella/Jules; create a formal HI proposal only if warranted and do not treat reactions as approval."
+        return "Triage as Community Ideas & Proposals intake for Bella/Senyo; create a formal HI proposal only if warranted and do not treat reactions as approval."
     if proposal_required == "yes":
         return f"Draft a bounded proposal/review note for {owner}; do not implement directly from the issue."
     if category == "duplicate":
-        return "Have Jules confirm duplication manually before closing or linking anything."
+        return "Have Senyo confirm duplication manually before closing or linking anything."
     if category == "support":
         if diagnostics_bundle == "missing":
             return "Ask for the downloaded Home Assistant diagnostics file, then prepare a community-facing support reply with redaction reminders."
-        return "Have Jules prepare a community-facing support reply with redaction reminders."
+        return "Have Senyo prepare a community-facing support reply with redaction reminders."
     if diagnostics_bundle == "missing" and category in {"bug", "runtime", "UI"}:
         return f"Ask for the downloaded Home Assistant diagnostics file before routing to {owner}, unless the issue is immediately reproducible."
     if priority in {"P1", "P2"}:
@@ -653,7 +653,7 @@ def analyze_issue(
     elif diagnostics_bundle == "missing":
         signals.append("diagnostics bundle missing")
     needs_human_decision = (
-        owner == "Human maintainer/Jules"
+        owner == "Human maintainer/Senyo"
         or confidence == "low"
         or proposal_required == "yes"
         or release_blocker in {"yes", "unknown"}
@@ -826,8 +826,8 @@ def render_report(
         "",
         f"- Bella: {OWNER_DESCRIPTIONS['Bella']}",
         f"- Aetherwing: {OWNER_DESCRIPTIONS['Aetherwing']}",
-        f"- Aethermite: {OWNER_DESCRIPTIONS['Aethermite']}",
-        f"- Human maintainer/Jules: {OWNER_DESCRIPTIONS['Human maintainer/Jules']}",
+        f"- Aetherbite: {OWNER_DESCRIPTIONS['Aetherbite']}",
+        f"- Human maintainer/Senyo: {OWNER_DESCRIPTIONS['Human maintainer/Senyo']}",
         "",
         "## Issue template signal notes",
         "",
@@ -1066,7 +1066,7 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as exc:  # Keep one malformed issue from killing the report.
             fallback = {
                 "title": f"Malformed issue payload: {exc}",
-                "body": "The script could not classify this issue payload. Jules should inspect it manually.",
+                "body": "The script could not classify this issue payload. Senyo should inspect it manually.",
             }
             analyzed_all.append(analyze_issue(fallback, now=now, lookback_days=lookback_days))
 
