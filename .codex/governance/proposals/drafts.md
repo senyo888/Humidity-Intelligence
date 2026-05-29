@@ -16,6 +16,7 @@ generated UI, service/entity contracts, or HA Lab work.
 | --- | --- | --- | --- | --- |
 | Bella Draft - HA Lab Branch/Worktree Package Deploy Gate | keep | TESTED | 2026-06-28 | Stage A deploy-only copy completed and manual restart by Senyo plus read-only validation passed with log caveat; no release-candidate authority or stable access. |
 | Bella Draft - Canonical Proposal URN and Lifecycle Tracking System | keep | REVIEW | 2026-06-28 | Governance metadata normalisation only; no runtime, registry, automation, root promotion, or release authority. |
+| Bella Draft - HI Agent Memory Usage Auditor and Candidate Update Report | keep | TESTED | 2026-06-28 | Aetherwing local implementation, Bella review, approved memory mutation, and report-only automation activation completed; no root promotion or release authority. |
 | Bella Amendment - HA Lab Phase 3D Follow-Up Hardening & Risk Closure | keep | TESTED | 2026-06-07 | Stopped after completed read-only readiness; current governance hardening gate only; no mutation authority. |
 | AetherMite Draft - HI Lab Mock Telemetry & Boundary Exploration Layer | keep | TESTED | 2026-06-14 | Lab-only first-slice boundary and accepted-residue record; Phase 3A/3B/3C achieved; not release authority. |
 | Aetherbite Draft - Harmonic Air Control Evolution | keep | IDEA | 2026-07-01 | Parked v2.1 exploratory UI wording direction; not a v2.0.x or runtime proposal. |
@@ -64,6 +65,7 @@ v2.1 proposals when they are next touched.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Bella Draft - HA Lab Branch/Worktree Package Deploy Gate | legacy-unassigned | legacy-unassigned | Bella Draft - HA Lab Branch/Worktree Package Deploy Gate | legacy-unassigned | legacy-unassigned | legacy-unassigned | legacy-unassigned | TESTED | Bella | high | ha-lab-filesystem-stage-a-plus-manual-stage-b-validation | proposal-governance; ha-lab-evidence; validation-tooling; lab-deploy-link; runtime-protection-contracts | true | 2026-06-28 | true | true | stage_b_post_restart_read_only | false | false | false | false | false |
 | Bella Draft - Canonical Proposal URN and Lifecycle Tracking System | HI-PROP-20260529-001 | urn:hi:proposal:20260529:001:urn-lifecycle-tracking | Canonical Proposal URN and Lifecycle Tracking System | 2026-05-29 | governance | v2.1 | review-only | REVIEW | Senyo | low | governance-only | proposal-governance | false | 2026-06-28 | true | true | false | false | false | false | false | false |
+| Bella Draft - HI Agent Memory Usage Auditor and Candidate Update Report | HI-PROP-20260529-002 | urn:hi:proposal:20260529:002:agent-memory-usage-auditor | HI Agent Memory Usage Auditor and Candidate Update Report | 2026-05-29 | governance | none | implementation-authorized | TESTED | Bella | medium | governance-only | proposal-governance; validation-tooling | true | 2026-06-28 | true | true | false | false | false | false | false | false |
 | Bella Amendment - HA Lab Phase 3D Follow-Up Hardening & Risk Closure | legacy-unassigned | legacy-unassigned | Bella Amendment - HA Lab Phase 3D Follow-Up Hardening & Risk Closure | legacy-unassigned | legacy-unassigned | legacy-unassigned | legacy-unassigned | TESTED | Bella | high | governance-only | proposal-governance; ha-lab-evidence; diagnostics | true | 2026-06-07 | true | true | true | false | false | false | false | false |
 | AetherMite Draft - HI Lab Mock Telemetry & Boundary Exploration Layer | legacy-unassigned | legacy-unassigned | AetherMite Draft - HI Lab Mock Telemetry & Boundary Exploration Layer | legacy-unassigned | legacy-unassigned | legacy-unassigned | legacy-unassigned | TESTED | Aetherbite | medium | governance-only | proposal-governance; ha-lab-evidence; diagnostics; generated-ui | false | 2026-06-14 | true | true | true | false | false | false | false | false |
 | Aetherbite Draft - Harmonic Air Control Evolution | legacy-unassigned | legacy-unassigned | Aetherbite Draft - Harmonic Air Control Evolution | legacy-unassigned | legacy-unassigned | legacy-unassigned | legacy-unassigned | IDEA | Aetherbite | medium | governance-only | proposal-governance; generated-ui | false | 2026-07-01 | true | false | false | false | false | false | false | false |
@@ -74,6 +76,62 @@ v2.1 proposals when they are next touched.
 The Phase 1A table above is the active index. Detail records below preserve context,
 but entries marked `supersede`, `archive`, or `reject` are historical unless promoted
 again through review.
+
+### Bella Draft - HI Agent Memory Usage Auditor and Candidate Update Report
+
+Status: Draft / Aetherwing local implementation completed / Bella post-implementation
+review passed / approved memory mutation and report-only automation activation applied
+locally on 2026-05-29.
+
+Owner label: Bella. Aetherwing implemented the bounded local reporting slice and the
+autonomous maintainer completion-slice gate, addressed the in-scope caveat that
+autonomous maintenance must be fail-closed, and returned the result for Bella
+post-implementation review. Bella passed the local implementation slice. Jules then
+approved memory mutation, automation activation, staging, commit, push, and final
+checkout commitment. The approved memory update was applied through an exact manifest
+and the report-only automation was activated. Root promotion, release authority, and
+ungated memory mutation remain blocked.
+
+Classification: local governance/reporting utility for agent memory usage review and
+candidate memory-update triage, with an in-proposal autonomous maintainer completion
+slice.
+
+Runtime impact: None. This draft does not authorize runtime integration changes, Home
+Assistant service calls, entity or service contract changes, generated UI changes,
+diagnostics semantics changes, release metadata changes, root `PROPOSALS.md` promotion,
+or ungated writes to `.codex/memories/`.
+
+Summary: Defines a local, report-only auditor that checks whether recent HI agent work
+consulted the expected memory and governance surfaces, identifies repeated successful
+scripts/utilities/patterns that may deserve durable memory, and emits candidate memory
+updates for human/Bella review. Candidate memory lines remain advisory until explicitly
+approved. The auditor must treat current repository files and `DESIGN_BRIEF.md` as
+higher authority than memory. The autonomous maintainer remains part of this proposal
+until completion as a gated slice, not as a separate or hidden automation lane.
+
+Boundary: Aetherwing may implement a small local script or equivalent local report
+generator plus its generated audit report and autonomous maintainer completion-slice
+file. The initial tool must be read-only against `.codex/memories/`, Home Assistant,
+GitHub, and recurring automation configuration unless an exact approved candidate
+manifest later authorizes an apply step. It may inspect local governance records, local
+reports, proposal drafts, and approved automation run notes as evidence. It must not
+scan unrestricted private session logs by default, must not infer memory usage from
+stylistic similarity alone, and must redact or reject private paths, secrets, private
+entity IDs, tokens, local credentials, telemetry, and machine-specific values from
+candidate memory text.
+
+Aetherwing loop outcome: Aetherwing implemented the approved bounded slice, recorded
+the in-scope caveat and handling, validated the result, and returned the implemented
+packet to Bella for review. Bella found no blocking findings. Jules approved the final
+local commitment slice, including the exact memory manifest and report-only automation.
+
+Long-form artifact: `.codex/governance/proposals/drafts/2026-05-29-hi-agent-memory-usage-auditor.md`.
+Autonomous maintainer slice artifact: `.codex/governance/proposals/drafts/2026-05-29-hi-autonomous-memory-maintainer-slice.md`.
+Aetherwing implementation report: `.codex/reports/handoffs/aetherwing_hi_memory_usage_auditor_implementation.md`.
+Bella post-implementation review: `.codex/reports/audits/2026-05-29-hi-memory-usage-auditor-bella-review.md`.
+Approved memory manifest: `.codex/reports/audits/hi_memory_usage_approved_manifest_2026-05-29.json`.
+Approved apply report: `.codex/reports/audits/hi_memory_usage_apply_2026-05-29.json`.
+Automation id: `hi-memory-usage-auditor`.
 
 ### Bella Draft - Canonical Proposal URN and Lifecycle Tracking System
 

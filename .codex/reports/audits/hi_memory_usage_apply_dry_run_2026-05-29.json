@@ -1,0 +1,10 @@
+{
+  "mode": "apply-approved-dry-run",
+  "results": [
+    {
+      "action": "would_apply",
+      "reason": "accepted manifest",
+      "target_file": ".codex/memories/project/release_lessons.md"
+    }
+  ]
+}
