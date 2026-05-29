@@ -1,3 +1,5 @@
+![Humidity Intelligence contributing header](assets/contributing-header.png)
+
 # Contributing to Humidity Intelligence
 
 Thanks for helping improve Humidity Intelligence. This repository is maintained as a Home Assistant custom integration intended for HACS users, so changes should preserve a clear integration layout, predictable behavior, and safe public examples.

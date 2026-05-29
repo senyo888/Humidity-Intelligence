@@ -1,3 +1,5 @@
+![Humidity Intelligence changelog header](assets/change-log.png)
+
 # Changelog
 
 All notable changes to Humidity Intelligence will be documented in this file.

@@ -1,3 +1,5 @@
+![Humidity Intelligence security policy header](assets/security.png)
+
 # Security Policy
 
 ## Responsible disclosure

@@ -1,3 +1,5 @@
+![Humidity Intelligence agent header](assets/agents/humidity_intelligence_com_verse_2.png)
+
 # Humidity Intelligence Agent Guide
 
 This is the public, repository-safe operating guide for AI agents working on Humidity Intelligence. It is intentionally concise and does not replace the design brief.

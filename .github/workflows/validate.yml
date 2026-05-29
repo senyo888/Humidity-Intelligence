@@ -94,6 +94,9 @@ jobs:
       - name: Validate branch/version policy
         run: python scripts/check_version_governance.py
 
+      - name: Validate canonical documentation banners
+        run: python "tests 2/test_doc_banners.py"
+
       - name: Validate YAML if PyYAML is available
         shell: bash
         run: |
