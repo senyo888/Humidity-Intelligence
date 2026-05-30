@@ -1,0 +1,4 @@
+title = "Humidity Intelligence Gitleaks configuration"
+
+[extend]
+useDefault = true

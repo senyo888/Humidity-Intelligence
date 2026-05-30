@@ -13,6 +13,7 @@ Before opening a PR:
 - Install or update the integration in a Home Assistant test instance.
 - Restart Home Assistant and confirm the integration loads cleanly.
 - Check Home Assistant logs for new warnings or errors.
+- Run `scripts/security/scan_secrets.sh` before pushing if Gitleaks is installed locally. The default mode scans tracked files and avoids ignored local credential files.
 - Validate the config flow when setup behavior changes.
 - Run `humidity_intelligence.refresh_ui` when dashboard output or generated UI changes.
 - Update documentation when behavior, setup steps, services, or UI examples change.
@@ -54,6 +55,11 @@ Before submitting an issue, PR, YAML file, screenshot, or log excerpt, remove:
 - Personal names or other personal data
 
 Use generic examples such as `sensor.redacted_bedroom_humidity` when needed.
+
+Secret-scanner findings must stay redacted in logs, reports, pull requests, and issue
+text. Do not add broad allowlists for docs, reports, YAML, examples, fixtures, tests,
+or local `.codex/` material. If a finding is a proven false positive, keep any
+allowlist narrow and document why it is safe.
 
 ## Coding style
 
