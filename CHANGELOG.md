@@ -8,6 +8,9 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+- Retuned Spring and Summer temperature chip comfort/warm bands while keeping the
+  backend-owned seasonal boundary model unchanged.
+
 ## 2.0.6-beta.1
 
 - Fixed setup/options telemetry add and edit pages so users can cancel back to the previous telemetry page without losing already-saved flow data, with explicit close-without-saving confirmation on HI-controlled Cancel actions.

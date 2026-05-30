@@ -98,8 +98,8 @@ SEASONAL_PROFILES: dict[str, TargetProfile] = {
 
 SEASONAL_TEMPERATURE_COMFORT: dict[str, TemperatureComfortProfile] = {
     "winter": TemperatureComfortProfile(key="winter", label="Winter", low=20.0, high=21.0, warm_high=21.5),
-    "spring": TemperatureComfortProfile(key="spring", label="Spring", low=20.5, high=21.5, warm_high=22.0),
-    "summer": TemperatureComfortProfile(key="summer", label="Summer", low=21.0, high=23.0, warm_high=25.0),
+    "spring": TemperatureComfortProfile(key="spring", label="Spring", low=20.5, high=22.0, warm_high=23.5),
+    "summer": TemperatureComfortProfile(key="summer", label="Summer", low=21.0, high=24.0, warm_high=26.5),
     "autumn": TemperatureComfortProfile(key="autumn", label="Autumn", low=20.0, high=21.5, warm_high=23.0),
 }
 

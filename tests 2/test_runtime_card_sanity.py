@@ -2369,8 +2369,8 @@ def test_temperature_comfort_profiles_use_explicit_seasonal_warm_boundaries():
     core_mod = _load_core_module()
     cases = [
         (datetime(2026, 1, 15), "winter", 20.0, 21.0, 21.5),
-        (datetime(2026, 4, 15), "spring", 20.5, 21.5, 22.0),
-        (datetime(2026, 7, 15), "summer", 21.0, 23.0, 25.0),
+        (datetime(2026, 4, 15), "spring", 20.5, 22.0, 23.5),
+        (datetime(2026, 7, 15), "summer", 21.0, 24.0, 26.5),
         (datetime(2026, 10, 15), "autumn", 20.0, 21.5, 23.0),
     ]
 

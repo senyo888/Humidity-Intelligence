@@ -207,8 +207,8 @@ Temperature comfort uses the same source-of-truth approach for display:
 Default temperature comfort bands:
 
 - Winter: blue below `20°C`, green `20-21°C`, yellow `21-21.5°C`, red above `21.5°C`
-- Spring: blue below `20.5°C`, green `20.5-21.5°C`, yellow `21.5-22°C`, red above `22°C`
-- Summer: blue below `21°C`, green `21-23°C`, yellow `23-25°C`, red above `25°C`
+- Spring: blue below `20.5°C`, green `20.5-22°C`, yellow `22-23.5°C`, red above `23.5°C`
+- Summer: blue below `21°C`, green `21-24°C`, yellow `24-26.5°C`, red above `26.5°C`
 - Autumn: blue below `20°C`, green `20-21.5°C`, yellow `21.5-23°C`, red above `23°C`
 
 ---
