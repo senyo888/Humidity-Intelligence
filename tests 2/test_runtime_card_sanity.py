@@ -997,6 +997,99 @@ async def _run_runtime_assertions(engine_mod) -> None:
     await engine_co_guard._evaluate()
     assert hass_co_guard.data["humidity_intelligence"][ENTRY_ID].get("runtime_mode") != "co_emergency"
 
+    # CO clear is a timed safety hold. Once CO falls below the clear threshold,
+    # the engine must schedule its own recheck at the clear deadline instead of
+    # waiting for the normal periodic interval.
+    entry_co_clear = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass_co_clear = _FakeHass(
+        entry_co_clear,
+        {
+            "sensor.kitchen_h": _FakeState(60),
+            "sensor.hall_h": _FakeState(60),
+            "sensor.bed_h": _FakeState(60),
+            "sensor.kitchen_t": _FakeState(23),
+            "sensor.hall_t": _FakeState(22),
+            "sensor.bed_t": _FakeState(21),
+            "sensor.l1_iaq": _FakeState(40),
+            "sensor.co_val": _FakeState(16),
+        },
+    )
+    engine_co_clear = HIAutomationEngine(hass_co_clear, entry_co_clear)
+    await engine_co_clear._evaluate()
+    assert hass_co_clear.data["humidity_intelligence"][ENTRY_ID].get("runtime_mode") == "co_emergency"
+
+    hass_co_clear.states._values["sensor.co_val"] = _FakeState(0)
+    await engine_co_clear._evaluate()
+    assert engine_co_clear._co_below_since is not None
+    assert engine_co_clear._co_clear_recheck_task is not None
+    assert not engine_co_clear._co_clear_recheck_task.done()
+    engine_co_clear._co_clear_recheck_task.cancel()
+    try:
+        await engine_co_clear._co_clear_recheck_task
+    except asyncio.CancelledError:
+        pass
+
+    # Missing required humidity telemetry should stand down before lower-priority
+    # lanes rather than presenting a normal/all-clear control state.
+    entry_humidity_missing_data = _base_entry_data()
+    entry_humidity_missing = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data=entry_humidity_missing_data,
+        options={},
+    )
+    hass_humidity_missing = _FakeHass(
+        entry_humidity_missing,
+        {
+            "sensor.kitchen_h": _FakeState("unavailable"),
+            "sensor.hall_h": _FakeState("unavailable"),
+            "sensor.bed_h": _FakeState("unavailable"),
+            "sensor.kitchen_t": _FakeState(23),
+            "sensor.hall_t": _FakeState(22),
+            "sensor.bed_t": _FakeState(21),
+            "sensor.l1_iaq": _FakeState(40),
+            "sensor.co_val": _FakeState(0),
+        },
+    )
+    engine_humidity_missing = HIAutomationEngine(hass_humidity_missing, entry_humidity_missing)
+    humidity_missing_trace = []
+    for method in ("_handle_alerts", "_handle_humidifiers", "_handle_zone_by_key", "_handle_aq"):
+        _wrap_async_method(engine_humidity_missing, method, humidity_missing_trace)
+    await engine_humidity_missing._evaluate()
+    humidity_missing_data = hass_humidity_missing.data["humidity_intelligence"][ENTRY_ID]
+    assert humidity_missing_trace == []
+    assert humidity_missing_data.get("runtime_mode") == "telemetry_unavailable"
+    assert humidity_missing_data.get("runtime_mode_display") == "TELEMETRY UNAVAILABLE"
+    assert "Required humidity telemetry is unavailable" in humidity_missing_data.get("runtime_reason", "")
+
+    entry_temperature_missing_data = _base_entry_data()
+    entry_temperature_missing = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data=entry_temperature_missing_data,
+        options={},
+    )
+    hass_temperature_missing = _FakeHass(
+        entry_temperature_missing,
+        {
+            "sensor.kitchen_h": _FakeState(57),
+            "sensor.hall_h": _FakeState(57),
+            "sensor.bed_h": _FakeState(57),
+            "sensor.kitchen_t": _FakeState("unavailable"),
+            "sensor.hall_t": _FakeState("unavailable"),
+            "sensor.bed_t": _FakeState("unavailable"),
+            "sensor.l1_iaq": _FakeState(40),
+            "sensor.co_val": _FakeState(0),
+        },
+    )
+    engine_temperature_missing = HIAutomationEngine(hass_temperature_missing, entry_temperature_missing)
+    temperature_missing_trace = []
+    for method in ("_handle_alerts", "_handle_humidifiers", "_handle_zone_by_key", "_handle_aq"):
+        _wrap_async_method(engine_temperature_missing, method, temperature_missing_trace)
+    await engine_temperature_missing._evaluate()
+    temperature_missing_data = hass_temperature_missing.data["humidity_intelligence"][ENTRY_ID]
+    assert temperature_missing_trace == []
+    assert temperature_missing_data.get("runtime_mode") == "telemetry_unavailable"
+    assert "Required temperature telemetry is unavailable" in temperature_missing_data.get("runtime_reason", "")
+
     # Alert lane is now exclusive: no humidifier/zone/AQ handling should run.
     entry2 = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
     hass = _FakeHass(

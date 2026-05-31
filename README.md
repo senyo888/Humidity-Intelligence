@@ -1083,6 +1083,11 @@ More detail:
 
 ## Release Notes
 
+### Unreleased
+
+- added degraded `telemetry_unavailable` runtime mode when required humidity or configured temperature telemetry is unavailable, so HI stands down safely instead of reporting normal/all-clear
+- fixed CO emergency clear timing so the engine schedules a recheck at the two-minute clear deadline instead of waiting for the next periodic control interval
+
 ### v2.0.6-beta.1
 
 - fixed setup/options telemetry add and edit Cancel handling so users can return to the previous telemetry page without losing already-saved flow data

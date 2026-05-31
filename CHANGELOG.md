@@ -8,6 +8,8 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+- Added a degraded `telemetry_unavailable` runtime mode when required humidity or configured temperature telemetry is unavailable, standing down lower-priority control lanes instead of reporting a normal/all-clear state.
+- Fixed CO emergency clearing so HI schedules a recheck at the two-minute clear deadline instead of waiting for the next normal control interval.
 - Retuned Spring and Summer temperature chip comfort/warm bands while keeping the
   backend-owned seasonal boundary model unchanged.
 

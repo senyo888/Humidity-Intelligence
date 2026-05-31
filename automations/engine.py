@@ -41,6 +41,7 @@ from ..helpers.seasonal import (
 
 CO_EMERGENCY_START = 15
 CO_EMERGENCY_CLEAR = 10
+CO_EMERGENCY_CLEAR_HOLD = timedelta(minutes=2)
 _RISK_ORDER = {"OK": 0, "Watch": 1, "Risk": 2, "Danger": 3, "Unknown": -1}
 _ALERT_PRIORITY = {
     "humidity_danger": 10,
@@ -97,6 +98,7 @@ class HIAutomationEngine:
         self._visual_alert_tasks: Dict[Tuple[str, str, str], asyncio.Task] = {}
         self._visual_alert_active: set[Tuple[str, str, str]] = set()
         self._startup_recheck_task: Optional[asyncio.Task] = None
+        self._co_clear_recheck_task: Optional[asyncio.Task] = None
         self._last_alert: Dict[int, datetime] = {}
         self._active_alert_identity: Optional[Tuple[str, str, str]] = None
         self._co_emergency_active = False
@@ -150,6 +152,7 @@ class HIAutomationEngine:
         if self._startup_recheck_task and not self._startup_recheck_task.done():
             self._startup_recheck_task.cancel()
         self._startup_recheck_task = None
+        self._cancel_co_clear_recheck()
         for task in self._aq_tasks.values():
             task.cancel()
         for task in self._visual_alert_tasks.values():
@@ -234,6 +237,7 @@ class HIAutomationEngine:
             if self._co_emergency_active and self._co_clear_ready():
                 self._co_emergency_active = False
                 self._co_below_since = None
+                self._cancel_co_clear_recheck()
             if self._co_emergency_triggered():
                 await self._sync_visual_alert_tasks([])
                 await self._apply_co_emergency()
@@ -280,6 +284,19 @@ class HIAutomationEngine:
                 await self._set_runtime_reason(
                     self._with_isolation_notice(
                         "Pause is active, so automation is temporarily standing down."
+                    )
+                )
+                return
+            missing_required_telemetry = self._missing_required_telemetry(house_humidity)
+            if missing_required_telemetry:
+                telemetry_label = " and ".join(missing_required_telemetry)
+                telemetry_verb = "is" if len(missing_required_telemetry) == 1 else "are"
+                await self._sync_visual_alert_tasks([])
+                await self._return_to_normal()
+                await self._set_runtime_mode("telemetry_unavailable", "TELEMETRY UNAVAILABLE")
+                await self._set_runtime_reason(
+                    self._with_isolation_notice(
+                        f"Required {telemetry_label} telemetry {telemetry_verb} unavailable, so automation is standing down instead of running zone, alert, AQ, or humidifier lanes."
                     )
                 )
                 return
@@ -444,6 +461,17 @@ class HIAutomationEngine:
                 sources.append(entity_id)
         return sorted(set(sources))
 
+    def _has_telemetry_type(self, sensor_type: str) -> bool:
+        return any(item.get("sensor_type") == sensor_type for item in self.telemetry)
+
+    def _missing_required_telemetry(self, house_humidity: Optional[float]) -> List[str]:
+        missing: List[str] = []
+        if house_humidity is None:
+            missing.append("humidity")
+        if self._has_telemetry_type("temperature") and self._level_avg("temperature", None) is None:
+            missing.append("temperature")
+        return missing
+
     def _co_emergency_triggered(self) -> bool:
         start_threshold, _, _ = self._co_emergency_settings()
         co_values = self._collect_values("co")
@@ -456,13 +484,45 @@ class HIAutomationEngine:
         _, clear_threshold, _ = self._co_emergency_settings()
         co_values = self._collect_values("co")
         if not co_values:
+            self._cancel_co_clear_recheck()
             return False
+        now = datetime.now()
         if all(val < clear_threshold for val in co_values):
             if not self._co_below_since:
-                self._co_below_since = datetime.now()
-            return datetime.now() - self._co_below_since >= timedelta(minutes=2)
+                self._co_below_since = now
+            ready = now - self._co_below_since >= CO_EMERGENCY_CLEAR_HOLD
+            if not ready:
+                self._schedule_co_clear_recheck(now)
+            return ready
         self._co_below_since = None
+        self._cancel_co_clear_recheck()
         return False
+
+    def _schedule_co_clear_recheck(self, now: datetime) -> None:
+        if self._co_clear_recheck_task and not self._co_clear_recheck_task.done():
+            return
+        if self._co_below_since is None:
+            return
+        remaining = CO_EMERGENCY_CLEAR_HOLD - (now - self._co_below_since)
+        delay = max(0.0, remaining.total_seconds())
+
+        async def _co_clear_recheck() -> None:
+            task = asyncio.current_task()
+            try:
+                await asyncio.sleep(delay)
+                await self.async_request_evaluate()
+            except asyncio.CancelledError:
+                return
+            finally:
+                if self._co_clear_recheck_task is task:
+                    self._co_clear_recheck_task = None
+
+        self._co_clear_recheck_task = asyncio.create_task(_co_clear_recheck())
+
+    def _cancel_co_clear_recheck(self) -> None:
+        if self._co_clear_recheck_task and not self._co_clear_recheck_task.done():
+            self._co_clear_recheck_task.cancel()
+        self._co_clear_recheck_task = None
 
     async def _apply_co_emergency(self) -> None:
         _, _, outputs = self._co_emergency_settings()
