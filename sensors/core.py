@@ -670,6 +670,15 @@ class _CoreComputations:
         booleans = data.get("hi_input_booleans", {})
         timers = data.get("hi_timers", {})
         runtime_display = str(data.get("runtime_mode_display") or "").strip()
+        runtime_mode = data.get("runtime_mode")
+        if (
+            runtime_mode == "co_emergency"
+            or (
+                booleans.get("air_co_emergency_active")
+                and booleans["air_co_emergency_active"].is_on
+            )
+        ):
+            return "co_emergency", {"display": "CO EMERGENCY"}
         pause_timer = timers.get("air_control_pause")
         if pause_timer and pause_timer.native_value == "active":
             return "paused", {"display": "PAUSED"}
@@ -677,12 +686,9 @@ class _CoreComputations:
             return "disabled", {"display": "DISABLED"}
         if booleans.get("air_control_manual_override") and booleans["air_control_manual_override"].is_on:
             return "manual_override", {"display": "MANUAL OVERRIDE"}
-        runtime_mode = data.get("runtime_mode")
         if isinstance(runtime_mode, str) and runtime_mode:
             display = runtime_display or runtime_mode.replace("_", " ").upper()
             return runtime_mode, {"display": display}
-        if booleans.get("air_co_emergency_active") and booleans["air_co_emergency_active"].is_on:
-            return "co_emergency", {"display": "CO EMERGENCY"}
         if booleans.get("air_aq_upstairs_active") and booleans["air_aq_upstairs_active"].is_on:
             return "air_quality", {"display": "AIR QUALITY"}
         if booleans.get("air_aq_downstairs_active") and booleans["air_aq_downstairs_active"].is_on:

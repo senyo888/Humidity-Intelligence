@@ -31,6 +31,7 @@
 - [Post-Configuration Workflow](#post-configuration-workflow)
 - [How to Use Services](#how-to-use-services)
 - [Support, Diagnostics, and Issue Triage](#support-diagnostics-and-issue-triage)
+- [Runtime Simulation Validation](#runtime-simulation-validation)
 - [Release Notes](#release-notes)
 
 ---
@@ -1081,12 +1082,33 @@ More detail:
 
 ---
 
+## Runtime Simulation Validation
+
+Maintainer runtime validation includes a backend-consumed fake telemetry harness
+for `HI Air Control Mode` and `HI Air Control Reason` truth. It is test-only:
+no Home Assistant helpers, services, dashboards, automations, or fake fan output
+writes are created by default.
+
+Run it from the repository root:
+
+```bash
+python3 "tests 2/test_air_control_mode_simulation.py"
+```
+
+The harness covers normal, telemetry unavailable, zone pressure, AQ pressure,
+disabled/manual/global gates, baseline-clear CO telemetry, and explicit opt-in
+CO emergency pressure. Details are in
+[Runtime Simulation Validation](docs/runtime-simulation-validation.md).
+
+---
+
 ## Release Notes
 
 ### Unreleased
 
 - added degraded `telemetry_unavailable` runtime mode when required humidity or configured temperature telemetry is unavailable, so HI stands down safely instead of reporting normal/all-clear
 - fixed CO emergency clear timing so the engine schedules a recheck at the two-minute clear deadline instead of waiting for the next periodic control interval
+- added direct backend simulation validation for `HI Air Control Mode` and `HI Air Control Reason`, including normal, telemetry unavailable, zone, AQ, gate, and opt-in CO pressure scenarios
 
 ### v2.0.6-beta.1
 

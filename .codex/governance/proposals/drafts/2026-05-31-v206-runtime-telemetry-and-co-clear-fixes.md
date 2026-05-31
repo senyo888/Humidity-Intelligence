@@ -7,7 +7,7 @@ title: V2.0.6 Runtime Telemetry And CO Clear Fixes
 created: 2026-05-31
 category: runtime
 target_version: v2.0.6
-authority_status: implementation-authorized
+authority_status: implemented
 state: TESTED
 owner: Bella
 risk_level: high
@@ -22,13 +22,13 @@ affected_surfaces:
 rollback_defined: true
 expiry_or_review_date: 2026-06-14
 bella_approved: true
-aetherwing_validated: false
+aetherwing_validated: true
 ha_lab_validated: true
 release_candidate_validated: false
 entity_contract_changed: true
 service_contract_changed: false
 lane_order_risk: false
-stable_runtime_risk: true
+stable_runtime_risk: false
 ```
 
 ## Objective
@@ -39,6 +39,8 @@ mutation validation:
 - CO emergency clear must schedule a recheck at the two-minute clear-hold deadline.
 - Required humidity telemetry, and configured temperature telemetry, must degrade to
   explicit `telemetry_unavailable` instead of falling through lower-priority lanes.
+- The canonical air-control-mode sensor must be proven through backend-consumed
+  deterministic fake telemetry rather than frontend-only display fixtures.
 
 ## Bella Review Verdict
 
@@ -59,6 +61,10 @@ Allowed by this packet:
 
 - Patch `automations/engine.py` for CO clear recheck scheduling and required-telemetry
   stand-down.
+- Patch `sensors/core.py` only as needed to keep `HI Air Control Mode` display truth
+  aligned with active CO emergency runtime truth.
+- Add backend simulation coverage for `sensor.humidity_intelligence_hi_air_control_mode`
+  and `sensor.humidity_intelligence_hi_air_control_reason`.
 - Add targeted regression coverage in `tests 2/test_runtime_card_sanity.py`.
 - Update `CHANGELOG.md`, `DESIGN_BRIEF.md`, and `README.md` with narrow release-truth
   notes.
@@ -78,6 +84,7 @@ Blocked by this packet:
   release approval.
 - No CO pressure run by default. CO pressure remains opt-in because prior pressure
   reproduced HA Lab host or transport instability.
+- No fake output writes by default from the canonical simulation fixture.
 
 ## Implementation Procedure
 
@@ -102,8 +109,15 @@ Blocked by this packet:
    - `CHANGELOG.md` Unreleased entries.
    - `DESIGN_BRIEF.md` runtime contract.
    - `README.md` release-note bullets.
-6. Validate with direct sanity checks, compile checks, and diff hygiene.
-7. Commit only the narrow runtime, test, and release-truth scope.
+6. Add deterministic runtime simulation coverage:
+   - Kitchen humidity/temperature on level1 zone1.
+   - Hallway humidity/temperature as a level1 neutral house peer.
+   - Bedroom humidity/temperature on level2 zone2.
+   - Level1 IAQ.
+   - CO ppm defaulting to 0, with elevated CO rejected unless
+     `co_pressure=True`.
+7. Validate with direct sanity checks, compile checks, and diff hygiene.
+8. Commit only the narrow runtime, test, and release-truth scope.
 
 ## Runtime Impact
 
@@ -112,6 +126,8 @@ Blocked by this packet:
 - If control is otherwise enabled and required telemetry is unavailable, HI returns
   outputs to the normal safe state and publishes `telemetry_unavailable`.
 - Temperature telemetry is required only when temperature telemetry is configured.
+- The core mode sensor preserves active `co_emergency` display truth when CO emergency
+  runtime truth is active.
 - Service contracts do not change.
 
 ## UI Impact
@@ -150,7 +166,9 @@ Before release promotion, run:
 
 ```bash
 python3 'tests 2/test_runtime_card_sanity.py'
+python3 'tests 2/test_air_control_mode_simulation.py'
 python3 -m py_compile automations/engine.py
+python3 -m py_compile sensors/core.py 'tests 2/hi_runtime_fixtures.py' 'tests 2/test_air_control_mode_simulation.py'
 git diff --check
 ```
 
@@ -163,6 +181,20 @@ HA Lab evidence from the original fault investigation remains supporting evidenc
   restored to normal.
 - Full no-CO mutation matrix remains blocked by HA Lab transport or VM networking
   instability under repeated API pressure until a stable rerun proves otherwise.
+
+Canonical direct simulation evidence added by the implementation:
+
+- Normal baseline resolves to `normal` with CO ppm defaulting to 0.
+- All configured humidity unavailable resolves to `telemetry_unavailable`.
+- All configured temperature unavailable resolves to `telemetry_unavailable`.
+- Distinct Kitchen/Hallway and Bedroom/Hallway values prove zone pressure can be
+  represented independently of house peers.
+- Level1 IAQ pressure resolves independently to the AQ lane.
+- Disabled, manual, and global gates dominate lower pressure lanes.
+- Elevated CO remains opt-in and is rejected by the fixture unless
+  `co_pressure=True`.
+- Opt-in elevated CO proves `sensor.humidity_intelligence_hi_air_control_mode`
+  reports `co_emergency` even when a manual override flag is also present.
 
 ## Release Decision
 
