@@ -196,6 +196,41 @@ Canonical direct simulation evidence added by the implementation:
 - Opt-in elevated CO proves `sensor.humidity_intelligence_hi_air_control_mode`
   reports `co_emergency` even when a manual override flag is also present.
 
+## 2026-05-31 HA Lab Continuity Addendum
+
+Post-commit HA Lab evidence was recorded for canonical commit `c661238`:
+
+- Stage A package deploy passed source-to-remote SHA verification and recorded a
+  timestamped rollback path.
+- Stage B post-restart read-only validation passed. The active lab baseline was
+  `manual_override`, not `normal`; normal baseline remains covered by the canonical
+  backend simulation test.
+- Stage C opt-in CO pressure used only the approved CO helper mutation, raised CO to
+  20.0, observed `sensor.humidity_intelligence_hi_air_control_mode` as
+  `co_emergency` with the expected reason text, reset CO to 0.0, and observed clear
+  back to the `manual_override` baseline after the clear hold.
+
+Supporting local HA Lab reports:
+
+- `.codex/lab/reports/2026-05-31T19-08-14Z-stage-a-package-deploy.md`
+- `.codex/lab/reports/2026-05-31T19-16-00Z-stage-b-c661238-post-restart-validation.md`
+- `.codex/lab/reports/2026-05-31T19-40-20Z-stage-c-c661238-co-pressure-validation.md`
+
+Continuity caveats:
+
+- This proves CO pressure for the recorded HA Lab Stage C scope only; it is not stable
+  release authority by itself.
+- Stage C did not prove a normal HA Lab baseline because the active baseline was
+  `manual_override`.
+- Fan isolation was off during Stage C, but no `fan.*` or `humidifier.*` entities were
+  present and configured output placeholders were unresolved; residual no-real-output
+  risk was explicitly accepted for that run.
+- Stage B diagnostics still contained five unrelated unknown/unavailable telemetry
+  references. They were not mode-sensor failures and must remain visible as release
+  confidence caveats.
+- No generated dashboard behavior, service contract, migration, stable Home Assistant
+  environment, fake output write, or default CO pressure behavior changed.
+
 ## Release Decision
 
 These fixes belong in v2.0.6 before stable release because they affect runtime
