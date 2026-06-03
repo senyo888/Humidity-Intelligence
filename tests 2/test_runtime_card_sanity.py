@@ -1235,52 +1235,6 @@ async def _run_runtime_assertions(engine_mod) -> None:
         for domain, service, data, _ in hass_zone_alert.services.calls
     )
 
-    # New v2.0.4 risk alerts should bind to the originating room's zone boost.
-    entry_condensation_risk_data = _base_entry_data()
-    entry_condensation_risk_data["target_profile"] = "custom"
-    entry_condensation_risk_data["custom_target_low"] = 40
-    entry_condensation_risk_data["custom_target_high"] = 79
-    entry_condensation_risk_data["aq"] = {}
-    entry_condensation_risk_data["humidifiers"] = {}
-    entry_condensation_risk_data["alerts"] = [
-        {
-            "enabled": True,
-            "trigger_type": "condensation_risk",
-            "room": "Bedroom",
-            "lights": [],
-        }
-    ]
-    entry_condensation_risk = SimpleNamespace(
-        entry_id=ENTRY_ID,
-        data=entry_condensation_risk_data,
-        options={},
-    )
-    hass_condensation_risk = _FakeHass(
-        entry_condensation_risk,
-        {
-            "sensor.kitchen_h": _FakeState(45),
-            "sensor.hall_h": _FakeState(45),
-            "sensor.bed_h": _FakeState(77),
-            "sensor.kitchen_t": _FakeState(22),
-            "sensor.hall_t": _FakeState(22),
-            "sensor.bed_t": _FakeState(20),
-            "sensor.l1_iaq": _FakeState(85),
-            "sensor.co_val": _FakeState(4),
-        },
-    )
-    engine_condensation_risk = HIAutomationEngine(hass_condensation_risk, entry_condensation_risk)
-    await engine_condensation_risk._evaluate()
-    assert hass_condensation_risk.data["humidity_intelligence"][ENTRY_ID].get("active_alert_context") == (
-        "Condensation Risk · Bedroom · Zone 2"
-    )
-    assert any(
-        domain == "fan"
-        and service == "set_percentage"
-        and data.get("entity_id") == "fan.zone2"
-        and data.get("percentage") == 100
-        for domain, service, data, _ in hass_condensation_risk.services.calls
-    )
-
     # Alert hierarchy should beat zone priority: mould risk in Zone 2 outranks
     # condensation risk in Zone 1.
     entry_alert_hierarchy_data = _base_entry_data()
@@ -2417,9 +2371,90 @@ async def _run_alert_only_card_assertions(register_mod) -> None:
     assert not _has_invalid_conditional_block(mobile)
 
 
+async def _run_condensation_risk_alert_assertions(engine_mod) -> None:
+    HIAutomationEngine = engine_mod.HIAutomationEngine
+    original_resolver = engine_mod.resolve_target_profile
+
+    def fixed_winter_resolver(config, now=None):
+        # Test-only fixed date: runtime remains season-aware, this fixture does not.
+        return original_resolver(config, datetime(2026, 1, 3))
+
+    entry_data = _base_entry_data()
+    entry_data["target_profile"] = "custom"
+    entry_data["custom_target_low"] = 40
+    entry_data["custom_target_high"] = 79
+    entry_data["aq"] = {}
+    entry_data["humidifiers"] = {}
+    entry_data["alerts"] = [
+        {
+            "enabled": True,
+            "trigger_type": "condensation_risk",
+            "room": "Bedroom",
+            "lights": [],
+        }
+    ]
+    entry = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data=entry_data,
+        options={},
+    )
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(45),
+            "sensor.hall_h": _FakeState(45),
+            "sensor.bed_h": _FakeState(77),
+            "sensor.kitchen_t": _FakeState(22),
+            "sensor.hall_t": _FakeState(22),
+            "sensor.bed_t": _FakeState(20),
+            "sensor.l1_iaq": _FakeState(85),
+            "sensor.co_val": _FakeState(4),
+        },
+    )
+
+    engine_mod.resolve_target_profile = fixed_winter_resolver
+    try:
+        engine = HIAutomationEngine(hass, entry)
+        await engine._evaluate()
+    finally:
+        engine_mod.resolve_target_profile = original_resolver
+
+    assert hass.data["humidity_intelligence"][ENTRY_ID].get("active_alert_context") == (
+        "Condensation Risk · Bedroom · Zone 2"
+    )
+    assert any(
+        domain == "fan"
+        and service == "set_percentage"
+        and data.get("entity_id") == "fan.zone2"
+        and data.get("percentage") == 100
+        for domain, service, data, _ in hass.services.calls
+    )
+
+
 def test_runtime_lane_order_and_service_simulation():
     engine_mod, _ = _load_target_modules()
     asyncio.run(_run_runtime_assertions(engine_mod))
+
+
+def test_condensation_risk_alert_binds_to_zone_boost_with_fixed_profile():
+    engine_mod, _ = _load_target_modules()
+    asyncio.run(_run_condensation_risk_alert_assertions(engine_mod))
+
+
+def test_custom_profile_condensation_thresholds_follow_current_season():
+    engine_mod, _ = _load_target_modules()
+    config = {
+        "target_profile": "custom",
+        "custom_target_low": 40,
+        "custom_target_high": 79,
+    }
+    representative_spread = 4.16
+
+    winter_profile = engine_mod.resolve_target_profile(config, datetime(2026, 1, 3))
+    summer_profile = engine_mod.resolve_target_profile(config, datetime(2026, 6, 3))
+
+    assert engine_mod.seasonal_condensation_risk(representative_spread, winter_profile) == "Risk"
+    assert engine_mod.seasonal_condensation_risk(representative_spread, summer_profile) == "Watch"
 
 
 def test_card_render_sanity_and_placeholder_resolution():
