@@ -9,7 +9,7 @@ import pathlib
 import sys
 import tempfile
 import types
-from datetime import datetime
+from datetime import datetime, timedelta
 from types import MethodType, SimpleNamespace
 
 
@@ -2002,6 +2002,55 @@ async def _run_runtime_assertions(engine_mod) -> None:
     assert gate_alert_data.get("active_alert_context") == "None"
     assert gate_alert_data.get("alert_telemetry") == []
     assert not gate_alert_switch.is_on
+
+    # The non-safe-state time gate path should also clear stale alert UI state.
+    entry_time_gate_alert_data = _base_entry_data()
+    entry_time_gate_alert_data["aq"] = {}
+    entry_time_gate_alert_data["humidifiers"] = {}
+    entry_time_gate_alert_data["alerts"][0]["lights"] = []
+    entry_time_gate_alert_data["alerts"][0].pop("power_entity", None)
+    entry_time_gate_alert_data["time_gate"] = {"enabled": False}
+    entry_time_gate_alert = SimpleNamespace(entry_id=ENTRY_ID, data=entry_time_gate_alert_data, options={})
+    hass_time_gate_alert = _FakeHass(
+        entry_time_gate_alert,
+        {
+            "sensor.kitchen_h": _FakeState(90),
+            "sensor.hall_h": _FakeState(45),
+            "sensor.bed_h": _FakeState(45),
+            "sensor.kitchen_t": _FakeState(23),
+            "sensor.hall_t": _FakeState(22),
+            "sensor.bed_t": _FakeState(21),
+            "sensor.l1_iaq": _FakeState(85),
+            "sensor.co_val": _FakeState(4),
+        },
+    )
+    engine_time_gate_alert = HIAutomationEngine(hass_time_gate_alert, entry_time_gate_alert)
+    await engine_time_gate_alert._evaluate()
+    time_gate_data = hass_time_gate_alert.data["humidity_intelligence"][ENTRY_ID]
+    time_gate_alert_switch = time_gate_data["hi_input_booleans"]["air_alert_1_active"]
+    assert time_gate_data.get("runtime_mode") == "alert"
+    assert time_gate_alert_switch.is_on
+    assert str(time_gate_data.get("active_alert_context", "")).startswith("Humidity Danger")
+
+    outside_start = (datetime.now() + timedelta(hours=1)).time()
+    outside_end = (datetime.now() + timedelta(hours=1, minutes=1)).time()
+    engine_time_gate_alert.time_gate.update(
+        {
+            "enabled": True,
+            "start": outside_start,
+            "end": outside_end,
+            "outside_action": "pause",
+        }
+    )
+    await engine_time_gate_alert._evaluate()
+    time_gate_data = hass_time_gate_alert.data["humidity_intelligence"][ENTRY_ID]
+    assert time_gate_data.get("runtime_mode") == "global_gate"
+    assert time_gate_data.get("runtime_mode_display") == "GLOBAL GATE"
+    assert not time_gate_alert_switch.is_on
+    assert time_gate_data.get("active_alert_context") == "None"
+    assert time_gate_data.get("alert_telemetry") == []
+    assert engine_time_gate_alert._active_alert_identity is None
+    assert "Time gate is outside" in time_gate_data.get("runtime_reason", "")
 
     # Disabled humidifier lanes should clear stale active state and turn outputs off.
     entry5_data = _base_entry_data()
