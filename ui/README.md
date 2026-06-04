@@ -165,6 +165,7 @@ The panel must:
 - reflect gate border color
 - display correct chip state
 - keep alert chipsets to the lane/status chip plus the resolved alert source/context chip only
+- show alert source/context chips only while the backend runtime mode or alert activity state says an alert lane is active
 - show readable reason text
 - stay synced with real hardware behavior
 

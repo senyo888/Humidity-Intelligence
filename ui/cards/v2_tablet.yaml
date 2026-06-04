@@ -392,16 +392,16 @@ card:
             const activeAlertNames = activeAlertIds.map(
               (id) => states[id]?.attributes?.friendly_name || id
             );
-            const red =
-              states['binary_sensor.humidity_danger']?.state === 'on' ||
-              states['binary_sensor.condensation_danger']?.state === 'on' ||
-              states['binary_sensor.mould_danger']?.state === 'on' ||
-              activeAlertIds.length > 0 ||
-              coE;
             const zone1 = mode === 'cooking';
             const zone2 = (mode === 'bathroom' || mode === 'bath');
             const aqActive = mode === 'air_quality' || aqU || aqD;
             const gateActive = mode === 'global_gate' || mode === 'away';
+            const alertLaneActive =
+              mode.includes('alert') ||
+              mode === 'co_emergency' ||
+              coE ||
+              (!gateActive && activeAlertIds.length > 0);
+            const red = alertLaneActive;
             const gateReason = String(states['sensor.air_control_reason']?.state || '').toLowerCase();
             const timeGateActive = gateActive && gateReason.includes('time gate');
             const presenceGateActive = gateActive && gateReason.includes('presence gate');
@@ -444,7 +444,7 @@ card:
               Object.keys(states).find((id) => id === 'sensor.active_alert_context') ||
               Object.keys(states).find((id) => /^sensor\\..*active_alert_context$/.test(id));
             const alertContext = String(states[alertContextId]?.state || '').trim();
-            if (alertContext && alertContext !== 'None' && alertContext !== 'unknown' && alertContext !== 'unavailable') {
+            if (alertLaneActive && alertContext && alertContext !== 'None' && alertContext !== 'unknown' && alertContext !== 'unavailable') {
               out.push(chip(alertContext, '#ef4444', true));
             }
             if (timeGateActive) out.push(chip('Time Gate', '#f59e0b'));
@@ -475,7 +475,14 @@ card:
                 if (attrs.alert_index !== undefined && attrs.trigger_type) return true;
                 return /^(?:switch|input_boolean)\\.(?:hi_)?(?:air_)?alert_\\d+.*_active(?:_\\d+)?$/.test(id);
               };
-              const activeAlertIds = Object.keys(states).filter(isAlertActiveEntity);
+              const rawActiveAlertIds = Object.keys(states).filter(isAlertActiveEntity);
+              const gateActive = mode === 'global_gate' || mode === 'away';
+              const alertLaneActive =
+                mode.includes('alert') ||
+                mode === 'co_emergency' ||
+                on('input_boolean.air_co_emergency_active') ||
+                (!gateActive && rawActiveAlertIds.length > 0);
+              const activeAlertIds = alertLaneActive ? rawActiveAlertIds : [];
               const activeAlertNames = activeAlertIds.map(
                 (id) => states[id]?.attributes?.friendly_name || id
               );
@@ -489,12 +496,7 @@ card:
               const condRoom = txt('sensor.worst_room_condensation') || 'Unknown room';
               const mouldRoom = txt('sensor.worst_room_mould') || 'Unknown room';
 
-              const danger =
-                on('binary_sensor.humidity_danger') ||
-                on('binary_sensor.condensation_danger') ||
-                on('binary_sensor.mould_danger') ||
-                activeAlertIds.length > 0 ||
-                on('input_boolean.air_co_emergency_active');
+              const danger = alertLaneActive;
 
               const modeAlert =
                 mode.includes('alert') ||
@@ -877,15 +879,15 @@ card:
                   if (attrs.alert_index !== undefined && attrs.trigger_type) return true;
                   return /^(?:switch|input_boolean)\\.(?:hi_)?(?:air_)?alert_\\d+.*_active(?:_\\d+)?$/.test(id);
                 });
-                const red =
-                  states['binary_sensor.humidity_danger']?.state === 'on' ||
-                  states['binary_sensor.condensation_danger']?.state === 'on' ||
-                  states['binary_sensor.mould_danger']?.state === 'on' ||
-                  anyAlertActive ||
-                  states['input_boolean.air_co_emergency_active']?.state === 'on';
                 const zone1 = mode === 'cooking';
                 const zone2 = mode === 'bathroom' || mode === 'bath';
                 const gateActive = mode === 'global_gate' || mode === 'away';
+                const coE = states['input_boolean.air_co_emergency_active']?.state === 'on';
+                const red =
+                  mode.includes('alert') ||
+                  mode === 'co_emergency' ||
+                  coE ||
+                  (!gateActive && anyAlertActive);
                 if (red) return '1px solid rgba(239,68,68,0.85)';
                 if (gateActive) return '1px solid rgba(245,158,11,0.78)';
                 if (zone1) return '1px solid rgba(56,189,248,0.75)';

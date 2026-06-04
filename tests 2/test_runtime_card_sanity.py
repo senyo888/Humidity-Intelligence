@@ -1946,6 +1946,63 @@ async def _run_runtime_assertions(engine_mod) -> None:
     gate_reason = hass_gate.data["humidity_intelligence"][ENTRY_ID].get("runtime_reason", "")
     assert "Presence gate is active" in gate_reason
 
+    # Global gate preemption should stop an active humidity-danger alert lane and
+    # clear the UI alert context immediately, even if humidity is still high.
+    entry_gate_alert_data = _base_entry_data()
+    entry_gate_alert_data["aq"] = {}
+    entry_gate_alert_data["humidifiers"] = {}
+    entry_gate_alert_data["alerts"][0]["lights"] = []
+    entry_gate_alert_data["alerts"][0].pop("power_entity", None)
+    entry_gate_alert_data["presence_gate"] = {
+        "enabled": True,
+        "entities": ["binary_sensor.home_presence"],
+        "present_states": ["on"],
+        "away_states": ["off"],
+    }
+    entry_gate_alert = SimpleNamespace(entry_id=ENTRY_ID, data=entry_gate_alert_data, options={})
+    hass_gate_alert = _FakeHass(
+        entry_gate_alert,
+        {
+            "sensor.kitchen_h": _FakeState(90),
+            "sensor.hall_h": _FakeState(45),
+            "sensor.bed_h": _FakeState(45),
+            "sensor.kitchen_t": _FakeState(23),
+            "sensor.hall_t": _FakeState(22),
+            "sensor.bed_t": _FakeState(21),
+            "sensor.l1_iaq": _FakeState(85),
+            "sensor.co_val": _FakeState(4),
+            "binary_sensor.home_presence": _FakeState("on"),
+        },
+    )
+    engine_gate_alert = HIAutomationEngine(hass_gate_alert, entry_gate_alert)
+    await engine_gate_alert._evaluate()
+    gate_alert_data = hass_gate_alert.data["humidity_intelligence"][ENTRY_ID]
+    gate_alert_switch = gate_alert_data["hi_input_booleans"]["air_alert_1_active"]
+    assert gate_alert_data.get("runtime_mode") == "alert"
+    assert gate_alert_switch.is_on
+    assert str(gate_alert_data.get("active_alert_context", "")).startswith("Humidity Danger")
+
+    hass_gate_alert.states._values["binary_sensor.home_presence"] = _FakeState("off")
+    await engine_gate_alert._evaluate()
+    gate_alert_data = hass_gate_alert.data["humidity_intelligence"][ENTRY_ID]
+    assert gate_alert_data.get("runtime_mode") == "global_gate"
+    assert gate_alert_data.get("runtime_mode_display") == "GLOBAL GATE"
+    assert not gate_alert_switch.is_on
+    assert gate_alert_data.get("active_alert_context") == "None"
+    assert gate_alert_data.get("alert_telemetry") == []
+    assert engine_gate_alert._active_alert_identity is None
+    assert "Presence gate is active" in gate_alert_data.get("runtime_reason", "")
+
+    hass_gate_alert.states._values["sensor.kitchen_h"] = _FakeState(45)
+    hass_gate_alert.states._values["sensor.hall_h"] = _FakeState(45)
+    hass_gate_alert.states._values["sensor.bed_h"] = _FakeState(45)
+    await engine_gate_alert._evaluate()
+    gate_alert_data = hass_gate_alert.data["humidity_intelligence"][ENTRY_ID]
+    assert gate_alert_data.get("runtime_mode") == "global_gate"
+    assert gate_alert_data.get("active_alert_context") == "None"
+    assert gate_alert_data.get("alert_telemetry") == []
+    assert not gate_alert_switch.is_on
+
     # Disabled humidifier lanes should clear stale active state and turn outputs off.
     entry5_data = _base_entry_data()
     entry5_data["zones"]["zone1"]["enabled"] = False
@@ -2278,6 +2335,9 @@ async def _run_card_assertions(register_mod) -> None:
         assert "CHIPSET_SCROLL_RESET_DELAY_MS = 15000" in card
         assert "data-scroll-reset-delay-ms" in card
         assert "activeAlertNames.forEach" not in card
+        assert "if (alertLaneActive && alertContext" in card
+        assert "const danger = alertLaneActive" in card
+        assert "(!gateActive && anyAlertActive)" in card
         assert "sensor.hi_level2_avg_temperature" in card
         assert "sensor.hi_level1_avg_temperature" in card
         assert card.index("House AVG") < card.index("Upstairs AVG") < card.index("Downstairs AVG")

@@ -270,6 +270,7 @@ class HIAutomationEngine:
                         )
                     )
                 else:
+                    await self._clear_alert_runtime_state()
                     await self._set_runtime_mode("global_gate", "GLOBAL GATE")
                     await self._set_runtime_reason(
                         self._with_isolation_notice(
@@ -528,7 +529,7 @@ class HIAutomationEngine:
         _, _, outputs = self._co_emergency_settings()
         await self._deactivate_aq_activity(set_fan_auto=False)
         await self._deactivate_humidifier_activity(turn_off_outputs=True)
-        await self._clear_alert_activity_switches()
+        await self._clear_alert_runtime_state()
         await self._set_bool("air_co_emergency_active", True)
         all_outputs = self._all_fan_outputs()
         outputs_to_auto = [entity_id for entity_id in all_outputs if entity_id not in outputs]
@@ -542,9 +543,7 @@ class HIAutomationEngine:
             idx: False for idx in range(max(len(self.alerts), 5))
         }
         if not self.alert_handling_enabled:
-            await self._sync_alert_activity_switches({})
-            self._active_alert_identity = None
-            self._record_alert_resolution([])
+            await self._clear_alert_runtime_state()
             _LOGGER.debug(
                 "HI alert handling is disabled for entry %s; non-CO alert lane skipped.",
                 self.entry.entry_id,
@@ -1218,7 +1217,7 @@ class HIAutomationEngine:
         return active_details
 
     async def _return_to_normal(self) -> None:
-        await self._clear_alert_activity_switches()
+        await self._clear_alert_runtime_state()
         await self._set_zone_outputs_auto()
         await self._deactivate_aq_activity(set_fan_auto=True)
         await self._deactivate_humidifier_activity(turn_off_outputs=True)
@@ -1270,6 +1269,11 @@ class HIAutomationEngine:
 
     async def _clear_alert_activity_switches(self) -> None:
         await self._sync_alert_activity_switches({})
+
+    async def _clear_alert_runtime_state(self) -> None:
+        await self._clear_alert_activity_switches()
+        self._active_alert_identity = None
+        self._record_alert_resolution([])
 
     async def _sync_alert_activity_switches(self, states: Dict[int, bool]) -> None:
         for idx in range(max(len(self.alerts), 5)):
