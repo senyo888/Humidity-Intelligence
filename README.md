@@ -18,6 +18,7 @@
 - [V2 UI Example](#v2-ui-example)
 - [Support Project](#support-project)
 - [Why Environmental Stability Matters](#why-environmental-stability-matters)
+- [Air Quality and Environmental Stability](#air-quality-and-environmental-stability)
 - [Season-Aware Environmental Control](#season-aware-environmental-control)
 - [Design Philosophy](#design-philosophy)
 - [Architecture Overview](#architecture-overview)
@@ -38,11 +39,11 @@
 
 ## TL;DR
 
-Humidity Intelligence is a domestic environmental control engine for Home Assistant.
+Humidity Intelligence is a domestic environmental control engine for Home Assistant. It watches the conditions inside a home, decides which environmental problem needs attention first, and explains that decision in plain Home Assistant entities and dashboard text.
 
-It reads humidity, temperature, air quality, condensation, mould-risk, CO, presence, time, pause, and override signals, then resolves **one explainable control decision per evaluation cycle**.
+It reads humidity, temperature, air quality, condensation, mould-risk, carbon monoxide (CO), presence, time, pause, and override signals, then resolves **one explainable control decision per evaluation cycle**.
 
-it give you:
+It gives you:
 
 - season-aware humidity targets
 - deterministic lane priority
@@ -57,9 +58,9 @@ Current release: **v2.0.5**.
 
 ## What Is Humidity Intelligence
 
-Humidity Intelligence is designed to help stabilise the environment inside a home using real-world sensor telemetry and smart environmental control.
+Humidity Intelligence is designed to help stabilise the environment inside a home using real sensor telemetry and carefully coordinated smart-home control.
 
-Rather than simply displaying humidity or temperature readings, Humidity Intelligence continuously interprets conditions across the property to understand how the environment is behaving over time. It monitors factors such as humidity, temperature, temperature drift, air quality, condensation risk, mould risk, and seasonal comfort patterns, then reacts using connected smart devices to gently guide the home back toward balance.
+Most Home Assistant dashboards show readings. Humidity Intelligence turns those readings into a single, explainable control decision. It watches humidity, temperature, temperature drift, air quality, condensation risk, mould risk, and seasonal comfort patterns, then uses configured devices to guide the home back toward a more stable state.
 
 Using sensors placed around the property, Humidity Intelligence can intelligently control devices such as:
 
@@ -70,18 +71,18 @@ Using sensors placed around the property, Humidity Intelligence can intelligentl
 - ventilation systems
 - smart lighting alerts
 
-The system works as a coordinated environmental control layer for the home. For example:
+The system works as a coordinated environmental control layer for everyday household conditions. For example:
 
 - rising bathroom humidity can trigger extractor and ventilation behaviour before condensation settles
-- poor air quality from cooking or occupancy can activate purification zones automatically
+- poor air quality from cooking or occupancy can activate configured purification or ventilation zones
 - unstable overnight humidity can be corrected gradually to improve comfort and reduce moisture stress
 - dangerous conditions such as mould-risk humidity or carbon monoxide escalation can trigger higher-priority safety responses
 
-Humidity Intelligence is intentionally deterministic. Every decision is based on visible telemetry, defined environmental rules, and priority logic rather than opaque AI behaviour or unpredictable automation chains. The goal is not automation for the sake of automation - it is long-term environmental stability, comfort, and property protection.
+Humidity Intelligence is intentionally deterministic. Every decision is based on visible telemetry, defined environmental rules, and priority logic rather than opaque AI behaviour or unpredictable automation chains. The goal is not automation for its own sake; it is long-term environmental stability, comfort, and property protection.
 
 The project also places strong emphasis on transparency. Users can see why actions are happening, what environmental conditions triggered them, which zone is active, and what the system is trying to achieve at any given moment. Seasonal context, comfort targets, active alerts, and runtime reasoning are surfaced directly into the UI so the system feels understandable rather than mysterious.
 
-At its core, Humidity Intelligence is about creating a calmer, healthier, and more stable living environment through continuous environmental awareness and carefully coordinated smart-home control.
+At its core, Humidity Intelligence is about creating a calmer, more stable living environment through continuous environmental awareness and accountable smart-home control.
 
 <details>
 <summary><strong>Quick Demo</strong></summary>
@@ -141,11 +142,11 @@ It helps others discover the project, supports ongoing development, and shows th
 
 ## Why Environmental Stability Matters
 
-Most dashboards show a number.
-Humidity Intelligence models behavior.
+Homes rarely become damp, dry, stale, or uncomfortable because of one isolated reading. Problems usually build as patterns: a bathroom that stays wet too long, a room that drifts away from the rest of the house, a winter profile that needs a lower humidity target, or an air-quality spike that lingers after cooking.
 
-Humidity problems rarely appear as isolated spikes.
-They emerge as:
+Humidity Intelligence is built for those patterns. It treats environmental stability as the goal, not a single perfect number.
+
+Instability can appear as:
 
 - drift
 - imbalance
@@ -153,7 +154,6 @@ They emerge as:
 - recurring spread patterns
 
 ### High Humidity Related Issues
-
 
 - condensation formation
 - mould growth risk
@@ -176,13 +176,59 @@ They emerge as:
 
 Most homes oscillate between both extremes seasonally.
 
-V2 models that instability structurally.
+V2 models that instability directly, then explains what it is seeing instead of hiding the reasoning in disconnected automations.
+
+---
+
+## Air Quality and Environmental Stability
+
+Humidity Intelligence is not only humidity-focused. It contributes to environmental stability by surfacing indoor air-quality signals from configured Home Assistant entities and, where users have configured suitable outputs, using available devices such as air purifiers or ventilation fans to respond to poor air-quality conditions.
+
+Air-quality support is telemetry-driven. Humidity Intelligence only reflects the sensors, entities, thresholds, and output devices configured in Home Assistant. The UI and reason panel must mirror backend/entity truth only; they must not invent thresholds, health categories, alert levels, or control logic.
+
+The wider air-quality (AQ) telemetry family in the current configuration flow includes indoor air quality (IAQ), fine particulate matter (PM2.5), volatile organic compounds (VOCs), carbon dioxide (CO2), and carbon monoxide (CO), depending on what the user configures.
+
+Where an AQ lane is configured, it remains below safety and moisture-risk alert lanes in the deterministic priority order. Carbon monoxide emergency handling remains the highest-priority runtime lane, while normal AQ responses are deferred when higher-priority alert or zone lanes are active.
+
+### Carbon monoxide (CO)
+
+Carbon monoxide is a dangerous combustion-related gas. In homes it can be produced by faulty, damaged, or poorly ventilated fuel-burning appliances, blocked flues or chimneys, attached garages, fireplaces, boilers, stoves, unvented heaters, generators, charcoal grills, vehicle exhaust, or similar combustion sources.
+
+Humidity Intelligence can surface configured carbon monoxide readings and can use configured carbon monoxide telemetry in its emergency lane and reason output. It reflects existing Home Assistant entities; it does not create certified detection hardware.
+
+> **Carbon monoxide safety warning:** Humidity Intelligence must not be relied on as the only carbon monoxide detection or alerting system. It only reflects existing Home Assistant entities and is not a certified carbon monoxide alarm, life-safety device, or compliance system. Users must install and maintain certified carbon monoxide alarms according to local regulations, manufacturer guidance, and applicable building/fire safety requirements. If a carbon monoxide alarm sounds or CO exposure is suspected, users must follow local emergency guidance.
+
+### Volatile organic compounds (VOCs)
+
+Volatile organic compounds are airborne chemicals released by many household materials and products. Practical sources include cleaning products, aerosols and sprays, paints, varnishes, adhesives, solvents, new furniture, carpets, building materials, scented products, hobby supplies, stored fuels, and dry-cleaned items.
+
+In everyday household terms, elevated VOC readings can correspond with odours, stale or chemically loaded air, irritation for sensitive occupants, and general indoor-air-quality degradation.
+
+Humidity Intelligence can display VOC-related readings when suitable sensors are configured. It can help correlate VOC changes with room conditions and reason-panel output, and it may trigger configured purification or ventilation responses where supported. It does not promise full removal of VOCs; the practical goal is to surface, reduce, mitigate, respond to, or help clear poor-air-quality conditions using the configured sensors and devices available to Home Assistant.
+
+### Fine particulate matter (PM2.5)
+
+Fine particulate matter (PM2.5) refers to very small airborne particles. Indoor examples include cooking, frying, candles, fireplaces, smoke, wildfire or smog ingress, dust disturbance, vacuuming, combustion sources, and outdoor pollution entering the home.
+
+Fine particles can linger in indoor air, affect perceived air quality, aggravate respiratory sensitivity, and make a room feel polluted even when humidity is stable.
+
+Humidity Intelligence can surface PM2.5 readings from configured sensors and use those readings as part of air-quality awareness. Where a compatible air purifier or fan output is configured, Humidity Intelligence can drive a response that supports particle reduction. It does not promise medical outcomes, certified purification, or guaranteed removal.
+
+### Indoor air quality (IAQ)
+
+In Humidity Intelligence, indoor air quality (IAQ) is a configured telemetry type (`iaq`) supplied by the user's Home Assistant sensor entities. The integration can expose house and level IAQ average sensors from configured numeric IAQ inputs, excluding `unknown`, `unavailable`, and non-numeric readings from aggregates. If no numeric IAQ readings remain, the aggregate reports unknown rather than inventing a value.
+
+IAQ is intended to provide a readable air-quality summary when the user's sensor already provides that kind of signal. It can help the UI and reason panel communicate air-quality state, including configured AQ trigger details, but it does not replace the underlying sensor entities or certify the meaning of a vendor-specific IAQ scale.
+
+IAQ wording in generated dashboards and documentation must reflect backend truth only: configured entities, aggregate values, deterministic AQ trigger state, and reason-panel output. It must not diagnose health risk or add frontend-only categories that the backend does not produce.
 
 ---
 
 ## Season-Aware Environmental Control
 
 `56%` is not always "high."
+
+The same humidity reading can mean different things in January and July. A home that feels stable in summer may be too damp for a cold winter envelope, while an aggressive winter target may be unnecessarily dry in warmer months.
 
 Humidity Intelligence evaluates humidity **relative to the active target profile**:
 
@@ -199,7 +245,7 @@ Interpretation now follows target-relative states:
 
 This keeps stability as the primary goal while making evaluation season-correct and explainable.
 
-Temperature comfort uses the same source-of-truth approach for display:
+Temperature comfort uses the same source-of-truth approach for display, so dashboard colours and chips follow backend comfort sensors rather than card-only assumptions:
 
 - Automatic mode resolves the active seasonal comfort band and warm boundary
 - Custom mode allows a fixed lower/upper comfort band and derives the warm boundary as custom high + `1.0°C`
@@ -218,9 +264,9 @@ Default temperature comfort bands:
 
 Humidity Intelligence is built around a simple premise: a home should not be regulated by a loose pile of automations competing for control. It should have one visible environmental controller that reads configured telemetry, applies a stable priority hierarchy, and resolves one explainable outcome per evaluation cycle.
 
-The engine is deterministic by design. Avoids guesses, and learns hidden preferences. It evaluates season-aware humidity targets, safety gates, alert conditions, zone demand, air quality state, and humidifier needs through explicit rules so runtime behavior can be inspected, predicted, and explained.
+The engine is deterministic by design. It avoids guesses and hidden preferences. It evaluates season-aware humidity targets, safety gates, alert conditions, zone demand, air quality state, and humidifier needs through explicit rules so runtime behavior can be inspected, predicted, and explained.
 
-The UI is a truth surface. Current Air Control, chips, diagnostics, and exported cards  reflect backend telemetry, entity mappings, runtime mode, and degraded-state reasons. If an input is missing or an output is unavailable, Humidity Intelligence show that condition and fall back safely without pretending the home is stable.
+The UI is a truth surface. Current Air Control, chips, diagnostics, and exported cards reflect backend telemetry, entity mappings, runtime mode, and degraded-state reasons. If an input is missing or an output is unavailable, Humidity Intelligence shows that condition and falls back safely without pretending the home is stable.
 
 The architectural preference is calm regulation over automation chaos:
 
@@ -231,17 +277,17 @@ The architectural preference is calm regulation over automation chaos:
 - generated dashboards aligned with backend truth only
 - safe degraded behavior before blind output writes
 
-The result  feel steady in a domestic environment: readable, conservative, and accountable when conditions change.
+The result should feel steady in a domestic environment: readable, conservative, and accountable when conditions change.
 
 ---
 
 ## Architecture Overview
 
-Humidity Intelligence operates across three defined layers.
+Humidity Intelligence operates across three defined layers. Each layer has a clear job: turn readings into meaning, decide which lane has authority, and show the result without inventing extra logic.
 
 ### 1) Intelligence Layer - Environmental Physics
 
-Transforms raw telemetry into structured environmental signals:
+This layer turns raw telemetry into structured environmental signals:
 
 - dynamic house average humidity
 - 7-day mean and drift tracking, using the canonical `sensor.house_humidity_mean_7d` statistics dependency
@@ -251,10 +297,11 @@ Transforms raw telemetry into structured environmental signals:
 - worst-room detection
 - binary danger states
 
-This layer models risk
-and does not control hardware.
+This layer models risk and does not control hardware.
 
 ### 2) Control Layer - Deterministic Priority Engine
+
+This layer decides which single lane gets control authority during the current evaluation cycle.
 
 Canonical runtime order:
 
@@ -291,11 +338,11 @@ Each evaluation cycle:
 
 Only one comfort/control lane drives outputs at a time.
 
-This keeps control ownership explicit.
+This keeps control ownership explicit and prevents lower-priority comfort responses from fighting safety or risk responses.
 
 ### 3) Presentation Layer - UI Truth Contract
 
-The UI reflects runtime truth:
+This layer makes the engine understandable. It reflects runtime truth:
 
 - active lane
 - gate blocks
@@ -303,9 +350,7 @@ The UI reflects runtime truth:
 - reason text
 - output stage transparency
 
-The UI does not compute logic.
-The engine decides.
-The UI renders.
+The UI does not compute logic. The engine decides; the UI renders.
 
 ---
 
