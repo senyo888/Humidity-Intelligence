@@ -112,7 +112,7 @@ Temperature chips:
 
 - render only when `show_temperature_chips` is enabled
 - colour against HI runtime comfort sensors
-- use blue below band, green in band, yellow up to `1°C` above band, red above that
+- use blue below band, green in band, yellow up to the backend-owned warm boundary, red above that
 - show room slope chips only for configured temperature slope sources or provided slope sensors
 - resolve calculated slope chips through diagnostics/backend slope mapping so Home Assistant registry-assigned entity IDs stay truthful
 
@@ -165,6 +165,7 @@ The panel must:
 - reflect gate border color
 - display correct chip state
 - keep alert chipsets to the lane/status chip plus the resolved alert source/context chip only
+- show alert source/context chips only while the backend runtime mode or alert activity state says an alert lane is active
 - show readable reason text
 - stay synced with real hardware behavior
 

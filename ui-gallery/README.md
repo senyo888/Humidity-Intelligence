@@ -1,3 +1,5 @@
+![Humidity Intelligence UI Gallery banner](../assets/header.png)
+
 # Humidity Intelligence UI Gallery
 
 Reusable Lovelace examples built on the Humidity Intelligence V2 generated card templates.

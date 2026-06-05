@@ -94,8 +94,8 @@ Example:
 - Style: 4 badges-first, dropdown-mod, expands to humidity constellation
 - Optimised for: Mobile / Tablet
 - Author: @senyo888
-- [![Collapsed UI Preview.png](default-lovelace-ui/default_ui.png)](default-lovelace-ui/default_ui.png)
-- [View Expanded UI Preview.png](default-lovelace-ui/default_ui.png)
+- [![Collapsed UI Preview.png](ui-gallery/default-lovelace-ui/default_ui_collapsed.png)](ui-gallery/default-lovelace-ui/default_ui_collapsed.png)
+- [View Expanded UI Preview.png](ui-gallery/default-lovelace-ui/default_ui_expanded.png)
 - [Default Dashboard.yaml](default-lovelace-ui/default_dashboard.yaml)
 ```
 
@@ -170,6 +170,5 @@ If your UI is inspired by existing work:
 
 Thank you for contributing.
 **Consistency enables scale.**
-
 
 

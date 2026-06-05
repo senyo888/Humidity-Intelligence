@@ -1,3 +1,5 @@
+![Humidity Intelligence UI Gallery contributing banner](../assets/header.png)
+
 # Contributing UI Gallery Examples
 
 Thank you for helping improve the Humidity Intelligence UI Gallery.

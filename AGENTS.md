@@ -1,3 +1,5 @@
+![Humidity Intelligence agent header](assets/agent-banner.png)
+
 # Humidity Intelligence Agent Guide
 
 This is the public, repository-safe operating guide for AI agents working on Humidity Intelligence. It is intentionally concise and does not replace the design brief.
@@ -8,11 +10,19 @@ Humidity Intelligence is a deterministic Home Assistant environmental control en
 
 ## Source of Truth
 
-- `DESIGN_BRIEF.md` is the implementation contract.
-- `PROJECT_SUMMARY.md` may exist in maintainer workspaces as a local planning and release-preparation summary.
-- Runtime behavior must follow `DESIGN_BRIEF.md`.
-- If architecture, runtime behavior, security posture, release flow, contributor expectations, or documentation expectations materially change, update `DESIGN_BRIEF.md` in the same work.
+- Public repo correctness must be reviewable from tracked files in this repository.
+- `AGENTS.md`, `README.md`, `CHANGELOG.md`, tracked docs, runtime code, tests, and generated UI templates are the public review contract.
+- Maintainers may keep `DESIGN_BRIEF.md`, `PROJECT_SUMMARY.md`, `ROADMAP.md`, and `PROPOSALS.md` as ignored local planning or release-preparation documents.
+- If architecture, runtime behavior, security posture, release flow, contributor expectations, or documentation expectations materially change, update the relevant tracked public docs in the same work.
+- Ignored local docs may be mirrored separately, but must not be required for public contributor correctness.
 - Maintainers may keep local-only instructions in `AGENTS.local.md`. That file is intentionally ignored and must not be required for public contributors or public repo correctness.
+
+## Repository Workspace Boundary
+
+- Release truth must come from a git-managed Humidity Intelligence checkout or a worktree created from that checkout.
+- Unmanaged mirror folders, scratch folders, and local planning surfaces are not release authority.
+- Local-only planning, lab, credential, generated-export, and agent-private files must remain ignored unless publication is explicitly approved.
+- Do not require machine-specific local paths for public repo correctness, validation instructions, release notes, issue templates, or PR descriptions.
 
 ## Codex Pet Memory Architecture
 

@@ -1,0 +1,55 @@
+name: First interaction welcome
+
+'on':
+  issues:
+    types:
+      - opened
+  pull_request_target:
+    types:
+      - opened
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  welcome:
+    name: Welcome first-time contributors
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Post first interaction welcome
+        uses: actions/first-interaction@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          issue-message: |
+            ![Humidity Intelligence](https://raw.githubusercontent.com/senyo888/humidity-intelligence/main/assets/header.png)
+
+            Thanks for opening your first Humidity Intelligence issue. It is good to have you here.
+
+            Humidity Intelligence is built around deterministic behaviour, environmental stability, explainable decisions, and transparent runtime truth. Useful reports help keep that standard strong.
+
+            When it fits the issue, please include:
+            - Home Assistant version
+            - Humidity Intelligence version
+            - diagnostics bundle or relevant diagnostic output
+            - screenshots, especially of the generated dashboard or reason panel
+            - reason panel text for the selected lane, gate, alert, or degraded state
+
+            If this is an enhancement idea, community discussion and the proposal process are the right place to shape it. Clear problems, real examples, and constructive tradeoffs help maintainers assess the idea, but discussion does not mean every idea will be accepted for implementation.
+
+            Thanks for helping make Humidity Intelligence easier to support, explain, and improve.
+          pr-message: |
+            ![Humidity Intelligence](https://raw.githubusercontent.com/senyo888/humidity-intelligence/main/assets/header.png)
+
+            Thanks for opening your first Humidity Intelligence pull request. Contributions help improve the project, and your time here is appreciated.
+
+            Humidity Intelligence values deterministic behaviour, runtime truthfulness, stability over time, and maintainable changes. Review will focus on preserving those principles as much as on the code itself.
+
+            A strong PR usually:
+            - keeps the change focused
+            - updates documentation where behaviour, setup, support flow, or user-facing text changes
+            - preserves canonical runtime behaviour unless an approved proposal says otherwise
+            - includes validation notes, commands, screenshots, or Home Assistant checks where relevant
+
+            Community discussion, proposal submissions, and constructive feedback are welcome, especially when a change touches runtime semantics, generated UI truth, diagnostics, or long-term project direction.

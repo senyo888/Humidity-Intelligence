@@ -63,9 +63,10 @@
         }
       },
       "telemetry_add": {
-        "title": "Add Sensor",
-        "description": "Add a humidity, temperature or air-quality sensor.\n\nExisting sensors:\n{existing}",
+        "title": "Add Telemetry Sensor",
+        "description": "Add a humidity, temperature or air-quality sensor.\n\nExisting sensors:\n{existing}\n\nCancel returns to Telemetry Inputs without saving this sensor.",
         "data": {
+          "action": "Action",
           "entity_id": "Sensor entity",
           "sensor_type": "Sensor type",
           "friendly_name": "Friendly name (optional)",
@@ -74,7 +75,7 @@
         }
       },
       "telemetry_manage": {
-        "title": "Manage Sensors",
+        "title": "Manage Telemetry Sensors",
         "description": "Edit or delete an existing sensor.\n\nExisting sensors:\n{existing}",
         "data": {
           "selection": "Sensor",
@@ -82,14 +83,22 @@
         }
       },
       "telemetry_edit": {
-        "title": "Edit Sensor",
-        "description": "Update the selected sensor entry.",
+        "title": "Edit Telemetry Sensor",
+        "description": "Update the selected sensor entry.\n\nCancel returns to Telemetry Inputs without saving changes to this sensor.",
         "data": {
+          "action": "Action",
           "entity_id": "Sensor entity",
           "sensor_type": "Sensor type",
           "friendly_name": "Friendly name (optional)",
           "level": "Level",
           "room": "Room"
+        }
+      },
+      "cancel_confirm": {
+        "title": "Close Setup?",
+        "description": "This setup has not been saved. Closing will lose entered information.\n\nHome Assistant controls the top-left close button directly, so Humidity Intelligence can show this warning only from its own Cancel actions.",
+        "data": {
+          "action": "Action"
         }
       },
       "slope": {
@@ -396,10 +405,14 @@
     "error": {
       "overlap": "A state cannot be both present and away.",
       "duplicate_entity": "This sensor has already been added.",
+      "required": "This field is required.",
       "alert_save_failed": "Failed to save alert configuration. Check logs and try again.",
       "room_unknown": "Selected room is not in configured telemetry.",
       "room_missing_humidity": "Selected room has no humidity telemetry for room-scoped humidity danger.",
       "room_missing_temp_humidity": "Selected room needs both humidity and temperature telemetry for this room-scoped trigger."
+    },
+    "abort": {
+      "user_cancelled": "Setup closed without saving."
     }
   },
   "options": {
@@ -513,8 +526,9 @@
       },
       "options_telemetry_add": {
         "title": "Add Telemetry Sensor",
-        "description": "Add a sensor and knit it into HI telemetry.\n\nConfigured telemetry:\n{telemetry_summary}",
+        "description": "Add a sensor and knit it into HI telemetry.\n\nConfigured telemetry:\n{telemetry_summary}\n\nCancel returns to Telemetry Options without saving this sensor.",
         "data": {
+          "action": "Action",
           "entity_id": "Sensor entity",
           "sensor_type": "Sensor type",
           "friendly_name": "Friendly name (display only)",
@@ -532,13 +546,21 @@
       },
       "options_telemetry_edit": {
         "title": "Edit Telemetry Sensor",
-        "description": "Editing sensor {sensor_position} of {sensor_total}.\n\n{selected_sensor}",
+        "description": "Editing sensor {sensor_position} of {sensor_total}.\n\n{selected_sensor}\n\nCancel returns to Telemetry Options without saving changes to this sensor.",
         "data": {
+          "action": "Action",
           "entity_id": "Sensor entity",
           "sensor_type": "Sensor type",
           "friendly_name": "Friendly name (display only)",
           "level": "Level",
           "room": "Room"
+        }
+      },
+      "options_cancel_confirm": {
+        "title": "Close Options?",
+        "description": "These configuration changes have not been saved. Closing will lose entered information.\n\nHome Assistant controls the top-left close button directly, so Humidity Intelligence can show this warning only from its own Cancel actions.",
+        "data": {
+          "action": "Action"
         }
       },
       "options_zones": {
@@ -744,10 +766,20 @@
     "error": {
       "overlap": "A state cannot be both present and away.",
       "duplicate_entity": "This sensor has already been added.",
+      "required": "This field is required.",
       "alert_save_failed": "Failed to save alert configuration. Check logs and try again.",
       "room_unknown": "Selected room is not in configured telemetry.",
       "room_missing_humidity": "Selected room has no humidity telemetry for room-scoped humidity danger.",
       "room_missing_temp_humidity": "Selected room needs both humidity and temperature telemetry for this room-scoped trigger."
+    },
+    "abort": {
+      "user_cancelled": "Options closed without saving."
+    }
+  },
+  "issues": {
+    "house_humidity_mean_7d_missing": {
+      "title": "House humidity drift needs a Statistics helper",
+      "description": "Humidity Intelligence cannot calculate 7-day house humidity drift until `{dependency_entity}` exists. Create a Home Assistant Statistics helper named House Humidity Mean 7d using `{source_entity}` as the source, state characteristic `mean`, and max age 7 days. The helper entity ID must be exactly `sensor.house_humidity_mean_7d`; rename the entity ID manually if Home Assistant creates a different one. Drift will stay unavailable until Home Assistant reports sufficient recorder/statistics coverage. Do not fabricate history."
     }
   }
 }

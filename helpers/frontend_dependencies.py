@@ -130,7 +130,28 @@ def frontend_dependency_status_from_urls(urls: List[str]) -> dict:
             if match is not None
             else {"detected": False}
         )
+    _apply_frontend_resource_aliases(status)
     return status
+
+
+def _apply_frontend_resource_aliases(status: dict) -> None:
+    """Account for custom elements that are provided by another loaded resource."""
+    card_mod_status = status.get("card-mod")
+    mod_card_status = status.get("mod-card")
+    if not isinstance(card_mod_status, dict) or not isinstance(mod_card_status, dict):
+        return
+    if card_mod_status.get("detected") is not True or mod_card_status.get("detected") is True:
+        return
+
+    card_mod_url = card_mod_status.get("url")
+    if not isinstance(card_mod_url, str) or "card-mod.js" not in card_mod_url.lower():
+        return
+
+    status["mod-card"] = {
+        "detected": True,
+        "url": card_mod_url,
+        "provided_by": "card-mod",
+    }
 
 
 def frontend_dependency_not_inspectable(reason: str) -> dict:

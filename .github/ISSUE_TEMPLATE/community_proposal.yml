@@ -1,0 +1,96 @@
+name: Community ideas & proposals
+description: Suggest an idea, improvement, dashboard change, compatibility request, or documentation improvement.
+title: "[Idea]: "
+labels: ["community-proposal", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for ideas and improvements that need maintainer review before any implementation work. A community idea may become a formal HI proposal later, but only if maintainers decide it is worth taking forward.
+
+        Submitting an idea helps maintainers understand community needs. It does not guarantee implementation, release scheduling, or acceptance. Reactions and comments show interest only; they do not approve changes.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the friction, missing feature, confusing behavior, or improvement opportunity.
+    validations:
+      required: true
+  - type: textarea
+    id: improvement
+    attributes:
+      label: What would you like HI to improve?
+      description: Describe the idea in plain language.
+    validations:
+      required: true
+  - type: dropdown
+    id: proposal-type
+    attributes:
+      label: What kind of idea is this?
+      options:
+        - Feature idea
+        - Dashboard or UI idea
+        - Documentation improvement
+        - Integration compatibility issue
+        - Automation or control suggestion
+        - Diagnostics or troubleshooting improvement
+        - Setup/configuration improvement
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: affected-area
+    attributes:
+      label: What area is affected?
+      multiple: true
+      options:
+        - Runtime control
+        - Humidity targets
+        - Alerts or risk handling
+        - Generated dashboards
+        - Current Air Control panel
+        - Setup or options flow
+        - Diagnostics
+        - Documentation
+        - HACS/GitHub/release support
+        - Integration compatibility
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: affected-setup
+    attributes:
+      label: What rooms, devices, integrations, or dashboards are affected?
+      description: Do not include private tokens, addresses, credentials, or sensitive device identifiers.
+      placeholder: "Example: extractor fan, humidifier, dehumidifier, humidity sensor, CO sensor, mobile dashboard, tablet dashboard."
+  - type: textarea
+    id: avoid
+    attributes:
+      label: What should HI avoid doing?
+      description: List any behavior that would make the idea unsafe, confusing, or unsuitable for your setup.
+      placeholder: |
+        Do not change fan control automatically.
+        Do not require optional frontend cards.
+        Do not hide existing diagnostics.
+    validations:
+      required: true
+  - type: textarea
+    id: benefit
+    attributes:
+      label: Why would this help?
+      description: Explain the practical benefit.
+    validations:
+      required: true
+  - type: textarea
+    id: similar
+    attributes:
+      label: Have you seen a similar issue or proposal?
+      description: Link it if you found one. If not, write "No similar issue found".
+    validations:
+      required: true
+  - type: textarea
+    id: extra-context
+    attributes:
+      label: Optional screenshots, examples, diagnostics, or workaround
+      description: Attach anything useful. For support-like proposals, a Home Assistant diagnostics bundle may help. Do not paste secrets or private credentials.
+      render: text

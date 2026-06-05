@@ -9,6 +9,34 @@ permissions:
   contents: read
 
 jobs:
+  gitleaks:
+    name: Gitleaks secret scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install Gitleaks
+        shell: bash
+        run: |
+          set -euo pipefail
+          GITLEAKS_VERSION="8.29.1"
+          mkdir -p "$RUNNER_TEMP/gitleaks"
+          curl -fsSL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            -o "$RUNNER_TEMP/gitleaks.tar.gz"
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP/gitleaks" gitleaks
+          echo "$RUNNER_TEMP/gitleaks" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/gitleaks/gitleaks" version
+
+      - name: Gitleaks full-history secret scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          gitleaks git --redact --no-banner --config .gitleaks.toml .
+
   validate:
     runs-on: ubuntu-latest
 
@@ -93,6 +121,9 @@ jobs:
 
       - name: Validate branch/version policy
         run: python scripts/check_version_governance.py
+
+      - name: Validate canonical documentation banners
+        run: python "tests 2/test_doc_banners.py"
 
       - name: Validate YAML if PyYAML is available
         shell: bash

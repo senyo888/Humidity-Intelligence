@@ -22,15 +22,24 @@ __pycache__/
 .ha-token
 .ha-token.*
 .ha-session*
+.codex/private/
+*.token
+*.secret
+*_runtime.env
+*_credentials.env
 
 # --- Temp / cache ---
 *.tmp
 *.bak
 *.old
+tmp_out/
+assets/readme/.hi_quick_demo.gif-*
 
 # --- Local planning docs ---
 .codex/
+sandbox/
 /Issue-Triage.md
+docs/maintenance/
 DESIGN_BRIEF.md
 PROJECT_SUMMARY.md
 ROADMAP.md
