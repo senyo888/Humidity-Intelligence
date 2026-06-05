@@ -1191,6 +1191,9 @@ CO emergency pressure. Details are in
 - kept deterministic runtime behavior, lane ordering, alert hierarchy, CO emergency handling, humidifier independence, public entity semantics, and `dump_cards` unchanged
 - promoted integration metadata to stable `2.0.5`; branch/version governance now allows beta, rc, or stable labels on `senyo888-patch-1`, rc or stable labels on `develop`, and stable releases on `main`
 
+<details>
+<summary>Previous Releases</summary>
+
 ### v2.0.4
 
 - added alert-to-zone binding for humidity, mould, and condensation alerts so the originating room resolves to its configured zone boost level
@@ -1223,9 +1226,6 @@ CO emergency pressure. Details are in
 - visual humidity/mould/condensation alerts now flash 10 times, restore prior light state, wait 30 minutes, and repeat only while the same alert remains active
 - diagnostics now include a support-focused summary for target profile mode, active profile/season/custom target, zone mappings, alert mappings, visual alert configuration, active alert resolution, unavailable entities, and configuration warnings
 - bumped integration version to `2.0.4`
-
-<details>
-<summary>Previous Releases</summary>
 
 ### v2.0.3
 

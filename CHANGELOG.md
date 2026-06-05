@@ -35,24 +35,6 @@ This project follows a practical changelog format for Home Assistant and HACS us
 - Preserved the existing drift calculation and legacy `sensor.house_humidity_mean_7d` compatibility.
 - Kept lane ordering, AQ, humidifier, alert, output, migration, restore, HACS update, and runtime-control behavior unchanged except for the explicit `telemetry_unavailable` mode/entity truth correction.
 
-## 2.0.6-beta.1
-
-- Fixed setup/options telemetry add and edit pages so users can cancel back to the previous telemetry page without losing already-saved flow data, with explicit close-without-saving confirmation on HI-controlled Cancel actions.
-- Fixed Zone 2 setup/options defaults and trigger labels so Zone 2 trigger ownership is shown and stored as Zone 2 / Level 2 unless explicitly changed.
-- Added explicit local HI-only snapshot services for advanced maintenance: `create_local_backup` and `list_saved_versions`.
-- Exposed compact local snapshot status through diagnostics, self-check, and optional release-check freshness inputs.
-- Kept local snapshot support manual and package-local only; no restore flow, automatic rollback, HACS interception, startup snapshotting, or whole-instance backup behavior is included.
-- Added a Community Ideas & Proposals issue form for ideas, dashboard suggestions, compatibility requests, documentation improvements, diagnostics/support-flow ideas, and automation/control suggestions.
-- Updated contributor, support, and report-only triage wording so community ideas remain manual intake signals, not implementation authority.
-- Added clean-install setup/repair guidance for the `HI House Humidity Drift 7d` Statistics helper dependency.
-- Added a non-blocking Home Assistant Repairs issue only when `sensor.house_humidity_mean_7d` is missing.
-- Differentiated missing helper, helper not ready or unavailable, non-numeric helper, low history coverage, and invalid source states without fabricating drift values.
-- Refined optional Current Air Control temperature chip colours to use backend-owned seasonal cold, comfort, warm, and hot boundaries.
-- Exposed the resolved temperature warm boundary through comfort sensor attributes and diagnostics so generated cards do not hard-code seasonal thresholds.
-- Kept setup/options Frontend Dependencies pages frontend-only; drift dependency truth remains available through diagnostics, self-check, release-check, drift sensor attributes, and Repairs.
-- Preserved the existing drift calculation and legacy `sensor.house_humidity_mean_7d` compatibility.
-- Kept lane ordering, AQ, humidifier, alert, output, entity, migration, restore, HACS update, and runtime-control behavior unchanged.
-
 ## 2.0.5
 
 - Reorganised setup and options so essentials stay visible while tuning controls move behind Advanced sections.
