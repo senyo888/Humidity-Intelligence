@@ -4,7 +4,7 @@
 
 # Humidity Intelligence
 
-## Domestic Environmental Control Engine for Home Assistant
+## Domestic Environmental Stabilisation Engine for Home Assistant
 
 [![Latest Release](https://img.shields.io/github/v/release/senyo888/Humidity-Intelligence?display_name=tag&sort=semver)](https://github.com/senyo888/Humidity-Intelligence/releases)
 [![HACS](https://img.shields.io/badge/HACS-Custom%20Integration-orange)](https://hacs.xyz)
@@ -16,7 +16,7 @@
 - [TL;DR](#tldr)
 - [What Is Humidity Intelligence](#what-is-humidity-intelligence)
 - [V2 UI Example](#v2-ui-example)
-- [Support Project](#support-project)
+- [Support Humidity Intelligence](#support-humidity-intelligence)
 - [Why Environmental Stability Matters](#why-environmental-stability-matters)
 - [Air Quality and Environmental Stability](#air-quality-and-environmental-stability)
 - [Season-Aware Environmental Control](#season-aware-environmental-control)

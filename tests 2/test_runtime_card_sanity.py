@@ -2964,6 +2964,20 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
     assert checks["generated_cards_text_sanity"]["status"] == "pass"
     assert checks["frontend_dependencies_reported"]["status"] == "pass"
 
+    beta_report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        runtime_data,
+        manifest_version="2.0.6-beta.1",
+        frontend_dependencies={
+            "status": "not_inspectable",
+            "reason": "Lovelace resource collection is not available in this Home Assistant runtime context.",
+        },
+    )
+    beta_checks = {check["id"]: check for check in beta_report["checks"]}
+    assert beta_report["status"] == "pass"
+    assert beta_checks["manifest_version"]["status"] == "pass"
+
     failed_report = services_mod._build_v205_release_check_entry_report(
         hass,
         entry,
