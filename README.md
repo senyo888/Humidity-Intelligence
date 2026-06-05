@@ -52,7 +52,7 @@ It gives you:
 - native Home Assistant diagnostics for support and triage
 - services for dashboard export, self-check, diagnostics, pause/resume, and release validation
 
-Current release: **v2.0.5**.
+Current release: **v2.0.6**.
 
 ---
 
@@ -356,17 +356,17 @@ The UI does not compute logic. The engine decides; the UI renders.
 
 ## Current Release Highlights
 
-- setup and options now present essentials first, with tuning controls behind Advanced sections that open/retract immediately within the form
-- HI applies recommended defaults unless you customise them
-- control loop interval, startup UI mapping refresh, custom humidity targets, custom temperature comfort values, slope sources, fan levels, threshold tuning, lane removal, AQ tuning, and visual-alert tuning remain available as advanced controls
-- new installs default the generated V2 dashboard to a cleaner output display
-- `Show output entity details` can re-enable the generated-card output details panel when deeper runtime inspection is useful
-- `v2_tablet` is selected by default during initial UI export; unscoped `dump_cards` still exports all cached/generated layouts unless `layout` is supplied
-- native diagnostics, issue-template triage, house humidity drift dependency reporting, seeded slope startup state, and registered slope mapping improve supportability without adding hidden control paths
-- deterministic runtime lane ordering, alert hierarchy, CO emergency behavior, humidifier independence, entity names, and `dump_cards` remain unchanged
+- required humidity telemetry, or configured temperature telemetry, now degrades explicitly to `telemetry_unavailable` instead of falling through to lower lanes or all-clear wording
+- CO emergency clearing now schedules a recheck at the two-minute clear deadline instead of waiting for the next normal control interval
+- global gates now clear lower-priority active alert switch/context/telemetry state so Current Air Control cannot keep showing stale humidity-danger activity after a gate takes authority
+- setup/options telemetry Cancel actions now return through an explicit confirmation path without losing already-saved flow data
+- Zone 2 setup/options defaults and trigger labels now preserve Zone 2 / Level 2 ownership unless explicitly changed
+- advanced local HI-only snapshot services, `create_local_backup` and `list_saved_versions`, support maintainer validation without adding restore, rollback, HACS interception, or runtime-control behavior
+- house humidity drift helper readiness is clearer across sensor attributes, diagnostics, `self_check`, `v205_release_check`, and Repairs
+- optional temperature chip colours now use backend-owned seasonal cold, comfort, warm, and hot boundaries
+- deterministic lane ordering, alert hierarchy, CO emergency priority, humidifier independence, output writes, migration behavior, and `dump_cards` remain unchanged
 
-Upgrade note: **v2.0.5 concentrates on configuration UX, generated-card visibility, diagnostics, issue support, drift dependency reporting, and slope mapping correctness.** The control engine semantics remain stable.
-After changing UI visibility options, run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual cards.
+Upgrade note: **v2.0.6 concentrates on runtime truth, missing-telemetry fail-safe behavior, release validation support, and configuration/support polish.** After updating HI, reload or restart Home Assistant. Run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual cards if you use generated Current Air Control cards.
 
 ---
 
@@ -536,7 +536,7 @@ sensor:
       days: 7
 ```
 
-In v2.0.6-beta.1, HI reports missing-helper guidance through the drift sensor attributes, diagnostics, `self_check`, `v205_release_check`, and Home Assistant Repairs. The setup/options Frontend Dependencies pages remain frontend-only; drift helper truth belongs on diagnostics and repair surfaces.
+In v2.0.6, HI reports missing-helper guidance through the drift sensor attributes, diagnostics, `self_check`, `v205_release_check`, and Home Assistant Repairs. The setup/options Frontend Dependencies pages remain frontend-only; drift helper truth belongs on diagnostics and repair surfaces.
 
 If the helper exists but reports `unknown`, `unavailable`, a non-numeric state, low `age_coverage_ratio`, or `source_value_valid: false`, HI reports it as not ready or unavailable instead of telling you to recreate the helper.
 
@@ -656,7 +656,7 @@ Rules:
 - minimum one humidity + one temperature sensor per active level
 - use `level1` and `level2` consistently
 - keep room labels stable and human-readable
-- in v2.0.6-beta.1, Cancel on setup/options telemetry add and edit pages returns
+- in v2.0.6, Cancel on setup/options telemetry add and edit pages returns
   through an explicit confirmation step so already-saved flow data is preserved
 
 Example baseline:
@@ -700,7 +700,7 @@ What to do:
 - use recommended thresholds first; tune later from `Thresholds & Comfort` if observed behaviour needs adjustment
 - open Advanced for normal output stage, boost output stage, and Current Air Control label
 - keep boost higher than the normal zone fan level where possible
-- in v2.0.6-beta.1, Zone 2 setup/options defaults to `level2` and trigger labels
+- in v2.0.6, Zone 2 setup/options defaults to `level2` and trigger labels
   show `Zone 2 / Level 2` ownership unless you explicitly choose a different level
 
 Example baseline:
@@ -812,7 +812,7 @@ Example service usage:
 
 ## Configuration Screenshots (Visual Guide)
 
-These images are a visual orientation aid. The current v2.0.5 flow uses live
+These images are a visual orientation aid. The current V2 flow uses live
 collapsible Advanced sections, so the exact visible fields depend on which section is
 expanded.
 
@@ -1021,7 +1021,7 @@ data: {}
 
 ### `v205_release_check`
 Purpose:
-- run a read-only v2.0.5 release-validation report in Home Assistant.
+- run a read-only v2.0.5/v2.0.6 release-validation report in Home Assistant.
 - verify generated-card output-details visibility, cached layout coverage, unresolved placeholders, card text sanity, configured entity availability, house humidity drift dependency status, and optional frontend dependency status.
 - with `write_test_exports: true`, write test card exports proving unscoped `dump_cards` exports all layouts and scoped export writes only `v2_tablet`.
 - reports optional local HI-only snapshot status; `require_local_hi_snapshot` can be enabled for maintainer validation when a fresh package-local snapshot is required.
@@ -1149,16 +1149,14 @@ CO emergency pressure. Details are in
 
 ## Release Notes
 
-### Unreleased
+### v2.0.6
 
+- promoted integration metadata to stable `2.0.6`
 - added degraded `telemetry_unavailable` runtime mode when required humidity or configured temperature telemetry is unavailable, so HI stands down safely instead of reporting normal/all-clear
 - fixed global gate preemption so a running humidity-danger alert lane clears its alert context and Current Air Control does not keep showing stale alert-running state after the gate takes over
 - no migration is required for the global gate preemption fix; after updating HI, reload/restart Home Assistant, then run `humidity_intelligence.dump_cards` or re-copy any pasted dashboard YAML and refresh dashboard/browser cache to see the Current Air Control card update
 - fixed CO emergency clear timing so the engine schedules a recheck at the two-minute clear deadline instead of waiting for the next periodic control interval
 - added direct backend simulation validation for `HI Air Control Mode` and `HI Air Control Reason`, including normal, telemetry unavailable, zone, AQ, gate, and opt-in CO pressure scenarios
-
-### v2.0.6-beta.1
-
 - fixed setup/options telemetry add and edit Cancel handling so users can return to the previous telemetry page without losing already-saved flow data
 - added explicit close-without-saving confirmation for HI-controlled setup/options Cancel actions
 - fixed Zone 2 setup/options defaults and trigger labels so Zone 2 trigger ownership is shown and stored as Zone 2 / Level 2 unless explicitly changed
@@ -1171,10 +1169,11 @@ CO emergency pressure. Details are in
 - added a non-blocking Home Assistant Repairs issue only when `sensor.house_humidity_mean_7d` is missing
 - differentiated missing helper, not ready or unavailable helper, non-numeric helper, low history coverage, and invalid source states without fabricating drift values
 - refined optional Current Air Control temperature chip colours to use backend-owned seasonal cold, comfort, warm, and hot boundaries
+- retuned Spring and Summer temperature chip comfort/warm bands while keeping the backend-owned seasonal boundary model unchanged
 - exposed the resolved temperature warm boundary through comfort sensor attributes and diagnostics so generated cards do not hard-code seasonal thresholds
 - kept the setup/options Frontend Dependencies pages frontend-only; drift dependency truth remains on the drift sensor, diagnostics, `self_check`, `v205_release_check`, and Repairs
 - preserved the existing drift calculation and legacy `sensor.house_humidity_mean_7d` compatibility
-- kept lane ordering, AQ, humidifier, alert, output, entity, migration, restore, HACS update, and runtime-control behavior unchanged
+- kept lane ordering, AQ, humidifier, alert, output, migration, restore, HACS update, and runtime-control behavior unchanged except for the explicit `telemetry_unavailable` mode/entity truth correction
 
 ### v2.0.5
 
