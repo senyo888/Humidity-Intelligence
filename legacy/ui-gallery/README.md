@@ -44,7 +44,7 @@ Humidity Intelligence public sensor API.
    - Style: Single badge, average temperature thresholds.
    - Optimised for: Mobile
    - Author: @senyo888
-   - [![Badge UI Preview.png](house-average-temperature-badge-mobile-ui/house-average-temperature-badge-mobile.png)](house-average-temperature-badge-mobile-ui/house-average-humidity-badge-mobile.png)
+   - [![Badge UI Preview.png](house-average-temperature-badge-mobile-ui/house-average-temperature-badge-mobile.png)](house-average-temperature-badge-mobile-ui/house-average-temperature-badge-mobile.png)
   - [Badge UI Preview.png](house-average-temperature-badge-mobile-ui/house-average-temperature-badge-mobile.png)
   - [Dashboard YAML](house-average-temperature-badge-mobile-ui/house-average-temperature-badge-mobile_dashboard.yaml)
 

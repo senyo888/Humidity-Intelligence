@@ -1,3 +1,5 @@
+![Humidity Intelligence changelog header](assets/change-log.png)
+
 # Changelog
 
 All notable changes to Humidity Intelligence will be documented in this file.
@@ -6,8 +8,32 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
-- Synchronized roadmap, governance, support, and contributor documentation to treat v2.0.5 as a completed release milestone while keeping future v2.1 work explicitly staged.
-- Kept `v205_release_check` compatible with v2.0.6 beta/rc/stable manifests so the v2.0.6 beta 1 validation path reuses the existing read-only release-check contract instead of renaming the service.
+- No unreleased changes.
+
+## 2.0.6
+
+- Promoted integration metadata to stable `2.0.6`.
+- Added a degraded `telemetry_unavailable` runtime mode when required humidity or configured temperature telemetry is unavailable, standing down lower-priority control lanes instead of reporting a normal/all-clear state.
+- Fixed global gate preemption so an active humidity-danger alert lane clears its active alert switch, held alert context, and Current Air Control alert chip when the gate takes authority.
+- No migration is required for the global gate preemption fix; after updating HI, reload/restart Home Assistant, then run `humidity_intelligence.dump_cards` or re-copy any pasted dashboard YAML and refresh dashboard/browser cache to see the Current Air Control card update.
+- Fixed CO emergency clearing so HI schedules a recheck at the two-minute clear deadline instead of waiting for the next normal control interval.
+- Added direct backend simulation validation for `HI Air Control Mode` and `HI Air Control Reason`, covering normal, telemetry unavailable, zone, AQ, gate, and opt-in CO pressure scenarios without adding runtime fake telemetry paths.
+- Fixed setup/options telemetry add and edit pages so users can cancel back to the previous telemetry page without losing already-saved flow data, with explicit close-without-saving confirmation on HI-controlled Cancel actions.
+- Fixed Zone 2 setup/options defaults and trigger labels so Zone 2 trigger ownership is shown and stored as Zone 2 / Level 2 unless explicitly changed.
+- Added explicit local HI-only snapshot services for advanced maintenance: `create_local_backup` and `list_saved_versions`.
+- Exposed compact local snapshot status through diagnostics, self-check, and optional release-check freshness inputs.
+- Kept local snapshot support manual and package-local only; no restore flow, automatic rollback, HACS interception, startup snapshotting, or whole-instance backup behavior is included.
+- Added a Community Ideas & Proposals issue form for ideas, dashboard suggestions, compatibility requests, documentation improvements, diagnostics/support-flow ideas, and automation/control suggestions.
+- Updated contributor, support, and report-only triage wording so community ideas remain manual intake signals, not implementation authority.
+- Added clean-install setup/repair guidance for the `HI House Humidity Drift 7d` Statistics helper dependency.
+- Added a non-blocking Home Assistant Repairs issue only when `sensor.house_humidity_mean_7d` is missing.
+- Differentiated missing helper, helper not ready or unavailable, non-numeric helper, low history coverage, and invalid source states without fabricating drift values.
+- Refined optional Current Air Control temperature chip colours to use backend-owned seasonal cold, comfort, warm, and hot boundaries.
+- Retuned Spring and Summer temperature chip comfort/warm bands while keeping the backend-owned seasonal boundary model unchanged.
+- Exposed the resolved temperature warm boundary through comfort sensor attributes and diagnostics so generated cards do not hard-code seasonal thresholds.
+- Kept setup/options Frontend Dependencies pages frontend-only; drift dependency truth remains available through diagnostics, self-check, release-check, drift sensor attributes, and Repairs.
+- Preserved the existing drift calculation and legacy `sensor.house_humidity_mean_7d` compatibility.
+- Kept lane ordering, AQ, humidifier, alert, output, migration, restore, HACS update, and runtime-control behavior unchanged except for the explicit `telemetry_unavailable` mode/entity truth correction.
 
 ## 2.0.5
 

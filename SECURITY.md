@@ -1,3 +1,5 @@
+![Humidity Intelligence security policy header](assets/security.png)
+
 # Security Policy
 
 ## Responsible disclosure
@@ -17,6 +19,32 @@ Do not post sensitive Home Assistant or household information in issues, pull re
 - Home addresses or location details
 - Device IDs and unique hardware identifiers
 - Personal names or other personal data
+
+## Secret scanning
+
+Repository secret checks are layered:
+
+- GitHub native secret scanning and push protection should be verified in repository Code security settings.
+- Gitleaks is the primary repository scanner. The required CI status is `Gitleaks secret scan`.
+- The existing custom secret-pattern scan remains as a secondary Humidity Intelligence-specific guard.
+
+Maintainers can run a local scan before pushing:
+
+```bash
+scripts/security/scan_secrets.sh
+```
+
+The default local mode scans tracked repository files and avoids ignored local
+credential files such as Home Assistant token stores.
+
+Run the full-history scan when changing scanner configuration or before tightening
+branch-protection rules:
+
+```bash
+scripts/security/scan_secrets.sh full-history
+```
+
+Scanner output must stay redacted. If a real secret is found, rotate the credential first. Removing it from git history is cleanup, not sufficient remediation.
 
 ## Reporting guidance
 

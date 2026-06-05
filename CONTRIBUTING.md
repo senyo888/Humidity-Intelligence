@@ -1,3 +1,5 @@
+![Humidity Intelligence contributing header](assets/contributing-header.png)
+
 # Contributing to Humidity Intelligence
 
 Thanks for helping improve Humidity Intelligence. This repository is maintained as a Home Assistant custom integration intended for HACS users, so changes should preserve a clear integration layout, predictable behavior, and safe public examples.
@@ -11,6 +13,7 @@ Before opening a PR:
 - Install or update the integration in a Home Assistant test instance.
 - Restart Home Assistant and confirm the integration loads cleanly.
 - Check Home Assistant logs for new warnings or errors.
+- Run `scripts/security/scan_secrets.sh` before pushing if Gitleaks is installed locally. The default mode scans tracked files and avoids ignored local credential files.
 - Validate the config flow when setup behavior changes.
 - Run `humidity_intelligence.refresh_ui` when dashboard output or generated UI changes.
 - Update documentation when behavior, setup steps, services, or UI examples change.
@@ -53,6 +56,11 @@ Before submitting an issue, PR, YAML file, screenshot, or log excerpt, remove:
 
 Use generic examples such as `sensor.redacted_bedroom_humidity` when needed.
 
+Secret-scanner findings must stay redacted in logs, reports, pull requests, and issue
+text. Do not add broad allowlists for docs, reports, YAML, examples, fixtures, tests,
+or local `.codex/` material. If a finding is a proven false positive, keep any
+allowlist narrow and document why it is safe.
+
 ## Coding style
 
 Humidity Intelligence favors deterministic environmental-control logic. Contributions should keep behavior predictable and explainable:
@@ -67,10 +75,12 @@ Humidity Intelligence favors deterministic environmental-control logic. Contribu
 
 Update `README.md`, docs, services documentation, or UI Gallery README files whenever a change affects setup, entities, services, generated UI, release behavior, or HACS installation. Documentation should be practical, current, and safe to publish.
 
-## Bug reports and review process
+## Bug reports, ideas, and review process
 
-Use the GitHub issue forms for bugs, feature requests, configuration help, and UI Gallery submissions. For bug/configuration reports, attach the native Home Assistant diagnostics file for Humidity Intelligence when possible. If diagnostics cannot be downloaded, include the Humidity Intelligence version, Home Assistant version, install method, logs, expected behavior, actual behavior, checks already tried, and steps to reproduce.
+Use the GitHub issue forms for bugs, feature requests, community ideas/proposals, configuration help, and UI Gallery submissions. For bug/configuration reports, attach the native Home Assistant diagnostics file for Humidity Intelligence when possible. If diagnostics cannot be downloaded, include the Humidity Intelligence version, Home Assistant version, install method, logs, expected behavior, actual behavior, checks already tried, and steps to reproduce.
 
-Maintainers can use the report-only daily triage helper documented in [docs/issue-triage.md](docs/issue-triage.md) to review new, untriaged, or recently updated issues without mutating GitHub issue state.
+Use the Community Ideas & Proposals form for wider ideas, dashboard suggestions, compatibility requests, documentation improvements, and automation/control suggestions that need maintainer review before implementation. These issues are intake signals only: reactions and comments may inform visibility, but they do not approve implementation, release scope, runtime behavior changes, or Home Assistant changes. A community idea becomes a formal HI proposal only if maintainers decide it is worth taking forward.
+
+Maintainers can use the report-only triage helper documented in [docs/issue-triage.md](docs/issue-triage.md) to review new, untriaged, or recently updated issues without mutating GitHub issue state.
 
 Pull requests are reviewed for correctness, Home Assistant compatibility, HACS readiness, privacy safety, and documentation quality. The maintainer may ask for a smaller scope, additional testing, or clearer docs before merging.

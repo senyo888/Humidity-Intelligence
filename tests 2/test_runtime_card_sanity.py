@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
+import json
 import pathlib
 import sys
 import tempfile
 import types
+from datetime import datetime, timedelta
 from types import MethodType, SimpleNamespace
 
 
@@ -250,6 +252,27 @@ def _load_frontend_dependencies_module():
         f"{PKG}.helpers.frontend_dependencies",
         ROOT / "helpers" / "frontend_dependencies.py",
     )
+
+
+def _install_issue_registry_stub(events):
+    issue_registry = types.ModuleType("homeassistant.helpers.issue_registry")
+
+    class IssueSeverity:
+        WARNING = "warning"
+
+    def async_create_issue(hass, domain, issue_id, **kwargs):
+        events.append(("create", domain, issue_id, kwargs))
+
+    def async_delete_issue(hass, domain, issue_id):
+        events.append(("delete", domain, issue_id, {}))
+
+    issue_registry.IssueSeverity = IssueSeverity
+    issue_registry.async_create_issue = async_create_issue
+    issue_registry.async_delete_issue = async_delete_issue
+    sys.modules["homeassistant.helpers.issue_registry"] = issue_registry
+    helpers = sys.modules.get("homeassistant.helpers")
+    if helpers is not None:
+        helpers.issue_registry = issue_registry
 
 
 class _FakeState:
@@ -571,6 +594,286 @@ def test_house_humidity_drift_7d_reports_missing_statistics_dependency():
     assert attrs["required_dependency"] == "sensor.house_humidity_mean_7d"
     assert attrs["dependency_status"] == "missing"
     assert attrs["current_house_humidity"] == 55.0
+    assert attrs["repair_kind"] == "missing_helper"
+    assert attrs["repair_required"] is True
+    assert attrs["history_status"] == "not_ready_or_unavailable"
+
+
+def test_house_humidity_drift_dependency_status_marks_missing_helper_as_repair_required():
+    _load_core_module()
+    drift_mod = sys.modules[f"{PKG}.helpers.drift"]
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(entry, {"sensor.kitchen_h": _FakeState(55)})
+
+    status = drift_mod.humidity_drift_dependency_status(hass)
+
+    assert status["dependency_entity"] == "sensor.house_humidity_mean_7d"
+    assert status["dependency_status"] == "missing"
+    assert status["repair_required"] is True
+    assert status["repair_kind"] == "missing_helper"
+    assert status["repair_issue_id"] == "house_humidity_mean_7d_missing"
+    assert "Statistics helper" in status["repair_summary"]
+    assert any("House Humidity Mean 7d" in step for step in status["repair_steps"])
+    assert status["history_status"] == "not_ready_or_unavailable"
+
+
+def test_house_humidity_drift_dependency_status_marks_existing_unknown_helper_as_not_ready():
+    _load_core_module()
+    drift_mod = sys.modules[f"{PKG}.helpers.drift"]
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(55),
+            "sensor.house_humidity_mean_7d": _FakeState("unknown"),
+        },
+    )
+
+    status = drift_mod.humidity_drift_dependency_status(hass)
+
+    assert status["dependency_status"] == "unknown"
+    assert status["repair_required"] is False
+    assert status["repair_kind"] == "helper_not_ready_or_unavailable"
+    assert "create" not in status["repair_summary"].lower()
+    assert status["history_status"] == "not_ready_or_unavailable"
+
+
+def test_house_humidity_drift_dependency_status_marks_low_statistics_coverage_not_ready():
+    _load_core_module()
+    drift_mod = sys.modules[f"{PKG}.helpers.drift"]
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(55),
+            "sensor.house_humidity_mean_7d": _FakeState(
+                50,
+                {
+                    "age_coverage_ratio": 0.03,
+                    "source_value_valid": True,
+                },
+            ),
+        },
+    )
+
+    status = drift_mod.humidity_drift_dependency_status(hass)
+
+    assert status["dependency_status"] == "history_not_ready"
+    assert status["available"] is False
+    assert status["repair_required"] is False
+    assert status["repair_kind"] == "history_not_ready"
+    assert status["dependency_state"] == "50"
+    assert status["age_coverage_ratio"] == 0.03
+    assert status["required_age_coverage_ratio"] == 0.85
+    assert status["source_value_valid"] is True
+    assert status["history_status"] == "not_ready_or_unavailable"
+    assert "mean_7d" not in status
+
+
+def test_house_humidity_drift_dependency_status_marks_existing_non_numeric_helper_as_misconfigured():
+    _load_core_module()
+    drift_mod = sys.modules[f"{PKG}.helpers.drift"]
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(55),
+            "sensor.house_humidity_mean_7d": _FakeState("warming-up"),
+        },
+    )
+
+    status = drift_mod.humidity_drift_dependency_status(hass)
+
+    assert status["dependency_status"] == "non_numeric"
+    assert status["repair_required"] is False
+    assert status["repair_kind"] == "helper_misconfigured_or_non_numeric"
+    assert status["dependency_state"] == "warming-up"
+
+
+def test_house_humidity_drift_dependency_status_marks_invalid_statistics_source_not_ready():
+    _load_core_module()
+    drift_mod = sys.modules[f"{PKG}.helpers.drift"]
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(55),
+            "sensor.house_humidity_mean_7d": _FakeState(
+                50,
+                {
+                    "age_coverage_ratio": 1.0,
+                    "source_value_valid": False,
+                },
+            ),
+        },
+    )
+
+    status = drift_mod.humidity_drift_dependency_status(hass)
+
+    assert status["dependency_status"] == "source_not_valid"
+    assert status["available"] is False
+    assert status["repair_required"] is False
+    assert status["repair_kind"] == "helper_source_not_valid"
+    assert status["age_coverage_ratio"] == 1.0
+    assert status["required_age_coverage_ratio"] == 0.85
+    assert status["source_value_valid"] is False
+    assert status["history_status"] == "not_ready_or_unavailable"
+    assert "mean_7d" not in status
+
+
+def test_house_humidity_drift_dependency_status_preserves_numeric_helper_contract():
+    _load_core_module()
+    drift_mod = sys.modules[f"{PKG}.helpers.drift"]
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(55),
+            "sensor.house_humidity_mean_7d": _FakeState(50),
+        },
+    )
+
+    status = drift_mod.humidity_drift_dependency_status(hass)
+
+    assert status["dependency_status"] == "ok"
+    assert status["available"] is True
+    assert status["mean_7d"] == 50.0
+    assert status["repair_required"] is False
+    assert status["repair_kind"] == "none"
+
+
+def test_house_humidity_drift_dependency_status_accepts_sufficient_statistics_coverage():
+    _load_core_module()
+    drift_mod = sys.modules[f"{PKG}.helpers.drift"]
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(55),
+            "sensor.house_humidity_mean_7d": _FakeState(
+                50,
+                {
+                    "age_coverage_ratio": 1.0,
+                    "source_value_valid": True,
+                },
+            ),
+        },
+    )
+
+    status = drift_mod.humidity_drift_dependency_status(hass)
+
+    assert status["dependency_status"] == "ok"
+    assert status["available"] is True
+    assert status["mean_7d"] == 50.0
+    assert status["age_coverage_ratio"] == 1.0
+    assert status["required_age_coverage_ratio"] == 0.85
+    assert status["source_value_valid"] is True
+    assert status["repair_required"] is False
+    assert status["repair_kind"] == "none"
+
+
+def test_house_humidity_drift_dependency_status_reports_source_entity_status():
+    _load_core_module()
+    sys.modules["homeassistant.helpers.entity_registry"].async_get = lambda hass: _FakeRegistry()
+    drift_mod = sys.modules[f"{PKG}.helpers.drift"]
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(55),
+            "sensor.house_humidity_mean_7d": _FakeState("unknown"),
+            "sensor.hi_house_avg_humidity": _FakeState(55),
+        },
+    )
+
+    status = drift_mod.humidity_drift_dependency_status(hass)
+
+    assert status["source_entity"] == "sensor.hi_house_avg_humidity"
+    assert status["source_entity_status"] == "ok"
+
+
+def test_house_humidity_drift_7d_blocks_numeric_helper_until_statistics_coverage_ready():
+    core_mod = _load_core_module()
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(55),
+            "sensor.house_humidity_mean_7d": _FakeState(
+                50,
+                {
+                    "age_coverage_ratio": 0.03,
+                    "source_value_valid": True,
+                },
+            ),
+        },
+    )
+
+    sensors, _binary_sensors, _sources = core_mod.build_entities(hass, entry)
+    drift = _find_sensor(sensors, "house_drift_7d")
+
+    assert drift._attr_native_value is None
+    attrs = drift._attr_extra_state_attributes
+    assert attrs["status"] == "unavailable"
+    assert attrs["reason"] == "statistics_dependency_history_not_ready"
+    assert attrs["dependency_status"] == "history_not_ready"
+    assert attrs["age_coverage_ratio"] == 0.03
+    assert attrs["required_age_coverage_ratio"] == 0.85
+    assert attrs["source_value_valid"] is True
+    assert attrs["repair_required"] is False
+    assert attrs["repair_kind"] == "history_not_ready"
+
+
+def test_drift_repair_issue_created_only_for_missing_helper():
+    events = []
+    _install_homeassistant_stubs()
+    _install_package_scaffold()
+    _install_issue_registry_stub(events)
+    _load_module(f"{PKG}.const", ROOT / "const.py")
+    _load_module(f"{PKG}.helpers.drift", ROOT / "helpers" / "drift.py")
+    repairs_mod = _load_module(
+        f"{PKG}.helpers.drift_repairs",
+        ROOT / "helpers" / "drift_repairs.py",
+    )
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(entry, {"sensor.kitchen_h": _FakeState(55)})
+
+    asyncio.run(repairs_mod.async_update_humidity_drift_repair_issue(hass))
+
+    assert events
+    assert events[0][0] == "create"
+    assert events[0][2] == "house_humidity_mean_7d_missing"
+    assert events[0][3]["is_fixable"] is False
+    assert events[0][3]["severity"] == "warning"
+
+
+def test_drift_repair_issue_deleted_for_existing_not_ready_helper():
+    events = []
+    _install_homeassistant_stubs()
+    _install_package_scaffold()
+    _install_issue_registry_stub(events)
+    _load_module(f"{PKG}.const", ROOT / "const.py")
+    _load_module(f"{PKG}.helpers.drift", ROOT / "helpers" / "drift.py")
+    repairs_mod = _load_module(
+        f"{PKG}.helpers.drift_repairs",
+        ROOT / "helpers" / "drift_repairs.py",
+    )
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(
+        entry,
+        {"sensor.house_humidity_mean_7d": _FakeState("unknown")},
+    )
+
+    asyncio.run(repairs_mod.async_update_humidity_drift_repair_issue(hass))
+
+    assert events == [
+        (
+            "delete",
+            "humidity_intelligence",
+            "house_humidity_mean_7d_missing",
+            {},
+        )
+    ]
 
 
 def test_house_humidity_drift_7d_preserves_valid_statistics_calculation():
@@ -693,6 +996,99 @@ async def _run_runtime_assertions(engine_mod) -> None:
     engine_co_guard = HIAutomationEngine(hass_co_guard, entry_co_guard)
     await engine_co_guard._evaluate()
     assert hass_co_guard.data["humidity_intelligence"][ENTRY_ID].get("runtime_mode") != "co_emergency"
+
+    # CO clear is a timed safety hold. Once CO falls below the clear threshold,
+    # the engine must schedule its own recheck at the clear deadline instead of
+    # waiting for the normal periodic interval.
+    entry_co_clear = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass_co_clear = _FakeHass(
+        entry_co_clear,
+        {
+            "sensor.kitchen_h": _FakeState(60),
+            "sensor.hall_h": _FakeState(60),
+            "sensor.bed_h": _FakeState(60),
+            "sensor.kitchen_t": _FakeState(23),
+            "sensor.hall_t": _FakeState(22),
+            "sensor.bed_t": _FakeState(21),
+            "sensor.l1_iaq": _FakeState(40),
+            "sensor.co_val": _FakeState(16),
+        },
+    )
+    engine_co_clear = HIAutomationEngine(hass_co_clear, entry_co_clear)
+    await engine_co_clear._evaluate()
+    assert hass_co_clear.data["humidity_intelligence"][ENTRY_ID].get("runtime_mode") == "co_emergency"
+
+    hass_co_clear.states._values["sensor.co_val"] = _FakeState(0)
+    await engine_co_clear._evaluate()
+    assert engine_co_clear._co_below_since is not None
+    assert engine_co_clear._co_clear_recheck_task is not None
+    assert not engine_co_clear._co_clear_recheck_task.done()
+    engine_co_clear._co_clear_recheck_task.cancel()
+    try:
+        await engine_co_clear._co_clear_recheck_task
+    except asyncio.CancelledError:
+        pass
+
+    # Missing required humidity telemetry should stand down before lower-priority
+    # lanes rather than presenting a normal/all-clear control state.
+    entry_humidity_missing_data = _base_entry_data()
+    entry_humidity_missing = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data=entry_humidity_missing_data,
+        options={},
+    )
+    hass_humidity_missing = _FakeHass(
+        entry_humidity_missing,
+        {
+            "sensor.kitchen_h": _FakeState("unavailable"),
+            "sensor.hall_h": _FakeState("unavailable"),
+            "sensor.bed_h": _FakeState("unavailable"),
+            "sensor.kitchen_t": _FakeState(23),
+            "sensor.hall_t": _FakeState(22),
+            "sensor.bed_t": _FakeState(21),
+            "sensor.l1_iaq": _FakeState(40),
+            "sensor.co_val": _FakeState(0),
+        },
+    )
+    engine_humidity_missing = HIAutomationEngine(hass_humidity_missing, entry_humidity_missing)
+    humidity_missing_trace = []
+    for method in ("_handle_alerts", "_handle_humidifiers", "_handle_zone_by_key", "_handle_aq"):
+        _wrap_async_method(engine_humidity_missing, method, humidity_missing_trace)
+    await engine_humidity_missing._evaluate()
+    humidity_missing_data = hass_humidity_missing.data["humidity_intelligence"][ENTRY_ID]
+    assert humidity_missing_trace == []
+    assert humidity_missing_data.get("runtime_mode") == "telemetry_unavailable"
+    assert humidity_missing_data.get("runtime_mode_display") == "TELEMETRY UNAVAILABLE"
+    assert "Required humidity telemetry is unavailable" in humidity_missing_data.get("runtime_reason", "")
+
+    entry_temperature_missing_data = _base_entry_data()
+    entry_temperature_missing = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data=entry_temperature_missing_data,
+        options={},
+    )
+    hass_temperature_missing = _FakeHass(
+        entry_temperature_missing,
+        {
+            "sensor.kitchen_h": _FakeState(57),
+            "sensor.hall_h": _FakeState(57),
+            "sensor.bed_h": _FakeState(57),
+            "sensor.kitchen_t": _FakeState("unavailable"),
+            "sensor.hall_t": _FakeState("unavailable"),
+            "sensor.bed_t": _FakeState("unavailable"),
+            "sensor.l1_iaq": _FakeState(40),
+            "sensor.co_val": _FakeState(0),
+        },
+    )
+    engine_temperature_missing = HIAutomationEngine(hass_temperature_missing, entry_temperature_missing)
+    temperature_missing_trace = []
+    for method in ("_handle_alerts", "_handle_humidifiers", "_handle_zone_by_key", "_handle_aq"):
+        _wrap_async_method(engine_temperature_missing, method, temperature_missing_trace)
+    await engine_temperature_missing._evaluate()
+    temperature_missing_data = hass_temperature_missing.data["humidity_intelligence"][ENTRY_ID]
+    assert temperature_missing_trace == []
+    assert temperature_missing_data.get("runtime_mode") == "telemetry_unavailable"
+    assert "Required temperature telemetry is unavailable" in temperature_missing_data.get("runtime_reason", "")
 
     # Alert lane is now exclusive: no humidifier/zone/AQ handling should run.
     entry2 = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
@@ -837,52 +1233,6 @@ async def _run_runtime_assertions(engine_mod) -> None:
         and data.get("entity_id") == "fan.zone1"
         and data.get("percentage") == 100
         for domain, service, data, _ in hass_zone_alert.services.calls
-    )
-
-    # New v2.0.4 risk alerts should bind to the originating room's zone boost.
-    entry_condensation_risk_data = _base_entry_data()
-    entry_condensation_risk_data["target_profile"] = "custom"
-    entry_condensation_risk_data["custom_target_low"] = 40
-    entry_condensation_risk_data["custom_target_high"] = 79
-    entry_condensation_risk_data["aq"] = {}
-    entry_condensation_risk_data["humidifiers"] = {}
-    entry_condensation_risk_data["alerts"] = [
-        {
-            "enabled": True,
-            "trigger_type": "condensation_risk",
-            "room": "Bedroom",
-            "lights": [],
-        }
-    ]
-    entry_condensation_risk = SimpleNamespace(
-        entry_id=ENTRY_ID,
-        data=entry_condensation_risk_data,
-        options={},
-    )
-    hass_condensation_risk = _FakeHass(
-        entry_condensation_risk,
-        {
-            "sensor.kitchen_h": _FakeState(45),
-            "sensor.hall_h": _FakeState(45),
-            "sensor.bed_h": _FakeState(77),
-            "sensor.kitchen_t": _FakeState(22),
-            "sensor.hall_t": _FakeState(22),
-            "sensor.bed_t": _FakeState(20),
-            "sensor.l1_iaq": _FakeState(85),
-            "sensor.co_val": _FakeState(4),
-        },
-    )
-    engine_condensation_risk = HIAutomationEngine(hass_condensation_risk, entry_condensation_risk)
-    await engine_condensation_risk._evaluate()
-    assert hass_condensation_risk.data["humidity_intelligence"][ENTRY_ID].get("active_alert_context") == (
-        "Condensation Risk · Bedroom · Zone 2"
-    )
-    assert any(
-        domain == "fan"
-        and service == "set_percentage"
-        and data.get("entity_id") == "fan.zone2"
-        and data.get("percentage") == 100
-        for domain, service, data, _ in hass_condensation_risk.services.calls
     )
 
     # Alert hierarchy should beat zone priority: mould risk in Zone 2 outranks
@@ -1596,6 +1946,112 @@ async def _run_runtime_assertions(engine_mod) -> None:
     gate_reason = hass_gate.data["humidity_intelligence"][ENTRY_ID].get("runtime_reason", "")
     assert "Presence gate is active" in gate_reason
 
+    # Global gate preemption should stop an active humidity-danger alert lane and
+    # clear the UI alert context immediately, even if humidity is still high.
+    entry_gate_alert_data = _base_entry_data()
+    entry_gate_alert_data["aq"] = {}
+    entry_gate_alert_data["humidifiers"] = {}
+    entry_gate_alert_data["alerts"][0]["lights"] = []
+    entry_gate_alert_data["alerts"][0].pop("power_entity", None)
+    entry_gate_alert_data["presence_gate"] = {
+        "enabled": True,
+        "entities": ["binary_sensor.home_presence"],
+        "present_states": ["on"],
+        "away_states": ["off"],
+    }
+    entry_gate_alert = SimpleNamespace(entry_id=ENTRY_ID, data=entry_gate_alert_data, options={})
+    hass_gate_alert = _FakeHass(
+        entry_gate_alert,
+        {
+            "sensor.kitchen_h": _FakeState(90),
+            "sensor.hall_h": _FakeState(45),
+            "sensor.bed_h": _FakeState(45),
+            "sensor.kitchen_t": _FakeState(23),
+            "sensor.hall_t": _FakeState(22),
+            "sensor.bed_t": _FakeState(21),
+            "sensor.l1_iaq": _FakeState(85),
+            "sensor.co_val": _FakeState(4),
+            "binary_sensor.home_presence": _FakeState("on"),
+        },
+    )
+    engine_gate_alert = HIAutomationEngine(hass_gate_alert, entry_gate_alert)
+    await engine_gate_alert._evaluate()
+    gate_alert_data = hass_gate_alert.data["humidity_intelligence"][ENTRY_ID]
+    gate_alert_switch = gate_alert_data["hi_input_booleans"]["air_alert_1_active"]
+    assert gate_alert_data.get("runtime_mode") == "alert"
+    assert gate_alert_switch.is_on
+    assert str(gate_alert_data.get("active_alert_context", "")).startswith("Humidity Danger")
+
+    hass_gate_alert.states._values["binary_sensor.home_presence"] = _FakeState("off")
+    await engine_gate_alert._evaluate()
+    gate_alert_data = hass_gate_alert.data["humidity_intelligence"][ENTRY_ID]
+    assert gate_alert_data.get("runtime_mode") == "global_gate"
+    assert gate_alert_data.get("runtime_mode_display") == "GLOBAL GATE"
+    assert not gate_alert_switch.is_on
+    assert gate_alert_data.get("active_alert_context") == "None"
+    assert gate_alert_data.get("alert_telemetry") == []
+    assert engine_gate_alert._active_alert_identity is None
+    assert "Presence gate is active" in gate_alert_data.get("runtime_reason", "")
+
+    hass_gate_alert.states._values["sensor.kitchen_h"] = _FakeState(45)
+    hass_gate_alert.states._values["sensor.hall_h"] = _FakeState(45)
+    hass_gate_alert.states._values["sensor.bed_h"] = _FakeState(45)
+    await engine_gate_alert._evaluate()
+    gate_alert_data = hass_gate_alert.data["humidity_intelligence"][ENTRY_ID]
+    assert gate_alert_data.get("runtime_mode") == "global_gate"
+    assert gate_alert_data.get("active_alert_context") == "None"
+    assert gate_alert_data.get("alert_telemetry") == []
+    assert not gate_alert_switch.is_on
+
+    # The non-safe-state time gate path should also clear stale alert UI state.
+    entry_time_gate_alert_data = _base_entry_data()
+    entry_time_gate_alert_data["aq"] = {}
+    entry_time_gate_alert_data["humidifiers"] = {}
+    entry_time_gate_alert_data["alerts"][0]["lights"] = []
+    entry_time_gate_alert_data["alerts"][0].pop("power_entity", None)
+    entry_time_gate_alert_data["time_gate"] = {"enabled": False}
+    entry_time_gate_alert = SimpleNamespace(entry_id=ENTRY_ID, data=entry_time_gate_alert_data, options={})
+    hass_time_gate_alert = _FakeHass(
+        entry_time_gate_alert,
+        {
+            "sensor.kitchen_h": _FakeState(90),
+            "sensor.hall_h": _FakeState(45),
+            "sensor.bed_h": _FakeState(45),
+            "sensor.kitchen_t": _FakeState(23),
+            "sensor.hall_t": _FakeState(22),
+            "sensor.bed_t": _FakeState(21),
+            "sensor.l1_iaq": _FakeState(85),
+            "sensor.co_val": _FakeState(4),
+        },
+    )
+    engine_time_gate_alert = HIAutomationEngine(hass_time_gate_alert, entry_time_gate_alert)
+    await engine_time_gate_alert._evaluate()
+    time_gate_data = hass_time_gate_alert.data["humidity_intelligence"][ENTRY_ID]
+    time_gate_alert_switch = time_gate_data["hi_input_booleans"]["air_alert_1_active"]
+    assert time_gate_data.get("runtime_mode") == "alert"
+    assert time_gate_alert_switch.is_on
+    assert str(time_gate_data.get("active_alert_context", "")).startswith("Humidity Danger")
+
+    outside_start = (datetime.now() + timedelta(hours=1)).time()
+    outside_end = (datetime.now() + timedelta(hours=1, minutes=1)).time()
+    engine_time_gate_alert.time_gate.update(
+        {
+            "enabled": True,
+            "start": outside_start,
+            "end": outside_end,
+            "outside_action": "pause",
+        }
+    )
+    await engine_time_gate_alert._evaluate()
+    time_gate_data = hass_time_gate_alert.data["humidity_intelligence"][ENTRY_ID]
+    assert time_gate_data.get("runtime_mode") == "global_gate"
+    assert time_gate_data.get("runtime_mode_display") == "GLOBAL GATE"
+    assert not time_gate_alert_switch.is_on
+    assert time_gate_data.get("active_alert_context") == "None"
+    assert time_gate_data.get("alert_telemetry") == []
+    assert engine_time_gate_alert._active_alert_identity is None
+    assert "Time gate is outside" in time_gate_data.get("runtime_reason", "")
+
     # Disabled humidifier lanes should clear stale active state and turn outputs off.
     entry5_data = _base_entry_data()
     entry5_data["zones"]["zone1"]["enabled"] = False
@@ -1916,12 +2372,21 @@ async def _run_card_assertions(register_mod) -> None:
         assert "slope_map" in card
         assert "sensor.hi_house_temperature_comfort_low" in card
         assert "sensor.hi_house_temperature_comfort_high" in card
+        assert "warm_high" in card
+        assert "warmHigh" in card
+        assert "comfortHigh + 1" not in card
+        temperature_block = card[card.index("temperature: |"):]
+        assert "const attrNum" in temperature_block
+        assert temperature_block.index("const attrNum") < temperature_block.index("const warmHigh")
         assert "tempColor(tempValueC(entity))" in card
         assert "slopeEntityFor(item)" in card
         assert "states['sensor.hi_diagnostics']" in card
         assert "CHIPSET_SCROLL_RESET_DELAY_MS = 15000" in card
         assert "data-scroll-reset-delay-ms" in card
         assert "activeAlertNames.forEach" not in card
+        assert "if (alertLaneActive && alertContext" in card
+        assert "const danger = alertLaneActive" in card
+        assert "(!gateActive && anyAlertActive)" in card
         assert "sensor.hi_level2_avg_temperature" in card
         assert "sensor.hi_level1_avg_temperature" in card
         assert card.index("House AVG") < card.index("Upstairs AVG") < card.index("Downstairs AVG")
@@ -2015,9 +2480,90 @@ async def _run_alert_only_card_assertions(register_mod) -> None:
     assert not _has_invalid_conditional_block(mobile)
 
 
+async def _run_condensation_risk_alert_assertions(engine_mod) -> None:
+    HIAutomationEngine = engine_mod.HIAutomationEngine
+    original_resolver = engine_mod.resolve_target_profile
+
+    def fixed_winter_resolver(config, now=None):
+        # Test-only fixed date: runtime remains season-aware, this fixture does not.
+        return original_resolver(config, datetime(2026, 1, 3))
+
+    entry_data = _base_entry_data()
+    entry_data["target_profile"] = "custom"
+    entry_data["custom_target_low"] = 40
+    entry_data["custom_target_high"] = 79
+    entry_data["aq"] = {}
+    entry_data["humidifiers"] = {}
+    entry_data["alerts"] = [
+        {
+            "enabled": True,
+            "trigger_type": "condensation_risk",
+            "room": "Bedroom",
+            "lights": [],
+        }
+    ]
+    entry = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data=entry_data,
+        options={},
+    )
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(45),
+            "sensor.hall_h": _FakeState(45),
+            "sensor.bed_h": _FakeState(77),
+            "sensor.kitchen_t": _FakeState(22),
+            "sensor.hall_t": _FakeState(22),
+            "sensor.bed_t": _FakeState(20),
+            "sensor.l1_iaq": _FakeState(85),
+            "sensor.co_val": _FakeState(4),
+        },
+    )
+
+    engine_mod.resolve_target_profile = fixed_winter_resolver
+    try:
+        engine = HIAutomationEngine(hass, entry)
+        await engine._evaluate()
+    finally:
+        engine_mod.resolve_target_profile = original_resolver
+
+    assert hass.data["humidity_intelligence"][ENTRY_ID].get("active_alert_context") == (
+        "Condensation Risk · Bedroom · Zone 2"
+    )
+    assert any(
+        domain == "fan"
+        and service == "set_percentage"
+        and data.get("entity_id") == "fan.zone2"
+        and data.get("percentage") == 100
+        for domain, service, data, _ in hass.services.calls
+    )
+
+
 def test_runtime_lane_order_and_service_simulation():
     engine_mod, _ = _load_target_modules()
     asyncio.run(_run_runtime_assertions(engine_mod))
+
+
+def test_condensation_risk_alert_binds_to_zone_boost_with_fixed_profile():
+    engine_mod, _ = _load_target_modules()
+    asyncio.run(_run_condensation_risk_alert_assertions(engine_mod))
+
+
+def test_custom_profile_condensation_thresholds_follow_current_season():
+    engine_mod, _ = _load_target_modules()
+    config = {
+        "target_profile": "custom",
+        "custom_target_low": 40,
+        "custom_target_high": 79,
+    }
+    representative_spread = 4.16
+
+    winter_profile = engine_mod.resolve_target_profile(config, datetime(2026, 1, 3))
+    summer_profile = engine_mod.resolve_target_profile(config, datetime(2026, 6, 3))
+
+    assert engine_mod.seasonal_condensation_risk(representative_spread, winter_profile) == "Risk"
+    assert engine_mod.seasonal_condensation_risk(representative_spread, summer_profile) == "Watch"
 
 
 def test_card_render_sanity_and_placeholder_resolution():
@@ -2054,6 +2600,51 @@ def test_temperature_normalization_respects_source_units():
     assert from_f is not None and abs(from_f - 20.0) < 0.05
     assert from_c is not None and abs(from_c - 20.0) < 0.05
     assert from_missing_unit is not None and abs(from_missing_unit - 21.0) < 0.05
+
+
+def test_temperature_comfort_profiles_use_explicit_seasonal_warm_boundaries():
+    core_mod = _load_core_module()
+    cases = [
+        (datetime(2026, 1, 15), "winter", 20.0, 21.0, 21.5),
+        (datetime(2026, 4, 15), "spring", 20.5, 22.0, 23.5),
+        (datetime(2026, 7, 15), "summer", 21.0, 24.0, 26.5),
+        (datetime(2026, 10, 15), "autumn", 20.0, 21.5, 23.0),
+    ]
+
+    for now, key, low, high, warm_high in cases:
+        profile = core_mod.resolve_temperature_comfort_profile(
+            {"temperature_comfort_mode": "auto"},
+            now,
+        )
+
+        assert profile.key == key
+        assert profile.low == low
+        assert profile.high == high
+        assert profile.warm_high == warm_high
+        assert core_mod.temperature_comfort_state(low - 0.1, profile) == "below_comfort"
+        assert core_mod.temperature_comfort_state(high, profile) == "in_comfort"
+        assert core_mod.temperature_comfort_state((high + warm_high) / 2, profile) == "above_comfort_watch"
+        assert core_mod.temperature_comfort_state(warm_high + 0.1, profile) == "above_comfort_high"
+
+
+def test_custom_temperature_comfort_keeps_high_plus_one_warm_boundary():
+    core_mod = _load_core_module()
+
+    profile = core_mod.resolve_temperature_comfort_profile(
+        {
+            "temperature_comfort_mode": "custom",
+            "temperature_comfort_custom_low": 18.5,
+            "temperature_comfort_custom_high": 22.0,
+        },
+        datetime(2026, 7, 15),
+    )
+
+    assert profile.key == "custom"
+    assert profile.low == 18.5
+    assert profile.high == 22.0
+    assert profile.warm_high == 23.0
+    assert core_mod.temperature_comfort_state(22.5, profile) == "above_comfort_watch"
+    assert core_mod.temperature_comfort_state(23.1, profile) == "above_comfort_high"
 
 
 async def _registered_flash_handler(services_mod, hass):
@@ -2408,6 +2999,15 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
     assert failed_report["status"] == "fail"
     assert failed_checks["dump_cards_unscoped_export_all"]["status"] == "fail"
 
+    beta_report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        runtime_data,
+        manifest_version="2.0.6-beta.1",
+    )
+    beta_checks = {check["id"]: check for check in beta_report["checks"]}
+    assert beta_checks["manifest_version"]["status"] == "pass"
+
 
 def test_frontend_dependency_status_detects_lovelace_async_items_urls():
     services_mod = _load_services_module()
@@ -2475,9 +3075,15 @@ def test_shared_frontend_dependency_helper_renders_form_status_from_lovelace_res
         "detected": True,
         "url": "/hacsfiles/lovelace-card-mod/card-mod.js",
     }
+    assert status["mod-card"] == {
+        "detected": True,
+        "url": "/hacsfiles/lovelace-card-mod/card-mod.js",
+        "provided_by": "card-mod",
+    }
     assert status["apexcharts-card"] == {"detected": False}
     assert "- button-card: Installed | repo: https://github.com/custom-cards/button-card" in lines
     assert "- card-mod: Installed | repo: https://github.com/thomasloven/lovelace-card-mod" in lines
+    assert "- mod-card: Installed | repo: https://github.com/thomasloven/lovelace-card-mod" in lines
     assert "- apexcharts-card: Not detected | repo: https://github.com/RomRider/apexcharts-card" in lines
 
 
@@ -2495,6 +3101,24 @@ def test_frontend_dependency_status_distinguishes_card_mod_and_mod_card_resource
     assert status["card-mod"] == {"detected": False}
 
 
+def test_frontend_dependency_status_accepts_mod_card_from_card_mod_resource():
+    frontend_mod = _load_frontend_dependencies_module()
+
+    status = frontend_mod.frontend_dependency_status_from_urls(
+        ["/hacsfiles/lovelace-card-mod/card-mod.js"]
+    )
+
+    assert status["card-mod"] == {
+        "detected": True,
+        "url": "/hacsfiles/lovelace-card-mod/card-mod.js",
+    }
+    assert status["mod-card"] == {
+        "detected": True,
+        "url": "/hacsfiles/lovelace-card-mod/card-mod.js",
+        "provided_by": "card-mod",
+    }
+
+
 def test_config_flow_dependency_pages_delegate_to_shared_frontend_helper():
     config_source = (ROOT / "config_flow.py").read_text()
     dependency_renderer = config_source.split("async def _render_dependency_status", 1)[1].split(
@@ -2503,7 +3127,25 @@ def test_config_flow_dependency_pages_delegate_to_shared_frontend_helper():
 
     assert "from .helpers.frontend_dependencies import async_render_dependency_status" in config_source
     assert "async_render_dependency_status(hass)" in dependency_renderer
+    assert "humidity_drift_dependency_status" not in dependency_renderer
+    assert "_render_drift_statistics_status" not in config_source
     assert "lovelace_resources" not in dependency_renderer
+
+
+def test_config_flow_dependency_pages_keep_drift_statistics_status_out_of_frontend_text():
+    config_source = (ROOT / "config_flow.py").read_text()
+    strings = json.loads((ROOT / "strings.json").read_text())
+    translations = json.loads((ROOT / "translations" / "en.json").read_text())
+
+    assert "drift_statistics" not in config_source
+    assert "_render_drift_statistics_status" not in config_source
+    for payload in (strings, translations):
+        setup_description = payload["config"]["step"]["dependencies"]["description"]
+        options_description = payload["options"]["step"]["options_dependencies"]["description"]
+        assert "House Humidity Mean 7d" not in setup_description
+        assert "House Humidity Mean 7d" not in options_description
+        assert "drift statistics helper status" not in setup_description
+        assert "house_humidity_mean_7d_missing" in payload["issues"]
 
 
 def test_frontend_dependency_status_missing_lovelace_is_not_inspectable():
@@ -2560,6 +3202,36 @@ def test_diagnostics_summary_can_surface_shared_frontend_dependency_status_witho
     assert "frontend_dependency_resources" not in live_summary
 
 
+def test_diagnostics_summary_surfaces_temperature_comfort_warm_boundary():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data=_base_entry_data(),
+        options={
+            "temperature_comfort_mode": "custom",
+            "temperature_comfort_custom_low": 18.5,
+            "temperature_comfort_custom_high": 22.0,
+        },
+    )
+    hass = _FakeHass(entry, {})
+
+    summary = services_mod._build_diagnostics_summary(
+        hass,
+        entry.data,
+        entry.options,
+        {},
+        {},
+    )
+
+    comfort = summary["temperature_comfort"]
+    assert comfort["mode"] == "custom"
+    assert comfort["active_profile"] == "custom"
+    assert comfort["target_low"] == 18.5
+    assert comfort["target_high"] == 22.0
+    assert comfort["warm_high"] == 23.0
+    assert comfort["watch_high"] == 23.0
+
+
 def test_diagnostics_summary_surfaces_house_drift_statistics_dependency():
     services_mod = _load_services_module()
     entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
@@ -2578,7 +3250,142 @@ def test_diagnostics_summary_surfaces_house_drift_statistics_dependency():
     assert drift["dependency_entity"] == "sensor.house_humidity_mean_7d"
     assert drift["dependency_status"] == "missing"
     assert drift["available"] is False
+    assert drift["repair_kind"] == "missing_helper"
+    assert drift["repair_required"] is True
     assert any("HI House Humidity Drift 7d" in warning for warning in summary["warnings"])
+
+
+def test_diagnostics_summary_distinguishes_missing_drift_helper_from_existing_not_ready_helper():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    missing_hass = _FakeHass(entry, {})
+    not_ready_hass = _FakeHass(
+        entry,
+        {"sensor.house_humidity_mean_7d": _FakeState("unknown")},
+    )
+
+    missing_summary = services_mod._build_diagnostics_summary(
+        missing_hass,
+        entry.data,
+        {},
+        {},
+        {},
+    )
+    not_ready_summary = services_mod._build_diagnostics_summary(
+        not_ready_hass,
+        entry.data,
+        {},
+        {},
+        {},
+    )
+
+    assert missing_summary["humidity_drift_7d"]["repair_kind"] == "missing_helper"
+    assert missing_summary["humidity_drift_7d"]["repair_required"] is True
+    assert not_ready_summary["humidity_drift_7d"]["repair_kind"] == "helper_not_ready_or_unavailable"
+    assert not_ready_summary["humidity_drift_7d"]["repair_required"] is False
+
+
+def test_diagnostics_summary_reports_low_statistics_coverage_as_not_ready():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.house_humidity_mean_7d": _FakeState(
+                50,
+                {
+                    "age_coverage_ratio": 0.03,
+                    "source_value_valid": True,
+                },
+            ),
+        },
+    )
+
+    summary = services_mod._build_diagnostics_summary(
+        hass,
+        entry.data,
+        {},
+        {},
+        {},
+    )
+
+    drift = summary["humidity_drift_7d"]
+    assert drift["dependency_status"] == "history_not_ready"
+    assert drift["available"] is False
+    assert drift["repair_required"] is False
+    assert drift["repair_kind"] == "history_not_ready"
+    assert drift["age_coverage_ratio"] == 0.03
+    assert drift["required_age_coverage_ratio"] == 0.85
+    assert any("history_not_ready" in warning for warning in summary["warnings"])
+
+
+def test_v205_release_check_warns_on_drift_dependency_without_hidden_pass():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+
+    report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        {
+            "entity_map": {},
+            "cards": {
+                "v2_mobile": "type: markdown\ncontent: Mobile ready\n",
+                "v2_tablet": "type: markdown\ncontent: Tablet ready\n",
+                "v1_mobile": "type: markdown\ncontent: Legacy ready\n",
+                "view_cards_button": "type: button\nname: View cards\n",
+            },
+            "unresolved_placeholders_by_card": {},
+        },
+        manifest_version="2.0.6-beta.1",
+        frontend_dependencies={"status": "not_inspectable"},
+    )
+    checks = {check["id"]: check for check in report["checks"]}
+
+    assert checks["house_humidity_drift_7d_dependency"]["status"] == "warn"
+    assert checks["house_humidity_drift_7d_dependency"]["details"]["repair_kind"] == "missing_helper"
+
+
+def test_v205_release_check_warns_on_low_statistics_coverage():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.house_humidity_mean_7d": _FakeState(
+                50,
+                {
+                    "age_coverage_ratio": 0.03,
+                    "source_value_valid": True,
+                },
+            ),
+        },
+    )
+
+    report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        {
+            "entity_map": {},
+            "cards": {
+                "v2_mobile": "type: markdown\ncontent: Mobile ready\n",
+                "v2_tablet": "type: markdown\ncontent: Tablet ready\n",
+                "v1_mobile": "type: markdown\ncontent: Legacy ready\n",
+                "view_cards_button": "type: button\nname: View cards\n",
+            },
+            "unresolved_placeholders_by_card": {},
+        },
+        manifest_version="2.0.6-beta.1",
+        frontend_dependencies={"status": "not_inspectable"},
+    )
+    checks = {check["id"]: check for check in report["checks"]}
+
+    assert checks["house_humidity_drift_7d_dependency"]["status"] == "warn"
+    details = checks["house_humidity_drift_7d_dependency"]["details"]
+    assert details["dependency_status"] == "history_not_ready"
+    assert details["repair_required"] is False
+    assert details["age_coverage_ratio"] == 0.03
+    assert details["required_age_coverage_ratio"] == 0.85
 
 
 def test_frontend_dependency_status_is_non_blocking_for_release_contract_checks():
@@ -2641,6 +3448,7 @@ def test_frontend_dependency_status_is_non_blocking_for_release_contract_checks(
     assert report["status"] == "pass"
     assert checks["frontend_dependencies_reported"]["status"] == "pass"
     assert checks["frontend_dependencies_reported"]["details"]["status"] == "not_inspectable"
+    assert checks["local_hi_snapshot"]["status"] == "info"
     assert checks["unresolved_placeholders"]["status"] == "pass"
     assert checks["configured_entity_availability"]["status"] == "pass"
     assert checks["house_humidity_drift_7d_dependency"]["status"] == "pass"
@@ -2660,6 +3468,95 @@ def test_v205_release_check_service_is_documented_and_registered():
     assert "write_test_exports" in services_yaml
     assert "humidity_intelligence.v205_release_check" in readme_source
     assert "humidity_intelligence_v205_release_check.json" in readme_source
+
+
+def test_v205_release_check_only_fails_local_snapshot_when_required():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(45),
+            "sensor.hall_h": _FakeState(44),
+            "sensor.bed_h": _FakeState(46),
+            "sensor.house_humidity_mean_7d": _FakeState(43),
+            "sensor.kitchen_t": _FakeState(21),
+            "sensor.hall_t": _FakeState(20),
+            "sensor.bed_t": _FakeState(19),
+            "sensor.l1_iaq": _FakeState(35),
+            "sensor.co_val": _FakeState(4),
+            "fan.zone1": _FakeState("off"),
+            "fan.zone2": _FakeState("off"),
+            "fan.aq1": _FakeState("off"),
+            "humidifier.l1": _FakeState("off"),
+            "light.alert": _FakeState("off"),
+            "switch.alert_power": _FakeState("off"),
+        },
+    )
+    runtime_data = {
+        "entity_map": {},
+        "cards": {
+            "v2_mobile": "type: markdown\ncontent: Mobile ready\n",
+            "v2_tablet": "type: markdown\ncontent: Tablet ready\n",
+            "v1_mobile": "type: markdown\ncontent: Legacy ready\n",
+            "view_cards_button": "type: button\nname: View cards\n",
+        },
+        "unresolved_placeholders_by_card": {},
+    }
+
+    optional_report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        runtime_data,
+        manifest_version="2.0.5",
+        local_version_status={
+            "status": "listed",
+            "snapshot_count": 0,
+            "latest_snapshot_id": None,
+            "latest_snapshot_version": None,
+            "latest_snapshot_created_at_utc": None,
+        },
+    )
+    required_report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        runtime_data,
+        manifest_version="2.0.5",
+        local_version_status={
+            "status": "listed",
+            "snapshot_count": 0,
+            "latest_snapshot_id": None,
+            "latest_snapshot_version": None,
+            "latest_snapshot_created_at_utc": None,
+        },
+        require_local_hi_snapshot=True,
+        max_snapshot_age_minutes=60,
+    )
+    fresh_required_report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        runtime_data,
+        manifest_version="2.0.5",
+        local_version_status={
+            "status": "listed",
+            "snapshot_count": 1,
+            "latest_snapshot_id": "2.0.5_2999-01-01T000000Z_fixture",
+            "latest_snapshot_version": "2.0.5",
+            "latest_snapshot_created_at_utc": "2999-01-01T00:00:00Z",
+        },
+        require_local_hi_snapshot=True,
+        max_snapshot_age_minutes=60,
+    )
+
+    optional_checks = {check["id"]: check for check in optional_report["checks"]}
+    required_checks = {check["id"]: check for check in required_report["checks"]}
+    fresh_required_checks = {check["id"]: check for check in fresh_required_report["checks"]}
+
+    assert optional_report["status"] == "pass"
+    assert optional_checks["local_hi_snapshot"]["status"] == "info"
+    assert required_report["status"] == "fail"
+    assert required_checks["local_hi_snapshot"]["status"] == "fail"
+    assert fresh_required_checks["local_hi_snapshot"]["status"] == "pass"
 
 
 def test_alert_configuration_contract_uses_internal_sources():
@@ -2708,6 +3605,19 @@ def test_alert_configuration_contract_uses_internal_sources():
     assert "alert_handling_enabled" in strings_source
     assert "Boost settings should normally be higher" in config_source
     assert "existing configured ventilation outputs" in strings_source
+
+
+def test_v206_drift_statistics_helper_docs_preserve_repair_status_split():
+    readme = (ROOT / "README.md").read_text()
+    changelog = (ROOT / "CHANGELOG.md").read_text()
+
+    assert "House Humidity Mean 7d" in readme
+    assert "Statistics helper" in readme
+    assert "Do not fabricate history" in readme
+    assert "not ready or unavailable" in readme
+    assert "2.0.6" in changelog
+    assert "setup/repair" in changelog
+    assert "algorithm" not in changelog.lower()
 
 
 def test_level_average_ignores_unknown_unavailable_and_non_numeric_states():

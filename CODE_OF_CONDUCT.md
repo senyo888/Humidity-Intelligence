@@ -1,3 +1,5 @@
+![Humidity Intelligence code of conduct header](assets/code-of-conduct.png)
+
 # Contributor Covenant Code of Conduct
 
 ## Our Pledge
