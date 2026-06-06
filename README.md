@@ -10,6 +10,7 @@
 [![HACS](https://img.shields.io/badge/HACS-Custom%20Integration-orange)](https://hacs.xyz)
 [![Manifest Version](https://img.shields.io/badge/dynamic/json?label=Manifest%20Version&query=%24.version&url=https%3A%2F%2Fraw.githubusercontent.com%2Fsenyo888%2FHumidity-Intelligence%2Fsenyo888-patch-1%2Fmanifest.json&color=blue)](manifest.json)
 [![License](https://img.shields.io/github/license/senyo888/Humidity-Intelligence)](LICENSE)
+[![Sponsor](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/senyo888)
 
 ## Contents
 
@@ -131,13 +132,20 @@ Additional image files:
 
 ## Support Humidity Intelligence
 
-### ⭐ Enjoying Humidity Intelligence?
+### Enjoying Humidity Intelligence?
 
 If you're finding Humidity Intelligence useful, insightful, or just interesting to explore, consider giving the repository a star.
 
 It helps others discover the project, supports ongoing development, and shows that this kind of deterministic, explainable approach to Home Assistant has community value.
 
 [Star Humidity Intelligence on GitHub](https://github.com/senyo888/Humidity-Intelligence)
+
+Optional sponsorship is also available through GitHub Sponsors:
+
+[Support the project on GitHub Sponsors](https://github.com/sponsors/senyo888)
+
+Sponsorship is optional. It does not create a support SLA, private support obligation, feature guarantee, release commitment, or change to Home Assistant / HACS behaviour.
+
 ---
 
 ## Why Environmental Stability Matters
