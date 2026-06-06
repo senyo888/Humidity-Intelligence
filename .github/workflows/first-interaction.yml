@@ -23,7 +23,7 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           issue-message: |
-            ![Humidity Intelligence](https://raw.githubusercontent.com/senyo888/humidity-intelligence/main/assets/header.png)
+            ![Humidity Intelligence](https://raw.githubusercontent.com/senyo888/Humidity-Intelligence/main/assets/header.png)
 
             Thanks for opening your first Humidity Intelligence issue. It is good to have you here.
 
@@ -40,7 +40,7 @@ jobs:
 
             Thanks for helping make Humidity Intelligence easier to support, explain, and improve.
           pr-message: |
-            ![Humidity Intelligence](https://raw.githubusercontent.com/senyo888/humidity-intelligence/main/assets/header.png)
+            ![Humidity Intelligence](https://raw.githubusercontent.com/senyo888/Humidity-Intelligence/main/assets/header.png)
 
             Thanks for opening your first Humidity Intelligence pull request. Contributions help improve the project, and your time here is appreciated.
 

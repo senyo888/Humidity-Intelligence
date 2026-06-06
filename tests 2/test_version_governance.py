@@ -61,6 +61,38 @@ class VersionGovernanceTests(unittest.TestCase):
         self.assertEqual(result, 1)
         self.assertIn("must not carry stable version", stderr)
 
+    def test_active_branch_prefers_github_head_ref_over_base_ref(self) -> None:
+        env = {
+            "GITHUB_BASE_REF": "develop",
+            "GITHUB_HEAD_REF": "fix/stable-test",
+        }
+
+        with mock.patch.dict("os.environ", env, clear=True):
+            with mock.patch.object(self.governance, "_git_branch", return_value="main"):
+                self.assertEqual(self.governance._active_branch(), "fix/stable-test")
+
+    def test_active_branch_prefers_ref_name_over_base_ref_without_head_ref(self) -> None:
+        env = {
+            "GITHUB_BASE_REF": "develop",
+            "GITHUB_REF_NAME": "fix/stable-test",
+        }
+
+        with mock.patch.dict("os.environ", env, clear=True):
+            with mock.patch.object(self.governance, "_git_branch", return_value="main"):
+                self.assertEqual(self.governance._active_branch(), "fix/stable-test")
+
+    def test_active_branch_prefers_version_governance_override(self) -> None:
+        env = {
+            "VERSION_GOVERNANCE_BRANCH": "manual/stable-test",
+            "GITHUB_BASE_REF": "develop",
+            "GITHUB_HEAD_REF": "fix/stable-test",
+            "GITHUB_REF_NAME": "feature/ref-name",
+        }
+
+        with mock.patch.dict("os.environ", env, clear=True):
+            with mock.patch.object(self.governance, "_git_branch", return_value="main"):
+                self.assertEqual(self.governance._active_branch(), "manual/stable-test")
+
 
 if __name__ == "__main__":
     unittest.main()

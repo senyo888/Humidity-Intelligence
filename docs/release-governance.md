@@ -52,6 +52,10 @@ until all of these gates are satisfied:
 - Release sanity validation has passed for the change scope, including version
   governance, HACS/package metadata checks, and the relevant Home Assistant runtime,
   direct sanity, service, or generated-card checks.
+- The `humidity-intelligence-maintenance` companion has been updated with advisory
+  release-gate evidence, blocker notes, or an explicit no-op maintenance status for
+  the staging promotion. This records maintenance evidence only; it does not approve
+  promotion or change canonical HI truth.
 - The README has maintainer approval before release tagging.
 
 If any gate is missing for the version being prepared, the release state is `not ready`,

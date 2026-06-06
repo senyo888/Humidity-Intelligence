@@ -48,8 +48,9 @@ def _git_branch() -> str:
 def _active_branch() -> str:
     return (
         os.getenv("VERSION_GOVERNANCE_BRANCH")
-        or os.getenv("GITHUB_BASE_REF")
+        or os.getenv("GITHUB_HEAD_REF")
         or os.getenv("GITHUB_REF_NAME")
+        or os.getenv("GITHUB_BASE_REF")
         or _git_branch()
     )
 
