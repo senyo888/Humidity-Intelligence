@@ -1117,8 +1117,8 @@ For longer support guidance, see the Humidity Intelligence Wiki:
 - [FAQ](https://github.com/senyo888/humidity-intelligence/wiki/FAQ)
 
 The Wiki is a support manual. Runtime behavior, entity semantics, generated dashboard
-logic, diagnostics, release state, and migration requirements remain defined by the
-repository source and release documentation.
+logic, diagnostics, release state, and migration requirements live in the repository
+source and release documentation.
 
 ---
 

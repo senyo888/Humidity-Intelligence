@@ -59,8 +59,8 @@ until all of these gates are satisfied:
 - Wiki update status is recorded as `updated`, `no-op`, or `blocked` for any release
   that changes support flow, diagnostics, generated dashboards, HACS/update guidance,
   configuration behavior, services, entity semantics, or release documentation. The
-  Wiki remains a public support manual only; it does not define runtime or release
-  truth.
+  Wiki remains a public support manual; runtime and release truth stay in the
+  repository source and release documentation.
 - The README has maintainer approval before release tagging.
 
 If any gate is missing for the version being prepared, the release state is `not ready`,
