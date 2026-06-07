@@ -56,6 +56,11 @@ until all of these gates are satisfied:
   release-gate evidence, blocker notes, or an explicit no-op maintenance status for
   the staging promotion. This records maintenance evidence only; it does not approve
   promotion or change canonical HI truth.
+- Wiki update status is recorded as `updated`, `no-op`, or `blocked` for any release
+  that changes support flow, diagnostics, generated dashboards, HACS/update guidance,
+  configuration behavior, services, entity semantics, or release documentation. The
+  Wiki remains a public support manual only; it does not define runtime or release
+  truth.
 - The README has maintainer approval before release tagging.
 
 If any gate is missing for the version being prepared, the release state is `not ready`,

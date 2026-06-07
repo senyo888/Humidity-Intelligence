@@ -32,6 +32,7 @@
 - [UI Gallery](#ui-gallery)
 - [Post-Configuration Workflow](#post-configuration-workflow)
 - [How to Use Services](#how-to-use-services)
+- [Documentation and Support Manual](#documentation-and-support-manual)
 - [Support, Diagnostics, and Issue Triage](#support-diagnostics-and-issue-triage)
 - [Runtime Simulation Validation](#runtime-simulation-validation)
 - [Release Notes](#release-notes)
@@ -1094,6 +1095,25 @@ data: {}
 Safety guidance:
 - use `purge_files` only when intentionally resetting generated artifacts
 - run `dump_diagnostics` before purge if you want a snapshot for troubleshooting
+
+---
+
+## Documentation and Support Manual
+
+The README covers installation, current release highlights, core usage, screenshots,
+services, support entry points, and release notes.
+
+For longer support guidance, see the Humidity Intelligence Wiki:
+
+- [Getting Help](https://github.com/senyo888/humidity-intelligence/wiki/Getting-Help)
+- [Diagnostics and Support Bundle](https://github.com/senyo888/humidity-intelligence/wiki/Diagnostics-and-Support-Bundle)
+- [Generated Dashboards](https://github.com/senyo888/humidity-intelligence/wiki/Generated-Dashboards)
+- [HACS and Updates](https://github.com/senyo888/humidity-intelligence/wiki/HACS-and-Updates)
+- [FAQ](https://github.com/senyo888/humidity-intelligence/wiki/FAQ)
+
+The Wiki is a support manual. Runtime behavior, entity semantics, generated dashboard
+logic, diagnostics, release state, and migration requirements remain defined by the
+repository source and release documentation.
 
 ---
 
