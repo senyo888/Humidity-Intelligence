@@ -731,6 +731,7 @@ For GitHub support issues, prefer the native Home Assistant diagnostics download
 
 Detailed manual:
 
+- [Services Reference](https://github.com/senyo888/humidity-intelligence/wiki/Services-Reference)
 - [Generated Dashboards](https://github.com/senyo888/humidity-intelligence/wiki/Generated-Dashboards)
 - [Diagnostics and Support Bundle](https://github.com/senyo888/humidity-intelligence/wiki/Diagnostics-and-Support-Bundle)
 - [Release Validation for Users](https://github.com/senyo888/humidity-intelligence/wiki/Release-Validation-for-Users)
