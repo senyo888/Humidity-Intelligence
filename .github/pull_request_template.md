@@ -50,6 +50,7 @@
 - [ ] Ran `humidity_intelligence.refresh_ui` or refreshed dashboards where UI output changed.
 - [ ] Docs/changelog updated where needed.
 - [ ] Support docs, diagnostics guidance, and issue templates updated where support flow changed.
+- [ ] Wiki update status recorded as `updated`, `no-op`, or `blocked` where public support/manual guidance is affected.
 - [ ] No private entity IDs, secrets, addresses, or personal data included.
 - [ ] HACS/custom integration metadata still looks correct.
 - [ ] Deterministic lane ordering is preserved, or the PR explicitly explains an approved semantic change.
