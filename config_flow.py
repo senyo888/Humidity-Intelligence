@@ -86,6 +86,9 @@ FORM_ACTION_SAVE = "save"
 FORM_ACTION_CANCEL = "cancel"
 FORM_ACTION_RETURN = "return"
 FORM_ACTION_CLOSE = "close"
+CONFIGURATION_WALKTHROUGH_URL = (
+    "https://github.com/senyo888/humidity-intelligence/wiki/Configuration-Walkthrough"
+)
 
 
 def _advanced_section(fields: Dict[Any, Any]) -> Any:
@@ -175,7 +178,10 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="dependencies",
             data_schema=schema,
-            description_placeholders={"dependencies": dep_lines},
+            description_placeholders={
+                "dependencies": dep_lines,
+                "walkthrough_url": CONFIGURATION_WALKTHROUGH_URL,
+            },
         )
 
     async def async_step_gates(self, user_input: Optional[Dict[str, Any]] = None):
@@ -1380,7 +1386,10 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="ui_install",
             data_schema=schema,
-            description_placeholders={"configured_alerts": _render_alerts_summary(self._alerts)},
+            description_placeholders={
+                "configured_alerts": _render_alerts_summary(self._alerts),
+                "walkthrough_url": CONFIGURATION_WALKTHROUGH_URL,
+            },
         )
 
 
@@ -1543,7 +1552,10 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="options_dependencies",
             data_schema=schema,
-            description_placeholders={"dependencies": dep_lines},
+            description_placeholders={
+                "dependencies": dep_lines,
+                "walkthrough_url": CONFIGURATION_WALKTHROUGH_URL,
+            },
         )
 
     async def async_step_options_gates(self, user_input: Optional[Dict[str, Any]] = None):
