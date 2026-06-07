@@ -8,7 +8,9 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
-- No unreleased changes.
+- Added GitHub Wiki support-manual routing from the README, including configuration, services, diagnostics, generated dashboard, HACS/update, AQ/CO safety, troubleshooting, and release-validation guidance.
+- Added release/PR checklist support for recording Wiki update status as `updated`, `no-op`, or `blocked` when public manual guidance is affected.
+- Added a Wiki Services Reference, footer navigation across public Wiki content pages, and a Wiki banner asset for a clearer support-manual experience.
 
 ## 2.0.6
 
