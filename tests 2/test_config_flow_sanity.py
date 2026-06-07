@@ -418,6 +418,24 @@ def test_frontend_dependency_page_excludes_drift_helper_status_and_keeps_card_de
     assert "custom:bubble-card" not in generated_card_text
 
 
+def test_setup_surfaces_link_to_configuration_walkthrough():
+    strings = json.loads((ROOT / "strings.json").read_text())
+    translations = json.loads((ROOT / "translations" / "en.json").read_text())
+    walkthrough_url = "https://github.com/senyo888/humidity-intelligence/wiki/Configuration-Walkthrough"
+
+    for payload in (strings, translations):
+        setup_description = payload["config"]["step"]["dependencies"]["description"]
+        options_description = payload["options"]["step"]["options_dependencies"]["description"]
+        ui_install_description = payload["config"]["step"]["ui_install"]["description"]
+
+        assert "Configuration Walkthrough" in setup_description
+        assert walkthrough_url in setup_description
+        assert "Configuration Walkthrough" in options_description
+        assert walkthrough_url in options_description
+        assert "Next step: Configuration Walkthrough" in ui_install_description
+        assert walkthrough_url in ui_install_description
+
+
 if __name__ == "__main__":
     tests = [
         (name, value)
