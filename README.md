@@ -1109,6 +1109,11 @@ For longer support guidance, see the Humidity Intelligence Wiki:
 - [Diagnostics and Support Bundle](https://github.com/senyo888/humidity-intelligence/wiki/Diagnostics-and-Support-Bundle)
 - [Generated Dashboards](https://github.com/senyo888/humidity-intelligence/wiki/Generated-Dashboards)
 - [HACS and Updates](https://github.com/senyo888/humidity-intelligence/wiki/HACS-and-Updates)
+- [Configuration Walkthrough](https://github.com/senyo888/humidity-intelligence/wiki/Configuration-Walkthrough)
+- [Understanding Control Decisions](https://github.com/senyo888/humidity-intelligence/wiki/Understanding-Control-Decisions)
+- [Air Quality and CO Safety](https://github.com/senyo888/humidity-intelligence/wiki/Air-Quality-and-CO-Safety)
+- [Troubleshooting Generated UI](https://github.com/senyo888/humidity-intelligence/wiki/Troubleshooting-Generated-UI)
+- [Release Validation for Users](https://github.com/senyo888/humidity-intelligence/wiki/Release-Validation-for-Users)
 - [FAQ](https://github.com/senyo888/humidity-intelligence/wiki/FAQ)
 
 The Wiki is a support manual. Runtime behavior, entity semantics, generated dashboard
