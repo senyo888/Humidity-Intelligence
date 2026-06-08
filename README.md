@@ -54,7 +54,9 @@ It gives you:
 - native Home Assistant diagnostics for support and triage
 - services for dashboard export, self-check, diagnostics, pause/resume, and release validation
 
-Current release: **v2.0.6**.
+Current release: **v2.0.7-beta.1**.
+
+v2.0.6 remains the current stable release on `main`; v2.0.7-beta.1 is the active staging/testing line.
 
 ---
 
@@ -336,21 +338,20 @@ This layer makes the engine understandable. It reflects runtime truth:
 
 The UI does not compute logic. The engine decides; the UI renders.
 
+Generated V2 control-row colours separate selected command lanes from environmental risk: red row styling is reserved for selected alert/CO runtime truth, while degraded or unmapped alert candidates remain visible as amber Current Air Control context.
+
 ---
 
 ## Current Release Highlights
 
-- required humidity telemetry, or configured temperature telemetry, now degrades explicitly to `telemetry_unavailable` instead of falling through to lower lanes or all-clear wording
-- CO emergency clearing now schedules a recheck at the two-minute clear deadline instead of waiting for the next normal control interval
-- global gates now clear lower-priority active alert switch/context/telemetry state so Current Air Control cannot keep showing stale humidity-danger activity after a gate takes authority
-- setup/options telemetry Cancel actions now return through an explicit confirmation path without losing already-saved flow data
-- Zone 2 setup/options defaults and trigger labels now preserve Zone 2 / Level 2 ownership unless explicitly changed
-- advanced local HI-only snapshot services, `create_local_backup` and `list_saved_versions`, support maintainer validation without adding restore, rollback, HACS interception, or runtime-control behavior
-- house humidity drift helper readiness is clearer across sensor attributes, diagnostics, `self_check`, `v205_release_check`, and Repairs
-- optional temperature chip colours now use backend-owned seasonal cold, comfort, warm, and hot boundaries
-- deterministic lane ordering, alert hierarchy, CO emergency priority, humidifier independence, output writes, migration behavior, and `dump_cards` remain unchanged
+- integration metadata now identifies the active staging/testing line as `2.0.7-beta.1`
+- generated V2 Current Air Control cards separate selected command lanes from degraded or unmapped alert context
+- Configuration Walkthrough links now route setup, post-configuration Frontend Dependencies, and final UI export guidance into the public support manual
+- GitHub Wiki support routing now covers configuration, services, diagnostics, generated dashboards, HACS/update guidance, AQ/CO safety, troubleshooting, and release validation
+- release/PR checklist guidance now records Wiki update status as `updated`, `no-op`, or `blocked` when public support manual guidance is affected
+- Wiki Services Reference, footer navigation, and banner assets make the support manual easier to scan
 
-Upgrade note: **v2.0.6 concentrates on runtime truth, missing-telemetry fail-safe behavior, release validation support, and configuration/support polish.** After updating HI through HACS or file replacement, restart Home Assistant. Use config-entry reload only after option changes once the updated code is already loaded. Run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual cards if you use generated Current Air Control cards.
+Upgrade note: **v2.0.7-beta.1 is a beta/staging build for generated-card UI truth, support-manual, release-governance, and proposal-readiness work.** After updating HI through HACS or file replacement, restart Home Assistant so Home Assistant reloads the manifest version. Use config-entry reload only after option changes once the updated code is already loaded. Run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual cards if you use generated Current Air Control cards.
 
 ---
 
@@ -520,7 +521,9 @@ sensor:
       days: 7
 ```
 
-In v2.0.6, HI reports missing-helper guidance through the drift sensor attributes, diagnostics, `self_check`, `v205_release_check`, and Home Assistant Repairs. The setup/options Frontend Dependencies pages remain frontend-only; drift helper truth belongs on diagnostics and repair surfaces.
+Since v2.0.6, HI reports missing-helper guidance through the drift sensor attributes, diagnostics, `self_check`, `v205_release_check`, and Home Assistant Repairs. The setup/options Frontend Dependencies pages remain frontend-only; drift helper truth belongs on diagnostics and repair surfaces.
+
+Do not fabricate history. If the helper is missing, warming up, unavailable, or not numeric, HI reports that dependency state instead of synthesizing a drift value.
 
 If the helper exists but reports `unknown`, `unavailable`, a non-numeric state, low `age_coverage_ratio`, or `source_value_valid: false`, HI treats the helper as still warming up or awaiting usable recorder data.
 
@@ -713,7 +716,7 @@ Common service groups:
 | `flash_lights` | test configured visual alert behavior |
 | `pause_control` / `resume_control` | pause or resume the automation engine |
 | `self_check` | run mapping, telemetry, drift-helper, and frontend-dependency checks |
-| `v205_release_check` | run read-only v2.0.5/v2.0.6 release-validation support checks |
+| `v205_release_check` | run read-only v2.0.5-v2.0.7 release-validation support checks |
 | `create_local_backup` / `list_saved_versions` | manage package-local HI snapshots for advanced validation |
 | `dump_diagnostics` | export fuller local diagnostics for maintainer/debug workflows |
 | `purge_files` | intentionally remove generated HI artifacts |
@@ -725,6 +728,14 @@ service: humidity_intelligence.dump_cards
 data:
   filename: humidity_intelligence_cards
   layout: v2_mobile
+```
+
+Example release validation export:
+
+```yaml
+service: humidity_intelligence.v205_release_check
+data:
+  filename: humidity_intelligence_v205_release_check.json
 ```
 
 For GitHub support issues, prefer the native Home Assistant diagnostics download from the Humidity Intelligence integration entry. Use `dump_diagnostics` for fuller local maintainer/debug workflows after reviewing the export.
@@ -821,6 +832,16 @@ CO emergency pressure. Details are in
 ---
 
 ## Release Notes
+
+### v2.0.7-beta.1
+
+- promoted integration metadata to beta `2.0.7-beta.1`
+- changed generated V2 Current Air Control cards so red control-row styling follows selected alert/CO runtime truth, while degraded or unmapped alert candidates surface as amber context instead of command-state red
+- added Configuration Walkthrough links to setup Frontend Dependencies, post-configuration Frontend Dependencies, and final UI export guidance
+- added GitHub Wiki support-manual routing from the README, including configuration, services, diagnostics, generated dashboard, HACS/update, AQ/CO safety, troubleshooting, and release-validation guidance
+- added release/PR checklist support for recording Wiki update status as `updated`, `no-op`, or `blocked` when public manual guidance is affected
+- added a Wiki Services Reference, footer navigation across public Wiki content pages, and a Wiki banner asset for a clearer support-manual experience
+- no migration is required for this beta line; restart Home Assistant after updating so the manifest version is reloaded, then regenerate/re-copy generated cards for the Current Air Control UI change
 
 ### v2.0.6
 

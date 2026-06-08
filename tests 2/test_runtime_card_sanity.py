@@ -2386,6 +2386,15 @@ async def _run_card_assertions(register_mod) -> None:
         assert "activeAlertNames.forEach" not in card
         assert "if (alertLaneActive && alertContext" in card
         assert "const danger = alertLaneActive" in card
+        assert "states['binary_sensor.humidity_danger']?.state === 'on'" not in card
+        assert "states['binary_sensor.condensation_danger']?.state === 'on'" not in card
+        assert "states['binary_sensor.mould_danger']?.state === 'on'" not in card
+        assert "_humidity_danger']?.state === 'on'" not in card
+        assert "_condensation_danger']?.state === 'on'" not in card
+        assert "_mould_danger']?.state === 'on'" not in card
+        assert "alert_telemetry" in card
+        assert "degraded === true" in card
+        assert "DEGRADED ALERT CONTEXT" in card
         assert "(!gateActive && anyAlertActive)" in card
         assert "sensor.hi_level2_avg_temperature" in card
         assert "sensor.hi_level1_avg_temperature" in card
@@ -2968,7 +2977,7 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
         hass,
         entry,
         runtime_data,
-        manifest_version="2.0.6-beta.1",
+        manifest_version="2.0.7-beta.1",
         frontend_dependencies={
             "status": "not_inspectable",
             "reason": "Lovelace resource collection is not available in this Home Assistant runtime context.",
@@ -3003,7 +3012,7 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
         hass,
         entry,
         runtime_data,
-        manifest_version="2.0.6-beta.1",
+        manifest_version="2.0.7-beta.1",
     )
     beta_checks = {check["id"]: check for check in beta_report["checks"]}
     assert beta_checks["manifest_version"]["status"] == "pass"
@@ -3337,7 +3346,7 @@ def test_v205_release_check_warns_on_drift_dependency_without_hidden_pass():
             },
             "unresolved_placeholders_by_card": {},
         },
-        manifest_version="2.0.6-beta.1",
+        manifest_version="2.0.7-beta.1",
         frontend_dependencies={"status": "not_inspectable"},
     )
     checks = {check["id"]: check for check in report["checks"]}
@@ -3375,7 +3384,7 @@ def test_v205_release_check_warns_on_low_statistics_coverage():
             },
             "unresolved_placeholders_by_card": {},
         },
-        manifest_version="2.0.6-beta.1",
+        manifest_version="2.0.7-beta.1",
         frontend_dependencies={"status": "not_inspectable"},
     )
     checks = {check["id"]: check for check in report["checks"]}
@@ -3615,7 +3624,7 @@ def test_v206_drift_statistics_helper_docs_preserve_repair_status_split():
     assert "Statistics helper" in readme
     assert "Do not fabricate history" in readme
     assert "not ready or unavailable" in readme
-    assert "2.0.6" in changelog
+    assert "2.0.7-beta.1" in changelog
     assert "setup/repair" in changelog
     assert "algorithm" not in changelog.lower()
 

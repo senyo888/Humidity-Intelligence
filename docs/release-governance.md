@@ -5,15 +5,16 @@ testing and validation branches.
 
 ## Canonical Version Model
 
-- `2.0.6-beta.1`, `2.0.6-beta.2`: testing builds.
-- `2.0.6-rc.1`: release-candidate builds.
-- `2.0.6`: stable version label.
+- `2.0.7-beta.1`, `2.0.7-beta.2`: testing builds.
+- `2.0.7-rc.1`: release-candidate builds.
+- `2.0.7`: stable version label.
 
 The integration version in `manifest.json` is the release-state source of truth for
 Home Assistant and HACS metadata checks.
 
-v2.0.6 is the current stable release milestone. The rules below remain the active
-promotion model for future versions and for any v2.0.6 maintenance patch.
+v2.0.7-beta.1 is the current staging/testing line on `senyo888-patch-1`.
+v2.0.6 remains the current stable release milestone. The rules below remain the
+active promotion model for future versions and for any maintenance patch.
 
 ## Branch Responsibilities
 
@@ -23,8 +24,8 @@ promotion model for future versions and for any v2.0.6 maintenance patch.
   `senyo888-patch-1`.
 - `main`: stable production version metadata only. No prerelease suffix is allowed.
 - `vMAJOR.MINOR.PATCH`: release-verification branch for the exact matching stable
-  manifest version only. For example, `v2.0.6` may carry `2.0.6`, but not
-  `2.0.6-rc.1` or `2.0.7`.
+  manifest version only. For example, `v2.0.7` may carry `2.0.7`, but not
+  `2.0.7-rc.1` or `2.0.8`.
 - Short-lived development branches, including `Bella/*`, `codex/*`, `feature/*`,
   `fix/*`, `patch/*`, and `test/*`, must not carry stable manifest versions.
 
