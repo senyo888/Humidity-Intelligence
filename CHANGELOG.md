@@ -8,6 +8,10 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+- Documented HA Lab as advisory Operational Beta Validation Infrastructure and added
+  PR/release-governance wording for reporting sanitized HA Lab evidence without
+  changing runtime, UI, entity semantics, migration, or release authority.
+
 ## 2.0.7-beta.1
 
 - Promoted integration metadata to beta `2.0.7-beta.1`.

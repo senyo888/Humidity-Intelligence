@@ -34,6 +34,10 @@
 
 <!-- Commands, Home Assistant checks, generated-card checks, or docs checks run. -->
 
+## HA Lab advisory evidence
+
+<!-- State HA Lab status as pass / fail / blocked / not run / not applicable. Include sanitized Stage A, activation, soak, Stage 3, card/entity-map, and rollback evidence when relevant. HA Lab evidence is advisory only and does not replace release gates. -->
+
 ## Type
 
 - [ ] Fix
@@ -51,6 +55,7 @@
 - [ ] Docs/changelog updated where needed.
 - [ ] Support docs, diagnostics guidance, and issue templates updated where support flow changed.
 - [ ] Wiki update status recorded as `updated`, `no-op`, or `blocked` where public support/manual guidance is affected.
+- [ ] HA Lab advisory evidence recorded, or explicitly marked `not applicable`.
 - [ ] No private entity IDs, secrets, addresses, or personal data included.
 - [ ] HACS/custom integration metadata still looks correct.
 - [ ] Deterministic lane ordering is preserved, or the PR explicitly explains an approved semantic change.
