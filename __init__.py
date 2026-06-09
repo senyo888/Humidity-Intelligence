@@ -20,6 +20,7 @@ from .const import (
 from .services import SERVICE_REFRESH_UI, async_register_services, async_unregister_services
 from .helpers.cleanup import list_generated_files, remove_files, remove_dashboard
 from .helpers.drift_repairs import async_update_humidity_drift_repair_issue
+from .helpers.entity_registry import normalize_pm25_aggregate_entity_ids
 from .ui.register import async_register_cards, async_build_entity_mapping
 from .automations import async_setup_entry as async_setup_automations
 from .automations import async_unload_entry as async_unload_automations
@@ -51,6 +52,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     })
 
     await async_register_services(hass)
+
+    try:
+        changed_pm25_entity_ids = normalize_pm25_aggregate_entity_ids(hass, entry.entry_id)
+    except Exception:
+        _LOGGER.exception(
+            "Failed PM2.5 aggregate entity ID normalization for HI entry %s",
+            entry.entry_id,
+        )
+    else:
+        if changed_pm25_entity_ids:
+            _LOGGER.info(
+                "Normalized HI PM2.5 aggregate entity IDs for entry %s: %s",
+                entry.entry_id,
+                sorted(changed_pm25_entity_ids.values()),
+            )
 
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor", "binary_sensor", "switch"])
     await async_update_humidity_drift_repair_issue(hass)

@@ -55,6 +55,9 @@ def _install_homeassistant_stubs() -> None:
     class Entity:
         pass
 
+    def async_generate_entity_id(_format_string, suggested_object_id, hass=None):
+        return f"sensor.{suggested_object_id}"
+
     class SensorEntity(Entity):
         pass
 
@@ -164,6 +167,7 @@ def _install_homeassistant_stubs() -> None:
     event.async_track_time_interval = async_track_time_interval
     device_registry.DeviceInfo = DeviceInfo
     entity_helper.Entity = Entity
+    entity_helper.async_generate_entity_id = async_generate_entity_id
     entity_registry.async_get = lambda hass: None
     util.slugify = lambda value: str(value).lower().replace(" ", "_")
     voluptuous.Schema = Schema
@@ -242,6 +246,16 @@ def _load_core_module():
     _install_package_scaffold()
     _load_module(f"{PKG}.const", ROOT / "const.py")
     return _load_module(f"{PKG}.sensors.core", ROOT / "sensors" / "core.py")
+
+
+def _load_entity_registry_helper_module():
+    _install_homeassistant_stubs()
+    _install_package_scaffold()
+    _load_module(f"{PKG}.const", ROOT / "const.py")
+    return _load_module(
+        f"{PKG}.helpers.entity_registry",
+        ROOT / "helpers" / "entity_registry.py",
+    )
 
 
 def _load_frontend_dependencies_module():
@@ -3652,6 +3666,120 @@ def test_level_average_ignores_unknown_unavailable_and_non_numeric_states():
 
     engine = engine_mod.HIAutomationEngine(hass, entry)
     assert engine._level_avg("iaq", "level1") == 57.2
+
+
+def test_pm25_aggregate_sensors_use_object_id_safe_pm25_names_for_new_installs():
+    core_mod = _load_core_module()
+    entry = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data={
+            "telemetry": [
+                {"entity_id": "sensor.l1_pm25", "sensor_type": "pm25", "level": "level1", "room": "Hallway"},
+                {"entity_id": "sensor.l2_pm25", "sensor_type": "pm25", "level": "level2", "room": "Bedroom"},
+            ],
+            "zones": {},
+        },
+        options={},
+    )
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.l1_pm25": _FakeState("5.0", {"unit_of_measurement": "μg/m³"}),
+            "sensor.l2_pm25": _FakeState("7.0", {"unit_of_measurement": "μg/m³"}),
+        },
+    )
+
+    sensors, _binary_sensors, _sources = core_mod.build_entities(hass, entry)
+    by_unique_id = {sensor._attr_unique_id: sensor for sensor in sensors}
+
+    expected = {
+        f"hi_{ENTRY_ID}_house_pm25_average": "HI House PM25 Average",
+        f"hi_{ENTRY_ID}_level1_pm25_average": "HI Level1 PM25 Average",
+        f"hi_{ENTRY_ID}_level2_pm25_average": "HI Level2 PM25 Average",
+    }
+    for unique_id, name in expected.items():
+        sensor = by_unique_id[unique_id]
+        assert sensor._attr_name == name
+        assert "PM2.5" not in sensor._attr_name
+
+
+def test_pm25_aggregate_sensors_degrade_when_all_pm25_sources_unavailable():
+    core_mod = _load_core_module()
+    entry = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data={
+            "telemetry": [
+                {"entity_id": "sensor.l1_pm25", "sensor_type": "pm25", "level": "level1", "room": "Hallway"},
+                {"entity_id": "sensor.l2_pm25", "sensor_type": "pm25", "level": "level2", "room": "Bedroom"},
+            ],
+            "zones": {},
+        },
+        options={},
+    )
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.l1_pm25": _FakeState("unknown", {"unit_of_measurement": "μg/m³"}),
+            "sensor.l2_pm25": _FakeState("unavailable", {"unit_of_measurement": "μg/m³"}),
+        },
+    )
+
+    sensors, _binary_sensors, _sources = core_mod.build_entities(hass, entry)
+    by_unique_id = {sensor._attr_unique_id: sensor for sensor in sensors}
+
+    assert by_unique_id[f"hi_{ENTRY_ID}_house_pm25_average"]._attr_native_value is None
+    assert by_unique_id[f"hi_{ENTRY_ID}_level1_pm25_average"]._attr_native_value is None
+    assert by_unique_id[f"hi_{ENTRY_ID}_level2_pm25_average"]._attr_native_value is None
+
+
+def test_pm25_aggregate_registry_normalizes_legacy_pm2_5_entity_ids():
+    registry_mod = _load_entity_registry_helper_module()
+
+    class _Entry:
+        def __init__(self, entity_id):
+            self.entity_id = entity_id
+
+    class _Registry:
+        def __init__(self):
+            self.updated = []
+            self.entries = {
+                "sensor.hi_house_pm2_5_average": _Entry("sensor.hi_house_pm2_5_average"),
+                "sensor.hi_house_voc_average": _Entry("sensor.hi_house_voc_average"),
+            }
+
+        def async_get_entity_id(self, domain, platform, unique_id):
+            if (domain, platform, unique_id) == (
+                "sensor",
+                "humidity_intelligence",
+                f"hi_{ENTRY_ID}_house_pm25_average",
+            ):
+                return "sensor.hi_house_pm2_5_average"
+            return None
+
+        def async_get(self, entity_id):
+            return self.entries.get(entity_id)
+
+        def async_update_entity(self, entity_id, *, new_entity_id):
+            entry = self.entries.pop(entity_id)
+            entry.entity_id = new_entity_id
+            self.entries[new_entity_id] = entry
+            self.updated.append((entity_id, new_entity_id))
+
+    registry = _Registry()
+    hass = SimpleNamespace()
+    sys.modules["homeassistant.helpers.entity_registry"].async_get = lambda _hass: registry
+
+    changed = registry_mod.normalize_pm25_aggregate_entity_ids(hass, ENTRY_ID)
+
+    assert changed == {
+        "sensor.hi_house_pm2_5_average": "sensor.hi_house_pm25_average",
+    }
+    assert "sensor.hi_house_pm25_average" in registry.entries
+    assert "sensor.hi_house_pm2_5_average" not in registry.entries
+    assert "sensor.hi_house_voc_average" in registry.entries
+    assert registry.updated == [
+        ("sensor.hi_house_pm2_5_average", "sensor.hi_house_pm25_average")
+    ]
 
 
 if __name__ == "__main__":

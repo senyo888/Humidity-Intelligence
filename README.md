@@ -345,13 +345,14 @@ Generated V2 control-row colours separate selected command lanes from environmen
 ## Current Release Highlights
 
 - integration metadata now identifies the active staging/testing line as `2.0.7-beta.1`
+- PM2.5 aggregate runtime truth now exposes canonical `pm25` aggregate entity IDs when PM2.5 telemetry is configured, including setup-time normalization for existing `pm2_5` aggregate IDs
 - generated V2 Current Air Control cards separate selected command lanes from degraded or unmapped alert context
 - Configuration Walkthrough links now route setup, post-configuration Frontend Dependencies, and final UI export guidance into the public support manual
 - GitHub Wiki support routing now covers configuration, services, diagnostics, generated dashboards, HACS/update guidance, AQ/CO safety, troubleshooting, and release validation
 - release/PR checklist guidance now records Wiki update status as `updated`, `no-op`, or `blocked` when public support manual guidance is affected
 - Wiki Services Reference, footer navigation, and banner assets make the support manual easier to scan
 
-Upgrade note: **v2.0.7-beta.1 is a beta/staging build for generated-card UI truth, support-manual, release-governance, and proposal-readiness work.** After updating HI through HACS or file replacement, restart Home Assistant so Home Assistant reloads the manifest version. Use config-entry reload only after option changes once the updated code is already loaded. Run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual cards if you use generated Current Air Control cards.
+Upgrade note: **v2.0.7-beta.1 is a beta/staging build for generated-card UI truth, support-manual, release-governance, proposal-readiness work, and the PM2.5 aggregate runtime-truth fix.** After updating HI through HACS or file replacement, restart Home Assistant so Home Assistant reloads the manifest version and runs the PM2.5 aggregate entity-ID normalization. Use config-entry reload only after option changes once the updated code is already loaded. Run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual cards if you use generated Current Air Control or PM2.5 aggregate card surfaces.
 
 ---
 
@@ -836,12 +837,13 @@ CO emergency pressure. Details are in
 ### v2.0.7-beta.1
 
 - promoted integration metadata to beta `2.0.7-beta.1`
+- fixed PM2.5 aggregate runtime truth so configured PM2.5 telemetry exposes canonical backend-owned PM25 aggregate entities instead of relying on Home Assistant's dotted `pm2_5` name slug
 - changed generated V2 Current Air Control cards so red control-row styling follows selected alert/CO runtime truth, while degraded or unmapped alert candidates surface as amber context instead of command-state red
 - added Configuration Walkthrough links to setup Frontend Dependencies, post-configuration Frontend Dependencies, and final UI export guidance
 - added GitHub Wiki support-manual routing from the README, including configuration, services, diagnostics, generated dashboard, HACS/update, AQ/CO safety, troubleshooting, and release-validation guidance
 - added release/PR checklist support for recording Wiki update status as `updated`, `no-op`, or `blocked` when public manual guidance is affected
 - added a Wiki Services Reference, footer navigation across public Wiki content pages, and a Wiki banner asset for a clearer support-manual experience
-- no migration is required for this beta line; restart Home Assistant after updating so the manifest version is reloaded, then regenerate/re-copy generated cards for the Current Air Control UI change
+- migration impact: existing PM2.5 aggregate entity IDs using `pm2_5` are normalized to `pm25` during HI setup; restart Home Assistant after updating so the new package and registry normalization run, then regenerate/re-copy generated cards if your dashboard uses PM2.5 aggregate surfaces or the Current Air Control UI change
 
 ### v2.0.6
 
