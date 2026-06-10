@@ -11,6 +11,10 @@ This project follows a practical changelog format for Home Assistant and HACS us
 - Documented HA Lab as advisory Operational Beta Validation Infrastructure and added
   PR/release-governance wording for reporting sanitized HA Lab evidence without
   changing runtime, UI, entity semantics, migration, or release authority.
+- Hardened generated-card AQ output details so unresolved optional AQ aggregate rows
+  are pruned instead of rendering stale `Entity not found` rows, and added
+  generated-card entity reference availability checks to `self_check` and
+  `v205_release_check`.
 
 ## 2.0.7-beta.1
 

@@ -30,6 +30,7 @@ Please review the bundle before attaching if you are concerned about privacy. Th
   `source_value_valid`, `repair_required`, and `repair_kind` when available
 - optional frontend dependency status when Home Assistant exposes Lovelace resources
 - generated UI/card summary
+- generated-card entity reference availability
 - unavailable or unknown configured entities
 - diagnostics warnings
 

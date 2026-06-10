@@ -346,13 +346,14 @@ Generated V2 control-row colours separate selected command lanes from environmen
 
 - integration metadata now identifies the active staging/testing line as `2.0.7-beta.1`
 - PM2.5 aggregate runtime truth now exposes canonical `pm25` aggregate entity IDs when PM2.5 telemetry is configured, including setup-time normalization for existing `pm2_5` aggregate IDs
+- generated-card validation now checks entity references embedded in exported YAML, so stale Manual-card entity IDs are caught by `self_check` / `v205_release_check`
 - generated V2 Current Air Control cards separate selected command lanes from degraded or unmapped alert context
 - Configuration Walkthrough links now route setup, post-configuration Frontend Dependencies, and final UI export guidance into the public support manual
 - GitHub Wiki support routing now covers configuration, services, diagnostics, generated dashboards, HACS/update guidance, AQ/CO safety, troubleshooting, and release validation
 - release/PR checklist guidance now records Wiki update status as `updated`, `no-op`, or `blocked` when public support manual guidance is affected
 - Wiki Services Reference, footer navigation, and banner assets make the support manual easier to scan
 
-Upgrade note: **v2.0.7-beta.1 is a beta/staging build for generated-card UI truth, support-manual, release-governance, proposal-readiness work, and the PM2.5 aggregate runtime-truth fix.** After updating HI through HACS or file replacement, restart Home Assistant so Home Assistant reloads the manifest version and runs the PM2.5 aggregate entity-ID normalization. Use config-entry reload only after option changes once the updated code is already loaded. Run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual cards if you use generated Current Air Control or PM2.5 aggregate card surfaces.
+Upgrade note: **v2.0.7-beta.1 is a beta/staging build for generated-card UI truth, support-manual, release-governance, proposal-readiness work, and the PM2.5 aggregate runtime-truth fix.** After updating HI through HACS or file replacement, restart Home Assistant so Home Assistant reloads the manifest version and runs the PM2.5 aggregate entity-ID normalization. Use config-entry reload only after option changes once the updated code is already loaded. Run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual cards if you use generated Current Air Control or PM2.5 aggregate card surfaces; already-pasted Manual cards are static and do not inherit backend entity ID changes automatically.
 
 ---
 
@@ -683,7 +684,7 @@ Common post-configuration areas:
 - `Thresholds & Comfort`: review comfort mode and zone thresholds
 - `Humidifiers`: add or edit per-level humidifier lanes
 - `Air Quality`: add or edit AQ lanes, triggers, outputs, and thresholds
-- generated UI: run `humidity_intelligence.dump_cards` and paste refreshed YAML into existing Manual cards when card visibility, template, or mapping options change
+- generated UI: run `humidity_intelligence.dump_cards` and paste refreshed YAML into existing Manual cards when card visibility, template, backend entity mapping, or generated-card options change
 
 Detailed manual:
 
@@ -712,12 +713,12 @@ Common service groups:
 | --- | --- |
 | `create_dashboard` | create a Lovelace dashboard from a rendered HI layout |
 | `view_cards` | render cards, write them to file, and send a file-path notification |
-| `dump_cards` | export generated card YAML for Manual dashboards |
-| `refresh_ui` | rebuild placeholder mappings and refresh rendered UI output |
+| `dump_cards` | export generated card YAML for static Manual dashboards |
+| `refresh_ui` | rebuild placeholder mappings and refresh cached rendered UI output |
 | `flash_lights` | test configured visual alert behavior |
 | `pause_control` / `resume_control` | pause or resume the automation engine |
-| `self_check` | run mapping, telemetry, drift-helper, and frontend-dependency checks |
-| `v205_release_check` | run read-only v2.0.5-v2.0.7 release-validation support checks |
+| `self_check` | run mapping, generated-card entity, telemetry, drift-helper, and frontend-dependency checks |
+| `v205_release_check` | run read-only v2.0.5-v2.0.7 generated-card and release-validation support checks |
 | `create_local_backup` / `list_saved_versions` | manage package-local HI snapshots for advanced validation |
 | `dump_diagnostics` | export fuller local diagnostics for maintainer/debug workflows |
 | `purge_files` | intentionally remove generated HI artifacts |

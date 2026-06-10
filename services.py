@@ -420,9 +420,14 @@ async def async_register_services(hass: HomeAssistant) -> None:
                     missing_entities.append(ent)
             frontend_dependencies = await async_frontend_dependency_status(hass)
             drift_dependency = humidity_drift_dependency_status(hass)
+            card_entity_availability = _generated_card_entity_availability(
+                hass,
+                data.get("cards", {}) or {},
+            )
 
             report[entry.entry_id] = {
                 "missing_entities": missing_entities,
+                "generated_card_entity_availability": card_entity_availability,
                 "frontend_dependency_resources": frontend_dependencies,
                 "humidity_drift_7d": drift_dependency,
                 "local_version_preservation": local_version_status,
@@ -932,8 +937,9 @@ def _build_v205_release_check_entry_report(
         {"show_output_entity_details": show_output_details, "failures": visibility_failures},
     )
 
-    unresolved = runtime_data.get("unresolved_placeholders_by_card") or {}
-    if not unresolved:
+    if "unresolved_placeholders_by_card" in runtime_data:
+        unresolved = runtime_data.get("unresolved_placeholders_by_card") or {}
+    else:
         unresolved = runtime_data.get("unresolved_placeholders") or []
     _add_check(
         checks,
@@ -941,6 +947,18 @@ def _build_v205_release_check_entry_report(
         "pass" if not unresolved else "fail",
         "No unresolved placeholders are recorded for generated cards." if not unresolved else "Generated cards have unresolved placeholders.",
         {"unresolved": unresolved},
+    )
+
+    card_entity_availability = _generated_card_entity_availability(hass, cards)
+    card_entity_status = card_entity_availability["status"]
+    _add_check(
+        checks,
+        "generated_card_entity_availability",
+        card_entity_status,
+        "All generated card entity references resolve in Home Assistant."
+        if card_entity_status == "pass"
+        else "Generated cards contain missing, unknown, or unavailable entity references.",
+        card_entity_availability,
     )
 
     card_sanity_failures = _generated_card_text_sanity_failures(cards)
@@ -1147,6 +1165,56 @@ def _generated_card_text_sanity_failures(cards: dict) -> List[str]:
         if re.search(r"type:\s*conditional\s*\n\s*(?:conditions:\s*\[\]|card:\s*(?:\n|$))", text):
             failures.append(f"{layout}: invalid conditional block")
     return failures
+
+
+def _generated_card_entity_availability(hass: HomeAssistant, cards: dict) -> dict:
+    missing: List[dict] = []
+    unavailable: List[dict] = []
+    seen: set[tuple[str, str]] = set()
+
+    for layout, card in sorted((cards or {}).items()):
+        for entity_id in _extract_generated_card_entity_ids(str(card)):
+            key = (str(layout), entity_id)
+            if key in seen:
+                continue
+            seen.add(key)
+            state = hass.states.get(entity_id)
+            if state is None:
+                missing.append({"layout": str(layout), "entity_id": entity_id})
+                continue
+            state_text = str(state.state).lower()
+            if state_text in {"unknown", "unavailable"}:
+                unavailable.append(
+                    {
+                        "layout": str(layout),
+                        "entity_id": entity_id,
+                        "status": state_text,
+                    }
+                )
+
+    status = "pass"
+    if missing:
+        status = "fail"
+    elif unavailable:
+        status = "warn"
+
+    return {
+        "status": status,
+        "checked_entity_count": len(seen),
+        "missing_entities": missing,
+        "unknown_or_unavailable_entities": unavailable,
+    }
+
+
+def _extract_generated_card_entity_ids(card: str) -> List[str]:
+    entity_ids: List[str] = []
+    entity_pattern = re.compile(
+        r"^[ \t]*(?:-[ \t]*)?entity:[ \t]*([a-z_]+\.[A-Za-z0-9_]+)[ \t]*(?:#.*)?$",
+        re.MULTILINE,
+    )
+    for match in entity_pattern.finditer(card or ""):
+        entity_ids.append(match.group(1))
+    return entity_ids
 
 
 def _layouts_from_written_paths(paths: List[str]) -> set[str]:

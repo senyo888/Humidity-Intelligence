@@ -42,7 +42,7 @@ flash_lights:
           mode: slider
 refresh_ui:
   name: Refresh UI Mapping
-  description: Rebuild entity mapping and re-render dashboard YAML cards. HI can also run this automatically shortly after Home Assistant startup when the startup refresh option is enabled.
+  description: Rebuild entity mapping and re-render cached dashboard YAML cards. Already-pasted Manual dashboard cards remain static until refreshed from a new dump_cards export. HI can also run this automatically shortly after Home Assistant startup when the startup refresh option is enabled.
   fields:
     entry_id:
       name: Entry ID
@@ -65,7 +65,7 @@ dump_diagnostics:
         text: {}
 self_check:
   name: Self Check
-  description: Validate entity mapping, frontend dependencies, house humidity drift dependency, local HI-only snapshot status, and telemetry setup
+  description: Validate entity mapping, generated-card entity references, frontend dependencies, house humidity drift dependency, local HI-only snapshot status, and telemetry setup
   fields:
     entry_id:
       name: Entry ID
@@ -74,7 +74,7 @@ self_check:
         text: {}
 v205_release_check:
   name: Release Check
-  description: Run a read-only v2.0.5-v2.0.7 validation report for generated-card visibility, dump_cards scope behavior, cached layouts, unresolved placeholders, frontend dependency status, house humidity drift dependency status, optional local HI-only snapshot status, and configured entity availability.
+  description: Run a read-only v2.0.5-v2.0.7 validation report for generated-card visibility, generated-card entity availability, dump_cards scope behavior, cached layouts, unresolved placeholders, frontend dependency status, house humidity drift dependency status, optional local HI-only snapshot status, and configured entity availability.
   fields:
     entry_id:
       name: Entry ID
@@ -135,7 +135,7 @@ list_saved_versions:
   fields: {}
 dump_cards:
   name: Dump Cards
-  description: Write rendered card YAML to the Home Assistant config folder. Without layout, all cached layouts are exported; with layout, only that layout is exported.
+  description: Write rendered card YAML to the Home Assistant config folder for static Manual dashboards. Without layout, all cached layouts are exported; with layout, only that layout is exported.
   fields:
     entry_id:
       name: Entry ID

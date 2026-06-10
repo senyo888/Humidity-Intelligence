@@ -120,7 +120,8 @@ Output details:
 
 - render the expandable output details panel only when `show_output_entity_details` is enabled
 - stay display-only; the option must not affect lane selection, output writes, isolation switches, or diagnostics
-- require a fresh `humidity_intelligence.dump_cards` export after changing visibility
+- prune unresolved optional AQ aggregate rows instead of leaving `Entity not found` rows
+- require a fresh `humidity_intelligence.dump_cards` export after changing visibility, templates, or backend entity mappings
 
 ---
 
@@ -131,7 +132,7 @@ Output details:
 1. builds placeholder to entity map
 2. substitutes canonical templates
 3. prunes optional rows
-4. reports unresolved placeholders
+4. reports unresolved non-optional placeholders
 
 Inventory files:
 
@@ -154,6 +155,7 @@ Impact:
 
 - partial card degradation
 - diagnostics report the issue
+- `self_check` and release validation also report missing generated-card entity references
 
 ---
 
@@ -185,7 +187,8 @@ If mismatch occurs:
 - Hiding output details must not affect lane selection, output writes, isolation switches, diagnostics, or entity names.
 - New generated V2 cards default to the cleaner output display unless output details are enabled.
 - `v2_tablet` is the default first-install UI export layout.
-- `humidity_intelligence.dump_cards` remains the supported export path after UI visibility or mapping changes.
+- `humidity_intelligence.dump_cards` remains the supported export path after UI visibility, template, or mapping changes.
+- Already-pasted Manual cards are static; refresh/export updates HI output files, not the pasted card content.
 
 ### Historical v2.0.2 UI Contract Updates
 

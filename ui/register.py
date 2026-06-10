@@ -46,6 +46,20 @@ _ALERT_ONLY_HIDDEN_TIMER_KEYS = {
     "air_cooking_min_run",
     "air_control_pause",
 }
+_OPTIONAL_AQ_AGGREGATE_PLACEHOLDERS = {
+    "sensor.air_control_house_iaq_average",
+    "sensor.air_control_downstairs_iaq_average",
+    "sensor.air_control_upstairs_iaq_average",
+    "sensor.air_control_house_pm25_average",
+    "sensor.air_control_downstairs_pm25_average",
+    "sensor.air_control_upstairs_pm25_average",
+    "sensor.air_control_house_voc_average",
+    "sensor.air_control_downstairs_voc_average",
+    "sensor.air_control_upstairs_voc_average",
+    "sensor.air_control_house_co_average",
+    "sensor.air_control_downstairs_co_average",
+    "sensor.air_control_upstairs_co_average",
+}
 
 
 async def async_build_entity_mapping(hass: HomeAssistant, entry_id: str) -> Dict[str, str]:
@@ -449,7 +463,7 @@ def _entry_show_output_entity_details(entry: Any) -> bool:
 
 def _is_optional_placeholder(placeholder: str) -> bool:
     """Placeholders that are expected to be user-provided outputs are optional."""
-    return placeholder.startswith(
+    return placeholder in _OPTIONAL_AQ_AGGREGATE_PLACEHOLDERS or placeholder.startswith(
         (
             "fan.",
             "humidifier.",
@@ -463,7 +477,7 @@ def _is_optional_placeholder(placeholder: str) -> bool:
 
 
 def _should_prune_unresolved_entity_line(placeholder: str) -> bool:
-    return placeholder.startswith(
+    return placeholder in _OPTIONAL_AQ_AGGREGATE_PLACEHOLDERS or placeholder.startswith(
         (
             "fan.",
             "humidifier.",

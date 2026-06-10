@@ -394,6 +394,17 @@ class _FakeRegistry:
         return f"{domain}.hi_{suffix}"
 
 
+class _FakeRegistryMissingUniqueIds:
+    def __init__(self, missing_unique_ids):
+        self._missing = set(missing_unique_ids)
+
+    def async_get_entity_id(self, domain, _integration, unique_id):
+        if unique_id in self._missing:
+            return None
+        suffix = unique_id.split("_", 2)[-1]
+        return f"{domain}.hi_{suffix}"
+
+
 class _FakeHass:
     def __init__(self, entry, states):
         self.services = _FakeServices()
@@ -2467,6 +2478,35 @@ async def _run_output_detail_visibility_assertions(register_mod) -> None:
         assert "hi:output-details" not in card
 
 
+async def _run_optional_aq_output_detail_pruning_assertions(register_mod) -> None:
+    sys.modules["homeassistant.helpers.entity_registry"].async_get = lambda hass: _FakeRegistryMissingUniqueIds(
+        {
+            f"hi_{ENTRY_ID}_level1_pm25_average",
+            f"hi_{ENTRY_ID}_level2_pm25_average",
+        }
+    )
+
+    data = _base_entry_data()
+    data["show_output_entity_details"] = True
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=data, options={})
+    hass = _FakeHass(entry, {})
+
+    mapping = await register_mod.async_build_entity_mapping(hass, ENTRY_ID)
+    cards = await register_mod.async_register_cards(hass, ENTRY_ID, mapping)
+
+    assert "sensor.air_control_downstairs_pm25_average" not in mapping
+    assert "sensor.air_control_upstairs_pm25_average" not in mapping
+    assert hass.data["humidity_intelligence"][ENTRY_ID].get("unresolved_placeholders_by_card", {}) == {}
+
+    for card in (cards.get("v2_mobile", ""), cards.get("v2_tablet", "")):
+        assert "entity: sensor.air_control_downstairs_pm25_average" not in card
+        assert "entity: sensor.air_control_upstairs_pm25_average" not in card
+        assert "name: Downstairs PM2.5" not in card
+        assert "name: Upstairs PM2.5" not in card
+        assert "name: Downstairs IAQ" in card
+        assert "name: Downstairs CO" in card
+
+
 async def _run_alert_only_card_assertions(register_mod) -> None:
     sys.modules["homeassistant.helpers.entity_registry"].async_get = lambda hass: _FakeRegistry()
 
@@ -2597,6 +2637,11 @@ def test_card_render_sanity_and_placeholder_resolution():
 def test_output_detail_visibility_option_prunes_v2_cards():
     _, register_mod = _load_target_modules()
     asyncio.run(_run_output_detail_visibility_assertions(register_mod))
+
+
+def test_optional_aq_output_detail_rows_prune_when_aggregate_entities_are_unresolved():
+    _, register_mod = _load_target_modules()
+    asyncio.run(_run_optional_aq_output_detail_pruning_assertions(register_mod))
 
 
 def test_card_render_hides_controls_in_alert_only_mode():
@@ -3476,6 +3521,85 @@ def test_frontend_dependency_status_is_non_blocking_for_release_contract_checks(
     assert checks["configured_entity_availability"]["status"] == "pass"
     assert checks["house_humidity_drift_7d_dependency"]["status"] == "pass"
     assert checks["generated_cards_text_sanity"]["status"] == "pass"
+
+
+def test_v205_release_check_fails_stale_generated_card_entity_references():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.house_humidity_mean_7d": _FakeState(43),
+            "sensor.humidity_intelligence_hi_level1_iaq_average": _FakeState(87),
+        },
+    )
+
+    report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        {
+            "entity_map": {},
+            "cards": {
+                "v2_mobile": (
+                    "type: entities\n"
+                    "entities:\n"
+                    "  - entity: sensor.humidity_intelligence_hi_level1_iaq_average\n"
+                    "    name: Downstairs IAQ\n"
+                    "  - entity: sensor.air_control_downstairs_pm25_average\n"
+                    "    name: Downstairs PM2.5\n"
+                ),
+                "v2_tablet": "type: markdown\ncontent: Tablet ready\n",
+                "v1_mobile": "type: markdown\ncontent: Legacy ready\n",
+                "view_cards_button": "type: button\nname: View cards\n",
+            },
+            "unresolved_placeholders_by_card": {},
+        },
+        manifest_version="2.0.7-beta.1",
+        frontend_dependencies={"status": "not_inspectable"},
+    )
+    checks = {check["id"]: check for check in report["checks"]}
+
+    assert report["status"] == "fail"
+    assert checks["generated_card_entity_availability"]["status"] == "fail"
+    assert checks["generated_card_entity_availability"]["details"]["missing_entities"] == [
+        {"layout": "v2_mobile", "entity_id": "sensor.air_control_downstairs_pm25_average"}
+    ]
+
+
+def test_v205_release_check_uses_card_scoped_unresolved_placeholders_when_available():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.house_humidity_mean_7d": _FakeState(43),
+        },
+    )
+
+    report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        {
+            "entity_map": {},
+            "cards": {
+                "v2_mobile": "type: markdown\ncontent: Mobile ready\n",
+                "v2_tablet": "type: markdown\ncontent: Tablet ready\n",
+                "v1_mobile": "type: markdown\ncontent: Legacy ready\n",
+                "view_cards_button": "type: button\nname: View cards\n",
+            },
+            "unresolved_placeholders": [
+                "fan.kitchen_air",
+                "sensor.air_control_downstairs_pm25_average",
+            ],
+            "unresolved_placeholders_by_card": {},
+        },
+        manifest_version="2.0.7-beta.1",
+        frontend_dependencies={"status": "not_inspectable"},
+    )
+    checks = {check["id"]: check for check in report["checks"]}
+
+    assert checks["unresolved_placeholders"]["status"] == "pass"
+    assert checks["unresolved_placeholders"]["details"]["unresolved"] == {}
 
 
 def test_v205_release_check_service_is_documented_and_registered():
