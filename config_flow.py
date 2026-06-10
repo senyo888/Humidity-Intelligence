@@ -1228,16 +1228,10 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
 
             try:
-                alert, room_error = _alert_rule_payload(
+                alert, room_error = _alert_rule_payload_from_form_input(
                     telemetry=telemetry,
-                    enabled=enabled_default,
-                    trigger_type=trigger_default,
-                    threshold=threshold_default_value,
-                    room=room_default,
-                    lights=lights_default,
-                    power_entity=power_entity_default,
-                    flash_mode=flash_mode_default,
-                    duration=duration_default,
+                    user_input=user_input,
+                    config=self._data,
                 )
                 if room_error:
                     errors["room"] = room_error
@@ -2686,6 +2680,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             return await self.async_step_options_alerts()
         errors: Dict[str, str] = {}
         telemetry = list(self._section("telemetry", []))
+        config = self._effective_config()
 
         trigger_default = _default_alert_trigger_type()
         enabled_default = True
@@ -2697,7 +2692,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         threshold_default_value: Any = _alert_threshold_value(
             trigger_default,
             None,
-            self._effective_config(),
+            config,
         )
 
         if user_input is not None:
@@ -2713,20 +2708,14 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             threshold_default_value = _alert_threshold_value(
                 trigger_default,
                 user_input.get("threshold"),
-                self._effective_config(),
+                config,
             )
 
             try:
-                alert, room_error = _alert_rule_payload(
+                alert, room_error = _alert_rule_payload_from_form_input(
                     telemetry=telemetry,
-                    enabled=enabled_default,
-                    trigger_type=trigger_default,
-                    threshold=threshold_default_value,
-                    room=room_default,
-                    lights=lights_default,
-                    power_entity=power_entity_default,
-                    flash_mode=flash_mode_default,
-                    duration=duration_default,
+                    user_input=user_input,
+                    config=config,
                 )
                 if room_error:
                     errors["room"] = room_error
@@ -2750,7 +2739,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         threshold_default_value = _alert_threshold_value(
             trigger_default,
             alert_default("threshold", threshold_default_value),
-            self._effective_config(),
+            config,
         )
         schema_fields: Dict[Any, Any] = {
             vol.Optional("enabled", default=enabled_default): selector.BooleanSelector(),
@@ -2858,6 +2847,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         idx = max(0, min(idx, len(alerts) - 1))
         alert = alerts[idx]
         telemetry = list(self._section("telemetry", []))
+        config = self._effective_config()
         errors: Dict[str, str] = {}
 
         trigger_default = _normalize_alert_trigger_type(alert.get("trigger_type"))
@@ -2870,7 +2860,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         threshold_default = _alert_threshold_value(
             trigger_default,
             alert.get("threshold"),
-            self._effective_config(),
+            config,
         )
 
         if user_input is not None:
@@ -2890,20 +2880,14 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             threshold_default = _alert_threshold_value(
                 trigger_default,
                 user_input.get("threshold", threshold_default),
-                self._effective_config(),
+                config,
             )
 
             try:
-                updated_alert, room_error = _alert_rule_payload(
+                updated_alert, room_error = _alert_rule_payload_from_form_input(
                     telemetry=telemetry,
-                    enabled=enabled_default,
-                    trigger_type=trigger_default,
-                    threshold=threshold_default,
-                    room=room_default,
-                    lights=lights_default,
-                    power_entity=power_entity_default,
-                    flash_mode=flash_mode_default,
-                    duration=duration_default,
+                    user_input=user_input,
+                    config=config,
                     existing_alert=alert,
                 )
                 if room_error:
@@ -2928,7 +2912,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         threshold_default = _alert_threshold_value(
             trigger_default,
             alert_default("threshold", threshold_default),
-            self._effective_config(),
+            config,
         )
         schema_fields: Dict[Any, Any] = {
             vol.Optional("enabled", default=enabled_default): selector.BooleanSelector(),
@@ -3218,6 +3202,40 @@ def _alert_rule_payload(
     if existing_alert is not None:
         return {**existing_alert, **payload}, None
     return payload, None
+
+
+def _alert_rule_payload_from_form_input(
+    *,
+    telemetry: List[Dict[str, Any]],
+    user_input: Dict[str, Any],
+    config: Dict[str, Any],
+    existing_alert: Optional[Dict[str, Any]] = None,
+) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    defaults = existing_alert or {}
+    flattened = _flatten_advanced_section_input(user_input) or {}
+    trigger_type = _normalize_alert_trigger_type(
+        flattened.get("trigger_type", defaults.get("trigger_type"))
+    )
+    return _alert_rule_payload(
+        telemetry=telemetry,
+        enabled=bool(flattened.get("enabled", defaults.get("enabled", True))),
+        trigger_type=trigger_type,
+        threshold=_alert_threshold_value(
+            trigger_type,
+            flattened.get("threshold", defaults.get("threshold")),
+            config,
+        ),
+        room=_sanitize_optional_room_scope(flattened.get("room", defaults.get("room"))) or "",
+        lights=_sanitize_entity_ids(flattened.get("lights", defaults.get("lights", []))),
+        power_entity=_sanitize_optional_entity_id(
+            flattened.get("power_entity", defaults.get("power_entity"))
+        ),
+        flash_mode=_normalize_alert_flash_mode(
+            flattened.get("flash_mode", defaults.get("flash_mode"))
+        ),
+        duration=_safe_alert_duration(flattened.get("duration", defaults.get("duration", 10))),
+        existing_alert=existing_alert,
+    )
 
 
 def _safe_alert_threshold(trigger_type: Any, value: Any, fallback: Optional[float] = None) -> Any:

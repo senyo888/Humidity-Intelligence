@@ -926,6 +926,72 @@ def test_options_alert_edit_flattens_advanced_section_and_preserves_visible_valu
     ]
 
 
+def test_alert_form_input_payload_helper_preserves_add_and_edit_semantics():
+    config_flow = _load_config_flow_module()
+    telemetry = _base_telemetry()
+
+    added, add_error = config_flow._alert_rule_payload_from_form_input(
+        telemetry=telemetry,
+        user_input={
+            "enabled": True,
+            "trigger_type": "co_emergency",
+            "room": "Kitchen",
+            "lights": ["light.hi_alert"],
+            "show_advanced_options": {
+                "threshold": 500,
+                "power_entity": "switch.hi_alert_power",
+                "flash_mode": "white",
+                "duration": 999,
+            },
+        },
+        config={},
+    )
+
+    assert add_error is None
+    assert added == {
+        "enabled": True,
+        "trigger_type": "co_emergency",
+        "threshold": 100,
+        "room": None,
+        "lights": ["light.hi_alert"],
+        "power_entity": "switch.hi_alert_power",
+        "flash_mode": "white",
+        "duration": 120,
+    }
+
+    existing = {
+        "enabled": True,
+        "trigger_type": "co_emergency",
+        "threshold": 15,
+        "room": None,
+        "lights": ["light.old_alert"],
+        "power_entity": "switch.old_power",
+        "flash_mode": "red",
+        "duration": 10,
+    }
+    edited, edit_error = config_flow._alert_rule_payload_from_form_input(
+        telemetry=telemetry,
+        user_input={
+            "enabled": False,
+            "lights": ["light.new_alert"],
+        },
+        config={},
+        existing_alert=existing,
+    )
+
+    assert edit_error is None
+    assert edited == {
+        "enabled": False,
+        "trigger_type": "co_emergency",
+        "threshold": 15,
+        "room": None,
+        "lights": ["light.new_alert"],
+        "power_entity": "switch.old_power",
+        "flash_mode": "red",
+        "duration": 10,
+    }
+
+
 if __name__ == "__main__":
     tests = [
         (name, value)
