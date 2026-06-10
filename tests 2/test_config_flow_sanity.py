@@ -738,6 +738,139 @@ def test_setup_alert_add_flattens_advanced_section_and_preserves_visible_values(
     ]
 
 
+def test_setup_alert_add_rejects_room_without_required_source_sensors():
+    config_flow = _load_config_flow_module()
+    flow = config_flow.HumidityIntelligenceConfigFlow()
+    flow.hass = SimpleNamespace()
+    flow._telemetry = [_base_telemetry()[0]]
+
+    result = asyncio.run(
+        flow.async_step_alert_add(
+            {
+                "enabled": True,
+                "trigger_type": "mould_risk",
+                "room": "Kitchen",
+                "lights": ["light.hi_alert"],
+                "show_advanced_options": {
+                    "flash_mode": "red",
+                    "duration": 30,
+                },
+            }
+        )
+    )
+
+    assert result["type"] == "form"
+    assert result["step_id"] == "alert_add"
+    assert result["errors"] == {"room": "room_missing_temp_humidity"}
+    assert flow._alerts == []
+    assert "alerts" not in flow._data
+
+
+def test_options_alert_add_clamps_static_threshold_and_returns_to_alerts():
+    config_flow = _load_config_flow_module()
+    entry = SimpleNamespace(
+        data={
+            "telemetry": _base_telemetry(),
+            "alerts": [],
+        },
+        options={},
+    )
+    flow = config_flow.HumidityIntelligenceOptionsFlow(entry)
+    flow.hass = SimpleNamespace()
+
+    result = asyncio.run(
+        flow.async_step_options_alert_add(
+            {
+                "enabled": True,
+                "trigger_type": "co_emergency",
+                "room": "Kitchen",
+                "lights": ["light.hi_alert"],
+                "show_advanced_options": {
+                    "threshold": 500,
+                    "power_entity": "switch.hi_alert_power",
+                    "flash_mode": "white",
+                    "duration": 999,
+                },
+            }
+        )
+    )
+
+    assert result["step_id"] == "options_alerts"
+    assert flow._options["alerts"] == [
+        {
+            "enabled": True,
+            "trigger_type": "co_emergency",
+            "threshold": 100,
+            "room": None,
+            "lights": ["light.hi_alert"],
+            "power_entity": "switch.hi_alert_power",
+            "flash_mode": "white",
+            "duration": 120,
+        }
+    ]
+
+
+def test_setup_alert_add_clamps_static_threshold_and_stores_alert_keys():
+    config_flow = _load_config_flow_module()
+    flow = config_flow.HumidityIntelligenceConfigFlow()
+    flow.hass = SimpleNamespace()
+    flow._telemetry = _base_telemetry()
+
+    result = asyncio.run(
+        flow.async_step_alert_add(
+            {
+                "enabled": True,
+                "trigger_type": "co_emergency",
+                "lights": ["light.hi_alert"],
+                "show_advanced_options": {
+                    "threshold": 999,
+                    "power_entity": "switch.hi_alert_power",
+                    "flash_mode": "red",
+                    "duration": 15,
+                },
+            }
+        )
+    )
+
+    assert result["step_id"] == "alerts"
+    assert flow._data["alerts"] == flow._alerts
+    assert flow._alerts == [
+        {
+            "enabled": True,
+            "trigger_type": "co_emergency",
+            "threshold": 100,
+            "room": None,
+            "lights": ["light.hi_alert"],
+            "power_entity": "switch.hi_alert_power",
+            "flash_mode": "red",
+            "duration": 15,
+        }
+    ]
+
+
+def test_setup_alert_add_rejects_unknown_room_without_storing_alert():
+    config_flow = _load_config_flow_module()
+    flow = config_flow.HumidityIntelligenceConfigFlow()
+    flow.hass = SimpleNamespace()
+    flow._telemetry = _base_telemetry()
+
+    result = asyncio.run(
+        flow.async_step_alert_add(
+            {
+                "enabled": True,
+                "trigger_type": "humidity_danger",
+                "room": "Bathroom",
+                "lights": ["light.hi_alert"],
+            }
+        )
+    )
+
+    assert result["step_id"] == "alert_add"
+    assert result["errors"] == {"room": "room_unknown"}
+    assert flow._alerts == []
+    assert "alerts" not in flow._data
+
+
 def test_options_alert_edit_flattens_advanced_section_and_preserves_visible_values():
     config_flow = _load_config_flow_module()
     entry = SimpleNamespace(

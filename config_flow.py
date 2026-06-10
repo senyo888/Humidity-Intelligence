@@ -1228,21 +1228,21 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
 
             try:
-                room_scope, room_error = _resolve_alert_room_scope(telemetry, trigger_default, room_default)
+                alert, room_error = _alert_rule_payload(
+                    telemetry=telemetry,
+                    enabled=enabled_default,
+                    trigger_type=trigger_default,
+                    threshold=threshold_default_value,
+                    room=room_default,
+                    lights=lights_default,
+                    power_entity=power_entity_default,
+                    flash_mode=flash_mode_default,
+                    duration=duration_default,
+                )
                 if room_error:
                     errors["room"] = room_error
 
-                if not errors:
-                    alert: Dict[str, Any] = {
-                        "enabled": enabled_default,
-                        "trigger_type": trigger_default,
-                        "threshold": threshold_default_value,
-                        "room": room_scope,
-                        "lights": lights_default,
-                        "power_entity": power_entity_default,
-                        "flash_mode": flash_mode_default,
-                        "duration": duration_default,
-                    }
+                if not errors and alert is not None:
                     self._alerts.append(alert)
                     self._data["alerts"] = self._alerts
                     return await self.async_step_alerts()
@@ -2717,21 +2717,21 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             )
 
             try:
-                room_scope, room_error = _resolve_alert_room_scope(telemetry, trigger_default, room_default)
+                alert, room_error = _alert_rule_payload(
+                    telemetry=telemetry,
+                    enabled=enabled_default,
+                    trigger_type=trigger_default,
+                    threshold=threshold_default_value,
+                    room=room_default,
+                    lights=lights_default,
+                    power_entity=power_entity_default,
+                    flash_mode=flash_mode_default,
+                    duration=duration_default,
+                )
                 if room_error:
                     errors["room"] = room_error
 
-                if not errors:
-                    alert = {
-                        "enabled": enabled_default,
-                        "trigger_type": trigger_default,
-                        "threshold": threshold_default_value,
-                        "room": room_scope,
-                        "lights": lights_default,
-                        "power_entity": power_entity_default,
-                        "flash_mode": flash_mode_default,
-                        "duration": duration_default,
-                    }
+                if not errors and alert is not None:
                     alerts.append(alert)
                     self._options["alerts"] = alerts
                     return await self.async_step_options_alerts()
@@ -2894,22 +2894,23 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             )
 
             try:
-                room_scope, room_error = _resolve_alert_room_scope(telemetry, trigger_default, room_default)
+                updated_alert, room_error = _alert_rule_payload(
+                    telemetry=telemetry,
+                    enabled=enabled_default,
+                    trigger_type=trigger_default,
+                    threshold=threshold_default,
+                    room=room_default,
+                    lights=lights_default,
+                    power_entity=power_entity_default,
+                    flash_mode=flash_mode_default,
+                    duration=duration_default,
+                    existing_alert=alert,
+                )
                 if room_error:
                     errors["room"] = room_error
 
-                if not errors:
-                    alerts[idx] = {
-                        **alert,
-                        "enabled": enabled_default,
-                        "trigger_type": trigger_default,
-                        "threshold": threshold_default,
-                        "room": room_scope,
-                        "lights": lights_default,
-                        "power_entity": power_entity_default,
-                        "flash_mode": flash_mode_default,
-                        "duration": duration_default,
-                    }
+                if not errors and updated_alert is not None:
+                    alerts[idx] = updated_alert
                     self._options["alerts"] = alerts
                     return await self.async_step_options_alerts()
             except Exception:
@@ -3185,6 +3186,38 @@ def _alert_threshold_value(trigger_type: Any, value: Any, _config: Dict[str, Any
     if not _alert_uses_static_threshold(trigger_type):
         return None
     return _safe_alert_threshold(trigger_type, value, None)
+
+
+def _alert_rule_payload(
+    *,
+    telemetry: List[Dict[str, Any]],
+    enabled: bool,
+    trigger_type: str,
+    threshold: Any,
+    room: Any,
+    lights: List[str],
+    power_entity: Optional[str],
+    flash_mode: str,
+    duration: int,
+    existing_alert: Optional[Dict[str, Any]] = None,
+) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    room_scope, room_error = _resolve_alert_room_scope(telemetry, trigger_type, room)
+    if room_error:
+        return None, room_error
+
+    payload: Dict[str, Any] = {
+        "enabled": enabled,
+        "trigger_type": trigger_type,
+        "threshold": threshold,
+        "room": room_scope,
+        "lights": lights,
+        "power_entity": power_entity,
+        "flash_mode": flash_mode,
+        "duration": duration,
+    }
+    if existing_alert is not None:
+        return {**existing_alert, **payload}, None
+    return payload, None
 
 
 def _safe_alert_threshold(trigger_type: Any, value: Any, fallback: Optional[float] = None) -> Any:
