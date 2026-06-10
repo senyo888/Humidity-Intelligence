@@ -646,10 +646,6 @@ card:
               const on = (id) => states[id]?.state === 'on';
               const tActive = (id) => states[id]?.state === 'active';
               const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
-              const isHome = (id) => states[id]?.state === 'home';
-              const alarmState = txt('alarm_control_panel.senyo1_sky_com') || 'unknown';
-              const justynaHome = isHome('person.justyna') || isHome('device_tracker.justyna');
-              const senyoHome = isHome('person.senyo') || isHome('device_tracker.senyos_phone');
               const isAlertActiveEntity = (id) => {
                 const stateObj = states[id];
                 if (stateObj?.state !== 'on') return false;
@@ -749,7 +745,7 @@ card:
                 lines.push('Stage: Monitor + alerts only (no automation output controls configured).');
               } else if (mode === 'away') {
                 lines.push('Stage: Presence gate away (system disarmed).');
-                lines.push(`Presence: Alarm=${alarmState}, Justyna=${justynaHome ? 'home' : 'away'}, Senyo=${senyoHome ? 'home' : 'away'}.`);
+                lines.push('Presence: configured presence gate is blocking automation.');
               } else if (mode === 'manual_override') {
                 lines.push('Stage: Manual override (automation standing down).');
               } else if (mode === 'paused') {
@@ -1280,7 +1276,7 @@ card:
           show_state: false
           tap_action:
             action: more-info
-            entity: sensor.wirelesstag_kitchen_humidity
+            entity: sensor.kitchen_humidity
           styles:
             card:
               - border-radius: 18px
@@ -1358,7 +1354,7 @@ card:
           show_state: false
           tap_action:
             action: more-info
-            entity: sensor.wirelesstag_bathroom_humidity
+            entity: sensor.bathroom_humidity
           styles:
             card:
               - border-radius: 18px

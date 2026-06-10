@@ -15,6 +15,13 @@ This project follows a practical changelog format for Home Assistant and HACS us
   are pruned instead of rendering stale `Entity not found` rows, and added
   generated-card entity reference availability checks to `self_check` and
   `v205_release_check`.
+- Sanitized generated V2 card templates, gallery exports, and test fixtures so
+  public artifacts use canonical HI placeholders instead of maintainer-local
+  presence, alarm, tracker, or room-sensor entity IDs.
+- Kept startup UI refresh option semantics deterministic by removing the
+  unconditional startup `dump_cards` task; startup now follows the configured
+  `auto_refresh_ui_on_startup` refresh path, while explicit UI install,
+  option-visibility changes, and manual `dump_cards` still write card files.
 
 ## 2.0.7-beta.1
 

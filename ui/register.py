@@ -295,16 +295,6 @@ async def async_build_entity_mapping(hass: HomeAssistant, entry_id: str) -> Dict
             or fallback_humidity_l2
             or fallback_house_humidity
         ),
-        "sensor.wirelesstag_kitchen_humidity": (
-            _find_telemetry("kitchen", "humidity")
-            or fallback_humidity_l1
-            or fallback_house_humidity
-        ),
-        "sensor.wirelesstag_bathroom_humidity": (
-            _find_telemetry("bathroom", "humidity")
-            or fallback_humidity_l1
-            or fallback_house_humidity
-        ),
     }
     placeholders.update(room_placeholders)
 

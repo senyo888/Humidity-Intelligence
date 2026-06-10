@@ -17,6 +17,31 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 ENTRY_ID = "entry123"
 PKG = "hi_testpkg"
 
+PUBLIC_CARD_SURFACES = (
+    ROOT / "ui" / "cards" / "v2_mobile.yaml",
+    ROOT / "ui" / "cards" / "v2_tablet.yaml",
+    ROOT / "ui-gallery" / "default-v2-mobile-aq" / "card.yaml",
+    ROOT / "ui-gallery" / "default-v2-tablet-zone-2" / "card.yaml",
+    ROOT / "tmp_out" / "v2_mobile.yaml",
+    ROOT / "tmp_out" / "v2_tablet.yaml",
+    ROOT / "ui" / "_sensor_ids.txt",
+    ROOT / "ui" / "register.py",
+    ROOT / "tests 2" / "test_slope_sanity.py",
+)
+
+PRIVATE_CARD_IDENTIFIERS = (
+    "alarm_control_panel.senyo1_sky_com",
+    "person.justyna",
+    "person.senyo",
+    "device_tracker.senyos_phone",
+    "sensor.wirelesstag_kitchen_humidity",
+    "sensor.wirelesstag_bathroom_humidity",
+    "sensor.wirelesstag_willow_s_room_temperature",
+    "sensor.wirelesstag_bedroom_temperature",
+    "sensor.wirelesstag_landing_temperature_2",
+    "Willow's Room",
+)
+
 
 def _install_homeassistant_stubs() -> None:
     """Install lightweight Home Assistant stubs into sys.modules."""
@@ -2787,6 +2812,17 @@ def test_visual_alert_flash_restores_initial_light_state_and_serializes_overlap(
     asyncio.run(_run_visual_flash_restore_assertions(services_mod))
 
 
+def test_public_card_surfaces_do_not_ship_private_entity_ids():
+    offenders = []
+    for path in PUBLIC_CARD_SURFACES:
+        source = path.read_text()
+        for marker in PRIVATE_CARD_IDENTIFIERS:
+            if marker in source:
+                offenders.append(f"{path.relative_to(ROOT)}: {marker}")
+
+    assert offenders == []
+
+
 def test_startup_ui_refresh_contract_is_wired():
     init_source = (ROOT / "__init__.py").read_text()
     const_source = (ROOT / "const.py").read_text()
@@ -2798,6 +2834,7 @@ def test_startup_ui_refresh_contract_is_wired():
     assert ".async_listen_once(" in init_source
     assert "@callback" in init_source
     assert "hass.create_task(_run_startup_ui_refresh())" in init_source
+    assert "hass.async_create_task(_async_refresh_and_dump_cards" not in init_source
     assert ".add_done_callback(" not in init_source
     assert "startup_ui_refresh_scheduled" in init_source
     assert "SERVICE_REFRESH_UI" in init_source

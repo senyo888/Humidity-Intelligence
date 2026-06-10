@@ -82,7 +82,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         cards = {}
     hass.data[DOMAIN][entry.entry_id]["cards"] = cards
     hass.data[DOMAIN][entry.entry_id]["entity_map"] = mapping
-    hass.async_create_task(_async_refresh_and_dump_cards(hass, entry.entry_id))
     _async_register_startup_ui_refresh(hass, entry)
 
     ui_layouts = entry.data.get("ui_layouts") or []
@@ -168,7 +167,7 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 
 async def _async_refresh_and_dump_cards(hass: HomeAssistant, entry_id: str) -> None:
-    """Rebuild mapping and rewrite card files after startup."""
+    """Rebuild mapping and rewrite card files for explicit UI export refreshes."""
     try:
         await hass.services.async_call(
             DOMAIN,
@@ -184,7 +183,7 @@ async def _async_refresh_and_dump_cards(hass: HomeAssistant, entry_id: str) -> N
         )
     except Exception:
         _LOGGER.exception(
-            "Failed startup refresh/dump for Humidity Intelligence entry %s",
+            "Failed UI refresh/dump for Humidity Intelligence entry %s",
             entry_id,
         )
 

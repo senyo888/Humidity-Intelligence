@@ -348,6 +348,8 @@ Generated V2 control-row colours separate selected command lanes from environmen
 - PM2.5 aggregate runtime truth now exposes canonical `pm25` aggregate entity IDs when PM2.5 telemetry is configured, including setup-time normalization for existing `pm2_5` aggregate IDs
 - generated-card validation now checks entity references embedded in exported YAML, so stale Manual-card entity IDs are caught by `self_check` / `v205_release_check`
 - generated V2 Current Air Control cards separate selected command lanes from degraded or unmapped alert context
+- generated V2 card templates and gallery exports now use canonical HI placeholders rather than maintainer-local presence, alarm, tracker, or room-sensor entity IDs
+- startup UI refresh now follows the `auto_refresh_ui_on_startup` option without writing card files unless initial UI install, option-visibility changes, or manual `dump_cards` calls request an export
 - Configuration Walkthrough links now route setup, post-configuration Frontend Dependencies, and final UI export guidance into the public support manual
 - GitHub Wiki support routing now covers configuration, services, diagnostics, generated dashboards, HACS/update guidance, AQ/CO safety, troubleshooting, and release validation
 - release/PR checklist guidance now records Wiki update status as `updated`, `no-op`, or `blocked` when public support manual guidance is affected
