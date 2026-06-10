@@ -101,6 +101,28 @@ def _dependency_schema(default_skip: bool = False) -> vol.Schema:
     })
 
 
+def _presence_states_schema(options: List[str]) -> vol.Schema:
+    select_options = [SelectOptionDict(value=o, label=o) for o in options] if options else []
+    return vol.Schema({
+        vol.Required("present_states", default=options or ["home"]): selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=select_options,
+                multiple=True,
+                custom_value=True,
+                mode=selector.SelectSelectorMode.DROPDOWN,
+            )
+        ),
+        vol.Optional("away_states", default=[]): selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=select_options,
+                multiple=True,
+                custom_value=True,
+                mode=selector.SelectSelectorMode.DROPDOWN,
+            )
+        ),
+    })
+
+
 def _flatten_advanced_section_input(user_input: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     if not isinstance(user_input, dict):
         return user_input
@@ -385,36 +407,15 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if overlap:
                 return self.async_show_form(
                     step_id="presence_states",
-                    data_schema=self._presence_states_schema(options),
+                    data_schema=_presence_states_schema(options),
                     errors={"away_states": "overlap"},
                 )
             self._data.setdefault("presence_gate", {})["present_states"] = states
             self._data.setdefault("presence_gate", {})["away_states"] = away_states
             return await self.async_step_telemetry()
 
-        schema = self._presence_states_schema(options)
+        schema = _presence_states_schema(options)
         return self.async_show_form(step_id="presence_states", data_schema=schema)
-
-    def _presence_states_schema(self, options: List[str]) -> vol.Schema:
-        select_options = [SelectOptionDict(value=o, label=o) for o in options] if options else []
-        return vol.Schema({
-            vol.Required("present_states", default=options or ["home"]): selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=select_options,
-                    multiple=True,
-                    custom_value=True,
-                    mode=selector.SelectSelectorMode.DROPDOWN,
-                )
-            ),
-            vol.Optional("away_states", default=[]): selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=select_options,
-                    multiple=True,
-                    custom_value=True,
-                    mode=selector.SelectSelectorMode.DROPDOWN,
-                )
-            ),
-        })
 
     async def async_step_telemetry(self, user_input: Optional[Dict[str, Any]] = None):
         """Menu for telemetry sensors."""

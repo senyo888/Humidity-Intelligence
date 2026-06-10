@@ -499,6 +499,26 @@ def test_dependency_schema_builder_sets_skip_default():
     assert default is True
 
 
+def test_presence_states_schema_builder_preserves_defaults_and_options():
+    config_flow = _load_config_flow_module()
+    schema = config_flow._presence_states_schema(["home", "occupied"])
+
+    defaults = {}
+    select_values = {}
+    for key, selector_obj in schema.schema.items():
+        field = getattr(key, "key", key)
+        defaults[field] = getattr(key, "default", None)
+        select_values[field] = [
+            option["value"]
+            for option in getattr(selector_obj.config, "options", [])
+        ]
+
+    assert defaults["present_states"] == ["home", "occupied"]
+    assert defaults["away_states"] == []
+    assert select_values["present_states"] == ["home", "occupied"]
+    assert select_values["away_states"] == ["home", "occupied"]
+
+
 def test_setup_surfaces_link_to_configuration_walkthrough():
     config_source = (ROOT / "config_flow.py").read_text()
     strings = json.loads((ROOT / "strings.json").read_text())
