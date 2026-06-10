@@ -382,6 +382,20 @@ def test_each_zone_exposes_both_level_choices_and_preserves_explicit_selection()
     assert flow._data["zones"]["zone2"]["level"] == "level1"
 
 
+def test_value_label_option_helper_preserves_order_values_and_labels():
+    config_flow = _load_config_flow_module()
+
+    options = config_flow._value_label_options([
+        {"value": "alpha", "label": "Alpha"},
+        {"value": "beta", "label": "Beta"},
+    ])
+
+    assert options == [
+        {"value": "alpha", "label": "Alpha"},
+        {"value": "beta", "label": "Beta"},
+    ]
+
+
 def test_options_new_zone2_defaults_to_level2_and_preserves_trigger_ownership():
     config_flow = _load_config_flow_module()
     entry = SimpleNamespace(
@@ -470,6 +484,19 @@ def test_walkthrough_placeholders_are_supplied_by_config_and_options_flow_result
     for result in (dependencies, ui_install, options_dependencies):
         placeholders = result["description_placeholders"]
         assert placeholders["walkthrough_url"] == walkthrough_url
+
+
+def test_dependency_schema_builder_sets_skip_default():
+    config_flow = _load_config_flow_module()
+    schema = config_flow._dependency_schema(default_skip=True)
+
+    default = None
+    for key in schema.schema:
+        if getattr(key, "key", key) == "skip":
+            default = getattr(key, "default", None)
+            break
+
+    assert default is True
 
 
 def test_setup_surfaces_link_to_configuration_walkthrough():

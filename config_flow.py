@@ -95,6 +95,12 @@ def _advanced_section(fields: Dict[Any, Any]) -> Any:
     return section(vol.Schema(fields), {"collapsed": True})
 
 
+def _dependency_schema(default_skip: bool = False) -> vol.Schema:
+    return vol.Schema({
+        vol.Optional("skip", default=default_skip): selector.BooleanSelector()
+    })
+
+
 def _flatten_advanced_section_input(user_input: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     if not isinstance(user_input, dict):
         return user_input
@@ -111,6 +117,10 @@ def _form_input_default(user_input: Optional[Dict[str, Any]], field: str, defaul
     if isinstance(user_input, dict):
         return user_input.get(field, default)
     return default
+
+
+def _value_label_options(items: List[Dict[str, Any]]) -> List[SelectOptionDict]:
+    return [SelectOptionDict(value=item["value"], label=item["label"]) for item in items]
 
 
 def _save_cancel_options(save_label: str) -> List[SelectOptionDict]:
@@ -172,12 +182,9 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return await self.async_step_gates()
 
         dep_lines = await _render_dependency_status(self.hass)
-        schema = vol.Schema({
-            vol.Optional("skip", default=False): selector.BooleanSelector()
-        })
         return self.async_show_form(
             step_id="dependencies",
-            data_schema=schema,
+            data_schema=_dependency_schema(),
             description_placeholders={
                 "dependencies": dep_lines,
                 "walkthrough_url": CONFIGURATION_WALKTHROUGH_URL,
@@ -266,14 +273,14 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Optional("end_time", default=gates_default("end_time", DEFAULT_TIME_END)): selector.TimeSelector(),
             vol.Optional("outside_action", default=gates_default("outside_action", OUTSIDE_WINDOW_ACTIONS[0]["value"])): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in OUTSIDE_WINDOW_ACTIONS],
+                    options=_value_label_options(OUTSIDE_WINDOW_ACTIONS),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
             vol.Optional("alert_only_mode", default=gates_default("alert_only_mode", self._data.get("alert_only_mode", False))): selector.BooleanSelector(),
             vol.Optional("target_profile", default=gates_default("target_profile", self._data.get("target_profile", "auto"))): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in TARGET_PROFILE_OPTIONS],
+                    options=_value_label_options(TARGET_PROFILE_OPTIONS),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
@@ -285,7 +292,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
             ): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in TEMPERATURE_COMFORT_PROFILE_OPTIONS],
+                    options=_value_label_options(TEMPERATURE_COMFORT_PROFILE_OPTIONS),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
@@ -489,14 +496,14 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ),
             vol.Optional("sensor_type", default=SENSOR_TYPES[0]["value"]): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in SENSOR_TYPES],
+                    options=_value_label_options(SENSOR_TYPES),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
             vol.Optional("friendly_name", default=""): selector.TextSelector(),
             vol.Optional("level", default=level_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in LEVELS],
+                    options=_value_label_options(LEVELS),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
@@ -644,14 +651,14 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ),
             vol.Optional("sensor_type", default=current.get("sensor_type")): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in SENSOR_TYPES],
+                    options=_value_label_options(SENSOR_TYPES),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
             vol.Optional("friendly_name", default=current.get("friendly_name", "")): selector.TextSelector(),
             vol.Optional("level", default=current.get("level")): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in LEVELS],
+                    options=_value_label_options(LEVELS),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
@@ -819,7 +826,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Optional("enabled", default=zone_default("enabled", existing.get("enabled", False))): selector.BooleanSelector(),
             vol.Optional("level", default=selected_level_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in LEVELS],
+                    options=_value_label_options(LEVELS),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
@@ -1291,7 +1298,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ),
             vol.Optional("flash_mode", default=flash_mode_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in ALERT_FLASH_MODES],
+                    options=_value_label_options(ALERT_FLASH_MODES),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
@@ -1543,15 +1550,11 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             return await self.async_step_init()
 
         dep_lines = await _render_dependency_status(self.hass)
-        schema = vol.Schema({
-            vol.Optional(
-                "skip",
-                default=bool(self._section("skip_dependencies", False)),
-            ): selector.BooleanSelector()
-        })
         return self.async_show_form(
             step_id="options_dependencies",
-            data_schema=schema,
+            data_schema=_dependency_schema(
+                default_skip=bool(self._section("skip_dependencies", False))
+            ),
             description_placeholders={
                 "dependencies": dep_lines,
                 "walkthrough_url": CONFIGURATION_WALKTHROUGH_URL,
