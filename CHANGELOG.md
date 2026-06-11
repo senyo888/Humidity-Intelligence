@@ -4,13 +4,15 @@
 
 All notable changes to Humidity Intelligence will be documented in this file.
 
-This project follows a practical changelog format for Home Assistant and HACS users. Add new entries under `Unreleased` before publishing a release.
+This project follows a practical changelog format for Home Assistant and HACS users. Add new entries under a fresh `Unreleased` section before publishing a future release.
 
-## Unreleased
+## 2.0.7-beta.1
 
+- Promoted integration metadata to beta `2.0.7-beta.1`.
 - Documented HA Lab as advisory Operational Beta Validation Infrastructure and added
   PR/release-governance wording for reporting sanitized HA Lab evidence without
   changing runtime, UI, entity semantics, migration, or release authority.
+- Fixed PM2.5 aggregate runtime truth by ensuring new PM2.5 aggregate sensors use canonical PM25 entity slugs and by normalizing existing HI PM2.5 aggregate entity IDs from `pm2_5` to `pm25` during setup.
 - Hardened generated-card AQ output details so unresolved optional AQ aggregate rows
   are pruned instead of rendering stale `Entity not found` rows, and added
   generated-card entity reference availability checks to `self_check` and
@@ -25,11 +27,6 @@ This project follows a practical changelog format for Home Assistant and HACS us
   unconditional startup `dump_cards` task; startup now follows the configured
   `auto_refresh_ui_on_startup` refresh path, while explicit UI install,
   option-visibility changes, and manual `dump_cards` still write card files.
-
-## 2.0.7-beta.1
-
-- Promoted integration metadata to beta `2.0.7-beta.1`.
-- Fixed PM2.5 aggregate runtime truth by ensuring new PM2.5 aggregate sensors use canonical PM25 entity slugs and by normalizing existing HI PM2.5 aggregate entity IDs from `pm2_5` to `pm25` during setup.
 - Added Configuration Walkthrough links to setup Frontend Dependencies, post-configuration Frontend Dependencies, and final UI export guidance.
 - Added GitHub Wiki support-manual routing from the README, including configuration, services, diagnostics, generated dashboard, HACS/update, AQ/CO safety, troubleshooting, and release-validation guidance.
 - Added release/PR checklist support for recording Wiki update status as `updated`, `no-op`, or `blocked` when public manual guidance is affected.
