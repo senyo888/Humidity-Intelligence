@@ -30,16 +30,16 @@ PUBLIC_CARD_SURFACES = (
 )
 
 PRIVATE_CARD_IDENTIFIERS = (
-    "alarm_control_panel.senyo1_sky_com",
-    "person.justyna",
-    "person.senyo",
-    "device_tracker.senyos_phone",
-    "sensor.wirelesstag_kitchen_humidity",
-    "sensor.wirelesstag_bathroom_humidity",
-    "sensor.wirelesstag_willow_s_room_temperature",
-    "sensor.wirelesstag_bedroom_temperature",
-    "sensor.wirelesstag_landing_temperature_2",
-    "Willow's Room",
+    "alarm_control_panel.private_fixture_alarm_a",
+    "person.private_fixture_person_a",
+    "person.private_fixture_person_b",
+    "device_tracker.private_fixture_phone_a",
+    "sensor.private_fixture_room_humidity_a",
+    "sensor.private_fixture_room_humidity_b",
+    "sensor.private_fixture_room_temperature_a",
+    "sensor.private_fixture_room_temperature_b",
+    "sensor.private_fixture_zone_temperature_a",
+    "Room Private Fixture A",
 )
 
 
@@ -50,6 +50,7 @@ def _install_homeassistant_stubs() -> None:
     config_entries = types.ModuleType("homeassistant.config_entries")
     const = types.ModuleType("homeassistant.const")
     components = types.ModuleType("homeassistant.components")
+    diagnostics_mod = types.ModuleType("homeassistant.components.diagnostics")
     sensor_mod = types.ModuleType("homeassistant.components.sensor")
     binary_sensor_mod = types.ModuleType("homeassistant.components.binary_sensor")
     lovelace = types.ModuleType("homeassistant.components.lovelace")
@@ -173,6 +174,21 @@ def _install_homeassistant_stubs() -> None:
     def async_track_time_interval(*args, **kwargs):
         return lambda: None
 
+    def async_redact_data(data, to_redact):
+        redact = {str(item).lower() for item in to_redact}
+
+        def redact_value(value):
+            if isinstance(value, dict):
+                return {
+                    key: "[REDACTED]" if str(key).lower() in redact else redact_value(item)
+                    for key, item in value.items()
+                }
+            if isinstance(value, list):
+                return [redact_value(item) for item in value]
+            return value
+
+        return redact_value(data)
+
     core.HomeAssistant = HomeAssistant
     core.ServiceCall = ServiceCall
     config_entries.ConfigEntry = ConfigEntry
@@ -184,6 +200,7 @@ def _install_homeassistant_stubs() -> None:
     sensor_mod.SensorStateClass = SensorStateClass
     binary_sensor_mod.BinarySensorEntity = BinarySensorEntity
     lovelace_const.LOVELACE_DATA = "lovelace"
+    diagnostics_mod.async_redact_data = async_redact_data
     config_validation.entity_id = str
     config_validation.entity_ids = _ensure_list
     config_validation.ensure_list = _ensure_list
@@ -209,6 +226,7 @@ def _install_homeassistant_stubs() -> None:
     sys.modules["homeassistant.config_entries"] = config_entries
     sys.modules["homeassistant.const"] = const
     sys.modules["homeassistant.components"] = components
+    sys.modules["homeassistant.components.diagnostics"] = diagnostics_mod
     sys.modules["homeassistant.components.sensor"] = sensor_mod
     sys.modules["homeassistant.components.binary_sensor"] = binary_sensor_mod
     sys.modules["homeassistant.components.lovelace"] = lovelace
@@ -3312,6 +3330,106 @@ def test_diagnostics_summary_can_surface_shared_frontend_dependency_status_witho
 
     assert full_summary["frontend_dependency_resources"] == frontend_status
     assert "frontend_dependency_resources" not in live_summary
+
+
+def test_dump_diagnostics_legacy_export_redacts_sensitive_payload_before_write():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(
+                "72",
+                {
+                    "friendly_name": "https://user:pass@example.invalid/sensor?token=REDACTION_FIXTURE",
+                    "access_token": "REDACTION_FIXTURE_STATE_TOKEN",
+                    "host": "REDACTION_FIXTURE_STATE_HOST",
+                },
+            )
+        },
+    )
+    hass.config = _DumpCardsConfig(tempfile.mkdtemp())
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.data["lovelace"] = SimpleNamespace(
+        resources=_FakeLovelaceResources(
+            [
+                _NoStringResource(
+                    {
+                        "url": (
+                            "https://user:pass@example.invalid/card-mod.js"
+                            "?token=REDACTION_FIXTURE_RESOURCE_TOKEN"
+                        )
+                    }
+                ),
+                _NoStringResource({"url": "/hacsfiles/button-card/button-card.js?v=abc123"}),
+            ],
+            loaded=True,
+        )
+    )
+    hass.data["humidity_intelligence"][ENTRY_ID].update(
+        {
+            "config": {
+                **entry.data,
+                "api_key": "REDACTION_FIXTURE_API_KEY",
+                "host": "REDACTION_FIXTURE_HOST",
+                "ip_address": "REDACTION_FIXTURE_IP",
+                "device_id": "REDACTION_FIXTURE_DEVICE_ID",
+                "unique_id": "REDACTION_FIXTURE_UNIQUE_ID",
+                "external_url": "https://alice:pass@example.invalid/path?access_token=REDACTION_FIXTURE",
+            },
+            "options": {
+                "access_token": "REDACTION_FIXTURE_ACCESS_TOKEN",
+                "password": "REDACTION_FIXTURE_PASSWORD",
+            },
+            "entity_map": {
+                "humidity": "sensor.kitchen_h",
+                "diagnostic_entity": "sensor.private_diagnostic",
+            },
+            "cards": {"v2_mobile": "type: entities\n"},
+        }
+    )
+
+    async def local_version_status(_hass):
+        return {"status": "not_configured"}
+
+    captured = {}
+
+    def capture_write(path, payload):
+        captured["path"] = path
+        captured["payload"] = payload
+
+    original_local_version_status = services_mod.async_local_version_status
+    original_write_json = services_mod._write_json
+    try:
+        services_mod.async_local_version_status = local_version_status
+        services_mod._write_json = capture_write
+        asyncio.run(services_mod.async_register_services(hass))
+        handler = hass.services.handlers[(services_mod.DOMAIN, services_mod.SERVICE_DUMP_DIAGNOSTICS)]
+        asyncio.run(handler(SimpleNamespace(data={"entry_id": ENTRY_ID})))
+    finally:
+        services_mod.async_local_version_status = original_local_version_status
+        services_mod._write_json = original_write_json
+
+    rendered = json.dumps(captured["payload"], sort_keys=True)
+    for secret in (
+        "REDACTION_FIXTURE_API_KEY",
+        "REDACTION_FIXTURE_ACCESS_TOKEN",
+        "REDACTION_FIXTURE_PASSWORD",
+        "REDACTION_FIXTURE_HOST",
+        "REDACTION_FIXTURE_IP",
+        "REDACTION_FIXTURE_DEVICE_ID",
+        "REDACTION_FIXTURE_UNIQUE_ID",
+        "REDACTION_FIXTURE_RESOURCE_TOKEN",
+        "REDACTION_FIXTURE_STATE_TOKEN",
+        "REDACTION_FIXTURE_STATE_HOST",
+        "alice:pass",
+        "user:pass",
+    ):
+        assert secret not in rendered
+
+    assert "[REDACTED]" in rendered
+    assert "[REDACTED_URL]" in rendered
+    assert "sensor.kitchen_h" in rendered
 
 
 def test_diagnostics_summary_surfaces_temperature_comfort_warm_boundary():

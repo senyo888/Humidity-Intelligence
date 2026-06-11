@@ -19,6 +19,7 @@ from homeassistant.helpers import config_validation as cv
 from .const import CONF_SHOW_OUTPUT_ENTITY_DETAILS, DEFAULT_SHOW_OUTPUT_ENTITY_DETAILS, DOMAIN
 from .helpers.cleanup import list_all_generated_files, list_generated_files, remove_files, remove_dashboard
 from .helpers.drift import humidity_drift_dependency_status, humidity_drift_warning
+from .helpers.diagnostics_redaction import redact_diagnostics_payload
 from .helpers.frontend_dependencies import (
     async_frontend_dependency_status,
     frontend_dependency_not_inspectable,
@@ -338,7 +339,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
                 }
 
             path = hass.config.path(filename)
-            await hass.async_add_executor_job(_write_json, path, payload)
+            await hass.async_add_executor_job(_write_json, path, redact_diagnostics_payload(payload))
         except Exception as err:
             _LOGGER.exception("Failed to write diagnostics JSON")
             raise HomeAssistantError(f"Failed to write diagnostics JSON: {err}") from err
