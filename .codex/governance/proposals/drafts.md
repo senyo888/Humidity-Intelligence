@@ -25,7 +25,7 @@ generated UI, service/entity contracts, or HA Lab work.
 | Bella Addendum - HA Lab Mock Telemetry Six-Sensor Family Expansion | keep | TESTED | 2026-06-15 | HA Lab six-sensor helper/wrapper surface exact-readback validated; validation-tooling only; no runtime, UI, release, or root-promotion authority. |
 | V2.0.7 PM2.5 House Aggregate Runtime Truth Fix | keep | REVIEW | 2026-06-21 | Required v2.0.7 runtime/entity-contract fix from Stage 3; no implementation or release authority until Bella/Aetherwing review and Senyo approval. |
 | Config Flow Staged Refactor And Validation Proposal | keep | TESTED | 2026-06-23 | Official local proposal; Phases 1-5 implemented with validation evidence and Phase 6 HA Lab advisory acceptance passed; no runtime, dashboard, entity, release, stable HA, or migration authority. |
-| Current Air Control Degraded Alert Context Chip Scope | keep | REVIEW | 2026-06-25 | Review-only UI truth proposal; remove unmapped-alert degradation from primary chip-row prominence and keep no-automation context in reason text unless Senyo later authorizes implementation. |
+| Current Air Control Degraded Alert Context Chip Scope | keep | TESTED | 2026-06-25 | Senyo-approved UI truth implementation applied in the canonical checkout; unmapped-alert degradation no longer occupies primary chip-row space and no-automation context remains in reason text. |
 | HI Two-Repo Governance Bridge | keep | TESTED | 2026-07-06 | Private maintenance companion bridge implemented as governance docs only; no runtime, UI, public docs, HACS, release, or root-promotion authority. |
 | Aetherbite Draft - Harmonic Air Control Evolution | keep | IDEA | 2026-07-01 | Parked v2.1 exploratory UI wording direction; not a v2.0.x or runtime proposal. |
 | AetherMite Draft - Home Assistant Lab Runtime Architecture | split | REVIEW | 2026-06-21 | Broad architecture reference, partially realized by governed HA Lab packets; not full architecture approval or release authority. |
@@ -83,7 +83,7 @@ v2.1 proposals when they are next touched.
 | Bella Addendum - HA Lab Mock Telemetry Six-Sensor Family Expansion | HI-PROP-20260601-001 | urn:hi:proposal:20260601:001:ha-lab-telemetry-six-sensor-expansion | HA Lab Mock Telemetry Six-Sensor Family Expansion | 2026-06-01 | ha-lab | none | implementation-authorized | TESTED | Bella | medium | validation-tooling | proposal-governance; ha-lab-evidence; validation-tooling | true | 2026-06-15 | true | true | true | false | false | false | false | false |
 | V2.0.7 PM2.5 House Aggregate Runtime Truth Fix | HI-PROP-20260606-001 | urn:hi:proposal:20260606:001:v207-pm25-house-aggregate-runtime-truth | V2.0.7 PM2.5 House Aggregate Runtime Truth Fix | 2026-06-06 | runtime | v2.0.7 | review-only | REVIEW | Aetherwing | medium | entity-contract | proposal-governance; runtime-control; entities; diagnostics; generated-ui; release-docs; public-docs; ha-lab-evidence | true | 2026-06-21 | false | false | false | false | true | false | false | true |
 | Config Flow Staged Refactor And Validation Proposal | HI-PROP-20260609-001 | urn:hi:proposal:20260609:001:config-flow-staged-refactor-validation | Config Flow Staged Refactor And Validation Proposal | 2026-06-09 | governance | v2.0.7 | implemented | TESTED | Senyo | medium | config-options-flow-ux-only | proposal-governance; config-flow; validation-tooling; ha-lab-evidence | true | 2026-06-23 | true | true | true | false | false | false | false | false |
-| Current Air Control Degraded Alert Context Chip Scope | HI-PROP-20260611-001 | urn:hi:proposal:20260611:001:current-air-control-degraded-alert-context-chip-scope | Current Air Control Degraded Alert Context Chip Scope | 2026-06-11 | ui | v2.0.7 | review-only | REVIEW | Senyo | medium | ui-only | proposal-governance; generated-ui; diagnostics; validation-tooling | true | 2026-06-25 | true | false | false | false | false | false | false | false |
+| Current Air Control Degraded Alert Context Chip Scope | HI-PROP-20260611-001 | urn:hi:proposal:20260611:001:current-air-control-degraded-alert-context-chip-scope | Current Air Control Degraded Alert Context Chip Scope | 2026-06-11 | ui | v2.0.7 | implemented | TESTED | Senyo | medium | ui-only | proposal-governance; generated-ui; diagnostics; validation-tooling | true | 2026-06-25 | true | true | false | false | false | false | false | false |
 | HI Two-Repo Governance Bridge | HI-PROP-20260606-002 | urn:hi:proposal:20260606:002:two-repo-governance-bridge | HI Two-Repo Governance Bridge | 2026-06-06 | governance | none | implemented | TESTED | Senyo | low | governance-only | proposal-governance; maintenance-companion-governance; local-continuity-anchors | true | 2026-07-06 | true | true | false | false | false | false | false | false |
 | Aetherbite Draft - Harmonic Air Control Evolution | legacy-unassigned | legacy-unassigned | Aetherbite Draft - Harmonic Air Control Evolution | legacy-unassigned | legacy-unassigned | legacy-unassigned | legacy-unassigned | IDEA | Aetherbite | medium | governance-only | proposal-governance; generated-ui | false | 2026-07-01 | true | false | false | false | false | false | false | false |
 | AetherMite Draft - Home Assistant Lab Runtime Architecture | legacy-unassigned | legacy-unassigned | AetherMite Draft - Home Assistant Lab Runtime Architecture | legacy-unassigned | legacy-unassigned | legacy-unassigned | legacy-unassigned | REVIEW | Aetherbite | high | governance-only | proposal-governance; ha-lab-evidence; runtime-protection-contracts; validation-tooling; generated-ui; lab-deploy-link | false | 2026-06-21 | true | false | false | false | false | false | false | false |
@@ -96,30 +96,28 @@ again through review.
 
 ### Current Air Control Degraded Alert Context Chip Scope
 
-Status: Review-only UI truth proposal. Implementation remains blocked until Senyo
-explicitly approves a separate implementation pass.
+Status: Senyo-approved UI truth proposal implemented in the canonical checkout.
 
 Classification: generated-card presentation / Current Air Control chip-row truth /
 unmapped alert reason wording.
 
-Runtime impact: Proposed implementation is UI-only unless a later approved backend
-wording slice is required. No lane ordering, runtime control, entity semantics,
-service contract, config flow, migration, HACS metadata, or release authority is
-included in this proposal.
+Runtime impact: UI-only. No lane ordering, runtime control, entity semantics,
+service contract, config flow, migration, HACS metadata, Home Assistant mutation, or
+release authority is included in this proposal.
 
-Summary: The proposal accepts the house-agent recommendation to remove
-unmapped-alert degradation from primary chip-row prominence. Current Air Control
-should keep selected lane/status and resolved active source context in the chip row,
-while unmapped alert/no-automation details move into humanised reason text. Real
+Summary: The implemented proposal accepts the house-agent recommendation to remove
+unmapped-alert degradation from primary chip-row prominence. Current Air Control keeps
+selected lane/status and resolved active source context in the chip row, while
+unmapped alert/no-automation details move into humanised reason text. Real
 degraded/fault language remains reserved for backend-truth degradation such as
 unavailable outputs, missing sensors, HI entity degradation, optional dependency
 failure, or recorded service support/failure.
 
-Boundary: This proposal does not authorize runtime/UI implementation, dashboard
-export, Home Assistant reload/restart, service calls, HA Lab mutation, commit beyond
-this proposal record, release promotion, PR creation, or tag creation. Public-facing
-examples must use sanitized labels and must not expose private entity IDs, room
-names, telemetry values, helper names, or local paths.
+Boundary: This proposal authorizes only the committed generated-card presentation
+slice and aligned tests/docs. It does not authorize dashboard export, Home Assistant
+reload/restart, service calls, HA Lab mutation, release promotion, PR creation, push,
+or tag creation. Public-facing examples must use sanitized labels and must not expose
+private entity IDs, room names, telemetry values, helper names, or local paths.
 
 Long-form artifact:
 `[.codex/governance/proposals/drafts/2026-06-11-current-air-control-degraded-alert-context-chip-scope.md](drafts/2026-06-11-current-air-control-degraded-alert-context-chip-scope.md)`.

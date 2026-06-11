@@ -625,14 +625,8 @@ card:
               Object.keys(states).find((id) => id === 'sensor.active_alert_context') ||
               Object.keys(states).find((id) => /^sensor\\..*active_alert_context$/.test(id));
             const alertContext = String(states[alertContextId]?.state || '').trim();
-            const alertTelemetry = states[alertContextId]?.attributes?.alert_telemetry;
-            const degradedAlertContext = Array.isArray(alertTelemetry) &&
-              alertTelemetry.some((item) => item && item.degraded === true);
             if (alertLaneActive && alertContext && alertContext !== 'None' && alertContext !== 'unknown' && alertContext !== 'unavailable') {
               out.push(chip(alertContext, '#ef4444', true));
-            }
-            if (!alertLaneActive && degradedAlertContext) {
-              out.push(chip('DEGRADED ALERT CONTEXT', '#f59e0b', true));
             }
             if (timeGateActive) out.push(chip('Time Gate', '#f59e0b'));
             if (presenceGateActive) out.push(chip('Presence Gate', '#f59e0b'));
@@ -673,8 +667,23 @@ card:
                 Object.keys(states).find((id) => id === 'sensor.active_alert_context') ||
                 Object.keys(states).find((id) => /^sensor\\..*active_alert_context$/.test(id));
               const alertTelemetry = states[alertContextId]?.attributes?.alert_telemetry;
-              const degradedAlertContext = Array.isArray(alertTelemetry) &&
-                alertTelemetry.some((item) => item && item.degraded === true);
+              const degradedAlertItems = Array.isArray(alertTelemetry)
+                ? alertTelemetry.filter((item) => item && item.degraded === true)
+                : [];
+              const degradedAlertContext = degradedAlertItems.length > 0;
+              const degradedAlertSummary = (item) =>
+                String(item?.source_summary || item?.companion || item?.label || 'Alert candidate').trim();
+              const degradedAlertReasons = (item) => Array.isArray(item?.degraded_reasons)
+                ? item.degraded_reasons.map((reason) => String(reason || '').trim()).filter(Boolean)
+                : [];
+              const firstDegradedAlert = degradedAlertItems[0] || null;
+              const degradedAlertLabel = degradedAlertSummary(firstDegradedAlert) || 'Alert candidate';
+              const degradedAlertReason = (() => {
+                const reasons = degradedAlertReasons(firstDegradedAlert);
+                if (!reasons.length) return 'no mapped output lane is available';
+                const reason = reasons[0].replace(/\.$/, '');
+                return reason ? reason.charAt(0).toLowerCase() + reason.slice(1) : 'no mapped output lane is available';
+              })();
 
               const condRaw = String(states['sensor.worst_room_condensation']?.attributes?.risk || '').toLowerCase();
               const mouldRaw = String(states['sensor.worst_room_mould']?.attributes?.risk || '').toLowerCase();
@@ -741,8 +750,6 @@ card:
                 else lines.push('Stage: CO emergency override (all purifiers forced to 100%).');
               } else if (activeAlertNames.length) {
                 lines.push(`Stage: Alert lane active (${activeAlertNames.join(', ')}).`);
-              } else if (degradedAlertContext) {
-                lines.push('Stage: Degraded alert context detected; no mapped alert output lane is selected.');
               } else if (mode === 'global_gate' || mode === 'away') {
                 if (/presence gate/i.test(r)) lines.push('Stage: Presence gate hold (automation waiting).');
                 else if (/time gate/i.test(r)) lines.push('Stage: Time gate hold (automation waiting).');
@@ -768,6 +775,9 @@ card:
 
               if (condAlert) lines.push(`Risk: Condensation ${cap(condRaw)} in ${condRoom}.`);
               if (mouldAlert) lines.push(`Risk: Mould ${cap(mouldRaw)} in ${mouldRoom}.`);
+              if (degradedAlertContext && !alertLaneActive) {
+                lines.push(`Alert: ${degradedAlertLabel} is active, but HI skipped alert automation because ${degradedAlertReason}.`);
+              }
 
               if (!alertOnlyUi) {
                 if (tActive('timer.air_cooking_min_run')) lines.push('Timer: Zone 1 minimum runtime is active.');

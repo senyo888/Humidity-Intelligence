@@ -2444,7 +2444,14 @@ async def _run_card_assertions(register_mod) -> None:
         assert "_mould_danger']?.state === 'on'" not in card
         assert "alert_telemetry" in card
         assert "degraded === true" in card
-        assert "DEGRADED ALERT CONTEXT" in card
+        assert "DEGRADED ALERT CONTEXT" not in card
+        assert "Stage: Degraded alert context detected" not in card
+        assert "const degradedAlertItems" in card
+        assert "const degradedAlertLabel" in card
+        assert "const degradedAlertReason" in card
+        assert "if (degradedAlertContext && !alertLaneActive)" in card
+        assert "Alert: ${degradedAlertLabel} is active, but HI skipped alert automation because ${degradedAlertReason}." in card
+        assert card.index("Stage: Air-quality assist running.") < card.index("if (degradedAlertContext && !alertLaneActive)")
         assert "(!gateActive && anyAlertActive)" in card
         assert "sensor.hi_level2_avg_temperature" in card
         assert "sensor.hi_level1_avg_temperature" in card

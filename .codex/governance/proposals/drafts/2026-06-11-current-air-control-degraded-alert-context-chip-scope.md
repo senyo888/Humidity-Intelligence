@@ -9,8 +9,8 @@ title: Current Air Control Degraded Alert Context Chip Scope
 created: 2026-06-11
 category: ui
 target_version: v2.0.7
-authority_status: review-only
-state: REVIEW
+authority_status: implemented
+state: TESTED
 owner: Senyo
 risk_level: medium
 runtime_impact: ui-only
@@ -22,7 +22,7 @@ affected_surfaces:
 rollback_defined: true
 expiry_or_review_date: 2026-06-25
 bella_approved: true
-aetherwing_validated: false
+aetherwing_validated: true
 ha_lab_validated: false
 release_candidate_validated: false
 entity_contract_changed: false
@@ -297,9 +297,29 @@ Accept. `DEGRADED ALERT CONTEXT` is too abstract for a live dashboard. Users nee
 plain language: what alert exists, what source/room/zone was resolved, what mapping
 failed, and whether automation ran.
 
+## Implementation Status
+
+Senyo approved implementation on 2026-06-11 after the review-only proposal pass.
+The approved implementation is limited to generated-card presentation, focused card
+sanity coverage, and release-facing wording alignment. It does not change runtime
+control, lane ordering, entity semantics, service contracts, config flow, migration,
+HACS metadata, Home Assistant state, HA Lab state, release authority, PR state, or tag
+state.
+
+Validation evidence for the implementation commit must be read from the commit/session
+that stages this implementation. The required validation set is:
+
+- `python3 'tests 2/test_runtime_card_sanity.py'`
+- `python3 -m py_compile automations/engine.py diagnostics.py services.py sensors/core.py`
+- `python3 scripts/check_proposal_links.py`
+- `python3 -m unittest 'tests 2/test_proposal_links.py'`
+- `python3 scripts/check_version_governance.py`
+- `git diff --check`
+- `git diff --cached --check`
+
 ## Final Verdict
 
-Accepted as a review-only proposal.
+Accepted and implemented as a bounded UI-truth presentation change.
 
 Use the reason panel for unmapped alert/no-automation context. Reserve primary chip
 space for selected lane/status and resolved active source context. Reserve degraded
@@ -307,7 +327,7 @@ or fault wording for actual degraded entities, outputs, HI entities, or optional
 dependencies backed by backend truth.
 
 ```text
-FINAL VERDICT: ACCEPT WITH REFINEMENT
-IMPLEMENTATION_ALLOWED: NO
+FINAL VERDICT: ACCEPTED AND IMPLEMENTED
+IMPLEMENTATION_ALLOWED: YES
 SENYO_REVIEW_REQUIRED: YES
 ```

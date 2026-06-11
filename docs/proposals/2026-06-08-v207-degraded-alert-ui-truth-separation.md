@@ -97,9 +97,12 @@ Separate three meanings cleanly:
 1. Actionable selected lane: red control-row styling only when backend runtime truth
    says an alert or CO emergency lane is selected, or backend-owned alert activity
    state says an actionable alert lane is currently selected.
-2. Degraded or unmapped alert candidate: amber degraded treatment when
+2. Degraded or unmapped alert candidate: visible reason-panel context when
    `sensor.active_alert_context` attributes contain degraded alert telemetry and no
-   actionable alert lane is selected.
+   actionable alert lane is selected. The later
+   [Current Air Control Degraded Alert Context Chip Scope](../../.codex/governance/proposals/drafts/2026-06-11-current-air-control-degraded-alert-context-chip-scope.md)
+   proposal narrows this surface so unmapped alert candidates do not occupy primary
+   chip-row space.
 3. Environmental risk readings: humidity, mould, condensation, AQ, and temperature
    chips may still show risk colors based on telemetry, but those colors must not make
    output-control lane buttons imply a command state.
@@ -135,11 +138,11 @@ The future card change should:
   logic used by Current Air Control.
 - Keep Zone 1, Zone 2, AQ, gate, paused, manual override, disabled, and normal styling
   aligned with current mode semantics.
-- Derive degraded/unmapped amber context from
+- Derive degraded/unmapped reason context from
   `sensor.active_alert_context.attributes.alert_telemetry[*].degraded === true` only
   when no actionable alert lane is selected.
-- Surface degraded context in the Current Air Control status/reason area, not as a red
-  output-control row state.
+- Surface unmapped alert context in the Current Air Control reason area, not as a
+  primary chip or red output-control row state.
 - Keep environmental risk chips red/yellow when telemetry truth warrants it.
 
 This is the smallest release-safe correction because the backend already exposes the
@@ -203,8 +206,8 @@ If implemented later, generated v2 mobile/tablet cards would change visually:
 
 - The control row would stop turning red solely because raw danger binary sensors are
   `on`.
-- Degraded/unmapped alert candidates would appear as amber degraded context when no
-  alert lane is selected.
+- Degraded/unmapped alert candidates would remain visible in reason text when no
+  alert lane is selected, without occupying primary chip-row space.
 - Existing environmental telemetry chips could still show red/yellow risk colors.
 
 Users with Manual dashboard cards would need to rerun `humidity_intelligence.dump_cards`
@@ -234,7 +237,8 @@ Medium before implementation because the stable UI can currently imply an alert 
 lane when the backend selected `normal` or another non-alert mode.
 
 Low after the preferred implementation if the row keys off backend-selected runtime
-lane and degraded candidates are shown as amber context rather than red command state.
+lane and degraded candidates remain in reason text rather than primary chip or red
+command-state surfaces.
 
 ## Validation Plan
 

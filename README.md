@@ -338,7 +338,7 @@ This layer makes the engine understandable. It reflects runtime truth:
 
 The UI does not compute logic. The engine decides; the UI renders.
 
-Generated V2 control-row colours separate selected command lanes from environmental risk: red row styling is reserved for selected alert/CO runtime truth, while degraded or unmapped alert candidates remain visible as amber Current Air Control context.
+Generated V2 control-row colours separate selected command lanes from environmental risk: red row styling is reserved for selected alert/CO runtime truth. Degraded or unmapped alert candidates remain visible in reason text instead of occupying primary Current Air Control chip-row space.
 
 ---
 
@@ -347,7 +347,7 @@ Generated V2 control-row colours separate selected command lanes from environmen
 - integration metadata now identifies the active staging/testing line as `2.0.7-beta.1`
 - PM2.5 aggregate runtime truth now exposes canonical `pm25` aggregate entity IDs when PM2.5 telemetry is configured, including setup-time normalization for existing `pm2_5` aggregate IDs
 - generated-card validation now checks entity references embedded in exported YAML, so stale Manual-card entity IDs are caught by `self_check` / `v205_release_check`
-- generated V2 Current Air Control cards separate selected command lanes from degraded or unmapped alert context
+- generated V2 Current Air Control cards keep selected command lanes in the chip row while moving unmapped alert/no-automation context into reason text
 - generated V2 card templates and gallery exports now use canonical HI placeholders rather than maintainer-local presence, alarm, tracker, or room-sensor entity IDs
 - startup UI refresh now follows the `auto_refresh_ui_on_startup` option without writing card files unless initial UI install, option-visibility changes, or manual `dump_cards` calls request an export
 - Configuration Walkthrough links now route setup, post-configuration Frontend Dependencies, and final UI export guidance into the public support manual
@@ -841,7 +841,7 @@ CO emergency pressure. Details are in
 
 - promoted integration metadata to beta `2.0.7-beta.1`
 - fixed PM2.5 aggregate runtime truth so configured PM2.5 telemetry exposes canonical backend-owned PM25 aggregate entities instead of relying on Home Assistant's dotted `pm2_5` name slug
-- changed generated V2 Current Air Control cards so red control-row styling follows selected alert/CO runtime truth, while degraded or unmapped alert candidates surface as amber context instead of command-state red
+- changed generated V2 Current Air Control cards so red control-row styling follows selected alert/CO runtime truth, while degraded or unmapped alert candidates remain in reason text instead of primary chip-row space
 - added Configuration Walkthrough links to setup Frontend Dependencies, post-configuration Frontend Dependencies, and final UI export guidance
 - added GitHub Wiki support-manual routing from the README, including configuration, services, diagnostics, generated dashboard, HACS/update, AQ/CO safety, troubleshooting, and release-validation guidance
 - added release/PR checklist support for recording Wiki update status as `updated`, `no-op`, or `blocked` when public manual guidance is affected

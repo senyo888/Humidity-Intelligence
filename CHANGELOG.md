@@ -18,6 +18,9 @@ This project follows a practical changelog format for Home Assistant and HACS us
 - Sanitized generated V2 card templates, gallery exports, and test fixtures so
   public artifacts use canonical HI placeholders instead of maintainer-local
   presence, alarm, tracker, or room-sensor entity IDs.
+- Refined generated V2 Current Air Control cards so degraded or unmapped alert
+  candidates no longer occupy primary chip-row space; no-automation context remains
+  visible in reason text.
 - Kept startup UI refresh option semantics deterministic by removing the
   unconditional startup `dump_cards` task; startup now follows the configured
   `auto_refresh_ui_on_startup` refresh path, while explicit UI install,
@@ -31,7 +34,7 @@ This project follows a practical changelog format for Home Assistant and HACS us
 - Added GitHub Wiki support-manual routing from the README, including configuration, services, diagnostics, generated dashboard, HACS/update, AQ/CO safety, troubleshooting, and release-validation guidance.
 - Added release/PR checklist support for recording Wiki update status as `updated`, `no-op`, or `blocked` when public manual guidance is affected.
 - Added a Wiki Services Reference, footer navigation across public Wiki content pages, and a Wiki banner asset for a clearer support-manual experience.
-- Changed generated V2 Current Air Control cards so red control-row styling follows selected alert/CO runtime truth, while degraded or unmapped alert candidates surface as amber context instead of command-state red.
+- Changed generated V2 Current Air Control cards so red control-row styling follows selected alert/CO runtime truth, while degraded or unmapped alert candidates remain in reason text instead of command-state red.
 - Migration note: users with manually referenced PM2.5 aggregate entity IDs using `pm2_5` should update those references to `pm25` after restart; generated cards should be regenerated/re-copied when PM2.5 aggregate surfaces are used.
 
 ## 2.0.6
