@@ -1,7 +1,7 @@
 {
   "domain": "humidity_intelligence",
   "name": "Humidity Intelligence",
-  "after_dependencies": ["lovelace"],
+  "after_dependencies": ["diagnostics", "lovelace"],
   "codeowners": ["@senyo888"],
   "config_flow": true,
   "dependencies": [],

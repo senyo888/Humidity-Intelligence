@@ -260,6 +260,15 @@ def test_native_diagnostics_payload_contains_support_sections():
     assert payload["generated_ui"]["cached_layouts"] == ["v2_mobile", "v2_tablet"]
 
 
+def test_manifest_declares_diagnostics_component_for_native_support():
+    manifest = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
+    declared = set(manifest.get("dependencies", [])) | set(
+        manifest.get("after_dependencies", [])
+    )
+
+    assert "diagnostics" in declared
+
+
 def test_native_diagnostics_redacts_sensitive_keys_and_url_values():
     diagnostics = _load_diagnostics_module()
 
