@@ -2,7 +2,7 @@
 
 # Humidity Intelligence Agent Guide
 
-This is the public, repository-safe operating guide for AI agents working on Humidity Intelligence. It is intentionally concise and does not replace the design brief.
+This is the public, repository-safe operating guide for AI agents working on Humidity Intelligence. It is intentionally concise and complements the tracked public architecture contract.
 
 ## Project Identity
 
@@ -11,7 +11,7 @@ Humidity Intelligence is a deterministic Home Assistant environmental control en
 ## Source of Truth
 
 - Public repo correctness must be reviewable from tracked files in this repository.
-- `AGENTS.md`, `README.md`, `CHANGELOG.md`, tracked docs, runtime code, tests, and generated UI templates are the public review contract.
+- `ARCHITECTURE.md`, `AGENTS.md`, `README.md`, `CHANGELOG.md`, tracked docs, runtime code, tests, and generated UI templates are the public review contract.
 - Maintainers may keep `DESIGN_BRIEF.md`, `PROJECT_SUMMARY.md`, `ROADMAP.md`, and `PROPOSALS.md` as ignored local planning or release-preparation documents.
 - If architecture, runtime behavior, security posture, release flow, contributor expectations, or documentation expectations materially change, update the relevant tracked public docs in the same work.
 - Ignored local docs may be mirrored separately, but must not be required for public contributor correctness.
@@ -79,7 +79,7 @@ Humidity Intelligence is a deterministic Home Assistant environmental control en
 - For runtime changes, include Python compile/import sanity and targeted regression tests where available.
 - For card/UI changes, validate generated Lovelace output and check for stale mappings, private entities, malformed structures, and frontend dependency assumptions.
 - For docs-only changes, perform a documentation sanity pass: check filenames, source-of-truth references, public-safety, and consistency with current repository structure.
-- Review for stale imports, stale mappings, stale docs, outdated service names, and drift from `DESIGN_BRIEF.md`.
+- Review for stale imports, stale mappings, stale docs, outdated service names, and drift from `ARCHITECTURE.md` plus other tracked public docs.
 - Do not claim validation was completed if it was not run.
 
 ## HA Lab Operational Validation Boundary

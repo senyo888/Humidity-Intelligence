@@ -12,13 +12,12 @@ from urllib.parse import unquote
 
 
 PROPOSAL_SURFACES = (
-    Path("PROPOSALS.md"),
-    Path(".codex/governance/proposals"),
-    Path("sandbox/v2.1"),
+    Path("docs/proposals"),
 )
 
 ROOT_FILE_NAMES = {
     "AGENTS.md",
+    "ARCHITECTURE.md",
     "CHANGELOG.md",
     "CONTRIBUTING.md",
     "DESIGN_BRIEF.md",
@@ -29,9 +28,19 @@ ROOT_FILE_NAMES = {
     "SECURITY.md",
 }
 
-LOCAL_ONLY_EXACT = {"AGENTS.local.md"}
+LOCAL_ONLY_EXACT = {
+    "AGENTS.local.md",
+    "DESIGN_BRIEF.md",
+    "PROJECT_SUMMARY.md",
+    "PROPOSALS.md",
+    "ROADMAP.md",
+}
 LOCAL_ONLY_PREFIXES = (
+    ".codex/",
     ".codex/private/",
+    "docs/maintenance/",
+    "sandbox/",
+    "scripts/local/",
     "/config/",
 )
 
@@ -144,10 +153,8 @@ def _is_candidate_path(value: str) -> bool:
     path = value.strip().strip("`").rstrip(".,;:)")
     if not path:
         return False
-    if path in LOCAL_ONLY_EXACT:
-        return False
     if path.startswith(LOCAL_ONLY_PREFIXES):
-        return False
+        return True
     if path.startswith(("http://", "https://", "mailto:", "urn:")):
         return False
     if path.startswith("/"):
@@ -232,7 +239,7 @@ def _check_markdown_links(root: Path, path: Path, line_no: int, line: str) -> li
             continue
         resolved = (path.parent / target).resolve()
         try:
-            resolved.relative_to(root.resolve())
+            relative_target = resolved.relative_to(root.resolve()).as_posix()
         except ValueError:
             findings.append(
                 Finding(
@@ -240,6 +247,16 @@ def _check_markdown_links(root: Path, path: Path, line_no: int, line: str) -> li
                     rel_doc,
                     line_no,
                     f"Local Markdown link escapes the repository: {target}",
+                )
+            )
+            continue
+        if _is_local_only_repo_path(relative_target):
+            findings.append(
+                Finding(
+                    "local-only-link",
+                    rel_doc,
+                    line_no,
+                    f"Public proposal link targets local-only surface: {target}",
                 )
             )
             continue
@@ -263,17 +280,33 @@ def _check_bare_paths(root: Path, path: Path, line_no: int, line: str) -> list[F
         candidate = _strip_candidate_token(match.group("path"))
         if not _is_candidate_path(candidate):
             continue
-        if _resolve_candidate(root, path, candidate) is None:
+        resolved = _resolve_candidate(root, path, candidate)
+        if resolved is None:
             continue
+        relative_candidate = resolved.relative_to(root.resolve()).as_posix()
+        kind = "local-only-path" if _is_local_only_repo_path(relative_candidate) else "bare-path"
+        message = (
+            f"Public proposal prose references local-only surface: {candidate}"
+            if kind == "local-only-path"
+            else f"Use a Markdown link for navigational repo path: {candidate}"
+        )
         findings.append(
             Finding(
-                "bare-path",
+                kind,
                 rel_doc,
                 line_no,
-                f"Use a Markdown link for navigational repo path: {candidate}",
+                message,
             )
         )
     return findings
+
+
+def _is_local_only_repo_path(relative_path: str) -> bool:
+    if relative_path in LOCAL_ONLY_EXACT:
+        return True
+    return relative_path.startswith(
+        tuple(prefix for prefix in LOCAL_ONLY_PREFIXES if not prefix.startswith("/"))
+    )
 
 
 def _resolve_candidate(root: Path, source_path: Path, candidate: str) -> Path | None:

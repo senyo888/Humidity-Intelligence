@@ -23,6 +23,7 @@
 - [Season-Aware Environmental Control](#season-aware-environmental-control)
 - [Design Philosophy](#design-philosophy)
 - [Architecture Overview](#architecture-overview)
+- [Public Architecture Contract](#public-architecture-contract)
 - [Current Release Highlights](#current-release-highlights)
 - [Installation](#installation)
 - [Frontend Dependencies](#frontend-dependencies)
@@ -339,6 +340,15 @@ This layer makes the engine understandable. It reflects runtime truth:
 The UI does not compute logic. The engine decides; the UI renders.
 
 Generated V2 control-row colours separate selected command lanes from environmental risk: red row styling is reserved for selected alert/CO runtime truth. Degraded or unmapped alert candidates remain visible in reason text instead of occupying primary Current Air Control chip-row space.
+
+## Public Architecture Contract
+
+The tracked public architecture contract lives in [ARCHITECTURE.md](ARCHITECTURE.md).
+It records the durable runtime, UI-truth, Home Assistant compatibility, and release
+authority rules used for public review.
+
+Maintainer-only planning notes may exist locally, but public contributor correctness
+must be reviewable from tracked repository files.
 
 ---
 

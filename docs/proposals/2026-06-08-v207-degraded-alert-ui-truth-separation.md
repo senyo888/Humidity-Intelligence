@@ -100,9 +100,8 @@ Separate three meanings cleanly:
 2. Degraded or unmapped alert candidate: visible reason-panel context when
    `sensor.active_alert_context` attributes contain degraded alert telemetry and no
    actionable alert lane is selected. The later
-   [Current Air Control Degraded Alert Context Chip Scope](../../.codex/governance/proposals/drafts/2026-06-11-current-air-control-degraded-alert-context-chip-scope.md)
-   proposal narrows this surface so unmapped alert candidates do not occupy primary
-   chip-row space.
+   local Current Air Control degraded-context proposal narrows this surface so
+   unmapped alert candidates do not occupy primary chip-row space.
 3. Environmental risk readings: humidity, mould, condensation, AQ, and temperature
    chips may still show risk colors based on telemetry, but those colors must not make
    output-control lane buttons imply a command state.
@@ -175,7 +174,7 @@ danger sensors would weaken diagnostics and risk truth to solve a presentation p
 - [tests 2/test_runtime_card_sanity.py](<../../tests 2/test_runtime_card_sanity.py>)
 - [README.md](../../README.md), if user-facing generated-card refresh guidance or UI
   truth wording needs a release note
-- [DESIGN_BRIEF.md](../../DESIGN_BRIEF.md), only if the UI truth contract needs
+- [ARCHITECTURE.md](../../ARCHITECTURE.md), only if the UI truth contract needs
   explicit control-row wording
 - [ui/register.py](../../ui/register.py), only if future review chooses a
   backend-owned helper or mapping change; not expected for the preferred card-only
@@ -296,8 +295,8 @@ the live lab baseline is safe before any future implementation work.
 
 ## Rollback Safety
 
-Proposal rollback is simple: remove this artifact and its minimal [PROPOSALS.md](../../PROPOSALS.md)
-index entry.
+Proposal rollback is simple: remove this artifact and any matching local proposal
+ledger entry.
 
 Future implementation rollback should be safe if limited to v2 card templates and
 tests: revert the card-template diff, regenerate/export cards, and re-run the same
@@ -325,7 +324,7 @@ boosting a zone.
 
 ### Bella Findings
 
-The recommendation matches [DESIGN_BRIEF.md](../../DESIGN_BRIEF.md) and README truth
+The recommendation matches [ARCHITECTURE.md](../../ARCHITECTURE.md) and README truth
 principles:
 
 - backend runtime remains authoritative;
@@ -337,7 +336,7 @@ principles:
 
 Docs to revisit if implementation proceeds:
 
-- [DESIGN_BRIEF.md](../../DESIGN_BRIEF.md) only if the control-row distinction needs to
+- [ARCHITECTURE.md](../../ARCHITECTURE.md) only if the control-row distinction needs to
   become explicit in the UI truth contract;
 - [README.md](../../README.md) or release notes if users need dashboard refresh
   guidance for the card visual correction.
