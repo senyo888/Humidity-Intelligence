@@ -29,7 +29,7 @@
 - [Frontend Dependencies](#frontend-dependencies)
 - [Migration Guide - v1 to v2](#migration-guide---v1-to-v2)
 - [Full Configuration Flow](#full-configuration-flow)
-- [Configuration Screenshots (Visual Guide)](#configuration-screenshots-visual-guide)
+- [Configuration Manual](#configuration-manual)
 - [UI Gallery](#ui-gallery)
 - [Post-Configuration Workflow](#post-configuration-workflow)
 - [How to Use Services](#how-to-use-services)
@@ -624,45 +624,14 @@ Detailed manual:
 
 ---
 
-## Configuration Screenshots (Visual Guide)
+## Configuration Manual
 
-These images are a visual orientation aid. The current V2 flow uses live
-collapsible Advanced sections, so the exact visible fields depend on which section is
-expanded.
+The full visual setup walkthrough now lives in the Wiki, where screenshots can stay
+current without turning the README into a duplicate owner manual.
 
-<details>
-<summary>Open configuration screenshots</summary>
-
-### 1) Frontend Dependencies
-<img src="assets/readme/config_dependencies.png" width="760" alt="Frontend dependencies step">
-
-### 2) Global Gates
-<img src="assets/readme/config_global_gate.png" width="460" alt="Global gate settings">
-<img src="assets/readme/config_presence_states.png" width="760" alt="Presence state mapping">
-
-### 3) Telemetry Inputs
-<img src="assets/readme/config_Telemetry_input.png" width="760" alt="Telemetry input table">
-<img src="assets/readme/config_telemetry_input_dropdown.png" width="760" alt="Telemetry input selectors">
-
-### 4) Zones
-<img src="assets/readme/config_zone_1_config.png" width="560" alt="Zone 1 configuration">
-<img src="assets/readme/config_zone_2_config.png" width="560" alt="Zone 2 configuration">
-<img src="assets/readme/config_zone_thershold.png" width="560" alt="Zone threshold configuration">
-
-### 5) Humidifiers
-<img src="assets/readme/config_humidifier.png" width="760" alt="Humidifier configuration">
-
-### 6) Air Quality
-<img src="assets/readme/config_AQ.png" width="460" alt="AQ setup menu">
-<img src="assets/readme/config_aq_settings.png" width="460" alt="AQ settings form">
-
-### 7) Alerts
-<img src="assets/readme/config_add_alert.png" width="460" alt="Add alert configuration">
-
-### 8) Sensor Management (Options)
-<img src="assets/readme/config_add_sensors.png" width="460" alt="Add sensors in options">
-
-</details>
+- [Configuration Walkthrough](https://github.com/senyo888/humidity-intelligence/wiki/Configuration-Walkthrough)
+- [Generated Dashboards](https://github.com/senyo888/humidity-intelligence/wiki/Generated-Dashboards)
+- [Troubleshooting Generated UI](https://github.com/senyo888/humidity-intelligence/wiki/Troubleshooting-Generated-UI)
 
 ---
 
