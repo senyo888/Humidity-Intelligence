@@ -6,6 +6,8 @@ Thank you for helping improve the Humidity Intelligence UI Gallery.
 
 This guide covers Lovelace cards, dashboards, previews, and layout documentation only. Backend logic, sensors, entity semantics, automation behavior, and generated helper contracts are out of scope for gallery submissions.
 
+The browseable Gallery page lives in the GitHub Wiki, but canonical submissions still happen here through repository pull requests. Do not submit Wiki-only dashboard YAML as the source of truth.
+
 ## Scope
 
 The integration provides:
@@ -81,6 +83,8 @@ Short setup or behavior notes.
 
 The top-level [README.md](README.md) must also get a matching entry.
 
+Maintainers may mirror accepted examples into the Wiki after review. The Wiki entry should link back to the repository YAML and preview files rather than becoming an independent dashboard source.
+
 ## Canonical Compatibility Rules
 
 Submissions must:
@@ -106,6 +110,7 @@ Before opening a pull request, confirm:
 - [ ] Canonical entities and semantics are preserved
 - [ ] Required custom cards are documented
 - [ ] Top-level `ui-gallery/README.md` is updated
+- [ ] Wiki mirror/update need is noted in the PR
 - [ ] PR targets `develop`
 - [ ] PR title follows `UI Gallery: <short description>`
 

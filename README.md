@@ -108,27 +108,10 @@ At its core, Humidity Intelligence is about creating a calmer, more stable livin
 <details>
 <summary><strong>More UI Examples</strong></summary>
 
-Additional screenshots are kept collapsed so the front page stays focused.
+Additional screenshots and layout comparisons live in the Wiki so the front page stays focused.
 
-- [Open the full V2 UI image folder](assets/v2_ui_gallery/)
-- [Open the reusable UI Gallery](ui-gallery/README.md)
-
-Additional image files:
-
-- [Current Air Control ready state](assets/v2_ui_gallery/v204_current_air_control_ready.png)
-- [Zone-bound alert boost state](assets/v2_ui_gallery/v204_zone_alert_boost.png)
-- [V2 mobile air quality lane state](assets/v2_ui_gallery/ui_v2_mobile_aq.png)
-- [V2 mobile Zone 2 moisture stabilisation state](assets/v2_ui_gallery/IMG_0323.png)
-- [Expanded output details example](assets/v2_ui_gallery/IMG_0324.png)
-- [Unmapped alert degraded context](assets/v2_ui_gallery/v204_unmapped_alert_context.png)
-- [Zone 2 temperature chip state](assets/v2_ui_gallery/v204_zone2_temperature_chips.png)
-- [V2 gallery image 5665](assets/v2_ui_gallery/IMG_5665.png)
-- [V2 gallery image 5672](assets/v2_ui_gallery/IMG_5672.png)
-- [V2 gallery image 5673](assets/v2_ui_gallery/IMG_5673.png)
-- [V2 gallery image 5674](assets/v2_ui_gallery/IMG_5674.png)
-- [V2 gallery image 5675](assets/v2_ui_gallery/IMG_5675.png)
-- [Legacy-compatible V1 mobile skin](assets/v2_ui_gallery/ui_v1_mobile.png)
-- [V2 tablet Zone 2 compact example](assets/v2_ui_gallery/ui_v2_tablet_zone_2.png)
+- [Browse the UI Gallery](https://github.com/senyo888/humidity-intelligence/wiki/UI-Gallery)
+- [Open the canonical gallery source](ui-gallery/README.md)
 
 </details>
 
@@ -637,15 +620,24 @@ current without turning the README into a duplicate owner manual.
 
 ## UI Gallery
 
-Reusable default UI examples live in [ui-gallery](ui-gallery/README.md).
+The browseable UI Gallery lives in the Wiki:
 
-Included examples:
+- [UI Gallery](https://github.com/senyo888/humidity-intelligence/wiki/UI-Gallery)
 
+Canonical YAML, preview assets, and contribution rules remain versioned in this repository:
+
+- [Gallery source](ui-gallery/README.md)
 - [Default V2 Mobile AQ](ui-gallery/default-v2-mobile-aq/README.md)
 - [Default V2 Tablet Zone 2](ui-gallery/default-v2-tablet-zone-2/README.md)
 - [Default V1 Mobile](ui-gallery/default-v1-mobile/README.md)
+- [Contributing UI Gallery examples](ui-gallery/CONTRIBUTING.md)
 
-For new gallery submissions, follow [ui-gallery/CONTRIBUTING.md](ui-gallery/CONTRIBUTING.md).
+The Wiki is a visual navigation layer. Repository files remain the source of truth
+for dashboard YAML, generated-card compatibility, entity semantics, and contribution
+review.
+
+For new gallery submissions, open a repository pull request. Do not treat Wiki-only
+YAML as canonical install guidance.
 
 ---
 
@@ -742,6 +734,7 @@ For longer support guidance, see the Humidity Intelligence Wiki:
 - [Getting Help](https://github.com/senyo888/humidity-intelligence/wiki/Getting-Help)
 - [Diagnostics and Support Bundle](https://github.com/senyo888/humidity-intelligence/wiki/Diagnostics-and-Support-Bundle)
 - [Generated Dashboards](https://github.com/senyo888/humidity-intelligence/wiki/Generated-Dashboards)
+- [UI Gallery](https://github.com/senyo888/humidity-intelligence/wiki/UI-Gallery)
 - [HACS and Updates](https://github.com/senyo888/humidity-intelligence/wiki/HACS-and-Updates)
 - [Configuration Walkthrough](https://github.com/senyo888/humidity-intelligence/wiki/Configuration-Walkthrough)
 - [Understanding Control Decisions](https://github.com/senyo888/humidity-intelligence/wiki/Understanding-Control-Decisions)

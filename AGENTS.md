@@ -11,7 +11,7 @@ Humidity Intelligence is a deterministic Home Assistant environmental control en
 ## Source of Truth
 
 - Public repo correctness must be reviewable from tracked files in this repository.
-- `ARCHITECTURE.md`, `AGENTS.md`, `README.md`, `CHANGELOG.md`, tracked docs, runtime code, tests, and generated UI templates are the public review contract.
+- `ARCHITECTURE.md`, `AGENTS.md`, `README.md`, `CHANGELOG.md`, tracked docs, runtime code, tests, generated UI templates, and `ui-gallery/` are the public review contract.
 - Maintainers may keep `DESIGN_BRIEF.md`, `PROJECT_SUMMARY.md`, `ROADMAP.md`, and `PROPOSALS.md` as ignored local planning or release-preparation documents.
 - If architecture, runtime behavior, security posture, release flow, contributor expectations, or documentation expectations materially change, update the relevant tracked public docs in the same work.
 - Ignored local docs may be mirrored separately, but must not be required for public contributor correctness.
@@ -93,6 +93,7 @@ Humidity Intelligence is a deterministic Home Assistant environmental control en
 ## Documentation and Release Expectations
 
 - Keep `README.md`, `manifest.json`, `hacs.json`, docs, release notes, UI examples, and runtime behavior aligned.
+- Keep the Wiki UI Gallery as a browseable mirror/index only; repository `ui-gallery/` remains canonical for reviewed YAML, preview assets, and contribution rules.
 - Update related docs when implementation behavior changes.
 - Treat completed milestones as completed. Do not leave shipped v2.0.5 functionality in planned, pending, or proposal-only roadmap buckets.
 - Keep branch/version state explicit: `senyo888-patch-1` may carry beta, rc, or stable labels; `develop` may carry rc or stable labels; `main` carries stable releases only.
