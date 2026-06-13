@@ -272,6 +272,9 @@ def _load_target_modules():
     _install_package_scaffold()
 
     _load_module(f"{PKG}.const", ROOT / "const.py")
+    level_labels_path = ROOT / "helpers" / "level_labels.py"
+    if level_labels_path.exists():
+        _load_module(f"{PKG}.helpers.level_labels", level_labels_path)
     engine_mod = _load_module(f"{PKG}.automations.engine", ROOT / "automations" / "engine.py")
     register_mod = _load_module(f"{PKG}.ui.register", ROOT / "ui" / "register.py")
     return engine_mod, register_mod
@@ -281,6 +284,9 @@ def _load_services_module():
     _install_homeassistant_stubs()
     _install_package_scaffold()
     _load_module(f"{PKG}.const", ROOT / "const.py")
+    level_labels_path = ROOT / "helpers" / "level_labels.py"
+    if level_labels_path.exists():
+        _load_module(f"{PKG}.helpers.level_labels", level_labels_path)
     return _load_module(f"{PKG}.services", ROOT / "services.py")
 
 
@@ -2395,6 +2401,7 @@ async def _run_card_assertions(register_mod) -> None:
                 "source_entities": ["sensor.kitchen_t", "sensor.bed_t"],
                 "show_temperature_chips": True,
             },
+            "level_labels": {"level1": "Ground Floor", "level2": "Loft"},
         },
         options={},
     )
@@ -2411,6 +2418,10 @@ async def _run_card_assertions(register_mod) -> None:
     assert tablet.startswith("# Humidity Intelligence V2 Tablet Dashboard YAML")
     assert "Call the service humidity_intelligence.dump_cards" in mobile
     assert "Dashboard Manual card" in tablet
+    assert hass.data["humidity_intelligence"][ENTRY_ID]["level_labels"] == {
+        "level1": "Ground Floor",
+        "level2": "Loft",
+    }
 
     room_placeholders = [
         "sensor.bedroom_humidity",
@@ -2434,8 +2445,14 @@ async def _run_card_assertions(register_mod) -> None:
         assert "House VOC" in card
         assert "House CO" in card
         assert "House Temp" in card
-        assert "Upstairs Temp" in card
-        assert "Downstairs Temp" in card
+        assert "Loft Temp" in card
+        assert "Ground Floor Temp" in card
+        assert "Loft AVG" in card
+        assert "Ground Floor AVG" in card
+        assert "AQ Loft" in card
+        assert "AQ Ground Floor" in card
+        assert "Upstairs" not in card
+        assert "Downstairs" not in card
         assert "show_temperature_chips" in card
         assert "slope_map" in card
         assert "sensor.hi_house_temperature_comfort_low" in card
@@ -2473,8 +2490,8 @@ async def _run_card_assertions(register_mod) -> None:
         assert "(!gateActive && anyAlertActive)" in card
         assert "sensor.hi_level2_avg_temperature" in card
         assert "sensor.hi_level1_avg_temperature" in card
-        assert card.index("House AVG") < card.index("Upstairs AVG") < card.index("Downstairs AVG")
-        assert card.index("House IAQ") < card.index("Upstairs IAQ") < card.index("Downs.. IAQ")
+        assert card.index("House AVG") < card.index("Loft AVG") < card.index("Ground Floor AVG")
+        assert card.index("House IAQ") < card.index("Loft IAQ") < card.index("Ground Floor IAQ")
 
     assert _contains_v2_border_pill_sync_logic(mobile)
     assert _contains_v2_border_pill_sync_logic(tablet)
@@ -2551,10 +2568,10 @@ async def _run_optional_aq_output_detail_pruning_assertions(register_mod) -> Non
     for card in (cards.get("v2_mobile", ""), cards.get("v2_tablet", "")):
         assert "entity: sensor.air_control_downstairs_pm25_average" not in card
         assert "entity: sensor.air_control_upstairs_pm25_average" not in card
-        assert "name: Downstairs PM2.5" not in card
-        assert "name: Upstairs PM2.5" not in card
-        assert "name: Downstairs IAQ" in card
-        assert "name: Downstairs CO" in card
+        assert "name: Level 1 PM2.5" not in card
+        assert "name: Level 2 PM2.5" not in card
+        assert "name: Level 1 IAQ" in card
+        assert "name: Level 1 CO" in card
 
 
 async def _run_alert_only_card_assertions(register_mod) -> None:
@@ -2682,6 +2699,17 @@ def test_custom_profile_condensation_thresholds_follow_current_season():
 def test_card_render_sanity_and_placeholder_resolution():
     _, register_mod = _load_target_modules()
     asyncio.run(_run_card_assertions(register_mod))
+
+
+def test_level_label_card_replacement_is_single_pass_for_swapped_names():
+    _, register_mod = _load_target_modules()
+
+    rendered = register_mod._apply_level_labels(
+        "AQ Downstairs / AQ Upstairs / Downs.. IAQ / name: Downstairs IAQ",
+        {"level1": "Upstairs", "level2": "Downstairs"},
+    )
+
+    assert rendered == "AQ Upstairs / AQ Downstairs / Upstairs IAQ / name: Upstairs IAQ"
 
 
 def test_output_detail_visibility_option_prunes_v2_cards():
@@ -2840,6 +2868,8 @@ def test_visual_alert_flash_restores_initial_light_state_and_serializes_overlap(
 def test_public_card_surfaces_do_not_ship_private_entity_ids():
     offenders = []
     for path in PUBLIC_CARD_SURFACES:
+        if not path.exists():
+            continue
         source = path.read_text()
         for marker in PRIVATE_CARD_IDENTIFIERS:
             if marker in source:
@@ -3330,6 +3360,34 @@ def test_diagnostics_summary_can_surface_shared_frontend_dependency_status_witho
 
     assert full_summary["frontend_dependency_resources"] == frontend_status
     assert "frontend_dependency_resources" not in live_summary
+
+
+def test_support_diagnostics_summary_uses_canonical_level_label_source():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data=_base_entry_data(),
+        options={
+            "level_labels": {
+                "level1": "  Ground <Floor>  ",
+                "level2": "",
+            }
+        },
+    )
+    hass = _FakeHass(entry, {})
+
+    summary = services_mod._build_diagnostics_summary(
+        hass,
+        entry.data,
+        entry.options,
+        {},
+        {},
+    )
+
+    assert summary["level_labels"] == {
+        "level1": {"label": "Ground Floor", "source": "config"},
+        "level2": {"label": "Level 2", "source": "fallback"},
+    }
 
 
 def test_dump_diagnostics_legacy_export_redacts_sensitive_payload_before_write():

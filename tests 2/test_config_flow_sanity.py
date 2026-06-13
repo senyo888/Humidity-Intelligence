@@ -131,6 +131,7 @@ def _install_homeassistant_stubs() -> None:
     selector.TextSelector = _Selector
     selector.TextSelectorConfig = _SelectorConfig
     selector.TextSelectorType = SimpleNamespace(TEXT="text")
+    selector.TimeSelector = _Selector
     selector.NumberSelector = _Selector
     selector.NumberSelectorConfig = _SelectorConfig
     selector.NumberSelectorMode = SimpleNamespace(SLIDER="slider", BOX="box")
@@ -181,6 +182,9 @@ def _load_config_flow_module():
     _install_homeassistant_stubs()
     _install_package_scaffold()
     _load_module(f"{PKG}.const", ROOT / "const.py")
+    level_labels_path = ROOT / "helpers" / "level_labels.py"
+    if level_labels_path.exists():
+        _load_module(f"{PKG}.helpers.level_labels", level_labels_path)
     _load_module(f"{PKG}.helpers.parsing", ROOT / "helpers" / "parsing.py")
     _load_module(f"{PKG}.helpers.drift", ROOT / "helpers" / "drift.py")
     _load_module(
@@ -234,6 +238,18 @@ def _advanced_schema_has_field(result: dict, field: str) -> bool:
             getattr(section_key, "key", section_key) == field
             for section_key in section_schema.schema
         )
+    raise AssertionError("'show_advanced_options' not present in schema")
+
+
+def _advanced_schema_default(result: dict, field: str):
+    for key, section_obj in result["data_schema"].schema.items():
+        if getattr(key, "key", key) != "show_advanced_options":
+            continue
+        section_schema = section_obj["schema"]
+        for section_key in section_schema.schema:
+            if getattr(section_key, "key", section_key) == field:
+                return getattr(section_key, "default", None)
+        raise AssertionError(f"{field!r} not present in advanced schema")
     raise AssertionError("'show_advanced_options' not present in schema")
 
 
@@ -599,6 +615,86 @@ def test_setup_gates_flattens_advanced_section_and_preserves_visible_values():
     assert flow._data["temperature_comfort_custom_high"] == 22.5
 
 
+def test_setup_gates_no_longer_exposes_or_mutates_level_display_labels():
+    config_flow = _load_config_flow_module()
+    flow = config_flow.HumidityIntelligenceConfigFlow()
+    flow.hass = SimpleNamespace()
+
+    form = asyncio.run(flow.async_step_gates())
+    result = asyncio.run(
+        flow.async_step_gates(
+            {
+                "enable_time_gate": False,
+                "start_time": "08:00",
+                "end_time": "22:00",
+                "outside_action": "no_action",
+                "alert_only_mode": False,
+                "target_profile": "auto",
+                "temperature_comfort_mode": "auto",
+                "enable_presence_gate": False,
+                "presence_entities": [],
+                "show_advanced_options": {
+                    "level1_label": "  Ground <Floor>\n'North Wing' Very Long Name  ",
+                    "level2_label": "   ",
+                },
+            }
+        )
+    )
+
+    assert not _advanced_schema_has_field(form, "level1_label")
+    assert not _advanced_schema_has_field(form, "level2_label")
+    assert result["step_id"] == "telemetry"
+    assert "level_labels" not in flow._data
+
+
+def test_setup_zones_menu_offers_level_display_labels_before_zone_configuration():
+    config_flow = _load_config_flow_module()
+    flow = config_flow.HumidityIntelligenceConfigFlow()
+    flow.hass = SimpleNamespace()
+
+    result = asyncio.run(flow.async_step_zones())
+
+    assert result["menu_options"] == [
+        "level_labels",
+        "zone1",
+        "zone2",
+        "zones_done",
+        "zones_back",
+    ]
+
+
+def test_setup_zones_level_display_labels_editor_sanitizes_before_zone_config():
+    config_flow = _load_config_flow_module()
+    flow = config_flow.HumidityIntelligenceConfigFlow()
+    flow.hass = SimpleNamespace()
+
+    form = asyncio.run(flow.async_step_level_labels())
+    result = asyncio.run(
+        flow.async_step_level_labels(
+            {
+                "level1_label": "  Ground <Floor>\n'North Wing' Very Long Name  ",
+                "level2_label": "   ",
+            }
+        )
+    )
+
+    assert _schema_default(form, "level1_label") == ""
+    assert _schema_default(form, "level2_label") == ""
+    assert result["step_id"] == "zones"
+    assert flow._data["level_labels"] == {
+        "level1": "Ground Floor North Wing Very Lon",
+        "level2": "",
+    }
+    assert config_flow.resolve_level_label_details(flow._data)["level1"] == {
+        "label": "Ground Floor North Wing Very Lon",
+        "source": "config",
+    }
+    assert config_flow.resolve_level_label_details(flow._data)["level2"] == {
+        "label": "Level 2",
+        "source": "fallback",
+    }
+
+
 def test_options_gates_flattens_advanced_section_and_preserves_visible_values():
     config_flow = _load_config_flow_module()
     entry = SimpleNamespace(data={}, options={})
@@ -647,6 +743,93 @@ def test_options_gates_flattens_advanced_section_and_preserves_visible_values():
     assert flow._options["show_output_entity_details"] is False
     assert flow._options["custom_target_low"] == 44.0
     assert flow._options["custom_target_high"] == 59.0
+
+
+def test_options_gates_no_longer_exposes_or_mutates_level_display_labels():
+    config_flow = _load_config_flow_module()
+    entry = SimpleNamespace(
+        data={"level_labels": {"level1": "Ground Floor", "level2": "Loft"}},
+        options={},
+    )
+    flow = config_flow.HumidityIntelligenceOptionsFlow(entry)
+    flow.hass = SimpleNamespace()
+
+    form = asyncio.run(flow.async_step_options_gates())
+    result = asyncio.run(
+        flow.async_step_options_gates(
+            {
+                "enable_time_gate": False,
+                "start_time": "08:00",
+                "end_time": "22:00",
+                "outside_action": "no_action",
+                "alert_only_mode": False,
+                "target_profile": "auto",
+                "enable_presence_gate": False,
+                "presence_entities": [],
+                "show_advanced_options": {
+                    "level1_label": "",
+                    "level2_label": "  Upper\tDeck<> # North: Wing  ",
+                },
+            }
+        )
+    )
+
+    assert not _advanced_schema_has_field(form, "level1_label")
+    assert not _advanced_schema_has_field(form, "level2_label")
+    assert result["step_id"] == "init"
+    assert "level_labels" not in flow._options
+
+
+def test_options_zone_options_offer_level_labels_before_zone_editing():
+    config_flow = _load_config_flow_module()
+    entry = SimpleNamespace(
+        data={"level_labels": {"level1": "Ground Floor", "level2": "Loft"}},
+        options={},
+    )
+    flow = config_flow.HumidityIntelligenceOptionsFlow(entry)
+    flow.hass = SimpleNamespace()
+
+    form = asyncio.run(flow.async_step_options_zones())
+
+    assert _schema_select_values(form, "action") == [
+        "level_labels",
+        "zone1",
+        "zone2",
+        "done",
+    ]
+    assert _schema_select_labels(form, "action")[0] == "Level display labels"
+
+
+def test_options_zones_level_display_labels_editor_uses_existing_labels_and_allows_clearing():
+    config_flow = _load_config_flow_module()
+    entry = SimpleNamespace(
+        data={"level_labels": {"level1": "Ground Floor", "level2": "Loft"}},
+        options={},
+    )
+    flow = config_flow.HumidityIntelligenceOptionsFlow(entry)
+    flow.hass = SimpleNamespace()
+
+    form = asyncio.run(flow.async_step_options_level_labels())
+    result = asyncio.run(
+        flow.async_step_options_level_labels(
+            {
+                "level1_label": "",
+                "level2_label": "  Upper\tDeck<> # North: Wing  ",
+            }
+        )
+    )
+
+    assert _schema_default(form, "level1_label") == "Ground Floor"
+    assert _schema_default(form, "level2_label") == "Loft"
+    assert result["step_id"] == "options_zones"
+    assert flow._options["level_labels"] == {
+        "level1": "",
+        "level2": "Upper Deck North Wing",
+    }
+    assert config_flow.resolve_level_labels(entry.data, flow._options) == {
+        "level1": "Level 1",
+        "level2": "Upper Deck North Wing",
+    }
 
 
 def test_options_thresholds_preserve_existing_zones_and_ignore_missing_zone_thresholds():

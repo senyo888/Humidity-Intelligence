@@ -20,6 +20,7 @@ from ..const import (
     DEFAULT_SHOW_OUTPUT_ENTITY_DETAILS,
     DOMAIN,
 )
+from ..helpers.level_labels import resolve_level_labels
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -355,6 +356,10 @@ async def async_register_cards(hass: HomeAssistant, entry_id: str, mapping: Dict
     }
     entry = hass.config_entries.async_get_entry(entry_id)
     show_output_details = _entry_show_output_entity_details(entry)
+    level_labels = resolve_level_labels(
+        getattr(entry, "data", None) or {},
+        getattr(entry, "options", None) or {},
+    )
     cards: Dict[str, str] = {}
     unresolved = list(
         (hass.data.get(DOMAIN, {}).get(entry_id, {}) or {}).get("unresolved_placeholders", [])
@@ -372,6 +377,7 @@ async def async_register_cards(hass: HomeAssistant, entry_id: str, mapping: Dict
                 "hi:output-details",
                 keep=show_output_details,
             )
+        content = _apply_level_labels(content, level_labels)
         # Replace placeholders safely (avoid partial matches like binary_sensor.*)
         for placeholder, entity_id in mapping.items():
             if not entity_id:
@@ -409,6 +415,7 @@ async def async_register_cards(hass: HomeAssistant, entry_id: str, mapping: Dict
         cards[name] = content
 
     hass.data.setdefault(DOMAIN, {}).setdefault(entry_id, {})
+    hass.data[DOMAIN][entry_id]["level_labels"] = level_labels
     hass.data[DOMAIN][entry_id]["unresolved_placeholders_by_card"] = unresolved_by_card
     return cards
 
@@ -437,6 +444,17 @@ def _apply_marked_yaml_section(content: str, marker: str, *, keep: bool) -> str:
     if content.endswith("\n"):
         result += "\n"
     return result
+
+
+def _apply_level_labels(content: str, labels: Dict[str, str]) -> str:
+    """Apply display-only level labels to generated card copy."""
+    replacements = {
+        "Downs..": labels.get("level1") or "Level 1",
+        "Downstairs": labels.get("level1") or "Level 1",
+        "Upstairs": labels.get("level2") or "Level 2",
+    }
+    pattern = re.compile("|".join(re.escape(token) for token in replacements))
+    return pattern.sub(lambda match: replacements[match.group(0)], content)
 
 
 def _entry_show_output_entity_details(entry: Any) -> bool:

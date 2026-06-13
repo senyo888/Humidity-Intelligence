@@ -24,6 +24,7 @@ from .helpers.frontend_dependencies import (
     async_frontend_dependency_status,
     frontend_dependency_not_inspectable,
 )
+from .helpers.level_labels import resolve_level_label_details
 from .helpers.local_versions import (
     DEFAULT_MAX_TOTAL_BYTES,
     DEFAULT_RETAIN_COUNT,
@@ -860,6 +861,7 @@ def _build_diagnostics_summary(
             "custom_low": effective.get("temperature_comfort_custom_low"),
             "custom_high": effective.get("temperature_comfort_custom_high"),
         },
+        "level_labels": resolve_level_label_details(effective),
         "zone_mappings": _zone_mapping_summary(zones),
         "zone_mapping_duplicates": duplicates,
         "alert_mappings": _alert_mapping_summary(alerts),

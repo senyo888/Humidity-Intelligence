@@ -127,10 +127,19 @@
         "title": "Zones",
         "description": "Define up to two extractor/purifier zones.\n\nConfigured zones:\n{configured_zones}",
         "menu_options": {
+          "level_labels": "Level display labels",
           "zone1": "Configure Zone 1",
           "zone2": "Configure Zone 2",
-          "zones_done": "Continue",
+          "zones_done": "Done",
           "zones_back": "Back"
+        }
+      },
+      "level_labels": {
+        "title": "Level Display Labels",
+        "description": "Edit display-only labels for Level 1 and Level 2 before zone setup. Empty labels fall back to Level 1 / Level 2 and do not change entities, zones, outputs, or runtime semantics.",
+        "data": {
+          "level1_label": "Level 1 display label",
+          "level2_label": "Level 2 display label"
         }
       },
       "zone1": {
@@ -565,9 +574,17 @@
       },
       "options_zones": {
         "title": "Zone Options",
-        "description": "Select a zone to edit.\n\nConfigured zones:\n{configured_zones}",
+        "description": "Edit level display labels before Zone 1 / Zone 2 configuration, or select a zone to edit.\n\nConfigured zones:\n{configured_zones}",
         "data": {
-          "action": "Zone to edit"
+          "action": "Zone action"
+        }
+      },
+      "options_level_labels": {
+        "title": "Level Display Labels",
+        "description": "Edit display-only labels for Level 1 and Level 2 before zone editing. Empty labels fall back to Level 1 / Level 2 and do not change entities, zones, outputs, or runtime semantics.",
+        "data": {
+          "level1_label": "Level 1 display label",
+          "level2_label": "Level 2 display label"
         }
       },
       "options_zone_edit": {

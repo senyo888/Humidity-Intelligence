@@ -91,6 +91,9 @@ def _load_diagnostics_module():
     _install_homeassistant_stubs()
     _install_package_scaffold()
     _load_module(f"{PKG}.const", ROOT / "const.py")
+    level_labels_path = ROOT / "helpers" / "level_labels.py"
+    if level_labels_path.exists():
+        _load_module(f"{PKG}.helpers.level_labels", level_labels_path)
     _load_module(f"{PKG}.helpers.frontend_dependencies", ROOT / "helpers" / "frontend_dependencies.py")
     _load_module(f"{PKG}.helpers.seasonal", ROOT / "helpers" / "seasonal.py")
     _load_module(f"{PKG}.helpers.zone_validation", ROOT / "helpers" / "zone_validation.py")
@@ -386,6 +389,28 @@ def test_native_diagnostics_reports_temperature_comfort_warm_boundary():
     assert comfort["target_high"] == 22.0
     assert comfort["warm_high"] == 23.0
     assert comfort["watch_high"] == 23.0
+
+
+def test_native_diagnostics_reports_canonical_level_label_sources():
+    diagnostics = _load_diagnostics_module()
+    entry = _sample_entry()
+    entry.options["level_labels"] = {
+        "level1": "  Ground <Floor>  ",
+        "level2": "",
+    }
+
+    payload = asyncio.run(
+        diagnostics.async_get_config_entry_diagnostics(_sample_hass(), entry)
+    )
+
+    assert payload["configuration"]["options_summary"]["level_labels"] == {
+        "level1": {"label": "Ground Floor", "source": "config"},
+        "level2": {"label": "Level 2", "source": "fallback"},
+    }
+    assert payload["diagnostics_summary"]["level_labels"] == {
+        "level1": {"label": "Ground Floor", "source": "config"},
+        "level2": {"label": "Level 2", "source": "fallback"},
+    }
 
 
 def test_to_redact_covers_required_sensitive_terms():

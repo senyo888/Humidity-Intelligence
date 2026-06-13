@@ -185,6 +185,7 @@ If mismatch occurs:
 
 - `show_output_entity_details` controls only the expandable generated-card output details panel.
 - Hiding output details must not affect lane selection, output writes, isolation switches, diagnostics, or entity names.
+- Optional Level 1 / Level 2 display labels are configured from setup Zones and post-configuration Zone Options before Zone 1 / Zone 2 editing. They are generated-card/config-flow/support text only. Empty labels fall back to `Level 1` / `Level 2`, and changing labels requires refreshed/exported card YAML for already-pasted Manual cards.
 - New generated V2 cards default to the cleaner output display unless output details are enabled.
 - `v2_tablet` is the default first-install UI export layout.
 - `humidity_intelligence.dump_cards` remains the supported export path after UI visibility, template, or mapping changes.

@@ -28,6 +28,7 @@ from .helpers.frontend_dependencies import (
     async_frontend_dependency_status,
     frontend_dependency_not_inspectable,
 )
+from .helpers.level_labels import resolve_level_label_details
 from .helpers.local_versions import async_local_version_status, cached_local_version_status
 from .helpers.seasonal import resolve_target_profile, resolve_temperature_comfort_profile
 from .helpers.zone_validation import detect_zone_mapping_duplicates, summarize_zone_mapping_duplicates
@@ -177,6 +178,7 @@ def _options_summary(config: dict[str, Any]) -> dict[str, Any]:
         "target_profile": config.get("target_profile", config.get("target_profile_mode", "auto")),
         "temperature_comfort_mode": config.get("temperature_comfort_mode", "auto"),
         "slope_mode": slope.get("mode"),
+        "level_labels": resolve_level_label_details(config),
     }
 
 
@@ -447,6 +449,7 @@ def _diagnostics_summary(
             "custom_low": config.get("temperature_comfort_custom_low"),
             "custom_high": config.get("temperature_comfort_custom_high"),
         },
+        "level_labels": resolve_level_label_details(config),
         "zone_mappings": _zone_mapping_summary(zones),
         "zone_mapping_duplicates": duplicates,
         "alert_mappings": _alert_mapping_summary(alerts),

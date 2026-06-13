@@ -591,6 +591,7 @@ Key setup guidance:
 
 - add humidity and temperature telemetry for active levels
 - assign telemetry to stable, readable rooms and levels
+- optionally set Level 1 / Level 2 display labels from Zones before Zone 1 / Zone 2 setup; labels are display-only and fall back to `Level 1` / `Level 2`
 - keep zone labels and output mappings clear enough for reason text and diagnostics
 - use recommended thresholds first, then tune from options after observing behavior
 - keep AQ and CO telemetry grounded in configured Home Assistant entities
@@ -598,6 +599,7 @@ Key setup guidance:
 - use the generated dashboard export after setup or option changes
 
 The default first UI export is `v2_tablet`. `show_output_entity_details` is display-only and controls whether generated cards include the expandable output details panel.
+Level display labels are also display-only. Changing them updates generated-card/config-flow/support text after options are saved and cards are refreshed, but it does not rename entities, helpers, levels, zones, outputs, or runtime lanes.
 
 Detailed manual:
 
@@ -654,6 +656,7 @@ Common post-configuration areas:
 
 - `Sensors`: add, edit, or delete telemetry rows
 - `Global Gates`: edit time, presence, alert-only, and target-profile behavior
+- `Zones`: edit display-only Level 1 / Level 2 labels before Zone 1 / Zone 2 configuration
 - `Thresholds & Comfort`: review comfort mode and zone thresholds
 - `Humidifiers`: add or edit per-level humidifier lanes
 - `Air Quality`: add or edit AQ lanes, triggers, outputs, and thresholds
@@ -816,6 +819,7 @@ CO emergency pressure. Details are in
 - fixed PM2.5 aggregate runtime truth so configured PM2.5 telemetry exposes canonical backend-owned PM25 aggregate entities instead of relying on Home Assistant's dotted `pm2_5` name slug
 - hardened generated-card AQ output details so unresolved optional AQ aggregate rows are pruned instead of rendering stale `Entity not found` rows, with generated-card entity reference checks in `self_check` and `v205_release_check`
 - changed generated V2 Current Air Control cards so red control-row styling follows selected alert/CO runtime truth, while degraded or unmapped alert candidates remain in reason text instead of primary chip-row space
+- moved optional Level 1 / Level 2 display-label editing into setup Zones and post-configuration Zone Options before Zone 1 / Zone 2 editing, with diagnostics and generated cards using the same sanitized fallback-aware label source
 - sanitized generated V2 card templates, gallery exports, and test fixtures so public artifacts use canonical HI placeholders instead of maintainer-local presence, alarm, tracker, or room-sensor entity IDs
 - kept startup UI refresh deterministic: startup follows `auto_refresh_ui_on_startup`, while explicit UI install, option-visibility changes, and manual `dump_cards` still write card files
 - added Configuration Walkthrough links to setup Frontend Dependencies, post-configuration Frontend Dependencies, and final UI export guidance
