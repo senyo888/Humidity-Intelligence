@@ -23,6 +23,10 @@ This project follows a practical changelog format for Home Assistant and HACS us
 - Refined generated V2 Current Air Control cards so degraded or unmapped alert
   candidates no longer occupy primary chip-row space; no-automation context remains
   visible in reason text.
+- Fixed generated V2 Current Air Control cards so missing or unavailable
+  `sensor.air_control_mode` no longer falls back to `normal` / `READY`; backend
+  `telemetry_unavailable` now renders as explicit degraded UI truth ahead of stale
+  helper-derived alert or AQ display state.
 - Kept startup UI refresh option semantics deterministic by removing the
   unconditional startup `dump_cards` task; startup now follows the configured
   `auto_refresh_ui_on_startup` refresh path, while explicit UI install,

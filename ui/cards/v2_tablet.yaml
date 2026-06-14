@@ -344,10 +344,32 @@ card:
       show_label: true
       state_display: |
         [[[
-          const modeState = (states['sensor.air_control_mode']?.state || 'normal');
+          const rawMode = String(states['sensor.air_control_mode']?.state || '').trim();
+          const mode = rawMode.toLowerCase();
+          const knownModes = new Set([
+            'normal',
+            'co_emergency',
+            'danger',
+            'air_quality',
+            'global_gate',
+            'away',
+            'cooking',
+            'bathroom',
+            'bath',
+            'paused',
+            'manual_override',
+            'disabled',
+            'telemetry_unavailable',
+          ]);
+          const modeKnown =
+            !!mode &&
+            mode !== 'unknown' &&
+            mode !== 'unavailable' &&
+            (knownModes.has(mode) || mode.includes('alert'));
+          if (!modeKnown) return 'UNKNOWN';
           const display = states['sensor.air_control_mode']?.attributes?.display;
           if (display && String(display).trim()) return String(display);
-          return modeState.replace(/_/g,' ').toUpperCase();
+          return rawMode.replace(/_/g,' ').toUpperCase();
         ]]]
       label: |
         [[[
@@ -372,7 +394,28 @@ card:
       custom_fields:
         status: |
           [[[
-            const mode = (states['sensor.air_control_mode']?.state || 'normal').toLowerCase();
+            const rawMode = String(states['sensor.air_control_mode']?.state || '').trim().toLowerCase();
+            const knownModes = new Set([
+              'normal',
+              'co_emergency',
+              'danger',
+              'air_quality',
+              'global_gate',
+              'away',
+              'cooking',
+              'bathroom',
+              'bath',
+              'paused',
+              'manual_override',
+              'disabled',
+              'telemetry_unavailable',
+            ]);
+            const modeKnown =
+              !!rawMode &&
+              rawMode !== 'unknown' &&
+              rawMode !== 'unavailable' &&
+              (knownModes.has(rawMode) || rawMode.includes('alert'));
+            const mode = modeKnown ? rawMode : 'unknown';
 
             const coE  = states['input_boolean.air_co_emergency_active']?.state === 'on';
             const aqU  = states['input_boolean.air_aq_upstairs_active']?.state === 'on';
@@ -405,7 +448,7 @@ card:
             const gateReason = String(states['sensor.air_control_reason']?.state || '').toLowerCase();
             const timeGateActive = gateActive && gateReason.includes('time gate');
             const presenceGateActive = gateActive && gateReason.includes('presence gate');
-            const ready = mode === 'normal' && !red && !zone1 && !zone2 && !aqActive && !gateActive;
+            const ready = modeKnown && mode === 'normal' && !red && !zone1 && !zone2 && !aqActive && !gateActive;
 
             const chip = (t, c, glow=false) =>
               `<span class="cv-chip ${glow ? 'glow' : ''}" style="--cv:${c}; border-color: color-mix(in srgb, var(--cv) 55%, rgba(148,163,184,0.18));">
@@ -413,6 +456,8 @@ card:
               </span>`;
 
             const cMode = (() => {
+              if (mode === 'telemetry_unavailable') return '#f59e0b';
+              if (!modeKnown) return '#94a3b8';
               if (red || coE || mode === 'co_emergency' || mode.includes('alert') || mode === 'danger') return '#ef4444';
               if (gateActive) return '#f59e0b';
               if (zone1) return '#38bdf8';
@@ -425,6 +470,8 @@ card:
               return '#94a3b8';
             })();
             const modeBadgeLabel = (() => {
+              if (mode === 'telemetry_unavailable') return 'TELEMETRY UNAVAILABLE';
+              if (!modeKnown) return 'UNKNOWN';
               if (red) return 'ALERT';
               if (gateActive) return 'GATE';
               if (zone1) return 'ZONE 1';
@@ -459,7 +506,29 @@ card:
         reason: |
           [[[
             try {
-              const mode = (states['sensor.air_control_mode']?.state || 'normal').toLowerCase();
+              const rawMode = String(states['sensor.air_control_mode']?.state || '').trim().toLowerCase();
+              const knownModes = new Set([
+                'normal',
+                'co_emergency',
+                'danger',
+                'air_quality',
+                'global_gate',
+                'away',
+                'cooking',
+                'bathroom',
+                'bath',
+                'paused',
+                'manual_override',
+                'disabled',
+                'telemetry_unavailable',
+              ]);
+              const modeKnown =
+                !!rawMode &&
+                rawMode !== 'unknown' &&
+                rawMode !== 'unavailable' &&
+                (knownModes.has(rawMode) || rawMode.includes('alert'));
+              const mode = modeKnown ? rawMode : 'unknown';
+              const modeUnavailable = !modeKnown;
               const txt = (id) => String(states[id]?.state || '').trim();
               const on = (id) => states[id]?.state === 'on';
               const tActive = (id) => states[id]?.state === 'active';
@@ -520,6 +589,7 @@ card:
                 mode === 'co_emergency' ||
                 mode === 'air_quality' ||
                 mode === 'global_gate' ||
+                mode === 'telemetry_unavailable' ||
                 mode === 'cooking' ||
                 mode === 'bathroom' ||
                 mode === 'bath';
@@ -554,6 +624,7 @@ card:
                 humidifying ||
                 fanIso ||
                 humIso ||
+                modeUnavailable ||
                 mode === 'manual_override' ||
                 mode === 'paused' ||
                 mode === 'away' ||
@@ -564,7 +635,11 @@ card:
               if (!showReason) return `<div class="cv-reason"></div>`;
 
               const lines = [];
-              if (on('input_boolean.air_co_emergency_active') || mode === 'co_emergency') {
+              if (mode === 'telemetry_unavailable') {
+                lines.push('Stage: Required telemetry unavailable; automation standing down until telemetry recovers.');
+              } else if (modeUnavailable) {
+                lines.push('Stage: Air-control mode unavailable; UI waiting for backend telemetry.');
+              } else if (on('input_boolean.air_co_emergency_active') || mode === 'co_emergency') {
                 if (alertOnlyUi) lines.push('Stage: CO emergency monitoring active (no automation output controls configured).');
                 else lines.push('Stage: CO emergency override (all purifiers forced to 100%).');
               } else if (activeAlertNames.length) {
@@ -892,7 +967,27 @@ card:
           - background: rgba(2,6,23,0.38)
           - border: |
               [[[
-                const mode = (states['sensor.air_control_mode']?.state || 'normal').toLowerCase();
+                const mode = String(states['sensor.air_control_mode']?.state || '').trim().toLowerCase();
+                const borderKnownModes = new Set([
+                  'normal',
+                  'co_emergency',
+                  'danger',
+                  'air_quality',
+                  'global_gate',
+                  'away',
+                  'cooking',
+                  'bathroom',
+                  'bath',
+                  'paused',
+                  'manual_override',
+                  'disabled',
+                  'telemetry_unavailable',
+                ]);
+                const borderModeKnown =
+                  !!mode &&
+                  mode !== 'unknown' &&
+                  mode !== 'unavailable' &&
+                  (borderKnownModes.has(mode) || mode.includes('alert'));
                 const anyAlertActive = Object.keys(states).some((id) => {
                   const stateObj = states[id];
                   if (stateObj?.state !== 'on') return false;
@@ -909,6 +1004,8 @@ card:
                   mode === 'co_emergency' ||
                   coE ||
                   (!gateActive && anyAlertActive);
+                if (mode === 'telemetry_unavailable') return '1px solid rgba(245,158,11,0.78)';
+                if (!borderModeKnown) return '1px solid rgba(148,163,184,0.55)';
                 if (red) return '1px solid rgba(239,68,68,0.85)';
                 if (gateActive) return '1px solid rgba(245,158,11,0.78)';
                 if (zone1) return '1px solid rgba(56,189,248,0.75)';
@@ -1084,7 +1181,7 @@ card:
               - padding: 12px
               - background: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const red =
                       m === 'alert' ||
                       m === 'co_emergency' ||
@@ -1097,7 +1194,7 @@ card:
                   ]]]
               - border: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const red =
                       m === 'alert' ||
                       m === 'co_emergency' ||
@@ -1110,7 +1207,7 @@ card:
                   ]]]
               - box-shadow: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const red =
                       m === 'alert' ||
                       m === 'co_emergency' ||
@@ -1124,7 +1221,7 @@ card:
             icon:
               - color: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const red =
                       m === 'alert' ||
                       m === 'co_emergency' ||
@@ -1135,7 +1232,7 @@ card:
             name:
               - color: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const red =
                       m === 'alert' ||
                       m === 'co_emergency' ||
@@ -1157,7 +1254,7 @@ card:
               - padding: 12px
               - background: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const red =
                       m === 'alert' ||
                       m === 'co_emergency' ||
@@ -1170,7 +1267,7 @@ card:
                   ]]]
               - border: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const red =
                       m === 'alert' ||
                       m === 'co_emergency' ||
@@ -1183,7 +1280,7 @@ card:
                   ]]]
               - box-shadow: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const red =
                       m === 'alert' ||
                       m === 'co_emergency' ||
@@ -1197,7 +1294,7 @@ card:
             icon:
               - color: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const red =
                       m === 'alert' ||
                       m === 'co_emergency' ||
@@ -1208,7 +1305,7 @@ card:
             name:
               - color: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const red =
                       m === 'alert' ||
                       m === 'co_emergency' ||
@@ -1230,7 +1327,7 @@ card:
               - padding: 12px
               - background: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const active = (m === 'bathroom' || m === 'bath');
 
                     const red =
@@ -1245,7 +1342,7 @@ card:
                   ]]]
               - border: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const active = (m === 'bathroom' || m === 'bath');
 
                     const red =
@@ -1260,7 +1357,7 @@ card:
                   ]]]
               - box-shadow: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const active = (m === 'bathroom' || m === 'bath');
 
                     const red =
@@ -1276,7 +1373,7 @@ card:
             icon:
               - color: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const active = (m === 'bathroom' || m === 'bath');
 
                     const red =
@@ -1290,7 +1387,7 @@ card:
             name:
               - color: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const active = (m === 'bathroom' || m === 'bath');
 
                     const red =
@@ -1315,7 +1412,7 @@ card:
               - padding: 12px
               - background: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const active = (m === 'air_quality') ||
                       (states['input_boolean.air_aq_upstairs_active']?.state === 'on') ||
                       (states['input_boolean.air_aq_downstairs_active']?.state === 'on');
@@ -1332,7 +1429,7 @@ card:
                   ]]]
               - border: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const active = (m === 'air_quality') ||
                       (states['input_boolean.air_aq_upstairs_active']?.state === 'on') ||
                       (states['input_boolean.air_aq_downstairs_active']?.state === 'on');
@@ -1349,7 +1446,7 @@ card:
                   ]]]
               - box-shadow: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const active = (m === 'air_quality') ||
                       (states['input_boolean.air_aq_upstairs_active']?.state === 'on') ||
                       (states['input_boolean.air_aq_downstairs_active']?.state === 'on');
@@ -1367,7 +1464,7 @@ card:
             icon:
               - color: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const active = (m === 'air_quality') ||
                       (states['input_boolean.air_aq_upstairs_active']?.state === 'on') ||
                       (states['input_boolean.air_aq_downstairs_active']?.state === 'on');
@@ -1383,7 +1480,7 @@ card:
             name:
               - color: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const active = (m === 'air_quality') ||
                       (states['input_boolean.air_aq_upstairs_active']?.state === 'on') ||
                       (states['input_boolean.air_aq_downstairs_active']?.state === 'on');

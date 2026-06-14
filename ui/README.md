@@ -168,6 +168,8 @@ The panel must:
 - display correct chip state
 - keep alert chipsets to the lane/status chip plus the resolved alert source/context chip only
 - show alert source/context chips only while the backend runtime mode or alert activity state says an alert lane is active
+- render backend `telemetry_unavailable` as degraded UI truth, not as normal/ready or unknown frontend failure
+- treat missing, unavailable, or unrecognized Air Control Mode telemetry as `UNKNOWN` without inventing a normal lane
 - show readable reason text
 - stay synced with real hardware behavior
 

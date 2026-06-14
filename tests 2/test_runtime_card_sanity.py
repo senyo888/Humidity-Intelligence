@@ -2488,6 +2488,30 @@ async def _run_card_assertions(register_mod) -> None:
         assert "Alert: ${degradedAlertLabel} is active, but HI skipped alert automation because ${degradedAlertReason}." in card
         assert card.index("Stage: Air-quality assist running.") < card.index("if (degradedAlertContext && !alertLaneActive)")
         assert "(!gateActive && anyAlertActive)" in card
+        assert "states['sensor.air_control_mode']?.state || 'normal'" not in card
+        assert "entity.state || 'normal'" not in card
+        assert "'telemetry_unavailable'," in card
+        assert "const modeKnown =" in card
+        assert "const mode = modeKnown ? rawMode : 'unknown'" in card
+        assert "if (!modeKnown) return 'UNKNOWN';" in card
+        assert "const ready = modeKnown && mode === 'normal'" in card
+        assert "if (mode === 'telemetry_unavailable') return '#f59e0b';" in card
+        assert "if (mode === 'telemetry_unavailable') return 'TELEMETRY UNAVAILABLE';" in card
+        assert "mode === 'telemetry_unavailable'" in card
+        assert "mode === 'telemetry_unavailable' ||" in card
+        assert "const modeUnavailable = !modeKnown" in card
+        assert "modeUnavailable ||" in card
+        assert "Stage: Required telemetry unavailable; automation standing down until telemetry recovers." in card
+        assert "Stage: Air-control mode unavailable; UI waiting for backend telemetry." in card
+        assert "if (mode === 'telemetry_unavailable') return '1px solid rgba(245,158,11" in card
+        assert card.index("if (mode === 'telemetry_unavailable') return '#f59e0b';") < card.index("if (red || coE")
+        assert card.index("if (!modeKnown) return '#94a3b8';") < card.index("if (red || coE")
+        assert card.index("if (mode === 'telemetry_unavailable') return 'TELEMETRY UNAVAILABLE';") < card.index("if (red) return 'ALERT';")
+        assert card.index("if (!modeKnown) return 'UNKNOWN';") < card.index("if (red) return 'ALERT';")
+        assert "const borderModeKnown =" in card
+        assert "if (!borderModeKnown) return '1px solid rgba(148,163,184,0.55)';" in card
+        assert card.index("if (!borderModeKnown) return '1px solid rgba(148,163,184,0.55)';") < card.index("if (red) return '1px solid rgba(239,68,68,0.85)'")
+        assert card.index("if (mode === 'telemetry_unavailable') return '1px solid rgba(245,158,11") < card.index("if (red) return '1px solid rgba(239,68,68,0.85)'")
         assert "sensor.hi_level2_avg_temperature" in card
         assert "sensor.hi_level1_avg_temperature" in card
         assert card.index("House AVG") < card.index("Loft AVG") < card.index("Ground Floor AVG")
@@ -2876,6 +2900,50 @@ def test_public_card_surfaces_do_not_ship_private_entity_ids():
                 offenders.append(f"{path.relative_to(ROOT)}: {marker}")
 
     assert offenders == []
+
+
+def test_public_v2_gallery_cards_preserve_air_control_mode_truth():
+    gallery_cards = (
+        ROOT / "ui-gallery" / "default-v2-mobile-aq" / "card.yaml",
+        ROOT / "ui-gallery" / "default-v2-tablet-zone-2" / "card.yaml",
+    )
+
+    for path in gallery_cards:
+        source = path.read_text()
+        assert "states['sensor.air_control_mode']?.state || 'normal'" not in source
+        assert "entity.state || 'normal'" not in source
+        assert "'telemetry_unavailable'," in source
+        assert "const modeKnown =" in source
+        assert "const mode = modeKnown ? rawMode : 'unknown'" in source
+        assert "if (!modeKnown) return 'UNKNOWN';" in source
+        assert "const ready = modeKnown && mode === 'normal'" in source
+        assert "states['binary_sensor.humidity_danger']?.state === 'on'" not in source
+        assert "states['binary_sensor.condensation_danger']?.state === 'on'" not in source
+        assert "states['binary_sensor.mould_danger']?.state === 'on'" not in source
+        assert "_humidity_danger']?.state === 'on'" not in source
+        assert "_condensation_danger']?.state === 'on'" not in source
+        assert "_mould_danger']?.state === 'on'" not in source
+        assert "if (mode === 'telemetry_unavailable') return '#f59e0b';" in source
+        assert "if (mode === 'telemetry_unavailable') return 'TELEMETRY UNAVAILABLE';" in source
+        assert "mode === 'telemetry_unavailable' ||" in source
+        assert "const modeUnavailable = !modeKnown" in source
+        assert "modeUnavailable ||" in source
+        assert "const danger = alertLaneActive" in source
+        assert "const degradedAlertItems" in source
+        assert "if (degradedAlertContext && !alertLaneActive)" in source
+        assert "tempColor(tempValueC(entity))" in source
+        assert "slopeEntityFor(item)" in source
+        assert "Stage: Required telemetry unavailable; automation standing down until telemetry recovers." in source
+        assert "Stage: Air-control mode unavailable; UI waiting for backend telemetry." in source
+        assert "if (mode === 'telemetry_unavailable') return '1px solid rgba(245,158,11" in source
+        assert source.index("if (mode === 'telemetry_unavailable') return '#f59e0b';") < source.index("if (red || coE")
+        assert source.index("if (!modeKnown) return '#94a3b8';") < source.index("if (red || coE")
+        assert source.index("if (mode === 'telemetry_unavailable') return 'TELEMETRY UNAVAILABLE';") < source.index("if (red) return 'ALERT';")
+        assert source.index("if (!modeKnown) return 'UNKNOWN';") < source.index("if (red) return 'ALERT';")
+        assert "const borderModeKnown =" in source
+        assert "if (!borderModeKnown) return '1px solid rgba(148,163,184,0.55)';" in source
+        assert source.index("if (!borderModeKnown) return '1px solid rgba(148,163,184,0.55)';") < source.index("if (red) return '1px solid rgba(239,68,68,0.85)'")
+        assert source.index("if (mode === 'telemetry_unavailable') return '1px solid rgba(245,158,11") < source.index("if (red) return '1px solid rgba(239,68,68,0.85)'")
 
 
 def test_startup_ui_refresh_contract_is_wired():
