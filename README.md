@@ -29,7 +29,6 @@
 - [Frontend Dependencies](#frontend-dependencies)
 - [Migration Guide - v1 to v2](#migration-guide---v1-to-v2)
 - [Full Configuration Flow](#full-configuration-flow)
-- [Configuration Manual](#configuration-manual)
 - [UI Gallery](#ui-gallery)
 - [Post-Configuration Workflow](#post-configuration-workflow)
 - [How to Use Services](#how-to-use-services)
@@ -83,7 +82,7 @@ The system works as a coordinated environmental control layer for everyday house
 - unstable overnight humidity can be corrected gradually to improve comfort and reduce moisture stress
 - dangerous conditions such as mould-risk humidity or carbon monoxide escalation can trigger higher-priority safety responses
 
-Humidity Intelligence is intentionally deterministic. Every decision is based on visible telemetry, defined environmental rules, and priority logic rather than opaque AI behaviour or unpredictable automation chains. The goal is not automation for its own sake; it is long-term environmental stability, comfort, and property protection.
+Humidity Intelligence is intentionally deterministic. Every decision is based on visible telemetry, defined environmental rules, and priority logic rather than opaque AI behaviour or unpredictable automation chains. The goal is long-term environmental stability, comfort, and property protection rather than automation for its own sake.
 
 The project also places strong emphasis on transparency. Users can see why actions are happening, what environmental conditions triggered them, which zone is active, and what the system is trying to achieve at any given moment. Seasonal context, comfort targets, active alerts, and runtime reasoning are surfaced directly into the UI so the system feels understandable rather than mysterious.
 
@@ -137,47 +136,32 @@ Sponsorship is optional. It does not create a support SLA, private support oblig
 
 ## Why Environmental Stability Matters
 
-Homes rarely become damp, dry, stale, or uncomfortable because of one isolated reading. Problems usually build as patterns: a bathroom that stays wet too long, a room that drifts away from the rest of the house, a winter profile that needs a lower humidity target, or an air-quality spike that lingers after cooking.
+Homes rarely become damp, dry, stale, or uncomfortable because of one isolated reading. Problems usually build as patterns: a bathroom that stays wet too long, a bedroom that drifts away from the rest of the house, a winter profile that needs a lower humidity target, or an air-quality spike that lingers after cooking.
 
-Humidity Intelligence is built for those patterns. It treats environmental stability as the goal, not a single perfect number.
+Humidity Intelligence is built for those patterns. It treats environmental stability as the goal rather than a single perfect number.
 
-Instability can appear as:
+The important signal goes beyond "humidity is high" or "humidity is low." It is the shape of the problem:
 
 - drift
 - imbalance
 - duration
 - recurring spread patterns
 
-### High Humidity Related Issues
+That is where environmental control becomes more personal. A house can look fine in the daytime, then become uncomfortable in the evening when real life happens: dinner is cooked, showers run, baths are taken, laundry dries, doors close, bedrooms cool, and every person in the home keeps adding moisture simply by breathing. By the time everyone is trying to sleep, the air can feel heavier, bedding can feel clammy, windows can start to mist, and the room can feel unstable even if the dashboard is only showing a number.
 
-- condensation formation
-- mould growth risk
-- dust mite proliferation
-- sleep disruption
-- structural degradation over time
+High humidity can make sleep feel broken and heavy. It can also help condensation settle on cold surfaces, support mould and dust-mite conditions, damage finishes, and stress timber or other moisture-sensitive materials over repeated cycles.
 
-### Low Humidity Related Issues
+Low humidity is quieter, but it can still be uncomfortable. Dry winter air can mean irritated airways, dry throat, coughing, itchy skin, gritty eyes, and natural materials that shrink, creak, or crack as they repeatedly dry out.
 
-- irritated airways
-- dry throat and coughing
-- worsened asthma symptoms
-- dry skin and eye irritation
-- reduced respiratory resilience
+Humidity Intelligence is designed for that domestic rhythm. It can see rooms rising or falling away from the active seasonal target, explain the condition, and use configured ventilation, dehumidification, or humidification before short-lived discomfort becomes repeated instability.
 
-### Indoor Plant Health Problems
-
-- low humidity: leaf browning, stress, slowed growth
-- excess humidity: fungal growth and pest vulnerability
-
-Most homes oscillate between both extremes seasonally.
-
-V2 models that instability directly, then explains what it is seeing instead of hiding the reasoning in disconnected automations.
+For the fuller explanation, including property impact, health comfort, sleep, night-time humidity sources, dry-air effects, plant health, and research context, see the Wiki guide: [Why Environmental Stability Matters](https://github.com/senyo888/humidity-intelligence/wiki/Why-Environmental-Stability-Matters).
 
 ---
 
 ## Air Quality and Environmental Stability
 
-Humidity Intelligence is not only humidity-focused. It contributes to environmental stability by surfacing indoor air-quality signals from configured Home Assistant entities and, where users have configured suitable outputs, using available devices such as air purifiers or ventilation fans to respond to poor air-quality conditions.
+Humidity Intelligence is broader than humidity alone. It contributes to environmental stability by surfacing indoor air-quality signals from configured Home Assistant entities and, where users have configured suitable outputs, using available devices such as air purifiers or ventilation fans to respond to poor air-quality conditions.
 
 Air-quality support is telemetry-driven. Humidity Intelligence reflects configured sensors, entities, thresholds, and output devices; the UI and reason panel stay aligned with backend/entity truth.
 
@@ -196,7 +180,7 @@ Detailed AQ and CO guidance lives in the support manual:
 
 ## Season-Aware Environmental Control
 
-`56%` is not always "high."
+`56%` can mean different things.
 
 The same humidity reading can mean different things in January and July. A home that feels stable in summer may be too damp for a cold winter envelope, while an aggressive winter target may be unnecessarily dry in warmer months.
 
@@ -232,7 +216,7 @@ Default temperature comfort bands:
 
 ## Design Philosophy
 
-Humidity Intelligence is built around a simple premise: a home should not be regulated by a loose pile of automations competing for control. It should have one visible environmental controller that reads configured telemetry, applies a stable priority hierarchy, and resolves one explainable outcome per evaluation cycle.
+Humidity Intelligence is built around a simple premise: a home works better with one visible environmental controller than with a loose pile of automations competing for control. That controller should read configured telemetry, apply a stable priority hierarchy, and resolve one explainable outcome per evaluation cycle.
 
 The engine is deterministic by design. It avoids guesses and hidden preferences. It evaluates season-aware humidity targets, safety gates, alert conditions, zone demand, air quality state, and humidifier needs through explicit rules so runtime behavior can be inspected, predicted, and explained.
 
@@ -267,7 +251,7 @@ This layer turns raw telemetry into structured environmental signals:
 - worst-room detection
 - binary danger states
 
-This layer models risk and does not control hardware.
+This layer models risk. Control happens in the deterministic priority engine.
 
 ### 2) Control Layer - Deterministic Priority Engine
 
@@ -287,7 +271,7 @@ Canonical runtime order:
 
 Alert lanes resolve the originating sensor to a configured room/zone, then use that zone's boost fan level as the single deterministic control path. Once an actionable alert is selected, HI holds that boost path until the originating alert clears unless a higher-priority alert appears.
 
-If an alert candidate cannot be mapped to a safe zone output, HI does not boost blindly. The reason panel reports the unmapped/degraded alert and automation continues to the next eligible priority.
+If an alert candidate cannot be mapped to a safe zone output, HI skips blind boosts. The reason panel reports the unmapped/degraded alert and automation continues to the next eligible priority.
 
 Built-in humidity, mould, and condensation risk states are treated as alert candidates when they can be traced back to telemetry. This keeps zone boost behavior and the companion alert chip aligned even if a matching explicit alert row has not been added.
 
@@ -320,7 +304,7 @@ This layer makes the engine understandable. It reflects runtime truth:
 - reason text
 - output stage transparency
 
-The UI does not compute logic. The engine decides; the UI renders.
+The engine decides; the UI renders.
 
 Generated V2 control-row colours separate selected command lanes from environmental risk: red row styling is reserved for selected alert/CO runtime truth. Degraded or unmapped alert candidates remain visible in reason text instead of occupying primary Current Air Control chip-row space.
 
@@ -610,17 +594,6 @@ Detailed manual:
 
 ---
 
-## Configuration Manual
-
-The full visual setup walkthrough now lives in the Wiki, where screenshots can stay
-current without turning the README into a duplicate owner manual.
-
-- [Configuration Walkthrough](https://github.com/senyo888/humidity-intelligence/wiki/Configuration-Walkthrough)
-- [Generated Dashboards](https://github.com/senyo888/humidity-intelligence/wiki/Generated-Dashboards)
-- [Troubleshooting Generated UI](https://github.com/senyo888/humidity-intelligence/wiki/Troubleshooting-Generated-UI)
-
----
-
 ## UI Gallery
 
 The browseable UI Gallery lives in the Wiki:
@@ -742,6 +715,7 @@ For longer support guidance, see the Humidity Intelligence Wiki:
 - [HACS and Updates](https://github.com/senyo888/humidity-intelligence/wiki/HACS-and-Updates)
 - [Configuration Walkthrough](https://github.com/senyo888/humidity-intelligence/wiki/Configuration-Walkthrough)
 - [Understanding Control Decisions](https://github.com/senyo888/humidity-intelligence/wiki/Understanding-Control-Decisions)
+- [Why Environmental Stability Matters](https://github.com/senyo888/humidity-intelligence/wiki/Why-Environmental-Stability-Matters)
 - [Air Quality and CO Safety](https://github.com/senyo888/humidity-intelligence/wiki/Air-Quality-and-CO-Safety)
 - [Troubleshooting Generated UI](https://github.com/senyo888/humidity-intelligence/wiki/Troubleshooting-Generated-UI)
 - [Release Validation for Users](https://github.com/senyo888/humidity-intelligence/wiki/Release-Validation-for-Users)
