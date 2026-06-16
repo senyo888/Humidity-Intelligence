@@ -298,6 +298,26 @@ def test_native_diagnostics_redacts_sensitive_keys_and_url_values():
     assert "[REDACTED]" in rendered
 
 
+def test_diagnostics_redacts_credential_style_keys():
+    diagnostics = _load_diagnostics_module()
+
+    payload = diagnostics.redact_diagnostics_payload(
+        {
+            "credential": "REDACTION_FIXTURE_CREDENTIAL",
+            "credentials": {"raw": "REDACTION_FIXTURE_CREDENTIALS"},
+            "credential_json": "{\"token\":\"REDACTION_FIXTURE_JSON\"}",
+            "safe_label": "Kitchen",
+        }
+    )
+    rendered = json.dumps(payload, sort_keys=True)
+
+    assert "REDACTION_FIXTURE_CREDENTIAL" not in rendered
+    assert "REDACTION_FIXTURE_CREDENTIALS" not in rendered
+    assert "REDACTION_FIXTURE_JSON" not in rendered
+    assert payload["safe_label"] == "Kitchen"
+    assert payload["credential"] == "[REDACTED]"
+
+
 def test_unavailable_entities_are_reported_without_crashing():
     diagnostics = _load_diagnostics_module()
     hass = _sample_hass()
@@ -433,6 +453,9 @@ def test_to_redact_covers_required_sensitive_terms():
         "mac_address",
         "ssid",
         "address",
+        "credential",
+        "credentials",
+        "credential_json",
         "device_id",
         "unique_id",
     ):

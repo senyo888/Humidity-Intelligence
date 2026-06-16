@@ -450,9 +450,15 @@ card:
             const presenceGateActive = gateActive && gateReason.includes('presence gate');
             const ready = modeKnown && mode === 'normal' && !red && !zone1 && !zone2 && !aqActive && !gateActive;
 
+            const escapeHtml = (value) => String(value ?? '')
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
             const chip = (t, c, glow=false) =>
               `<span class="cv-chip ${glow ? 'glow' : ''}" style="--cv:${c}; border-color: color-mix(in srgb, var(--cv) 55%, rgba(148,163,184,0.18));">
-                <span class="t">${t}</span>
+                <span class="t">${escapeHtml(t)}</span>
               </span>`;
 
             const cMode = (() => {
@@ -505,6 +511,12 @@ card:
           ]]]
         reason: |
           [[[
+            const escapeHtml = (value) => String(value ?? '')
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
             try {
               const rawMode = String(states['sensor.air_control_mode']?.state || '').trim().toLowerCase();
               const knownModes = new Set([
@@ -686,7 +698,7 @@ card:
               if (r) lines.push(`Engine: ${r}`);
               if (!lines.length) lines.push('Alert context active.');
 
-              return `<div class="cv-reason">${lines.join('<br>')}</div>`;
+              return `<div class="cv-reason">${lines.map(escapeHtml).join('<br>')}</div>`;
             } catch (e) {
               return `<div class="cv-reason">Reason unavailable.</div>`;
             }
@@ -727,10 +739,16 @@ card:
               return '#4ade80';
             };
 
+            const escapeHtml = (value) => String(value ?? '')
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
             const chip = (k, v, unit, c) => `
               <span class="cv-chip" style="--cv:${c};">
-                <span class="k">${k}</span>
-                <span class="v" style="color:${c};">${v === null ? '—' : v}${unit || ''}</span>
+                <span class="k">${escapeHtml(k)}</span>
+                <span class="v" style="color:${c};">${escapeHtml(v === null ? '—' : `${v}${unit || ''}`)}</span>
               </span>`;
             const maybeChip = (k, v, unit, c) => (v === null ? '' : chip(k, v, unit, c));
 
@@ -771,10 +789,16 @@ card:
               return isNaN(v) ? null : v;
             };
 
+            const escapeHtml = (value) => String(value ?? '')
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
             const chip = (k, v, unit, c) => `
               <span class="cv-chip" style="--cv:${c};">
-                <span class="k">${k}</span>
-                <span class="v" style="color:${c};">${v === null ? '—' : v}${unit || ''}</span>
+                <span class="k">${escapeHtml(k)}</span>
+                <span class="v" style="color:${c};">${escapeHtml(v === null ? '—' : `${v}${unit || ''}`)}</span>
               </span>`;
 
             const s1 = (v) => (v === null ? null : `${v > 0 ? '+' : ''}${v.toFixed(1)}`);
@@ -867,10 +891,16 @@ card:
             const slopeCfg = cfg.slope || {};
             if (!slopeCfg.show_temperature_chips) return '';
 
+            const escapeHtml = (value) => String(value ?? '')
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
             const chip = (k, v, unit, c) => `
               <span class="cv-chip" style="--cv:${c};">
-                <span class="k">${k}</span>
-                <span class="v" style="color:${c};">${v === null ? '—' : v}${unit || ''}</span>
+                <span class="k">${escapeHtml(k)}</span>
+                <span class="v" style="color:${c};">${escapeHtml(v === null ? '—' : `${v}${unit || ''}`)}</span>
               </span>`;
             const telemetry = Array.isArray(cfg.telemetry) ? cfg.telemetry : [];
             const zones = cfg.zones && typeof cfg.zones === 'object' ? cfg.zones : {};

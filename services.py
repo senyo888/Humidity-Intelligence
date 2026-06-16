@@ -58,6 +58,7 @@ SERVICE_LIST_SAVED_VERSIONS = "list_saved_versions"
 _FLASH_LIGHT_LOCKS_KEY = "_flash_light_locks"
 
 _ALLOWED_LAYOUTS = {"v2_mobile", "v2_tablet", "v1_mobile", "view_cards_button"}
+_ALLOWED_VISUAL_POWER_DOMAINS = {"light", "switch"}
 _SAFE_FILENAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 _SAFE_DASHBOARD_PATH_RE = re.compile(r"^[a-z0-9_-]{1,64}$")
 _RELEASE_CHECK_MANIFEST_VERSION_RE = re.compile(
@@ -70,6 +71,9 @@ _SENSITIVE_ATTR_EXACT = {
     "password",
     "api_key",
     "authorization",
+    "credential",
+    "credentials",
+    "credential_json",
     "latitude",
     "longitude",
     "gps_accuracy",
@@ -91,6 +95,7 @@ _SENSITIVE_ATTR_PARTIAL = (
     "access_key",
     "authorization",
     "bearer",
+    "credential",
     "latitude",
     "longitude",
     "gps_",
@@ -150,6 +155,14 @@ def _validate_rgb_color(value) -> List[int]:
     return values[:3]
 
 
+def _validate_visual_power_entity(value: str) -> str:
+    text = cv.entity_id(value)
+    domain = text.split(".", 1)[0]
+    if domain not in _ALLOWED_VISUAL_POWER_DOMAINS:
+        raise vol.Invalid("Visual alert power_entity must be a switch or light entity")
+    return text
+
+
 def _validate_bool(value) -> bool:
     if isinstance(value, bool):
         return value
@@ -163,7 +176,7 @@ def _validate_bool(value) -> bool:
 
 
 SERVICE_FLASH_SCHEMA = vol.Schema({
-    vol.Optional("power_entity"): cv.entity_id,
+    vol.Optional("power_entity"): _validate_visual_power_entity,
     vol.Optional("lights", default=[]): cv.entity_ids,
     vol.Optional("color", default=[255, 0, 0]): _validate_rgb_color,
     vol.Optional("duration", default=10): vol.All(vol.Coerce(int), vol.Range(min=1, max=300)),

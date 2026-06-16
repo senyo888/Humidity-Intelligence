@@ -230,6 +230,35 @@ class IssueTriageTests(unittest.TestCase):
         self.assertIn("needs-bundle", analyzed.suggested_labels)
         self.assertNotIn("has-diagnostics", analyzed.suggested_labels)
 
+    def test_report_escapes_untrusted_issue_markup(self) -> None:
+        issue = {
+            "number": 88,
+            "title": "<img src=x onerror=alert(1)> [fake](https://evil.example)",
+            "html_url": "https://github.com/senyo888/humidity-intelligence/issues/88",
+            "user": {"login": "attacker]("},
+            "created_at": "2026-05-17T08:00:00Z",
+            "updated_at": "2026-05-17T08:30:00Z",
+            "labels": [{"name": "bug"}],
+            "body": "<img src=x onerror=alert(1)> See [trusted](https://evil.example)",
+        }
+        analyzed = [self.triage.analyze_issue(issue, now=self.generated_at, lookback_days=3)]
+
+        report = self.triage.render_report(
+            repo="senyo888/humidity-intelligence",
+            analyzed_issues=analyzed,
+            generated_at=self.generated_at,
+            lookback_days=3,
+            source_note="unit-test fixture",
+            api_status="offline",
+            rate_limit_note="not checked",
+        )
+
+        self.assertNotIn("<img", report)
+        self.assertNotIn("onerror=alert", report)
+        self.assertNotIn("[trusted](https://evil.example)", report)
+        self.assertIn("&lt;img", report)
+        self.assertIn("\\[trusted\\]\\(https://evil.example\\)", report)
+
     def test_fetch_open_issues_refuses_non_https_request_before_urlopen(self) -> None:
         request = mock.Mock(full_url="file:///tmp/issues.json")
 

@@ -41,6 +41,7 @@ The diagnostics platform uses Home Assistant `async_redact_data` plus HI's own U
 It redacts sensitive keys and values such as:
 
 - tokens and bearer credentials
+- credential-style keys
 - secrets and passwords
 - API keys
 - webhook URLs

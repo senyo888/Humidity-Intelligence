@@ -817,6 +817,7 @@ CO emergency pressure. Details are in
 
 - promoted integration metadata to beta `2.0.7-beta.1`
 - documented HA Lab as advisory Operational Beta Validation Infrastructure for sanitized beta deploy, runtime-readiness, diagnostics, and generated-card/entity-map evidence without making HA Lab release authority
+- hardened visual-alert service validation, diagnostics credential-key redaction, generated V2 card HTML rendering, and local issue-triage report escaping without changing deterministic lane ordering, entity semantics, or migration behavior
 - fixed PM2.5 aggregate runtime truth so configured PM2.5 telemetry exposes canonical backend-owned PM25 aggregate entities instead of relying on Home Assistant's dotted `pm2_5` name slug
 - hardened generated-card AQ output details so unresolved optional AQ aggregate rows are pruned instead of rendering stale `Entity not found` rows, with generated-card entity reference checks in `self_check` and `v205_release_check`
 - changed generated V2 Current Air Control cards so red control-row styling follows selected alert/CO runtime truth, while degraded or unmapped alert candidates remain in reason text instead of primary chip-row space

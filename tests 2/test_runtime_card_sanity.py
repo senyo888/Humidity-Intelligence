@@ -3458,6 +3458,20 @@ def test_support_diagnostics_summary_uses_canonical_level_label_source():
     }
 
 
+def test_flash_lights_power_entity_rejects_non_switch_light_domains():
+    services_mod = _load_services_module()
+
+    assert services_mod._validate_visual_power_entity("switch.alert_power") == "switch.alert_power"
+    assert services_mod._validate_visual_power_entity("light.alert_power") == "light.alert_power"
+
+    try:
+        services_mod._validate_visual_power_entity("fan.extractor")
+    except Exception as err:
+        assert "switch or light" in str(err)
+    else:
+        raise AssertionError("fan power_entity should be rejected")
+
+
 def test_dump_diagnostics_legacy_export_redacts_sensitive_payload_before_write():
     services_mod = _load_services_module()
     entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
@@ -3556,6 +3570,20 @@ def test_dump_diagnostics_legacy_export_redacts_sensitive_payload_before_write()
     assert "[REDACTED]" in rendered
     assert "[REDACTED_URL]" in rendered
     assert "sensor.kitchen_h" in rendered
+
+
+def test_generated_v2_cards_escape_dynamic_html_text():
+    for path in (
+        ROOT / "ui" / "cards" / "v2_mobile.yaml",
+        ROOT / "ui" / "cards" / "v2_tablet.yaml",
+        ROOT / "ui-gallery" / "default-v2-mobile-aq" / "card.yaml",
+        ROOT / "ui-gallery" / "default-v2-tablet-zone-2" / "card.yaml",
+    ):
+        source = path.read_text(encoding="utf-8")
+        assert "const escapeHtml = " in source, path
+        assert "lines.map(escapeHtml).join('<br>')" in source, path
+        assert "${escapeHtml(k)}" in source, path
+        assert "${escapeHtml(v === null ? '—' : `${v}${unit || ''}`)}" in source, path
 
 
 def test_diagnostics_summary_surfaces_temperature_comfort_warm_boundary():

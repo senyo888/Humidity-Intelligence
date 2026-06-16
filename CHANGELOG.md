@@ -12,6 +12,9 @@ This project follows a practical changelog format for Home Assistant and HACS us
 - Documented HA Lab as advisory Operational Beta Validation Infrastructure and added
   PR/release-governance wording for reporting sanitized HA Lab evidence without
   changing runtime, UI, entity semantics, migration, or release authority.
+- Hardened visual-alert service validation, diagnostics credential-key redaction,
+  generated V2 card HTML rendering, and local issue-triage report escaping without
+  changing deterministic lane ordering, entity semantics, or migration behavior.
 - Fixed PM2.5 aggregate runtime truth by ensuring new PM2.5 aggregate sensors use canonical PM25 entity slugs and by normalizing existing HI PM2.5 aggregate entity IDs from `pm2_5` to `pm25` during setup.
 - Hardened generated-card AQ output details so unresolved optional AQ aggregate rows
   are pruned instead of rendering stale `Entity not found` rows, and added
