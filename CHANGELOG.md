@@ -6,6 +6,15 @@ All notable changes to Humidity Intelligence will be documented in this file.
 
 This project follows a practical changelog format for Home Assistant and HACS users. Add new entries under a fresh `Unreleased` section before publishing a future release.
 
+## Unreleased
+
+- Added a GitHub Pages SEO landing site for search discovery, with static public
+  copy, the Humidity Intelligence logo, wide home-telemetry hero artwork,
+  sitemap/robots crawl helpers, structured search metadata, pinned Pages workflow
+  actions, README routing, and repository source-of-truth boundaries. Runtime
+  behavior, entity semantics, generated dashboards, HACS metadata, and migration
+  requirements are unchanged.
+
 ## 2.0.7-beta.1
 
 - Promoted integration metadata to beta `2.0.7-beta.1`.

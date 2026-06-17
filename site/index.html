@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Humidity Intelligence - Home Assistant Environmental Stabilisation Engine</title>
+    <meta
+      name="description"
+      content="Humidity Intelligence helps Home Assistant use smart sensor data to guide air purifiers, extractors, humidifiers, and dehumidifiers for fresher air, humidity balance, and a clearer home routine."
+    >
+    <meta name="robots" content="index,follow">
+    <link rel="canonical" href="https://senyo888.github.io/humidity-intelligence/">
+    <meta property="og:site_name" content="Humidity Intelligence">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Humidity Intelligence - Home Assistant Environmental Stabilisation Engine">
+    <meta
+      property="og:description"
+      content="A Home Assistant integration that uses smart sensor data to support fresher air, humidity balance, and clearer decisions at home."
+    >
+    <meta property="og:url" content="https://senyo888.github.io/humidity-intelligence/">
+    <meta property="og:image" content="https://senyo888.github.io/humidity-intelligence/assets/header.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Humidity Intelligence">
+    <meta
+      name="twitter:description"
+      content="Use Home Assistant smart sensor data to support fresher air, humidity balance, and a clearer home routine."
+    >
+    <meta name="twitter:image" content="https://senyo888.github.io/humidity-intelligence/assets/header.png">
+    <link rel="icon" href="assets/logo.png" type="image/png">
+    <link rel="stylesheet" href="styles.css">
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "name": "Humidity Intelligence",
+            "url": "https://senyo888.github.io/humidity-intelligence/",
+            "description": "A public project page for Humidity Intelligence, a Home Assistant custom integration for explainable humidity, air-quality, condensation, and mould-risk guidance.",
+            "publisher": {
+              "@type": "Organization",
+              "name": "Humidity Intelligence"
+            },
+            "sameAs": [
+              "https://github.com/senyo888/Humidity-Intelligence",
+              "https://github.com/senyo888/Humidity-Intelligence/wiki"
+            ]
+          },
+          {
+            "@type": "SoftwareSourceCode",
+            "name": "Humidity Intelligence",
+            "codeRepository": "https://github.com/senyo888/Humidity-Intelligence",
+            "url": "https://senyo888.github.io/humidity-intelligence/",
+            "runtimePlatform": "Home Assistant",
+            "programmingLanguage": "Python",
+            "applicationCategory": "Home Assistant custom integration",
+            "license": "https://github.com/senyo888/Humidity-Intelligence/blob/main/LICENSE"
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <nav class="site-nav" aria-label="Primary navigation">
+        <a class="brand" href="https://senyo888.github.io/humidity-intelligence/" aria-label="Humidity Intelligence home">
+          <img class="brand-logo" src="assets/logo.png" alt="" width="40" height="40" aria-hidden="true">
+          <span>Humidity Intelligence</span>
+        </a>
+        <div class="nav-links">
+          <a href="https://github.com/senyo888/Humidity-Intelligence#installation">Install</a>
+          <a href="https://github.com/senyo888/Humidity-Intelligence/wiki">Wiki</a>
+          <a href="https://github.com/senyo888/Humidity-Intelligence">GitHub</a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <img class="hero-logo" src="assets/logo.png" alt="Humidity Intelligence logo" width="104" height="104">
+          <p class="eyebrow">Home Assistant custom integration</p>
+          <h1 id="hero-title">Humidity Intelligence</h1>
+          <p class="lede">
+            Humidity Intelligence acts as a stabiliser for your home environment.
+            It uses data from Home Assistant smart sensors to help guide air
+            purifiers, extractors, humidifiers, and dehumidifiers, so your home can
+            stay fresher, calmer, and more comfortable day to day.
+          </p>
+          <div class="hero-actions" aria-label="Primary links">
+            <a class="button primary" href="https://github.com/senyo888/Humidity-Intelligence#installation">Install from GitHub</a>
+            <a class="button secondary" href="https://github.com/senyo888/Humidity-Intelligence/wiki">Read the support manual</a>
+          </div>
+          <p class="authority-note">
+            This page gives you a quick feel for how Humidity Intelligence can
+            support a clearer routine at home. For setup, upgrades, release notes,
+            the user manual, the UI Gallery, and the full installation guide, head
+            to the GitHub repository and Wiki.
+          </p>
+        </div>
+      </section>
+
+      <section class="intro" aria-labelledby="intro-title">
+        <div class="section-inner two-column">
+          <div>
+            <p class="section-kicker">Why it exists</p>
+            <h2 id="intro-title">A balanced home routine is easier when the signals are joined up.</h2>
+          </div>
+          <p>
+            A bathroom can go damp after a shower while the rest of the house feels
+            fine. Air quality can dip, a humidifier can pause, or a safety gate can
+            ask HI to stand back. Instead of leaving you to compare everything by
+            hand, Humidity Intelligence brings the signals together and explains the
+            next sensible action inside Home Assistant.
+          </p>
+        </div>
+      </section>
+
+      <section class="feature-band" aria-labelledby="features-title">
+        <div class="section-inner">
+          <p class="section-kicker">What it helps with</p>
+          <h2 id="features-title">Practical guidance for fresh air, comfort, and damp-risk awareness.</h2>
+          <div class="feature-grid">
+            <article class="feature-card">
+              <h3>One clear recommendation</h3>
+              <p>
+                When the home sends mixed signals, HI follows a fixed priority order:
+                CO emergency, humidity danger, mould danger, mould risk,
+                condensation danger, condensation risk, Zone 1, Zone 2, air quality,
+                then normal operation. You get one clear control decision instead
+                of overlapping automation noise.
+              </p>
+            </article>
+            <article class="feature-card">
+              <h3>Season-aware comfort</h3>
+              <p>
+                Winter and summer homes need different humidity targets. HI reads
+                each room against the active profile, so guidance changes with the
+                season instead of relying on one flat number all year.
+              </p>
+            </article>
+            <article class="feature-card">
+              <h3>Dashboards you can trust</h3>
+              <p>
+                The Lovelace dashboards show what HI saw, mapped, skipped, and chose.
+                They are there to make the routine easier to understand, not to
+                invent their own logic.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="gallery" aria-labelledby="gallery-title">
+        <div class="section-inner">
+          <div class="gallery-heading">
+            <div>
+              <p class="section-kicker">Home routine examples</p>
+              <h2 id="gallery-title">Check what is happening before you act.</h2>
+            </div>
+            <a class="text-link" href="https://github.com/senyo888/Humidity-Intelligence/wiki/UI-Gallery">Browse the UI Gallery</a>
+          </div>
+          <div class="screenshot-grid">
+            <figure>
+              <img
+                src="assets/v2_ui_gallery/v204_presence_gate_reason.png"
+                alt="Humidity Intelligence mobile Current Air Control card showing presence gate reason text."
+              >
+              <figcaption>The reason behind the current recommendation</figcaption>
+            </figure>
+            <figure>
+              <img
+                src="assets/v2_ui_gallery/ui_v2_mobile_aq.png"
+                alt="Humidity Intelligence mobile dashboard example with air-quality and humidity telemetry sections."
+              >
+              <figcaption>Humidity and air quality in plain view</figcaption>
+            </figure>
+            <figure>
+              <img
+                src="assets/v2_ui_gallery/ui_v2_tablet_zone_2.png"
+                alt="Humidity Intelligence tablet dashboard example showing Zone 2 environmental control context."
+              >
+              <figcaption>Room and zone context when you need detail</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section class="links-band" aria-labelledby="links-title">
+        <div class="section-inner">
+          <p class="section-kicker">More detail</p>
+          <h2 id="links-title">When you are ready to install or troubleshoot, go to the source.</h2>
+          <div class="link-list">
+            <a href="https://github.com/senyo888/Humidity-Intelligence#installation">
+              <span>Install from the complete guide</span>
+              <small>Repository README</small>
+            </a>
+            <a href="https://github.com/senyo888/Humidity-Intelligence/releases">
+              <span>Check releases and upgrades</span>
+              <small>GitHub releases</small>
+            </a>
+            <a href="https://github.com/senyo888/Humidity-Intelligence/wiki/Generated-Dashboards">
+              <span>Regenerate your dashboards</span>
+              <small>Support manual</small>
+            </a>
+            <a href="https://github.com/senyo888/Humidity-Intelligence/wiki/Diagnostics-and-Support-Bundle">
+              <span>Prepare diagnostics for support</span>
+              <small>Support manual</small>
+            </a>
+            <a href="https://github.com/senyo888/Humidity-Intelligence/tree/main/ui-gallery">
+              <span>Browse reviewed dashboard examples</span>
+              <small>Versioned repository files</small>
+            </a>
+            <a href="https://github.com/senyo888/Humidity-Intelligence/issues/new/choose">
+              <span>Ask for help or report a bug</span>
+              <small>GitHub issue forms</small>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section class="support-band" id="support" aria-labelledby="support-title">
+        <div class="section-inner support-layout">
+          <div class="support-copy">
+            <p class="section-kicker">Support Humidity Intelligence</p>
+            <h2 id="support-title">Could you help more Home Assistant homes stay balanced?</h2>
+            <p>
+              If HI has helped your home, please consider supporting the project in
+              a practical way: star the repo so others can find it, test a release
+              when you can, open clear issues with diagnostics, or suggest
+              improvements to the docs and UI examples when something could be
+              easier. Sponsorship is completely optional, but it directly supports
+              the maintenance time that keeps HI reviewed, usable, and moving
+              forward.
+            </p>
+          </div>
+          <div class="support-actions" aria-label="Ways to support Humidity Intelligence">
+            <a class="support-action" href="https://github.com/senyo888/Humidity-Intelligence/stargazers">
+              <span>Star the project</span>
+              <small>Helps more Home Assistant users find it.</small>
+            </a>
+            <a class="support-action" href="https://github.com/senyo888/Humidity-Intelligence/releases">
+              <span>Test a release</span>
+              <small>Fresh installs and upgrades reveal real-life edges.</small>
+            </a>
+            <a class="support-action" href="https://github.com/senyo888/Humidity-Intelligence/issues/new/choose">
+              <span>Share clean diagnostics</span>
+              <small>Good reports turn problems into safer fixes.</small>
+            </a>
+            <a class="support-action" href="https://github.com/sponsors/senyo888">
+              <span>Sponsor the work</span>
+              <small>Support the maintenance time behind HI.</small>
+            </a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="section-inner footer-inner">
+        <p>Built independently for Home Assistant users who want fresher air, clearer decisions, and explainable environmental control.</p>
+        <a href="https://github.com/senyo888/Humidity-Intelligence">View the repository on GitHub</a>
+      </div>
+    </footer>
+  </body>
+</html>

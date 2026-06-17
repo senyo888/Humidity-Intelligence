@@ -7,6 +7,7 @@
 ## Domestic Environmental Stabilisation Engine for Home Assistant
 
 [![Latest Release](https://img.shields.io/github/v/release/senyo888/Humidity-Intelligence?display_name=tag&sort=semver)](https://github.com/senyo888/Humidity-Intelligence/releases)
+[![Project Site](https://img.shields.io/badge/Project%20Site-GitHub%20Pages-5aa8d6)](https://senyo888.github.io/humidity-intelligence/)
 [![HACS](https://img.shields.io/badge/HACS-Custom%20Integration-orange)](https://hacs.xyz)
 [![Manifest Version](https://img.shields.io/badge/dynamic/json?label=Manifest%20Version&query=%24.version&url=https%3A%2F%2Fraw.githubusercontent.com%2Fsenyo888%2FHumidity-Intelligence%2Fsenyo888-patch-1%2Fmanifest.json&color=blue)](manifest.json)
 [![License](https://img.shields.io/github/license/senyo888/Humidity-Intelligence)](LICENSE)
@@ -15,6 +16,7 @@
 ## Contents
 
 - [TL;DR](#tldr)
+- [Project Site and Search Discovery](#project-site-and-search-discovery)
 - [What Is Humidity Intelligence](#what-is-humidity-intelligence)
 - [V2 UI Example](#v2-ui-example)
 - [Support Humidity Intelligence](#support-humidity-intelligence)
@@ -57,6 +59,24 @@ It gives you:
 Current release: **v2.0.7-beta.1**.
 
 v2.0.6 remains the current stable release on `main`; v2.0.7-beta.1 is the active staging/testing line.
+
+---
+
+## Project Site and Search Discovery
+
+Humidity Intelligence now has a lightweight GitHub Pages project site:
+
+- [Open the project site](https://senyo888.github.io/humidity-intelligence/)
+
+The site exists to help Home Assistant users find Humidity Intelligence through
+search and quickly understand what the project does. It includes crawl-friendly
+metadata, a canonical URL, sitemap/robots files, and structured data for search
+engines.
+
+The project site is a project overview, not a second source of runtime truth.
+Installation, release notes, migration guidance, support instructions, diagnostics,
+and reviewed dashboard YAML remain in this repository, GitHub releases, the Wiki
+support manual, and the canonical `ui-gallery/` files.
 
 ---
 
