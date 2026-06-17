@@ -54,19 +54,36 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await async_register_services(hass)
 
     try:
-        changed_pm25_entity_ids = normalize_pm25_aggregate_entity_ids(hass, entry.entry_id)
+        pm25_normalization = normalize_pm25_aggregate_entity_ids(hass, entry.entry_id)
     except Exception:
         _LOGGER.exception(
             "Failed PM2.5 aggregate entity ID normalization for HI entry %s",
             entry.entry_id,
         )
+        pm25_normalization = {
+            "changed": {},
+            "blocked": [
+                {
+                    "reason": "normalization_exception",
+                }
+            ],
+        }
     else:
+        changed_pm25_entity_ids = pm25_normalization.get("changed", {})
+        blocked_pm25_entity_ids = pm25_normalization.get("blocked", [])
         if changed_pm25_entity_ids:
             _LOGGER.info(
                 "Normalized HI PM2.5 aggregate entity IDs for entry %s: %s",
                 entry.entry_id,
                 sorted(changed_pm25_entity_ids.values()),
             )
+        if blocked_pm25_entity_ids:
+            _LOGGER.warning(
+                "HI PM2.5 aggregate entity ID normalization has blocked conflicts for entry %s: %s",
+                entry.entry_id,
+                blocked_pm25_entity_ids,
+            )
+    entry_data["pm25_entity_id_normalization"] = pm25_normalization
 
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor", "binary_sensor", "switch"])
     await async_update_humidity_drift_repair_issue(hass)

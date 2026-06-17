@@ -349,6 +349,31 @@ def test_native_diagnostics_reports_house_drift_statistics_dependency():
     assert any("HI House Humidity Drift 7d" in warning for warning in payload["runtime"]["warnings"])
 
 
+def test_native_diagnostics_reports_blocked_pm25_normalization():
+    diagnostics = _load_diagnostics_module()
+    hass = _sample_hass()
+    hass.data["humidity_intelligence"]["entry123"]["pm25_entity_id_normalization"] = {
+        "changed": {},
+        "blocked": [
+            {
+                "unique_suffix": "house_pm25_average",
+                "current_entity_id": "sensor.hi_house_pm2_5_average",
+                "target_entity_id": "sensor.hi_house_pm25_average",
+                "reason": "target_exists",
+            }
+        ],
+    }
+
+    payload = asyncio.run(
+        diagnostics.async_get_config_entry_diagnostics(hass, _sample_entry())
+    )
+
+    pm25 = payload["diagnostics_summary"]["pm25_entity_id_normalization"]
+    assert pm25["status"] == "blocked"
+    assert pm25["blocked"][0]["reason"] == "target_exists"
+    assert any("PM25 aggregate entity ID normalization is blocked" in warning for warning in payload["runtime"]["warnings"])
+
+
 def test_native_diagnostics_distinguishes_existing_not_ready_drift_helper():
     diagnostics = _load_diagnostics_module()
     hass = _sample_hass()

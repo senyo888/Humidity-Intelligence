@@ -216,6 +216,7 @@ def _compact_diagnostics_summary(summary: dict) -> dict:
         "visual_alerts": _compact_visual_alerts(summary.get("visual_alerts", [])),
         "active_alert_resolution": active_alerts,
         "humidity_drift_7d": summary.get("humidity_drift_7d", {}),
+        "pm25_entity_id_normalization": summary.get("pm25_entity_id_normalization", {}),
         "local_version_preservation": summary.get("local_version_preservation", {}),
         "unavailable_or_unknown_entities_count": len(unavailable),
         "unavailable_or_unknown_entities_sample": unavailable[:20],

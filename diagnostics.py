@@ -422,6 +422,9 @@ def _diagnostics_summary(
         warnings.append(f"{len(unavailable)} configured/mapped entity references are missing, unknown, or unavailable.")
     if drift_dependency_warning:
         warnings.append(drift_dependency_warning)
+    pm25_normalization = _pm25_normalization_status(runtime_data)
+    if pm25_normalization.get("blocked"):
+        warnings.append("PM25 aggregate entity ID normalization is blocked by an existing target entity.")
     if not telemetry:
         warnings.append("No telemetry sensors are configured.")
     if not zones and not config.get("alert_only_mode"):
@@ -456,10 +459,30 @@ def _diagnostics_summary(
         "active_alert_resolution": runtime_data.get("alert_telemetry", []),
         "visual_alerts": _visual_alert_summary(alerts),
         "humidity_drift_7d": drift_dependency,
+        "pm25_entity_id_normalization": pm25_normalization,
         "frontend_dependency_resources": frontend_dependencies,
         "local_version_preservation": local_version_status or cached_local_version_status(hass),
         "unavailable_or_unknown_entities": unavailable,
         "warnings": warnings,
+    }
+
+
+def _pm25_normalization_status(runtime_data: dict[str, Any]) -> dict[str, Any]:
+    details = runtime_data.get("pm25_entity_id_normalization")
+    if not isinstance(details, dict):
+        return {"status": "not_run", "changed": {}, "blocked": []}
+    changed = details.get("changed") if isinstance(details.get("changed"), dict) else {}
+    blocked = details.get("blocked") if isinstance(details.get("blocked"), list) else []
+    if blocked:
+        status = "blocked"
+    elif changed:
+        status = "changed"
+    else:
+        status = "ok"
+    return {
+        "status": status,
+        "changed": changed,
+        "blocked": blocked,
     }
 
 

@@ -20,10 +20,11 @@ PM25_AGGREGATE_UNIQUE_SUFFIXES = (
 )
 
 
-def normalize_pm25_aggregate_entity_ids(hass: HomeAssistant, entry_id: str) -> dict[str, str]:
+def normalize_pm25_aggregate_entity_ids(hass: HomeAssistant, entry_id: str) -> dict:
     """Normalize legacy PM2.5 aggregate entity IDs to canonical PM25 slugs."""
     registry = er.async_get(hass)
     changed: dict[str, str] = {}
+    blocked: list[dict[str, str]] = []
 
     for suffix in PM25_AGGREGATE_UNIQUE_SUFFIXES:
         unique_id = f"hi_{entry_id}_{suffix}"
@@ -38,6 +39,14 @@ def normalize_pm25_aggregate_entity_ids(hass: HomeAssistant, entry_id: str) -> d
                 entity_id,
                 target_entity_id,
             )
+            blocked.append(
+                {
+                    "unique_suffix": suffix,
+                    "current_entity_id": entity_id,
+                    "target_entity_id": target_entity_id,
+                    "reason": "target_exists",
+                }
+            )
             continue
 
         try:
@@ -48,11 +57,22 @@ def normalize_pm25_aggregate_entity_ids(hass: HomeAssistant, entry_id: str) -> d
                 entity_id,
                 target_entity_id,
             )
+            blocked.append(
+                {
+                    "unique_suffix": suffix,
+                    "current_entity_id": entity_id,
+                    "target_entity_id": target_entity_id,
+                    "reason": "update_failed",
+                }
+            )
             continue
 
         changed[entity_id] = target_entity_id
 
-    return changed
+    return {
+        "changed": changed,
+        "blocked": blocked,
+    }
 
 
 async def adopt_or_create_entity_id(

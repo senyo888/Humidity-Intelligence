@@ -29,6 +29,12 @@ This project follows a practical changelog format for Home Assistant and HACS us
   are pruned instead of rendering stale `Entity not found` rows, and added
   generated-card entity reference availability checks to `self_check` and
   `v205_release_check`.
+- Expanded generated-card entity reference checks so stale IDs embedded inside
+  generated-card JavaScript/string expressions are reported, not only YAML `entity:`
+  rows.
+- Added diagnostics, `self_check`, and `v205_release_check` reporting for PM2.5
+  aggregate entity-ID normalization conflicts when a canonical `pm25` target entity
+  already exists.
 - Sanitized generated V2 card templates, gallery exports, and test fixtures so
   public artifacts use canonical HI placeholders instead of maintainer-local
   presence, alarm, tracker, or room-sensor entity IDs.

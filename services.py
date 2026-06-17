@@ -59,6 +59,47 @@ _FLASH_LIGHT_LOCKS_KEY = "_flash_light_locks"
 
 _ALLOWED_LAYOUTS = {"v2_mobile", "v2_tablet", "v1_mobile", "view_cards_button"}
 _ALLOWED_VISUAL_POWER_DOMAINS = {"light", "switch"}
+_GENERATED_CARD_ENTITY_DOMAINS = (
+    "alarm_control_panel",
+    "binary_sensor",
+    "button",
+    "calendar",
+    "camera",
+    "climate",
+    "cover",
+    "device_tracker",
+    "event",
+    "fan",
+    "humidifier",
+    "input_boolean",
+    "input_button",
+    "input_datetime",
+    "input_number",
+    "input_select",
+    "input_text",
+    "light",
+    "lock",
+    "media_player",
+    "number",
+    "person",
+    "remote",
+    "scene",
+    "script",
+    "select",
+    "sensor",
+    "siren",
+    "switch",
+    "timer",
+    "update",
+    "vacuum",
+    "weather",
+    "zone",
+)
+_GENERATED_CARD_ENTITY_RE = re.compile(
+    r"\b(?:"
+    + "|".join(re.escape(domain) for domain in _GENERATED_CARD_ENTITY_DOMAINS)
+    + r")\.[A-Za-z0-9_]+\b"
+)
 _SAFE_FILENAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 _SAFE_DASHBOARD_PATH_RE = re.compile(r"^[a-z0-9_-]{1,64}$")
 _RELEASE_CHECK_MANIFEST_VERSION_RE = re.compile(
@@ -445,6 +486,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
                 "generated_card_entity_availability": card_entity_availability,
                 "frontend_dependency_resources": frontend_dependencies,
                 "humidity_drift_7d": drift_dependency,
+                "pm25_entity_id_normalization": _pm25_normalization_status(data),
                 "local_version_preservation": local_version_status,
                 "telemetry_count": len(entry.data.get("telemetry", [])),
                 "unresolved_placeholders": data.get("unresolved_placeholders", []),
@@ -847,6 +889,9 @@ def _build_diagnostics_summary(
         warnings.append(f"{len(unavailable)} configured/mapped entity references are missing, unknown, or unavailable.")
     if drift_dependency_warning:
         warnings.append(drift_dependency_warning)
+    pm25_normalization = _pm25_normalization_status(runtime_data)
+    if pm25_normalization.get("blocked"):
+        warnings.append("PM25 aggregate entity ID normalization is blocked by an existing target entity.")
     if not telemetry:
         warnings.append("No telemetry sensors are configured.")
     if not zones and not effective.get("alert_only_mode"):
@@ -881,6 +926,7 @@ def _build_diagnostics_summary(
         "active_alert_resolution": runtime_data.get("alert_telemetry", []),
         "visual_alerts": _visual_alert_summary(alerts),
         "humidity_drift_7d": drift_dependency,
+        "pm25_entity_id_normalization": pm25_normalization,
         "local_version_preservation": local_version_status or cached_local_version_status(hass),
         "unavailable_or_unknown_entities": unavailable,
         "warnings": warnings,
@@ -1034,6 +1080,18 @@ def _build_v205_release_check_entry_report(
         drift_dependency,
     )
 
+    pm25_normalization = _pm25_normalization_status(runtime_data)
+    pm25_blocked = bool(pm25_normalization.get("blocked"))
+    _add_check(
+        checks,
+        "pm25_entity_id_normalization",
+        "warn" if pm25_blocked else "pass",
+        "PM25 aggregate entity ID normalization has no blocked conflicts."
+        if not pm25_blocked
+        else "PM25 aggregate entity ID normalization is blocked by an existing target entity.",
+        pm25_normalization,
+    )
+
     local_snapshot_status, local_snapshot_message, local_snapshot_details = _local_snapshot_release_check(
         local_version_status or cached_local_version_status(hass),
         require_local_hi_snapshot=require_local_hi_snapshot,
@@ -1158,6 +1216,25 @@ def _combined_check_status(items: List[dict]) -> str:
     return "pass"
 
 
+def _pm25_normalization_status(runtime_data: dict) -> dict:
+    details = runtime_data.get("pm25_entity_id_normalization")
+    if not isinstance(details, dict):
+        return {"status": "not_run", "changed": {}, "blocked": []}
+    changed = details.get("changed") if isinstance(details.get("changed"), dict) else {}
+    blocked = details.get("blocked") if isinstance(details.get("blocked"), list) else []
+    if blocked:
+        status = "blocked"
+    elif changed:
+        status = "changed"
+    else:
+        status = "ok"
+    return {
+        "status": status,
+        "changed": changed,
+        "blocked": blocked,
+    }
+
+
 def _output_details_visibility_failures(cards: dict, show_output_details: bool) -> List[str]:
     failures: List[str] = []
     for layout in ("v2_mobile", "v2_tablet"):
@@ -1224,12 +1301,13 @@ def _generated_card_entity_availability(hass: HomeAssistant, cards: dict) -> dic
 
 def _extract_generated_card_entity_ids(card: str) -> List[str]:
     entity_ids: List[str] = []
-    entity_pattern = re.compile(
-        r"^[ \t]*(?:-[ \t]*)?entity:[ \t]*([a-z_]+\.[A-Za-z0-9_]+)[ \t]*(?:#.*)?$",
-        re.MULTILINE,
-    )
-    for match in entity_pattern.finditer(card or ""):
-        entity_ids.append(match.group(1))
+    seen: set[str] = set()
+    for match in _GENERATED_CARD_ENTITY_RE.finditer(card or ""):
+        entity_id = match.group(0)
+        if entity_id in seen:
+            continue
+        seen.add(entity_id)
+        entity_ids.append(entity_id)
     return entity_ids
 
 

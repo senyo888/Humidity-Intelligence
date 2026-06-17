@@ -3882,6 +3882,74 @@ def test_v205_release_check_fails_stale_generated_card_entity_references():
     ]
 
 
+def test_generated_card_entity_extraction_includes_embedded_js_references():
+    services_mod = _load_services_module()
+
+    entity_ids = services_mod._extract_generated_card_entity_ids(
+        "\n".join(
+            [
+                "type: custom:button-card",
+                "entity: sensor.hi_air_control_mode",
+                "tap_action:",
+                "  service_data:",
+                "    entity_id: input_boolean.air_control_enabled",
+                "custom_fields:",
+                "  reason: >",
+                "    [[[",
+                "      const pause = states['timer.air_control_pause']?.state;",
+                "      const output = fanTxt('fan.kitchen_air');",
+                "      const docs = 'https://github.com/senyo888/Humidity-Intelligence';",
+                "    ]]]",
+            ]
+        )
+    )
+
+    assert entity_ids == [
+        "sensor.hi_air_control_mode",
+        "input_boolean.air_control_enabled",
+        "timer.air_control_pause",
+        "fan.kitchen_air",
+    ]
+
+
+def test_v205_release_check_fails_js_only_stale_generated_card_references():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.house_humidity_mean_7d": _FakeState(43),
+        },
+    )
+
+    report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        {
+            "entity_map": {},
+            "cards": {
+                "v2_mobile": (
+                    "type: markdown\n"
+                    "content: |\n"
+                    "  [[[ return states['sensor.hi_js_only_missing']?.state || 'unknown'; ]]]\n"
+                ),
+                "v2_tablet": "type: markdown\ncontent: Tablet ready\n",
+                "v1_mobile": "type: markdown\ncontent: Legacy ready\n",
+                "view_cards_button": "type: button\nname: View cards\n",
+            },
+            "unresolved_placeholders_by_card": {},
+        },
+        manifest_version="2.0.7-beta.1",
+        frontend_dependencies={"status": "not_inspectable"},
+    )
+    checks = {check["id"]: check for check in report["checks"]}
+
+    assert checks["generated_card_entity_availability"]["status"] == "fail"
+    assert checks["generated_card_entity_availability"]["details"]["missing_entities"] == [
+        {"layout": "v2_mobile", "entity_id": "sensor.hi_js_only_missing"}
+    ]
+
+
 def test_v205_release_check_uses_card_scoped_unresolved_placeholders_when_available():
     services_mod = _load_services_module()
     entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
@@ -4054,11 +4122,13 @@ def test_alert_configuration_contract_uses_internal_sources():
     assert "diagnostics_summary" in services_source
     assert "visual_alerts" in services_source
     assert "active_alert_resolution" in services_source
+    assert "pm25_entity_id_normalization" in services_source
     sensor_source = (ROOT / "sensor.py").read_text()
     assert '"config": _sanitize_json(config)' not in sensor_source
     assert '"entity_map": _sanitize_json(entity_map)' not in sensor_source
     assert '"alert_telemetry": _sanitize_json(alert_telemetry)' not in sensor_source
     assert "_compact_diagnostics_summary" in sensor_source
+    assert "pm25_entity_id_normalization" in sensor_source
     assert "Use service humidity_intelligence.dump_diagnostics" in sensor_source
     assert "HUMIDITY_ALERT_FLASH_COUNT = 10" in (ROOT / "automations" / "engine.py").read_text()
     assert "HUMIDITY_ALERT_REPEAT_MINUTES = 30" in (ROOT / "automations" / "engine.py").read_text()
@@ -4212,7 +4282,10 @@ def test_pm25_aggregate_registry_normalizes_legacy_pm2_5_entity_ids():
     changed = registry_mod.normalize_pm25_aggregate_entity_ids(hass, ENTRY_ID)
 
     assert changed == {
-        "sensor.hi_house_pm2_5_average": "sensor.hi_house_pm25_average",
+        "changed": {
+            "sensor.hi_house_pm2_5_average": "sensor.hi_house_pm25_average",
+        },
+        "blocked": [],
     }
     assert "sensor.hi_house_pm25_average" in registry.entries
     assert "sensor.hi_house_pm2_5_average" not in registry.entries
@@ -4220,6 +4293,109 @@ def test_pm25_aggregate_registry_normalizes_legacy_pm2_5_entity_ids():
     assert registry.updated == [
         ("sensor.hi_house_pm2_5_average", "sensor.hi_house_pm25_average")
     ]
+
+
+def test_pm25_aggregate_registry_reports_blocked_target_conflict():
+    registry_mod = _load_entity_registry_helper_module()
+
+    class _Entry:
+        def __init__(self, entity_id):
+            self.entity_id = entity_id
+
+    class _Registry:
+        def __init__(self):
+            self.updated = []
+            self.entries = {
+                "sensor.hi_house_pm2_5_average": _Entry("sensor.hi_house_pm2_5_average"),
+                "sensor.hi_house_pm25_average": _Entry("sensor.hi_house_pm25_average"),
+            }
+
+        def async_get_entity_id(self, domain, platform, unique_id):
+            if (domain, platform, unique_id) == (
+                "sensor",
+                "humidity_intelligence",
+                f"hi_{ENTRY_ID}_house_pm25_average",
+            ):
+                return "sensor.hi_house_pm2_5_average"
+            return None
+
+        def async_get(self, entity_id):
+            return self.entries.get(entity_id)
+
+        def async_update_entity(self, entity_id, *, new_entity_id):
+            self.updated.append((entity_id, new_entity_id))
+
+    registry = _Registry()
+    hass = SimpleNamespace()
+    sys.modules["homeassistant.helpers.entity_registry"].async_get = lambda _hass: registry
+
+    status = registry_mod.normalize_pm25_aggregate_entity_ids(hass, ENTRY_ID)
+
+    assert status == {
+        "changed": {},
+        "blocked": [
+            {
+                "unique_suffix": "house_pm25_average",
+                "current_entity_id": "sensor.hi_house_pm2_5_average",
+                "target_entity_id": "sensor.hi_house_pm25_average",
+                "reason": "target_exists",
+            }
+        ],
+    }
+    assert registry.updated == []
+
+
+def test_v205_release_check_warns_on_blocked_pm25_normalization():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.house_humidity_mean_7d": _FakeState(43),
+        },
+    )
+    runtime_data = {
+        "entity_map": {},
+        "cards": {
+            "v2_mobile": "type: markdown\ncontent: Mobile ready\n",
+            "v2_tablet": "type: markdown\ncontent: Tablet ready\n",
+            "v1_mobile": "type: markdown\ncontent: Legacy ready\n",
+            "view_cards_button": "type: button\nname: View cards\n",
+        },
+        "unresolved_placeholders_by_card": {},
+        "pm25_entity_id_normalization": {
+            "changed": {},
+            "blocked": [
+                {
+                    "unique_suffix": "house_pm25_average",
+                    "current_entity_id": "sensor.hi_house_pm2_5_average",
+                    "target_entity_id": "sensor.hi_house_pm25_average",
+                    "reason": "target_exists",
+                }
+            ],
+        },
+    }
+
+    report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        runtime_data,
+        manifest_version="2.0.7-beta.1",
+        frontend_dependencies={"status": "not_inspectable"},
+    )
+    checks = {check["id"]: check for check in report["checks"]}
+    summary = services_mod._build_diagnostics_summary(
+        hass,
+        entry.data,
+        entry.options,
+        {},
+        runtime_data,
+    )
+
+    assert checks["pm25_entity_id_normalization"]["status"] == "warn"
+    assert checks["pm25_entity_id_normalization"]["details"]["status"] == "blocked"
+    assert summary["pm25_entity_id_normalization"]["status"] == "blocked"
+    assert any("PM25 aggregate entity ID normalization is blocked" in warning for warning in summary["warnings"])
 
 
 if __name__ == "__main__":
