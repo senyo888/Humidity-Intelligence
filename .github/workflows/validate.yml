@@ -97,7 +97,17 @@ jobs:
           if [ -d custom_components ]; then
             python -m compileall -q custom_components
           else
-            echo "::warning::custom_components/ not found; compiling repository Python files instead."
+            python - <<'PY'
+          import json
+          from pathlib import Path
+
+          hacs = json.loads(Path("hacs.json").read_text(encoding="utf-8"))
+
+          if not hacs.get("content_in_root"):
+              raise SystemExit(
+                  "custom_components/ not found and hacs.json does not set content_in_root: true."
+              )
+          PY
             python -m compileall -q .
           fi
 
@@ -126,6 +136,9 @@ jobs:
 
       - name: Validate canonical documentation banners
         run: python "tests 2/test_doc_banners.py"
+
+      - name: Validate workflow configuration
+        run: python -m unittest "tests 2/test_workflows.py"
 
       - name: Validate YAML if PyYAML is available
         shell: bash
