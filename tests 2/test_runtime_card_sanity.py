@@ -3066,6 +3066,18 @@ def test_readme_uses_manifest_version_badge_not_static_ha_compatibility_badge():
     assert "Home%20Assistant-2026.4.3%2B" not in readme_source
 
 
+def test_readme_only_shows_two_latest_release_notes_before_previous_releases():
+    readme_source = (ROOT / "README.md").read_text()
+    release_notes = readme_source.split("## Release Notes", 1)[1]
+    visible_notes, previous_releases = release_notes.split("<details>", 1)
+
+    assert "### v2.0.7" in visible_notes
+    assert "### v2.0.6" in visible_notes
+    assert "### v2.0.5" not in visible_notes
+    assert "<summary>Previous Releases</summary>" in previous_releases
+    assert "### v2.0.5" in previous_releases
+
+
 def test_dump_cards_without_layout_exports_all_cached_layouts():
     services_mod = _load_services_module()
     entry = SimpleNamespace(entry_id=ENTRY_ID)
@@ -4148,7 +4160,7 @@ def test_v206_drift_statistics_helper_docs_preserve_repair_status_split():
     assert "Statistics helper" in readme
     assert "Do not fabricate history" in readme
     assert "not ready or unavailable" in readme
-    assert "2.0.7-beta.1" in changelog
+    assert "2.0.7" in changelog
     assert "setup/repair" in changelog
     assert "algorithm" not in changelog.lower()
 

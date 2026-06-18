@@ -56,9 +56,9 @@ It gives you:
 - native Home Assistant diagnostics for support and triage
 - services for dashboard export, self-check, diagnostics, pause/resume, and release validation
 
-Current release: **v2.0.7-beta.1**.
+Current release: **v2.0.7**.
 
-v2.0.6 remains the current stable release on `main`; v2.0.7-beta.1 is the active staging/testing line.
+v2.0.7 is the stable release line prepared from `senyo888-patch-1`; v2.0.6 remains the previous stable release on `main` until promotion, tagging, and GitHub release publication are completed.
 
 ---
 
@@ -341,7 +341,8 @@ must be reviewable from tracked repository files.
 
 ## Current Release Highlights
 
-- integration metadata now identifies the active staging/testing line as `2.0.7-beta.1`
+- integration metadata now identifies the stable release line as `2.0.7`
+- GitHub Pages search-discovery routing now points users back to the repository, releases, Wiki support manual, and canonical UI gallery as the source of runtime truth
 - PM2.5 aggregate runtime truth now exposes canonical `pm25` aggregate entity IDs when PM2.5 telemetry is configured, including setup-time normalization for existing `pm2_5` aggregate IDs
 - generated-card validation now checks entity references embedded in exported YAML, so stale Manual-card entity IDs are caught by `self_check` / `v205_release_check`
 - generated-card validation now includes entity references embedded inside generated-card JavaScript/string expressions, not just YAML `entity:` rows
@@ -355,7 +356,7 @@ must be reviewable from tracked repository files.
 - release/PR checklist guidance now records Wiki update status as `updated`, `no-op`, or `blocked` when public support manual guidance is affected
 - Wiki Services Reference, footer navigation, and banner assets make the support manual easier to scan
 
-Upgrade note: **v2.0.7-beta.1 is a beta/staging build for generated-card UI truth, support-manual, release-governance, proposal-readiness work, and the PM2.5 aggregate runtime-truth fix.** After updating HI through HACS or file replacement, restart Home Assistant so Home Assistant reloads the manifest version and runs the PM2.5 aggregate entity-ID normalization. Use config-entry reload only after option changes once the updated code is already loaded. Run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual cards if you use generated Current Air Control or PM2.5 aggregate card surfaces; already-pasted Manual cards are static and do not inherit backend entity ID changes automatically.
+Upgrade note: **v2.0.7 is the stable release for generated-card UI truth, support-manual routing, release-governance readiness, project-site search discovery, and the PM2.5 aggregate runtime-truth fix.** After updating HI through HACS or file replacement, restart Home Assistant so Home Assistant reloads the manifest version and runs the PM2.5 aggregate entity-ID normalization. Use config-entry reload only after option changes once the updated code is already loaded. Run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual cards if you use generated Current Air Control or PM2.5 aggregate card surfaces; already-pasted Manual cards are static and do not inherit backend entity ID changes automatically.
 
 ---
 
@@ -809,9 +810,10 @@ CO emergency pressure. Details are in
 
 ## Release Notes
 
-### v2.0.7-beta.1
+### v2.0.7
 
-- promoted integration metadata to beta `2.0.7-beta.1`
+- promoted integration metadata to stable `2.0.7`
+- added a GitHub Pages SEO landing site for search discovery, with public copy, logo/hero artwork, crawl helpers, structured metadata, pinned Pages workflow actions, README routing, and explicit repository source-of-truth boundaries
 - documented HA Lab as advisory Operational Beta Validation Infrastructure for sanitized beta deploy, runtime-readiness, diagnostics, and generated-card/entity-map evidence without making HA Lab release authority
 - hardened visual-alert service validation, diagnostics credential-key redaction, generated V2 card HTML rendering, and local issue-triage report escaping without changing deterministic lane ordering, entity semantics, or migration behavior
 - fixed PM2.5 aggregate runtime truth so configured PM2.5 telemetry exposes canonical backend-owned PM25 aggregate entities instead of relying on Home Assistant's dotted `pm2_5` name slug
@@ -854,6 +856,9 @@ CO emergency pressure. Details are in
 - preserved the existing drift calculation and legacy `sensor.house_humidity_mean_7d` compatibility
 - kept lane ordering, AQ, humidifier, alert, output, migration, restore, HACS update, and runtime-control behavior unchanged except for the explicit `telemetry_unavailable` mode/entity truth correction
 
+<details>
+<summary>Previous Releases</summary>
+
 ### v2.0.5
 
 - reorganised setup and options around essentials first, with tuning controls behind Advanced sections that open/retract immediately without an extra Submit cycle
@@ -869,9 +874,6 @@ CO emergency pressure. Details are in
 - changed first-install UI export default to `v2_tablet`
 - kept deterministic runtime behavior, lane ordering, alert hierarchy, CO emergency handling, humidifier independence, public entity semantics, and `dump_cards` unchanged
 - promoted integration metadata to stable `2.0.5`; branch/version governance now allows beta, rc, or stable labels on `senyo888-patch-1`, rc or stable labels on `develop`, and stable releases on `main`
-
-<details>
-<summary>Previous Releases</summary>
 
 ### v2.0.4
 
