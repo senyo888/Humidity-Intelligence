@@ -374,7 +374,7 @@ The UI does not compute logic. The engine decides; the UI renders.
 - optional temperature chip colours now use backend-owned seasonal cold, comfort, warm, and hot boundaries
 - deterministic lane ordering, alert hierarchy, CO emergency priority, humidifier independence, output writes, migration behavior, and `dump_cards` remain unchanged
 
-Upgrade note: **v2.0.6 concentrates on runtime truth, missing-telemetry fail-safe behavior, release validation support, and configuration/support polish.** After updating HI, reload or restart Home Assistant. Run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual cards if you use generated Current Air Control cards.
+Upgrade note: **v2.0.6 concentrates on runtime truth, missing-telemetry fail-safe behavior, release validation support, and configuration/support polish.** After updating HI through HACS or file replacement, restart Home Assistant. Use config-entry reload only after option changes once the updated code is already loaded. Run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual cards if you use generated Current Air Control cards.
 
 ---
 
@@ -1162,7 +1162,7 @@ CO emergency pressure. Details are in
 - promoted integration metadata to stable `2.0.6`
 - added degraded `telemetry_unavailable` runtime mode when required humidity or configured temperature telemetry is unavailable, so HI stands down safely instead of reporting normal/all-clear
 - fixed global gate preemption so a running humidity-danger alert lane clears its alert context and Current Air Control does not keep showing stale alert-running state after the gate takes over
-- no migration is required for the global gate preemption fix; after updating HI, reload/restart Home Assistant, then run `humidity_intelligence.dump_cards` or re-copy any pasted dashboard YAML and refresh dashboard/browser cache to see the Current Air Control card update
+- no migration is required for the global gate preemption fix; after updating HI through HACS or file replacement, restart Home Assistant. Use config-entry reload only after option changes once the updated code is already loaded. Then run `humidity_intelligence.dump_cards` or re-copy any pasted dashboard YAML and refresh dashboard/browser cache to see the Current Air Control card update
 - fixed CO emergency clear timing so the engine schedules a recheck at the two-minute clear deadline instead of waiting for the next periodic control interval
 - added direct backend simulation validation for `HI Air Control Mode` and `HI Air Control Reason`, including normal, telemetry unavailable, zone, AQ, gate, and opt-in CO pressure scenarios
 - fixed setup/options telemetry add and edit Cancel handling so users can return to the previous telemetry page without losing already-saved flow data
