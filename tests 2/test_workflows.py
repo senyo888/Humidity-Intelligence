@@ -7,17 +7,17 @@ import unittest
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+FIRST_INTERACTION_V3_SHA = "1c4688942c71f71d4f5502a26ea67c331730fa4d"
 
 
 class WorkflowConfigurationTests(unittest.TestCase):
-    def test_first_interaction_v3_uses_supported_input_names(self) -> None:
+    def test_first_interaction_v3_is_pinned_and_uses_supported_input_names(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "first-interaction.yml").read_text(
             encoding="utf-8"
         )
 
-        if "actions/first-interaction@v3" not in workflow:
-            self.skipTest("first-interaction workflow is not using v3")
-
+        self.assertIn(f"actions/first-interaction@{FIRST_INTERACTION_V3_SHA} # v3", workflow)
+        self.assertNotIn("actions/first-interaction@v3", workflow)
         self.assertIn("repo_token:", workflow)
         self.assertIn("issue_message:", workflow)
         self.assertIn("pr_message:", workflow)
