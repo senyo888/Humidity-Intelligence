@@ -19,11 +19,11 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Post first interaction welcome
-        uses: actions/first-interaction@3c71ce730280171fd1cfb57c00c774f8998586f7
+        uses: actions/first-interaction@v3
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          issue-message: |
-            ![Humidity Intelligence](https://raw.githubusercontent.com/senyo888/Humidity-Intelligence/main/assets/header.png)
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          issue_message: |
+            ![Humidity Intelligence](https://raw.githubusercontent.com/senyo888/humidity-intelligence/main/assets/header.png)
 
             Thanks for opening your first Humidity Intelligence issue. It is good to have you here.
 
@@ -39,8 +39,8 @@ jobs:
             If this is an enhancement idea, community discussion and the proposal process are the right place to shape it. Clear problems, real examples, and constructive tradeoffs help maintainers assess the idea, but discussion does not mean every idea will be accepted for implementation.
 
             Thanks for helping make Humidity Intelligence easier to support, explain, and improve.
-          pr-message: |
-            ![Humidity Intelligence](https://raw.githubusercontent.com/senyo888/Humidity-Intelligence/main/assets/header.png)
+          pr_message: |
+            ![Humidity Intelligence](https://raw.githubusercontent.com/senyo888/humidity-intelligence/main/assets/header.png)
 
             Thanks for opening your first Humidity Intelligence pull request. Contributions help improve the project, and your time here is appreciated.
 

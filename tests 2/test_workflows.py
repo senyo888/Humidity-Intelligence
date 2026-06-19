@@ -24,6 +24,20 @@ class WorkflowConfigurationTests(unittest.TestCase):
             "custom_components/ not found and hacs.json does not set content_in_root: true.",
             workflow,
         )
+    def test_first_interaction_v3_uses_supported_input_names(self) -> None:
+        workflow = (ROOT / ".github" / "workflows" / "first-interaction.yml").read_text(
+            encoding="utf-8"
+        )
+
+        if "actions/first-interaction@v3" not in workflow:
+            self.skipTest("first-interaction workflow is not using v3")
+
+        self.assertIn("repo_token:", workflow)
+        self.assertIn("issue_message:", workflow)
+        self.assertIn("pr_message:", workflow)
+        self.assertNotIn("repo-token:", workflow)
+        self.assertNotIn("issue-message:", workflow)
+        self.assertNotIn("pr-message:", workflow)
 
 
 if __name__ == "__main__":
