@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
 
@@ -23,10 +23,12 @@ jobs:
         run: |
           set -euo pipefail
           GITLEAKS_VERSION="8.29.1"
+          GITLEAKS_SHA256="e4eb209d04e20339d77122a3bdf9cd41351255cfb27ebcb75e85325e04f88924"
           mkdir -p "$RUNNER_TEMP/gitleaks"
           curl -fsSL \
             "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
             -o "$RUNNER_TEMP/gitleaks.tar.gz"
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/gitleaks.tar.gz" | sha256sum -c -
           tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP/gitleaks" gitleaks
           echo "$RUNNER_TEMP/gitleaks" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/gitleaks/gitleaks" version
@@ -41,9 +43,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: "3.x"
 
@@ -95,7 +97,17 @@ jobs:
           if [ -d custom_components ]; then
             python -m compileall -q custom_components
           else
-            echo "::warning::custom_components/ not found; compiling repository Python files instead."
+            python - <<'PY'
+          import json
+          from pathlib import Path
+
+          hacs = json.loads(Path("hacs.json").read_text(encoding="utf-8"))
+
+          if not hacs.get("content_in_root"):
+              raise SystemExit(
+                  "custom_components/ not found and hacs.json does not set content_in_root: true."
+              )
+          PY
             python -m compileall -q .
           fi
 
@@ -125,6 +137,9 @@ jobs:
       - name: Validate canonical documentation banners
         run: python "tests 2/test_doc_banners.py"
 
+      - name: Validate workflow configuration
+        run: python -m unittest "tests 2/test_workflows.py"
+
       - name: Validate YAML if PyYAML is available
         shell: bash
         run: |
@@ -149,7 +164,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
-          python -m pip install "bandit[toml]" semgrep
+          python -m pip install "bandit[toml]==1.9.4" "semgrep==1.166.0"
 
       - name: Bandit SAST
         shell: bash

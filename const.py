@@ -22,6 +22,14 @@ CONF_SHOW_TEMPERATURE_CHIPS = "show_temperature_chips"
 DEFAULT_SHOW_TEMPERATURE_CHIPS = False
 CONF_SHOW_OUTPUT_ENTITY_DETAILS = "show_output_entity_details"
 DEFAULT_SHOW_OUTPUT_ENTITY_DETAILS = False
+CONF_LEVEL_LABELS = "level_labels"
+CONF_LEVEL1_LABEL = "level1_label"
+CONF_LEVEL2_LABEL = "level2_label"
+LEVEL_LABEL_FALLBACKS = {
+    "level1": "Level 1",
+    "level2": "Level 2",
+}
+LEVEL_LABEL_MAX_LENGTH = 32
 STARTUP_UI_REFRESH_DELAY_SECONDS = 5
 
 # Supported sensor types for telemetry input
@@ -36,8 +44,8 @@ SENSOR_TYPES = [
 ]
 
 LEVELS = [
-    {"value": "level1", "label": "Level 1 (Downstairs)"},
-    {"value": "level2", "label": "Level 2 (Upstairs)"},
+    {"value": "level1", "label": LEVEL_LABEL_FALLBACKS["level1"]},
+    {"value": "level2", "label": LEVEL_LABEL_FALLBACKS["level2"]},
 ]
 
 COMMON_ROOMS = [

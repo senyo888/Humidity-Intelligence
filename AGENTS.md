@@ -2,7 +2,7 @@
 
 # Humidity Intelligence Agent Guide
 
-This is the public, repository-safe operating guide for AI agents working on Humidity Intelligence. It is intentionally concise and does not replace the design brief.
+This is the public, repository-safe operating guide for AI agents working on Humidity Intelligence. It is intentionally concise and complements the tracked public architecture contract.
 
 ## Project Identity
 
@@ -11,7 +11,7 @@ Humidity Intelligence is a deterministic Home Assistant environmental control en
 ## Source of Truth
 
 - Public repo correctness must be reviewable from tracked files in this repository.
-- `AGENTS.md`, `README.md`, `CHANGELOG.md`, tracked docs, runtime code, tests, and generated UI templates are the public review contract.
+- `ARCHITECTURE.md`, `AGENTS.md`, `README.md`, `CHANGELOG.md`, tracked docs, runtime code, tests, generated UI templates, and `ui-gallery/` are the public review contract.
 - Maintainers may keep `DESIGN_BRIEF.md`, `PROJECT_SUMMARY.md`, `ROADMAP.md`, and `PROPOSALS.md` as ignored local planning or release-preparation documents.
 - If architecture, runtime behavior, security posture, release flow, contributor expectations, or documentation expectations materially change, update the relevant tracked public docs in the same work.
 - Ignored local docs may be mirrored separately, but must not be required for public contributor correctness.
@@ -79,12 +79,21 @@ Humidity Intelligence is a deterministic Home Assistant environmental control en
 - For runtime changes, include Python compile/import sanity and targeted regression tests where available.
 - For card/UI changes, validate generated Lovelace output and check for stale mappings, private entities, malformed structures, and frontend dependency assumptions.
 - For docs-only changes, perform a documentation sanity pass: check filenames, source-of-truth references, public-safety, and consistency with current repository structure.
-- Review for stale imports, stale mappings, stale docs, outdated service names, and drift from `DESIGN_BRIEF.md`.
+- Review for stale imports, stale mappings, stale docs, outdated service names, and drift from `ARCHITECTURE.md` plus other tracked public docs.
 - Do not claim validation was completed if it was not run.
+
+## HA Lab Operational Validation Boundary
+
+- HA Lab may be used as Operational Beta Validation Infrastructure for beta deploys, post-deploy read-only checks, diagnostics review, and generated-card/entity-map sanity evidence.
+- HA Lab evidence is advisory process evidence only. It is not release authority, runtime authority, stable Home Assistant authority, or a substitute for Bella, Aetherwing, AetherCore, and Senyo gates.
+- HA Lab work must preserve source identity, exact version, target boundary, mutation classification, rollback evidence, and public/private documentation separation.
+- HA Lab validation must not authorize autonomous Home Assistant mutation, restarts, reloads, helper changes, dashboard mutation, output writes, stable runtime access, tags, releases, or PR merges.
+- Public docs and PRs may summarize HA Lab status in sanitized terms, but local reports, credentials, target URLs, private entity IDs, and machine-specific details must remain local-only.
 
 ## Documentation and Release Expectations
 
 - Keep `README.md`, `manifest.json`, `hacs.json`, docs, release notes, UI examples, and runtime behavior aligned.
+- Keep the Wiki UI Gallery as a browseable mirror/index only; repository `ui-gallery/` remains canonical for reviewed YAML, preview assets, and contribution rules.
 - Update related docs when implementation behavior changes.
 - Treat completed milestones as completed. Do not leave shipped v2.0.5 functionality in planned, pending, or proposal-only roadmap buckets.
 - Keep branch/version state explicit: `senyo888-patch-1` may carry beta, rc, or stable labels; `develop` may carry rc or stable labels; `main` carries stable releases only.

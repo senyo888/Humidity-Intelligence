@@ -7,6 +7,7 @@
 ## Domestic Environmental Stabilisation Engine for Home Assistant
 
 [![Latest Release](https://img.shields.io/github/v/release/senyo888/Humidity-Intelligence?display_name=tag&sort=semver)](https://github.com/senyo888/Humidity-Intelligence/releases)
+[![Project Site](https://img.shields.io/badge/Project%20Site-GitHub%20Pages-5aa8d6)](https://senyo888.github.io/humidity-intelligence/)
 [![HACS](https://img.shields.io/badge/HACS-Custom%20Integration-orange)](https://hacs.xyz)
 [![Manifest Version](https://img.shields.io/badge/dynamic/json?label=Manifest%20Version&query=%24.version&url=https%3A%2F%2Fraw.githubusercontent.com%2Fsenyo888%2FHumidity-Intelligence%2Fsenyo888-patch-1%2Fmanifest.json&color=blue)](manifest.json)
 [![License](https://img.shields.io/github/license/senyo888/Humidity-Intelligence)](LICENSE)
@@ -15,6 +16,7 @@
 ## Contents
 
 - [TL;DR](#tldr)
+- [Project Site and Search Discovery](#project-site-and-search-discovery)
 - [What Is Humidity Intelligence](#what-is-humidity-intelligence)
 - [V2 UI Example](#v2-ui-example)
 - [Support Humidity Intelligence](#support-humidity-intelligence)
@@ -23,15 +25,16 @@
 - [Season-Aware Environmental Control](#season-aware-environmental-control)
 - [Design Philosophy](#design-philosophy)
 - [Architecture Overview](#architecture-overview)
+- [Public Architecture Contract](#public-architecture-contract)
 - [Current Release Highlights](#current-release-highlights)
 - [Installation](#installation)
 - [Frontend Dependencies](#frontend-dependencies)
 - [Migration Guide - v1 to v2](#migration-guide---v1-to-v2)
 - [Full Configuration Flow](#full-configuration-flow)
-- [Configuration Screenshots (Visual Guide)](#configuration-screenshots-visual-guide)
 - [UI Gallery](#ui-gallery)
 - [Post-Configuration Workflow](#post-configuration-workflow)
 - [How to Use Services](#how-to-use-services)
+- [Documentation and Support Manual](#documentation-and-support-manual)
 - [Support, Diagnostics, and Issue Triage](#support-diagnostics-and-issue-triage)
 - [Runtime Simulation Validation](#runtime-simulation-validation)
 - [Release Notes](#release-notes)
@@ -53,7 +56,27 @@ It gives you:
 - native Home Assistant diagnostics for support and triage
 - services for dashboard export, self-check, diagnostics, pause/resume, and release validation
 
-Current release: **v2.0.6**.
+Current release: **v2.0.7**.
+
+v2.0.7 is the stable release line prepared from `senyo888-patch-1`; v2.0.6 remains the previous stable release on `main` until promotion, tagging, and GitHub release publication are completed.
+
+---
+
+## Project Site and Search Discovery
+
+Humidity Intelligence now has a lightweight GitHub Pages project site:
+
+- [Open the project site](https://senyo888.github.io/humidity-intelligence/)
+
+The site exists to help Home Assistant users find Humidity Intelligence through
+search and quickly understand what the project does. It includes crawl-friendly
+metadata, a canonical URL, sitemap/robots files, and structured data for search
+engines.
+
+The project site is a project overview, not a second source of runtime truth.
+Installation, release notes, migration guidance, support instructions, diagnostics,
+and reviewed dashboard YAML remain in this repository, GitHub releases, the Wiki
+support manual, and the canonical `ui-gallery/` files.
 
 ---
 
@@ -79,7 +102,7 @@ The system works as a coordinated environmental control layer for everyday house
 - unstable overnight humidity can be corrected gradually to improve comfort and reduce moisture stress
 - dangerous conditions such as mould-risk humidity or carbon monoxide escalation can trigger higher-priority safety responses
 
-Humidity Intelligence is intentionally deterministic. Every decision is based on visible telemetry, defined environmental rules, and priority logic rather than opaque AI behaviour or unpredictable automation chains. The goal is not automation for its own sake; it is long-term environmental stability, comfort, and property protection.
+Humidity Intelligence is intentionally deterministic. Every decision is based on visible telemetry, defined environmental rules, and priority logic rather than opaque AI behaviour or unpredictable automation chains. The goal is long-term environmental stability, comfort, and property protection rather than automation for its own sake.
 
 The project also places strong emphasis on transparency. Users can see why actions are happening, what environmental conditions triggered them, which zone is active, and what the system is trying to achieve at any given moment. Seasonal context, comfort targets, active alerts, and runtime reasoning are surfaced directly into the UI so the system feels understandable rather than mysterious.
 
@@ -104,27 +127,10 @@ At its core, Humidity Intelligence is about creating a calmer, more stable livin
 <details>
 <summary><strong>More UI Examples</strong></summary>
 
-Additional screenshots are kept collapsed so the front page stays focused.
+Additional screenshots and layout comparisons live in the Wiki so the front page stays focused.
 
-- [Open the full V2 UI image folder](assets/v2_ui_gallery/)
-- [Open the reusable UI Gallery](ui-gallery/README.md)
-
-Additional image files:
-
-- [Current Air Control ready state](assets/v2_ui_gallery/v204_current_air_control_ready.png)
-- [Zone-bound alert boost state](assets/v2_ui_gallery/v204_zone_alert_boost.png)
-- [V2 mobile air quality lane state](assets/v2_ui_gallery/ui_v2_mobile_aq.png)
-- [V2 mobile Zone 2 moisture stabilisation state](assets/v2_ui_gallery/IMG_0323.png)
-- [Expanded output details example](assets/v2_ui_gallery/IMG_0324.png)
-- [Unmapped alert degraded context](assets/v2_ui_gallery/v204_unmapped_alert_context.png)
-- [Zone 2 temperature chip state](assets/v2_ui_gallery/v204_zone2_temperature_chips.png)
-- [V2 gallery image 5665](assets/v2_ui_gallery/IMG_5665.png)
-- [V2 gallery image 5672](assets/v2_ui_gallery/IMG_5672.png)
-- [V2 gallery image 5673](assets/v2_ui_gallery/IMG_5673.png)
-- [V2 gallery image 5674](assets/v2_ui_gallery/IMG_5674.png)
-- [V2 gallery image 5675](assets/v2_ui_gallery/IMG_5675.png)
-- [Legacy-compatible V1 mobile skin](assets/v2_ui_gallery/ui_v1_mobile.png)
-- [V2 tablet Zone 2 compact example](assets/v2_ui_gallery/ui_v2_tablet_zone_2.png)
+- [Browse the UI Gallery](https://github.com/senyo888/humidity-intelligence/wiki/UI-Gallery)
+- [Open the canonical gallery source](ui-gallery/README.md)
 
 </details>
 
@@ -150,91 +156,51 @@ Sponsorship is optional. It does not create a support SLA, private support oblig
 
 ## Why Environmental Stability Matters
 
-Homes rarely become damp, dry, stale, or uncomfortable because of one isolated reading. Problems usually build as patterns: a bathroom that stays wet too long, a room that drifts away from the rest of the house, a winter profile that needs a lower humidity target, or an air-quality spike that lingers after cooking.
+Homes rarely become damp, dry, stale, or uncomfortable because of one isolated reading. Problems usually build as patterns: a bathroom that stays wet too long, a bedroom that drifts away from the rest of the house, a winter profile that needs a lower humidity target, or an air-quality spike that lingers after cooking.
 
-Humidity Intelligence is built for those patterns. It treats environmental stability as the goal, not a single perfect number.
+Humidity Intelligence is built for those patterns. It treats environmental stability as the goal rather than a single perfect number.
 
-Instability can appear as:
+The important signal goes beyond "humidity is high" or "humidity is low." It is the shape of the problem:
 
 - drift
 - imbalance
 - duration
 - recurring spread patterns
 
-### High Humidity Related Issues
+That is where environmental control becomes more personal. A house can look fine in the daytime, then become uncomfortable in the evening when real life happens: dinner is cooked, showers run, baths are taken, laundry dries, doors close, bedrooms cool, and every person in the home keeps adding moisture simply by breathing. By the time everyone is trying to sleep, the air can feel heavier, bedding can feel clammy, windows can start to mist, and the room can feel unstable even if the dashboard is only showing a number.
 
-- condensation formation
-- mould growth risk
-- dust mite proliferation
-- sleep disruption
-- structural degradation over time
+High humidity can make sleep feel broken and heavy. It can also help condensation settle on cold surfaces, support mould and dust-mite conditions, damage finishes, and stress timber or other moisture-sensitive materials over repeated cycles.
 
-### Low Humidity Related Issues
+Low humidity is quieter, but it can still be uncomfortable. Dry winter air can mean irritated airways, dry throat, coughing, itchy skin, gritty eyes, and natural materials that shrink, creak, or crack as they repeatedly dry out.
 
-- irritated airways
-- dry throat and coughing
-- worsened asthma symptoms
-- dry skin and eye irritation
-- reduced respiratory resilience
+Humidity Intelligence is designed for that domestic rhythm. It can see rooms rising or falling away from the active seasonal target, explain the condition, and use configured ventilation, dehumidification, or humidification before short-lived discomfort becomes repeated instability.
 
-### Indoor Plant Health Problems
-
-- low humidity: leaf browning, stress, slowed growth
-- excess humidity: fungal growth and pest vulnerability
-
-Most homes oscillate between both extremes seasonally.
-
-V2 models that instability directly, then explains what it is seeing instead of hiding the reasoning in disconnected automations.
+For the fuller explanation, including property impact, health comfort, sleep, night-time humidity sources, dry-air effects, plant health, and research context, see the Wiki guide: [Why Environmental Stability Matters](https://github.com/senyo888/humidity-intelligence/wiki/Why-Environmental-Stability-Matters).
 
 ---
 
 ## Air Quality and Environmental Stability
 
-Humidity Intelligence is not only humidity-focused. It contributes to environmental stability by surfacing indoor air-quality signals from configured Home Assistant entities and, where users have configured suitable outputs, using available devices such as air purifiers or ventilation fans to respond to poor air-quality conditions.
+Humidity Intelligence is broader than humidity alone. It contributes to environmental stability by surfacing indoor air-quality signals from configured Home Assistant entities and, where users have configured suitable outputs, using available devices such as air purifiers or ventilation fans to respond to poor air-quality conditions.
 
-Air-quality support is telemetry-driven. Humidity Intelligence only reflects the sensors, entities, thresholds, and output devices configured in Home Assistant. The UI and reason panel must mirror backend/entity truth only; they must not invent thresholds, health categories, alert levels, or control logic.
+Air-quality support is telemetry-driven. Humidity Intelligence reflects configured sensors, entities, thresholds, and output devices; the UI and reason panel stay aligned with backend/entity truth.
 
 The wider air-quality (AQ) telemetry family in the current configuration flow includes indoor air quality (IAQ), fine particulate matter (PM2.5), volatile organic compounds (VOCs), carbon dioxide (CO2), and carbon monoxide (CO), depending on what the user configures.
 
 Where an AQ lane is configured, it remains below safety and moisture-risk alert lanes in the deterministic priority order. Carbon monoxide emergency handling remains the highest-priority runtime lane, while normal AQ responses are deferred when higher-priority alert or zone lanes are active.
 
-### Carbon monoxide (CO)
+Carbon-monoxide safety deserves primary, certified protection. Humidity Intelligence can reflect configured CO telemetry as an additional Home Assistant awareness layer, while certified carbon-monoxide alarms remain the primary detection and alerting system.
 
-Carbon monoxide is a dangerous combustion-related gas. In homes it can be produced by faulty, damaged, or poorly ventilated fuel-burning appliances, blocked flues or chimneys, attached garages, fireplaces, boilers, stoves, unvented heaters, generators, charcoal grills, vehicle exhaust, or similar combustion sources.
+Detailed AQ and CO guidance lives in the support manual:
 
-Humidity Intelligence can surface configured carbon monoxide readings and can use configured carbon monoxide telemetry in its emergency lane and reason output. It reflects existing Home Assistant entities; it does not create certified detection hardware.
-
-> **Carbon monoxide safety warning:** Humidity Intelligence must not be relied on as the only carbon monoxide detection or alerting system. It only reflects existing Home Assistant entities and is not a certified carbon monoxide alarm, life-safety device, or compliance system. Users must install and maintain certified carbon monoxide alarms according to local regulations, manufacturer guidance, and applicable building/fire safety requirements. If a carbon monoxide alarm sounds or CO exposure is suspected, users must follow local emergency guidance.
-
-### Volatile organic compounds (VOCs)
-
-Volatile organic compounds are airborne chemicals released by many household materials and products. Practical sources include cleaning products, aerosols and sprays, paints, varnishes, adhesives, solvents, new furniture, carpets, building materials, scented products, hobby supplies, stored fuels, and dry-cleaned items.
-
-In everyday household terms, elevated VOC readings can correspond with odours, stale or chemically loaded air, irritation for sensitive occupants, and general indoor-air-quality degradation.
-
-Humidity Intelligence can display VOC-related readings when suitable sensors are configured. It can help correlate VOC changes with room conditions and reason-panel output, and it may trigger configured purification or ventilation responses where supported. It does not promise full removal of VOCs; the practical goal is to surface, reduce, mitigate, respond to, or help clear poor-air-quality conditions using the configured sensors and devices available to Home Assistant.
-
-### Fine particulate matter (PM2.5)
-
-Fine particulate matter (PM2.5) refers to very small airborne particles. Indoor examples include cooking, frying, candles, fireplaces, smoke, wildfire or smog ingress, dust disturbance, vacuuming, combustion sources, and outdoor pollution entering the home.
-
-Fine particles can linger in indoor air, affect perceived air quality, aggravate respiratory sensitivity, and make a room feel polluted even when humidity is stable.
-
-Humidity Intelligence can surface PM2.5 readings from configured sensors and use those readings as part of air-quality awareness. Where a compatible air purifier or fan output is configured, Humidity Intelligence can drive a response that supports particle reduction. It does not promise medical outcomes, certified purification, or guaranteed removal.
-
-### Indoor air quality (IAQ)
-
-In Humidity Intelligence, indoor air quality (IAQ) is a configured telemetry type (`iaq`) supplied by the user's Home Assistant sensor entities. The integration can expose house and level IAQ average sensors from configured numeric IAQ inputs, excluding `unknown`, `unavailable`, and non-numeric readings from aggregates. If no numeric IAQ readings remain, the aggregate reports unknown rather than inventing a value.
-
-IAQ is intended to provide a readable air-quality summary when the user's sensor already provides that kind of signal. It can help the UI and reason panel communicate air-quality state, including configured AQ trigger details, but it does not replace the underlying sensor entities or certify the meaning of a vendor-specific IAQ scale.
-
-IAQ wording in generated dashboards and documentation must reflect backend truth only: configured entities, aggregate values, deterministic AQ trigger state, and reason-panel output. It must not diagnose health risk or add frontend-only categories that the backend does not produce.
+- [Air Quality and CO Safety](https://github.com/senyo888/humidity-intelligence/wiki/Air-Quality-and-CO-Safety)
+- [Understanding Control Decisions](https://github.com/senyo888/humidity-intelligence/wiki/Understanding-Control-Decisions)
 
 ---
 
 ## Season-Aware Environmental Control
 
-`56%` is not always "high."
+`56%` can mean different things.
 
 The same humidity reading can mean different things in January and July. A home that feels stable in summer may be too damp for a cold winter envelope, while an aggressive winter target may be unnecessarily dry in warmer months.
 
@@ -270,7 +236,7 @@ Default temperature comfort bands:
 
 ## Design Philosophy
 
-Humidity Intelligence is built around a simple premise: a home should not be regulated by a loose pile of automations competing for control. It should have one visible environmental controller that reads configured telemetry, applies a stable priority hierarchy, and resolves one explainable outcome per evaluation cycle.
+Humidity Intelligence is built around a simple premise: a home works better with one visible environmental controller than with a loose pile of automations competing for control. That controller should read configured telemetry, apply a stable priority hierarchy, and resolve one explainable outcome per evaluation cycle.
 
 The engine is deterministic by design. It avoids guesses and hidden preferences. It evaluates season-aware humidity targets, safety gates, alert conditions, zone demand, air quality state, and humidifier needs through explicit rules so runtime behavior can be inspected, predicted, and explained.
 
@@ -305,7 +271,7 @@ This layer turns raw telemetry into structured environmental signals:
 - worst-room detection
 - binary danger states
 
-This layer models risk and does not control hardware.
+This layer models risk. Control happens in the deterministic priority engine.
 
 ### 2) Control Layer - Deterministic Priority Engine
 
@@ -325,7 +291,7 @@ Canonical runtime order:
 
 Alert lanes resolve the originating sensor to a configured room/zone, then use that zone's boost fan level as the single deterministic control path. Once an actionable alert is selected, HI holds that boost path until the originating alert clears unless a higher-priority alert appears.
 
-If an alert candidate cannot be mapped to a safe zone output, HI does not boost blindly. The reason panel reports the unmapped/degraded alert and automation continues to the next eligible priority.
+If an alert candidate cannot be mapped to a safe zone output, HI skips blind boosts. The reason panel reports the unmapped/degraded alert and automation continues to the next eligible priority.
 
 Built-in humidity, mould, and condensation risk states are treated as alert candidates when they can be traced back to telemetry. This keeps zone boost behavior and the companion alert chip aligned even if a matching explicit alert row has not been added.
 
@@ -358,23 +324,39 @@ This layer makes the engine understandable. It reflects runtime truth:
 - reason text
 - output stage transparency
 
-The UI does not compute logic. The engine decides; the UI renders.
+The engine decides; the UI renders.
+
+Generated V2 control-row colours separate selected command lanes from environmental risk: red row styling is reserved for selected alert/CO runtime truth. Degraded or unmapped alert candidates remain visible in reason text instead of occupying primary Current Air Control chip-row space.
+
+## Public Architecture Contract
+
+The tracked public architecture contract lives in [ARCHITECTURE.md](ARCHITECTURE.md).
+It records the durable runtime, UI-truth, Home Assistant compatibility, and release
+authority rules used for public review.
+
+Maintainer-only planning notes may exist locally, but public contributor correctness
+must be reviewable from tracked repository files.
 
 ---
 
 ## Current Release Highlights
 
-- required humidity telemetry, or configured temperature telemetry, now degrades explicitly to `telemetry_unavailable` instead of falling through to lower lanes or all-clear wording
-- CO emergency clearing now schedules a recheck at the two-minute clear deadline instead of waiting for the next normal control interval
-- global gates now clear lower-priority active alert switch/context/telemetry state so Current Air Control cannot keep showing stale humidity-danger activity after a gate takes authority
-- setup/options telemetry Cancel actions now return through an explicit confirmation path without losing already-saved flow data
-- Zone 2 setup/options defaults and trigger labels now preserve Zone 2 / Level 2 ownership unless explicitly changed
-- advanced local HI-only snapshot services, `create_local_backup` and `list_saved_versions`, support maintainer validation without adding restore, rollback, HACS interception, or runtime-control behavior
-- house humidity drift helper readiness is clearer across sensor attributes, diagnostics, `self_check`, `v205_release_check`, and Repairs
-- optional temperature chip colours now use backend-owned seasonal cold, comfort, warm, and hot boundaries
-- deterministic lane ordering, alert hierarchy, CO emergency priority, humidifier independence, output writes, migration behavior, and `dump_cards` remain unchanged
+- integration metadata now identifies the stable release line as `2.0.7`
+- GitHub Pages search-discovery routing now points users back to the repository, releases, Wiki support manual, and canonical UI gallery as the source of runtime truth
+- PM2.5 aggregate runtime truth now exposes canonical `pm25` aggregate entity IDs when PM2.5 telemetry is configured, including setup-time normalization for existing `pm2_5` aggregate IDs
+- generated-card validation now checks entity references embedded in exported YAML, so stale Manual-card entity IDs are caught by `self_check` / `v205_release_check`
+- generated-card validation now includes entity references embedded inside generated-card JavaScript/string expressions, not just YAML `entity:` rows
+- PM2.5 aggregate entity-ID normalization now reports blocked canonical-target conflicts through diagnostics, `self_check`, and `v205_release_check`
+- generated V2 Current Air Control cards keep selected command lanes in the chip row while moving unmapped alert/no-automation context into reason text
+- generated V2 Current Air Control cards now render backend `telemetry_unavailable` as explicit degraded state and avoid falling back to `normal` / `READY` when the mode sensor is missing or unavailable
+- generated V2 card templates and gallery exports now use canonical HI placeholders rather than maintainer-local presence, alarm, tracker, or room-sensor entity IDs
+- startup UI refresh now follows the `auto_refresh_ui_on_startup` option without writing card files unless initial UI install, option-visibility changes, or manual `dump_cards` calls request an export
+- Configuration Walkthrough links now route setup, post-configuration Frontend Dependencies, and final UI export guidance into the public support manual
+- GitHub Wiki support routing now covers configuration, services, diagnostics, generated dashboards, HACS/update guidance, AQ/CO safety, troubleshooting, and release validation
+- release/PR checklist guidance now records Wiki update status as `updated`, `no-op`, or `blocked` when public support manual guidance is affected
+- Wiki Services Reference, footer navigation, and banner assets make the support manual easier to scan
 
-Upgrade note: **v2.0.6 concentrates on runtime truth, missing-telemetry fail-safe behavior, release validation support, and configuration/support polish.** After updating HI through HACS or file replacement, restart Home Assistant. Use config-entry reload only after option changes once the updated code is already loaded. Run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual cards if you use generated Current Air Control cards.
+Upgrade note: **v2.0.7 is the stable release for generated-card UI truth, support-manual routing, release-governance readiness, project-site search discovery, and the PM2.5 aggregate runtime-truth fix.** After updating HI through HACS or file replacement, restart Home Assistant so Home Assistant reloads the manifest version and runs the PM2.5 aggregate entity-ID normalization. Use config-entry reload only after option changes once the updated code is already loaded. Run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual cards if you use generated Current Air Control or PM2.5 aggregate card surfaces; already-pasted Manual cards are static and do not inherit backend entity ID changes automatically.
 
 ---
 
@@ -544,11 +526,13 @@ sensor:
       days: 7
 ```
 
-In v2.0.6, HI reports missing-helper guidance through the drift sensor attributes, diagnostics, `self_check`, `v205_release_check`, and Home Assistant Repairs. The setup/options Frontend Dependencies pages remain frontend-only; drift helper truth belongs on diagnostics and repair surfaces.
+Since v2.0.6, HI reports missing-helper guidance through the drift sensor attributes, diagnostics, `self_check`, `v205_release_check`, and Home Assistant Repairs. The setup/options Frontend Dependencies pages remain frontend-only; drift helper truth belongs on diagnostics and repair surfaces.
 
-If the helper exists but reports `unknown`, `unavailable`, a non-numeric state, low `age_coverage_ratio`, or `source_value_valid: false`, HI reports it as not ready or unavailable instead of telling you to recreate the helper.
+Do not fabricate history. If the helper is missing, warming up, unavailable, or not numeric, HI reports that dependency state instead of synthesizing a drift value.
 
-Do not fabricate history. Drift remains unavailable until Home Assistant reports enough recorder/statistics samples for a numeric 7-day mean. Once the helper is numeric and ready, `HI House Humidity Drift 7d` becomes numeric automatically.
+If the helper exists but reports `unknown`, `unavailable`, a non-numeric state, low `age_coverage_ratio`, or `source_value_valid: false`, HI treats the helper as still warming up or awaiting usable recorder data.
+
+Let Home Assistant build real history. Drift becomes numeric automatically once the helper has enough recorder/statistics samples for a usable 7-day mean.
 
 ### Step 2 - Remove v1 UI YAML
 
@@ -568,14 +552,14 @@ The classic four-badge + Comfort Band layout remains compatible on the V2 engine
 - V1 UI = presentation skin
 - V2 = runtime engine
 
-No forced visual migration.
+Classic visual layouts remain available.
 
 ### Post-Migration Check
 
 After install, verify:
 
 - Integration loads in **Settings -> Devices & Services**
-- no references remain to `/custom_templates/`
+- `/custom_templates/` references are gone
 - UI renders correctly
 
 If needed, refresh UI:
@@ -590,287 +574,69 @@ service: humidity_intelligence.refresh_ui
 - V2 = Integration (`custom_components`)
 - HACS must be reconfigured to recognise the new structure
 
-Skipping this step will result in:
-
-- failed updates
-- incorrect install location
-- integration not loading
+This keeps HACS updates, install location, and integration loading aligned with the V2 package layout.
 
 
 ---
 
 ## Full Configuration Flow
 
-Follow this sequence on first install. Essentials stay visible; expert controls sit inside live collapsible **Show advanced tuning** sections. Opening or closing an Advanced section does not wipe saved values.
+First install follows a staged setup path. Essentials stay visible first; expert controls sit inside live **Show advanced tuning** sections so normal setup stays approachable.
 
-Advanced placement summary:
+Setup shape:
 
-| Area | Visible by default | Inside Advanced |
-| --- | --- | --- |
-| Global Gates | time gate, outside action, alert-only mode, target profile, presence entities | control loop interval, startup UI mapping refresh, generated-card output details, custom humidity target, custom temperature comfort bounds |
-| Temperature Slope | slope mode | slope source overrides, provided slope sensors, optional temperature chip row |
-| Zones | enablement, level, rooms, triggers, outputs | normal fan level, boost fan level, Current Air Control label |
-| Zone Thresholds | selected trigger context | humidity delta, AQ, condensation risk, and mould risk thresholds |
-| Humidifiers | enablement and outputs | band adjustment, lane removal in options |
-| Air Quality | enablement, triggers, outputs | lane removal, run duration, fan level, trigger thresholds |
-| Alerts | alert handling, source, room scope, target lights | CO threshold, power entity, flash mode, flash duration |
+1. Frontend Dependencies
+2. Global Gates
+3. Telemetry Inputs
+4. Temperature Slope
+5. Zones
+6. Humidifiers
+7. Air Quality
+8. Alerts and CO Emergency
+9. UI Deployment
 
-The default first UI export is `v2_tablet`. `show_output_entity_details` is display-only and only changes whether generated cards include the expandable output details panel.
+Key setup guidance:
 
-### 1) Frontend Dependencies
+- add humidity and temperature telemetry for active levels
+- assign telemetry to stable, readable rooms and levels
+- optionally set Level 1 / Level 2 display labels from Zones before Zone 1 / Zone 2 setup; labels are display-only and fall back to `Level 1` / `Level 2`
+- keep zone labels and output mappings clear enough for reason text and diagnostics
+- use recommended thresholds first, then tune from options after observing behavior
+- keep AQ and CO telemetry grounded in configured Home Assistant entities
+- use zone boost levels for alert escalation where alerts resolve to a mapped zone
+- use the generated dashboard export after setup or option changes
 
-What to do:
-- open the Frontend Dependencies step in config flow
-- review installed/not detected/not inspectable status and repository links
-- continue even if some are not installed
+The default first UI export is `v2_tablet`. `show_output_entity_details` is display-only and controls whether generated cards include the expandable output details panel.
+Level display labels are also display-only. Changing them updates generated-card/config-flow/support text after options are saved and cards are refreshed, but it does not rename entities, helpers, levels, zones, outputs, or runtime lanes.
 
-Reference:
-- see [Frontend Dependencies](#frontend-dependencies) for install guidance and acknowledgements
+Detailed manual:
 
-
-### 2) Global Gates
-
-What to do:
-- set time gate window (optional)
-- select presence/alarm entities (optional)
-- define explicit present and away state values
-- set Humidity Intelligence target profile mode
-- leave recommended defaults in place unless you have a clear reason to customise
-- open Advanced in-place only for control loop interval, startup UI mapping refresh, custom humidity targets, custom temperature comfort limits, or generated-card output details visibility
-
-Example baseline:
-- time gate enabled: `06:00` to `23:30`
-- outside action: `safe_state`
-- presence entities: `person.adam`, `person.eve`, or alarm panel
-- present states: `home`, `on`, `disarmed`
-- away states: `not_home`, `off`, `armed_away`, `away`
-- target profile mode: `auto`
-- generated-card output details: off for a cleaner dashboard unless you want the expandable output panel
-
-Example:
-- if everyone is away, HI enters gate hold
-- Current Air Control shows gate-active mode/chips
-- outputs are held or reset based on selected outside action
-
-### 3) Telemetry Inputs
-
-What to do:
-- add source entities for humidity and temperature
-- add optional AQ telemetry (`iaq`, `pm25`, `voc`, `co2`, `co`)
-- added sensors will appear in the UI Chip
-- assign EVERY sensor to level and room regardless of intended use
-
-Rules:
-- minimum one humidity + one temperature sensor per active level
-- use `level1` and `level2` consistently
-- keep room labels stable and human-readable
-- in v2.0.6, Cancel on setup/options telemetry add and edit pages returns
-  through an explicit confirmation step so already-saved flow data is preserved
-
-Example baseline:
-- Level 1: kitchen humidity, hallway humidity, kitchen temperature
-- Level 2: bedroom humidity, landing humidity, bedroom temperature
-- AQ: one IAQ + one PM2.5 per level if available
-
-Example row:
-- entity: `sensor.kitchen_humidity`
-- type: `humidity`
-- level: `level1`
-- room: `Kitchen`
-
-### 4) Temperature Slope Mode
-
-What to do:
-- choose whether HI calculates slope automatically or uses provided slope sensors
-- open Advanced only for slope source overrides, provided slope sensors, or the optional Air Control temperature chip row
-- use `Thresholds & Comfort` after setup for post-configuration temperature comfort adjustments
-
-Suggested baseline:
-- use HI-generated slope if you do not already publish stable slope entities
-- use external slope entities only when they are already validated
-- use automatic temperature comfort unless your household has a fixed comfort policy
-- leave the temperature chip row disabled unless you want temperature and slope telemetry shown under Current Air Control
-
-Example (external):
-- `sensor.kitchen_temp_slope`
-- `sensor.bedroom_temp_slope`
-
-Example (HI-generated):
-- source sensors selected: `sensor.kitchen_temp`, `sensor.bedroom_temp`
-- slope calculated, mapped through HI diagnostics to the registered Home Assistant entity ID, then displayed and used
-
-### 5) Zones (Zone 1 and Zone 2)
-
-What to do:
-- assign each zone to a level and room set
-- configure output entities
-- choose triggers
-- use recommended thresholds first; tune later from `Thresholds & Comfort` if observed behaviour needs adjustment
-- open Advanced for normal output stage, boost output stage, and Current Air Control label
-- keep boost higher than the normal zone fan level where possible
-- in v2.0.6, Zone 2 setup/options defaults to `level2` and trigger labels
-  show `Zone 2 / Level 2` ownership unless you explicitly choose a different level
-
-Example baseline:
-- Zone 1 label: `Cooking`
-- Zone 1 level: `level1`
-- Zone 1 normal output level: `66`
-- Zone 1 boost output level: `100`
-- Zone 1 trigger: humidity delta high
-- Zone 2 label: `Bathroom`
-- zone 2 trigger: humidity delta high, temp slope delta...
-- Zone 2 level: `level2`
-- Zone 2 normal output level: `66`
-- Zone 2 boost output level: `100`
-
-Example:
-- Zone 1 outputs: `fan.kitchen_air`, `fan.living_room_air`
-- Zone 2 outputs: `fan.upstairs_air`
-- fan stages: `auto`, `33`, `66`, `100`
-
-### 6) Humidifiers
-
-What to do:
-- configure per-level humidifier outputs
-- confirm on/off behavior against target band
-- open Advanced only when you need a target band adjustment
-
-Suggested baseline:
-- enable humidifier lanes only on levels with real humidifier hardware
-- validate activation below target low
-- validate recovery shutoff inside the normal band
-
-Example:
-- Level 1 output: `humidifier.downstairs_humidifier`
-- turns on when below low target
-- turns off when humidity recovers to low target + 3%
-
-### 7) Air Quality
-
-What to do:
-- enable AQ per level if AQ telemetry is present
-- assign triggers and outputs
-- open Advanced for run duration, fan level, and per-trigger thresholds
-
-Suggested baseline:
-- AQ output level: `66`
-- run duration: `15` to `30` minutes
-- IAQ threshold aligned to your sensor scale and household tolerance
-
-Example:
-- Level 1 AQ output: `fan.purifier_living`
-- trigger: IAQ below threshold
-- if Zone or Alert lane is active, AQ is deferred
-- if two AQ levels share one output, last trigger update wins output setting
-
-### 8) Alerts and CO Emergency
-
-What to do:
-- enable or disable HI-calculated humidity, mould, and condensation alert handling
-- add, edit, or remove optional alert visual rules for internally calculated alert sources
-- open Advanced on a visual rule for CO threshold, flash mode, duration, or power entity
-- CO uses configured CO telemetry and existing ventilation outputs
-- set zone boost levels in the Zone pages because alert boost is zone-bound
-
-Suggested baseline:
-- keep CO thresholds realistic and bounded
-- keep zone boost levels higher than normal zone fan levels
-- use dedicated lights for alerts when possible
-- use optional `power_entity` only for visual indicator hardware that needs separate power enable
-- assign alert rooms to zones; humidity, mould, and condensation alerts use the mapped zone boost level
-- avoid tuning humidity danger as a fixed number; change the target profile/custom band when the house-wide high-risk line needs moving
-- check the reason panel and `HI Active Alert Context` for originating sensor, room, resolved zone, and degraded mapping warnings
-
-Example visual indicator rule:
-- internal alert source: mould risk
-- room: `Bathroom`
-- lights: `light.bathroom_alert`
-- power entity: `switch.bathroom_light_power` (optional)
-
-Example CO:
-- internal alert source: CO emergency
-- threshold: `15`
-- outputs: existing configured zone/AQ ventilation outputs
-
-### 9) UI Deployment
-
-What to do:
-- finish setup
-- select the card layout to generate; new installs default to `v2_tablet`
-- use the notification path to find generated YAML under `/config`
-- use services later when you need a fresh export or a generated dashboard
-
-
-Suggested baseline:
-- start with the default initial `v2_tablet` layout, then add mobile if needed
-- verify Current Air Control, chips, and outputs
-- re-run `humidity_intelligence.dump_cards` after changing the optional temperature chip row or output-details visibility option
-- paste refreshed YAML into existing Manual cards after UI visibility, template, or mapping changes
-- hard-refresh the browser or Home Assistant app if the old card remains cached
-
-Service options:
-- `humidity_intelligence.create_dashboard`
-- `humidity_intelligence.view_cards`
-- `humidity_intelligence.dump_cards`
-
-Example service usage:
-- create dashboard with `layout: v2_mobile`, `title: Humidity Intelligence`, `url_path: humidity-intelligence`
-
----
-
-## Configuration Screenshots (Visual Guide)
-
-These images are a visual orientation aid. The current V2 flow uses live
-collapsible Advanced sections, so the exact visible fields depend on which section is
-expanded.
-
-<details>
-<summary>Open configuration screenshots</summary>
-
-### 1) Frontend Dependencies
-<img src="assets/readme/config_dependencies.png" width="760" alt="Frontend dependencies step">
-
-### 2) Global Gates
-<img src="assets/readme/config_global_gate.png" width="460" alt="Global gate settings">
-<img src="assets/readme/config_presence_states.png" width="760" alt="Presence state mapping">
-
-### 3) Telemetry Inputs
-<img src="assets/readme/config_Telemetry_input.png" width="760" alt="Telemetry input table">
-<img src="assets/readme/config_telemetry_input_dropdown.png" width="760" alt="Telemetry input selectors">
-
-### 4) Zones
-<img src="assets/readme/config_zone_1_config.png" width="560" alt="Zone 1 configuration">
-<img src="assets/readme/config_zone_2_config.png" width="560" alt="Zone 2 configuration">
-<img src="assets/readme/config_zone_thershold.png" width="560" alt="Zone threshold configuration">
-
-### 5) Humidifiers
-<img src="assets/readme/config_humidifier.png" width="760" alt="Humidifier configuration">
-
-### 6) Air Quality
-<img src="assets/readme/config_AQ.png" width="460" alt="AQ setup menu">
-<img src="assets/readme/config_aq_settings.png" width="460" alt="AQ settings form">
-
-### 7) Alerts
-<img src="assets/readme/config_add_alert.png" width="460" alt="Add alert configuration">
-
-### 8) Sensor Management (Options)
-<img src="assets/readme/config_add_sensors.png" width="460" alt="Add sensors in options">
-
-</details>
+- [Configuration Walkthrough](https://github.com/senyo888/humidity-intelligence/wiki/Configuration-Walkthrough)
+- [Air Quality and CO Safety](https://github.com/senyo888/humidity-intelligence/wiki/Air-Quality-and-CO-Safety)
+- [Generated Dashboards](https://github.com/senyo888/humidity-intelligence/wiki/Generated-Dashboards)
 
 ---
 
 ## UI Gallery
 
-Reusable default UI examples live in [ui-gallery](ui-gallery/README.md).
+The browseable UI Gallery lives in the Wiki:
 
-Included examples:
+- [UI Gallery](https://github.com/senyo888/humidity-intelligence/wiki/UI-Gallery)
 
+Canonical YAML, preview assets, and contribution rules remain versioned in this repository:
+
+- [Gallery source](ui-gallery/README.md)
 - [Default V2 Mobile AQ](ui-gallery/default-v2-mobile-aq/README.md)
 - [Default V2 Tablet Zone 2](ui-gallery/default-v2-tablet-zone-2/README.md)
 - [Default V1 Mobile](ui-gallery/default-v1-mobile/README.md)
+- [Contributing UI Gallery examples](ui-gallery/CONTRIBUTING.md)
 
-For new gallery submissions, follow [ui-gallery/CONTRIBUTING.md](ui-gallery/CONTRIBUTING.md).
+The Wiki is a visual navigation layer. Repository files remain the source of truth
+for dashboard YAML, generated-card compatibility, entity semantics, and contribution
+review.
+
+For new gallery submissions, open a repository pull request. Do not treat Wiki-only
+YAML as canonical install guidance.
 
 ---
 
@@ -880,35 +646,24 @@ When modifying options:
 
 1. change one section at a time
 2. save
-3. run `humidity_intelligence.refresh_ui`
-4. verify:
-   - Current Air Control mode
-   - gate chips
-   - reason text
-   - output behavior
+3. run `humidity_intelligence.refresh_ui` or export cards where the current release guidance calls for it
+4. verify Current Air Control mode, gate chips, reason text, and output behavior
 
-Post-config sensor/lane management:
+Common post-configuration areas:
 
-1. use `Sensors` to add, edit, or delete any telemetry row (humidity, temperature, IAQ, PM2.5, VOC, CO2, CO)
-2. use `Global Gates` to edit time gate, presence gate, alert-only mode, and target profile; open Advanced for control loop interval, startup UI mapping refresh, custom humidity band, and generated-card output details visibility
-3. use `Thresholds & Comfort` to review temperature comfort mode; open Advanced for custom comfort values and per-zone humidity high, AQ, condensation risk, and mould risk thresholds
-4. use `Humidifiers` to add or edit humidifier lanes per level and update output entities; open Advanced for lane removal or band adjustment
-5. use `Air Quality` to add or edit AQ lanes per level and update triggers/outputs; open Advanced for lane removal, run duration, fan level, and AQ thresholds
-6. lane selections marked as `not configured - select to add` can be used to create missing lanes later without reinstalling
+- `Sensors`: add, edit, or delete telemetry rows
+- `Global Gates`: edit time, presence, alert-only, and target-profile behavior
+- `Zones`: edit display-only Level 1 / Level 2 labels before Zone 1 / Zone 2 configuration
+- `Thresholds & Comfort`: review comfort mode and zone thresholds
+- `Humidifiers`: add or edit per-level humidifier lanes
+- `Air Quality`: add or edit AQ lanes, triggers, outputs, and thresholds
+- generated UI: run `humidity_intelligence.dump_cards` and paste refreshed YAML into existing Manual cards when card visibility, template, backend entity mapping, or generated-card options change
 
-UI visibility options:
+Detailed manual:
 
-1. keep `Show output entity details` off for the cleaner default V2 display
-2. enable it only when you want the generated-card output details panel for deeper troubleshooting
-3. after changing it, run `humidity_intelligence.dump_cards`
-4. paste the refreshed YAML into existing Manual card(s)
-
-Alert-only toggle workflow:
-
-1. toggle `alert_only_mode` in options and save
-2. HI reloads and regenerates exported cards automatically
-3. open the updated `/config/humidity_intelligence_cards_<layout>.yaml`
-4. re-paste YAML into Manual card(s) so control visibility and reason text match mode
+- [Configuration Walkthrough](https://github.com/senyo888/humidity-intelligence/wiki/Configuration-Walkthrough)
+- [Generated Dashboards](https://github.com/senyo888/humidity-intelligence/wiki/Generated-Dashboards)
+- [Troubleshooting Generated UI](https://github.com/senyo888/humidity-intelligence/wiki/Troubleshooting-Generated-UI)
 
 ---
 
@@ -925,40 +680,24 @@ Notes:
 - `entry_id` is optional for most services. If omitted, HI uses all entries or first valid entry based on service behavior.
 - File outputs are written into your HA config folder.
 
-### `create_dashboard`
-Purpose:
-- create a Lovelace dashboard from a rendered HI layout.
+Common service groups:
 
-Example:
-```yaml
-service: humidity_intelligence.create_dashboard
-data:
-  layout: v2_mobile
-  title: Humidity Intelligence
-  url_path: humidity-intelligence
-```
+| Service | Use |
+| --- | --- |
+| `create_dashboard` | create a Lovelace dashboard from a rendered HI layout |
+| `view_cards` | render cards, write them to file, and send a file-path notification |
+| `dump_cards` | export generated card YAML for static Manual dashboards |
+| `refresh_ui` | rebuild placeholder mappings and refresh cached rendered UI output |
+| `flash_lights` | test configured visual alert behavior |
+| `pause_control` / `resume_control` | pause or resume the automation engine |
+| `self_check` | run mapping, generated-card entity, telemetry, drift-helper, and frontend-dependency checks |
+| `v205_release_check` | run read-only v2.0.5-v2.0.7 generated-card and release-validation support checks |
+| `create_local_backup` / `list_saved_versions` | manage package-local HI snapshots for advanced validation |
+| `dump_diagnostics` | export fuller local diagnostics for maintainer/debug workflows |
+| `purge_files` | intentionally remove generated HI artifacts |
 
-### `view_cards`
-Purpose:
-- render cards and write them to file, then push a notification with file path.
+Example card export:
 
-Example:
-```yaml
-service: humidity_intelligence.view_cards
-data:
-  filename: humidity_intelligence_cards
-  layout: v2_tablet
-```
-
-### `dump_cards`
-Purpose:
-- render and export card YAML to file without dashboard creation.
-- use this after upgrading or changing options when an existing Manual dashboard card needs the latest HI YAML.
-- omit `layout` to export all cached/generated layouts.
-- supply `layout` to export only one layout.
-- paste the generated YAML from `/config/humidity_intelligence_cards_<layout>.yaml` back into the relevant Dashboard Manual card.
-
-Example:
 ```yaml
 service: humidity_intelligence.dump_cards
 data:
@@ -966,134 +705,48 @@ data:
   layout: v2_mobile
 ```
 
-### `refresh_ui`
-Purpose:
-- rebuild placeholder mapping and refresh rendered UI output after config changes.
-- runs automatically shortly after Home Assistant startup when `auto_refresh_ui_on_startup` is enabled in options.
+Example release validation export:
 
-Example:
-```yaml
-service: humidity_intelligence.refresh_ui
-data: {}
-```
-
-### `flash_lights`
-Purpose:
-- run alert flash behavior manually for testing.
-- runtime humidity/mould/condensation visual alert rules flash configured lights 10 times, restore the prior light state, wait 30 minutes, then repeat only if the same alert source is still active.
-- CO emergency remains the top-priority safety lane and is not demoted by humidity visual-alert repeats.
-
-Example:
-```yaml
-service: humidity_intelligence.flash_lights
-data:
-  power_entity: switch.alert_power
-  lights:
-    - light.bathroom_alert
-  color: [255, 0, 0]
-  duration: 12
-  flash_count: 8
-```
-
-### `pause_control`
-Purpose:
-- pause automation engine for a set duration.
-
-Example:
-```yaml
-service: humidity_intelligence.pause_control
-data:
-  minutes: 60
-```
-
-### `resume_control`
-Purpose:
-- clear pause state and resume runtime immediately.
-
-Example:
-```yaml
-service: humidity_intelligence.resume_control
-data: {}
-```
-
-### `self_check`
-Purpose:
-- run mapping, telemetry, house humidity drift dependency, and optional frontend dependency resource checks and write report JSON.
-- frontend dependency status is read from the same Lovelace resource inspection path used by setup/options, `v205_release_check`, and diagnostics.
-
-Example:
-```yaml
-service: humidity_intelligence.self_check
-data: {}
-```
-
-### `v205_release_check`
-Purpose:
-- run a read-only v2.0.5/v2.0.6 release-validation report in Home Assistant.
-- verify generated-card output-details visibility, cached layout coverage, unresolved placeholders, card text sanity, configured entity availability, house humidity drift dependency status, and optional frontend dependency status.
-- with `write_test_exports: true`, write test card exports proving unscoped `dump_cards` exports all layouts and scoped export writes only `v2_tablet`.
-- reports optional local HI-only snapshot status; `require_local_hi_snapshot` can be enabled for maintainer validation when a fresh package-local snapshot is required.
-- no runtime outputs, helpers, lanes, or configured entities are changed.
-
-Example:
 ```yaml
 service: humidity_intelligence.v205_release_check
 data:
-  write_test_exports: true
   filename: humidity_intelligence_v205_release_check.json
 ```
 
-### `create_local_backup`
-Purpose:
-- create a local HI-only snapshot of the installed `/config/custom_components/humidity_intelligence` package.
-- support beta validation and rollback preparation for advanced maintainers.
-- this is not a Home Assistant backup, does not intercept HACS updates, does not restore code, and does not change running code until Home Assistant is restarted after any separate manual file work.
+For GitHub support issues, prefer the native Home Assistant diagnostics download from the Humidity Intelligence integration entry. Use `dump_diagnostics` for fuller local maintainer/debug workflows after reviewing the export.
 
-Example:
-```yaml
-service: humidity_intelligence.create_local_backup
-data:
-  retain_count: 2
-  max_total_bytes: 52428800
-```
+Detailed manual:
 
-### `list_saved_versions`
-Purpose:
-- list finalized local HI-only snapshots and invalid snapshot folders.
-- report snapshot metadata without changing running code.
+- [Services Reference](https://github.com/senyo888/humidity-intelligence/wiki/Services-Reference)
+- [Generated Dashboards](https://github.com/senyo888/humidity-intelligence/wiki/Generated-Dashboards)
+- [Diagnostics and Support Bundle](https://github.com/senyo888/humidity-intelligence/wiki/Diagnostics-and-Support-Bundle)
+- [Release Validation for Users](https://github.com/senyo888/humidity-intelligence/wiki/Release-Validation-for-Users)
 
-Example:
-```yaml
-service: humidity_intelligence.list_saved_versions
-data: {}
-```
+---
 
-### `dump_diagnostics`
-Purpose:
-- export runtime diagnostics, mapping, active target profile, visual alert rules, alert source resolution, house humidity drift dependency status, local HI-only snapshot status, optional frontend dependency resource status, unavailable entities, and card info to JSON.
-- `HI Diagnostics` keeps only a compact recorder-safe summary in live state attributes; use this service for a full local support export.
-- For GitHub issues, prefer the native Home Assistant diagnostics download from the Humidity Intelligence integration entry.
+## Documentation and Support Manual
 
-Example:
-```yaml
-service: humidity_intelligence.dump_diagnostics
-data:
-  filename: humidity_intelligence_diagnostics.json
-```
+The README covers installation, current release highlights, core usage, screenshots,
+services, support entry points, and release notes.
 
-### `purge_files`
-Purpose:
-- remove generated HI files and attempt dashboard cleanup.
+For longer support guidance, see the Humidity Intelligence Wiki:
 
-Example:
-```yaml
-service: humidity_intelligence.purge_files
-data: {}
-```
+- [Getting Help](https://github.com/senyo888/humidity-intelligence/wiki/Getting-Help)
+- [Diagnostics and Support Bundle](https://github.com/senyo888/humidity-intelligence/wiki/Diagnostics-and-Support-Bundle)
+- [Generated Dashboards](https://github.com/senyo888/humidity-intelligence/wiki/Generated-Dashboards)
+- [UI Gallery](https://github.com/senyo888/humidity-intelligence/wiki/UI-Gallery)
+- [HACS and Updates](https://github.com/senyo888/humidity-intelligence/wiki/HACS-and-Updates)
+- [Configuration Walkthrough](https://github.com/senyo888/humidity-intelligence/wiki/Configuration-Walkthrough)
+- [Understanding Control Decisions](https://github.com/senyo888/humidity-intelligence/wiki/Understanding-Control-Decisions)
+- [Why Environmental Stability Matters](https://github.com/senyo888/humidity-intelligence/wiki/Why-Environmental-Stability-Matters)
+- [Air Quality and CO Safety](https://github.com/senyo888/humidity-intelligence/wiki/Air-Quality-and-CO-Safety)
+- [Troubleshooting Generated UI](https://github.com/senyo888/humidity-intelligence/wiki/Troubleshooting-Generated-UI)
+- [Release Validation for Users](https://github.com/senyo888/humidity-intelligence/wiki/Release-Validation-for-Users)
+- [FAQ](https://github.com/senyo888/humidity-intelligence/wiki/FAQ)
 
-Safety guidance:
-- use `purge_files` only when intentionally resetting generated artifacts
-- run `dump_diagnostics` before purge if you want a snapshot for troubleshooting
+The Wiki is a support manual. Runtime behavior, entity semantics, generated dashboard
+logic, diagnostics, release state, and migration requirements live in the repository
+source and release documentation.
 
 ---
 
@@ -1109,7 +762,7 @@ Settings -> Devices & services -> Humidity Intelligence -> Download diagnostics
 
 Then drag the downloaded file into the GitHub issue.
 
-The diagnostics file includes:
+Diagnostics help maintainers see:
 
 - Humidity Intelligence and Home Assistant versions
 - config entry/options summary
@@ -1124,12 +777,12 @@ The diagnostics file includes:
 
 Sensitive keys and values such as tokens, passwords, API keys, webhook URLs, credential-bearing URLs, location fields, usernames, host/IP/MAC/SSID values, device IDs, and unique IDs are redacted. Entity IDs are included because they are needed to debug mappings; review the file before uploading if your entity names contain personal details.
 
-Issue triage expects diagnostics-first reports where practical. Issues with native diagnostics are faster to classify and usually need fewer follow-up questions; issues without diagnostics may be marked as needing a support bundle.
-
-For wider ideas, dashboard suggestions, compatibility requests, documentation improvements, or automation/control suggestions, use the Community Ideas & Proposals issue form. These issues are intake signals only: reactions and comments may inform visibility, but they do not approve implementation, runtime changes, release scope, or Home Assistant behavior changes. Submitting an idea does not guarantee implementation, release scheduling, or acceptance.
+Issue triage works best with diagnostics-first reports. For wider ideas, dashboard suggestions, compatibility requests, documentation improvements, or automation/control suggestions, use the Community Ideas & Proposals issue form. Community comments and reactions are useful interest signals; maintainer review and the proposal/release process carry approval and scheduling authority.
 
 More detail:
 
+- [Getting Help](https://github.com/senyo888/humidity-intelligence/wiki/Getting-Help)
+- [Diagnostics and Support Bundle](https://github.com/senyo888/humidity-intelligence/wiki/Diagnostics-and-Support-Bundle)
 - [Support and diagnostics](docs/support.md)
 - [Issue triage workflow](docs/issue-triage.md)
 
@@ -1157,6 +810,26 @@ CO emergency pressure. Details are in
 
 ## Release Notes
 
+### v2.0.7
+
+- promoted integration metadata to stable `2.0.7`
+- added a GitHub Pages SEO landing site for search discovery, with public copy, logo/hero artwork, crawl helpers, structured metadata, pinned Pages workflow actions, README routing, and explicit repository source-of-truth boundaries
+- documented HA Lab as advisory Operational Beta Validation Infrastructure for sanitized beta deploy, runtime-readiness, diagnostics, and generated-card/entity-map evidence without making HA Lab release authority
+- hardened visual-alert service validation, diagnostics credential-key redaction, generated V2 card HTML rendering, and local issue-triage report escaping without changing deterministic lane ordering, entity semantics, or migration behavior
+- fixed PM2.5 aggregate runtime truth so configured PM2.5 telemetry exposes canonical backend-owned PM25 aggregate entities instead of relying on Home Assistant's dotted `pm2_5` name slug
+- hardened generated-card AQ output details so unresolved optional AQ aggregate rows are pruned instead of rendering stale `Entity not found` rows, with generated-card entity reference checks in `self_check` and `v205_release_check`
+- expanded generated-card entity reference checks so stale IDs embedded inside generated-card JavaScript/string expressions are reported, and PM2.5 aggregate entity-ID normalization conflicts are surfaced through diagnostics, `self_check`, and `v205_release_check`
+- changed generated V2 Current Air Control cards so red control-row styling follows selected alert/CO runtime truth, while degraded or unmapped alert candidates remain in reason text instead of primary chip-row space
+- fixed generated V2 Current Air Control cards so missing or unavailable Air Control Mode telemetry no longer renders as normal/ready, and backend `telemetry_unavailable` is shown as degraded UI truth ahead of stale helper-derived alert or AQ state
+- moved optional Level 1 / Level 2 display-label editing into setup Zones and post-configuration Zone Options before Zone 1 / Zone 2 editing, with diagnostics and generated cards using the same sanitized fallback-aware label source
+- sanitized generated V2 card templates, gallery exports, and test fixtures so public artifacts use canonical HI placeholders instead of maintainer-local presence, alarm, tracker, or room-sensor entity IDs
+- kept startup UI refresh deterministic: startup follows `auto_refresh_ui_on_startup`, while explicit UI install, option-visibility changes, and manual `dump_cards` still write card files
+- added Configuration Walkthrough links to setup Frontend Dependencies, post-configuration Frontend Dependencies, and final UI export guidance
+- added GitHub Wiki support-manual routing from the README, including configuration, services, diagnostics, generated dashboard, HACS/update, AQ/CO safety, troubleshooting, and release-validation guidance
+- added release/PR checklist support for recording Wiki update status as `updated`, `no-op`, or `blocked` when public manual guidance is affected
+- added a Wiki Services Reference, footer navigation across public Wiki content pages, and a Wiki banner asset for a clearer support-manual experience
+- migration impact: existing PM2.5 aggregate entity IDs using `pm2_5` are normalized to `pm25` during HI setup; restart Home Assistant after updating so the new package and registry normalization run, then regenerate/re-copy generated cards if your dashboard uses PM2.5 aggregate surfaces or the Current Air Control UI change
+
 ### v2.0.6
 
 - promoted integration metadata to stable `2.0.6`
@@ -1183,6 +856,9 @@ CO emergency pressure. Details are in
 - preserved the existing drift calculation and legacy `sensor.house_humidity_mean_7d` compatibility
 - kept lane ordering, AQ, humidifier, alert, output, migration, restore, HACS update, and runtime-control behavior unchanged except for the explicit `telemetry_unavailable` mode/entity truth correction
 
+<details>
+<summary>Previous Releases</summary>
+
 ### v2.0.5
 
 - reorganised setup and options around essentials first, with tuning controls behind Advanced sections that open/retract immediately without an extra Submit cycle
@@ -1198,9 +874,6 @@ CO emergency pressure. Details are in
 - changed first-install UI export default to `v2_tablet`
 - kept deterministic runtime behavior, lane ordering, alert hierarchy, CO emergency handling, humidifier independence, public entity semantics, and `dump_cards` unchanged
 - promoted integration metadata to stable `2.0.5`; branch/version governance now allows beta, rc, or stable labels on `senyo888-patch-1`, rc or stable labels on `develop`, and stable releases on `main`
-
-<details>
-<summary>Previous Releases</summary>
 
 ### v2.0.4
 

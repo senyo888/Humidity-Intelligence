@@ -43,8 +43,6 @@ sensor.bathroom_humidity
 sensor.toilet_humidity
 sensor.bedroom_humidity
 sensor.kids_room_humidity
-sensor.wirelesstag_kitchen_humidity
-sensor.wirelesstag_bathroom_humidity
 
 sensor.bedroom_air_quality_monitor_indoor_air_quality
 sensor.bedroom_air_quality_monitor_particulate_matter

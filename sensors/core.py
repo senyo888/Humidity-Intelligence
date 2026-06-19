@@ -258,7 +258,7 @@ class _CoreComputations:
             icon="mdi:air-filter",
         ))
         sensors.append(make(
-            "HI House PM2.5 Average",
+            "HI House PM25 Average",
             "house_pm25_average",
             self._compute_house_pm25_avg,
             icon="mdi:chart-bubble",
@@ -399,7 +399,7 @@ class _CoreComputations:
                 ))
             if self.levels.get(level, {}).get("pm25"):
                 sensors.append(make(
-                    f"HI {level.capitalize()} PM2.5 Average",
+                    f"HI {level.capitalize()} PM25 Average",
                     f"{level}_pm25_average",
                     lambda lvl=level: self._compute_level_pm25_avg(lvl),
                     icon="mdi:chart-bubble",

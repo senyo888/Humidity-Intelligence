@@ -20,6 +20,7 @@ from ..const import (
     DEFAULT_SHOW_OUTPUT_ENTITY_DETAILS,
     DOMAIN,
 )
+from ..helpers.level_labels import resolve_level_labels
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,6 +46,20 @@ _ALERT_ONLY_HIDDEN_TIMER_KEYS = {
     "air_bathroom_min_run",
     "air_cooking_min_run",
     "air_control_pause",
+}
+_OPTIONAL_AQ_AGGREGATE_PLACEHOLDERS = {
+    "sensor.air_control_house_iaq_average",
+    "sensor.air_control_downstairs_iaq_average",
+    "sensor.air_control_upstairs_iaq_average",
+    "sensor.air_control_house_pm25_average",
+    "sensor.air_control_downstairs_pm25_average",
+    "sensor.air_control_upstairs_pm25_average",
+    "sensor.air_control_house_voc_average",
+    "sensor.air_control_downstairs_voc_average",
+    "sensor.air_control_upstairs_voc_average",
+    "sensor.air_control_house_co_average",
+    "sensor.air_control_downstairs_co_average",
+    "sensor.air_control_upstairs_co_average",
 }
 
 
@@ -281,16 +296,6 @@ async def async_build_entity_mapping(hass: HomeAssistant, entry_id: str) -> Dict
             or fallback_humidity_l2
             or fallback_house_humidity
         ),
-        "sensor.wirelesstag_kitchen_humidity": (
-            _find_telemetry("kitchen", "humidity")
-            or fallback_humidity_l1
-            or fallback_house_humidity
-        ),
-        "sensor.wirelesstag_bathroom_humidity": (
-            _find_telemetry("bathroom", "humidity")
-            or fallback_humidity_l1
-            or fallback_house_humidity
-        ),
     }
     placeholders.update(room_placeholders)
 
@@ -351,6 +356,10 @@ async def async_register_cards(hass: HomeAssistant, entry_id: str, mapping: Dict
     }
     entry = hass.config_entries.async_get_entry(entry_id)
     show_output_details = _entry_show_output_entity_details(entry)
+    level_labels = resolve_level_labels(
+        getattr(entry, "data", None) or {},
+        getattr(entry, "options", None) or {},
+    )
     cards: Dict[str, str] = {}
     unresolved = list(
         (hass.data.get(DOMAIN, {}).get(entry_id, {}) or {}).get("unresolved_placeholders", [])
@@ -368,6 +377,7 @@ async def async_register_cards(hass: HomeAssistant, entry_id: str, mapping: Dict
                 "hi:output-details",
                 keep=show_output_details,
             )
+        content = _apply_level_labels(content, level_labels)
         # Replace placeholders safely (avoid partial matches like binary_sensor.*)
         for placeholder, entity_id in mapping.items():
             if not entity_id:
@@ -405,6 +415,7 @@ async def async_register_cards(hass: HomeAssistant, entry_id: str, mapping: Dict
         cards[name] = content
 
     hass.data.setdefault(DOMAIN, {}).setdefault(entry_id, {})
+    hass.data[DOMAIN][entry_id]["level_labels"] = level_labels
     hass.data[DOMAIN][entry_id]["unresolved_placeholders_by_card"] = unresolved_by_card
     return cards
 
@@ -435,6 +446,17 @@ def _apply_marked_yaml_section(content: str, marker: str, *, keep: bool) -> str:
     return result
 
 
+def _apply_level_labels(content: str, labels: Dict[str, str]) -> str:
+    """Apply display-only level labels to generated card copy."""
+    replacements = {
+        "Downs..": labels.get("level1") or "Level 1",
+        "Downstairs": labels.get("level1") or "Level 1",
+        "Upstairs": labels.get("level2") or "Level 2",
+    }
+    pattern = re.compile("|".join(re.escape(token) for token in replacements))
+    return pattern.sub(lambda match: replacements[match.group(0)], content)
+
+
 def _entry_show_output_entity_details(entry: Any) -> bool:
     if entry is None:
         return DEFAULT_SHOW_OUTPUT_ENTITY_DETAILS
@@ -449,7 +471,7 @@ def _entry_show_output_entity_details(entry: Any) -> bool:
 
 def _is_optional_placeholder(placeholder: str) -> bool:
     """Placeholders that are expected to be user-provided outputs are optional."""
-    return placeholder.startswith(
+    return placeholder in _OPTIONAL_AQ_AGGREGATE_PLACEHOLDERS or placeholder.startswith(
         (
             "fan.",
             "humidifier.",
@@ -463,7 +485,7 @@ def _is_optional_placeholder(placeholder: str) -> bool:
 
 
 def _should_prune_unresolved_entity_line(placeholder: str) -> bool:
-    return placeholder.startswith(
+    return placeholder in _OPTIONAL_AQ_AGGREGATE_PLACEHOLDERS or placeholder.startswith(
         (
             "fan.",
             "humidifier.",

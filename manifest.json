@@ -1,7 +1,7 @@
 {
   "domain": "humidity_intelligence",
   "name": "Humidity Intelligence",
-  "after_dependencies": ["lovelace"],
+  "after_dependencies": ["diagnostics", "lovelace"],
   "codeowners": ["@senyo888"],
   "config_flow": true,
   "dependencies": [],
@@ -12,5 +12,5 @@
   "issue_tracker": "https://github.com/senyo888/Humidity-Intelligence/issues",
   "requirements": [],
   "single_config_entry": true,
-  "version": "2.0.6"
+  "version": "2.0.7"
 }

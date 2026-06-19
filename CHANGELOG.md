@@ -4,11 +4,58 @@
 
 All notable changes to Humidity Intelligence will be documented in this file.
 
-This project follows a practical changelog format for Home Assistant and HACS users. Add new entries under `Unreleased` before publishing a release.
+This project follows a practical changelog format for Home Assistant and HACS users. Add new entries under a fresh `Unreleased` section before publishing a future release.
 
 ## Unreleased
 
-- No unreleased changes.
+## 2.0.7
+
+- Promoted integration metadata to stable `2.0.7`.
+- Added a GitHub Pages SEO landing site for search discovery, with static public
+  copy, the Humidity Intelligence logo, wide home-telemetry hero artwork,
+  sitemap/robots crawl helpers, structured search metadata, pinned Pages workflow
+  actions, README routing, and repository source-of-truth boundaries. Runtime
+  behavior, entity semantics, generated dashboards, HACS metadata, and migration
+  requirements are unchanged.
+- Documented HA Lab as advisory Operational Beta Validation Infrastructure and added
+  PR/release-governance wording for reporting sanitized HA Lab evidence without
+  changing runtime, UI, entity semantics, migration, or release authority.
+- Hardened visual-alert service validation, diagnostics credential-key redaction,
+  generated V2 card HTML rendering, and local issue-triage report escaping without
+  changing deterministic lane ordering, entity semantics, or migration behavior.
+- Fixed PM2.5 aggregate runtime truth by ensuring new PM2.5 aggregate sensors use canonical PM25 entity slugs and by normalizing existing HI PM2.5 aggregate entity IDs from `pm2_5` to `pm25` during setup.
+- Hardened generated-card AQ output details so unresolved optional AQ aggregate rows
+  are pruned instead of rendering stale `Entity not found` rows, and added
+  generated-card entity reference availability checks to `self_check` and
+  `v205_release_check`.
+- Expanded generated-card entity reference checks so stale IDs embedded inside
+  generated-card JavaScript/string expressions are reported, not only YAML `entity:`
+  rows.
+- Added diagnostics, `self_check`, and `v205_release_check` reporting for PM2.5
+  aggregate entity-ID normalization conflicts when a canonical `pm25` target entity
+  already exists.
+- Sanitized generated V2 card templates, gallery exports, and test fixtures so
+  public artifacts use canonical HI placeholders instead of maintainer-local
+  presence, alarm, tracker, or room-sensor entity IDs.
+- Refined generated V2 Current Air Control cards so degraded or unmapped alert
+  candidates no longer occupy primary chip-row space; no-automation context remains
+  visible in reason text.
+- Fixed generated V2 Current Air Control cards so missing or unavailable
+  `sensor.air_control_mode` no longer falls back to `normal` / `READY`; backend
+  `telemetry_unavailable` now renders as explicit degraded UI truth ahead of stale
+  helper-derived alert or AQ display state.
+- Kept startup UI refresh option semantics deterministic by removing the
+  unconditional startup `dump_cards` task; startup now follows the configured
+  `auto_refresh_ui_on_startup` refresh path, while explicit UI install,
+  option-visibility changes, and manual `dump_cards` still write card files.
+- Added Configuration Walkthrough links to setup Frontend Dependencies, post-configuration Frontend Dependencies, and final UI export guidance.
+- Added GitHub Wiki support-manual routing from the README, including configuration, services, diagnostics, generated dashboard, HACS/update, AQ/CO safety, troubleshooting, and release-validation guidance.
+- Added release/PR checklist support for recording Wiki update status as `updated`, `no-op`, or `blocked` when public manual guidance is affected.
+- Added a Wiki Services Reference, footer navigation across public Wiki content pages, and a Wiki banner asset for a clearer support-manual experience.
+- Declared native Home Assistant diagnostics as an integration after-dependency so hassfest accepts the diagnostics support surface without changing runtime control behavior.
+- Changed generated V2 Current Air Control cards so red control-row styling follows selected alert/CO runtime truth, while degraded or unmapped alert candidates remain in reason text instead of command-state red.
+- Moved optional Level 1 / Level 2 display-label editing into setup Zones and post-configuration Zone Options before Zone 1 / Zone 2 editing; labels are sanitized, fallback to `Level 1` / `Level 2`, and affect generated-card/config-flow/support display text only.
+- Migration note: users with manually referenced PM2.5 aggregate entity IDs using `pm2_5` should update those references to `pm25` after restart; generated cards should be regenerated/re-copied when PM2.5 aggregate surfaces are used.
 
 ## 2.0.6
 

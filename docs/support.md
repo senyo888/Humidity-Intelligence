@@ -30,6 +30,7 @@ Please review the bundle before attaching if you are concerned about privacy. Th
   `source_value_valid`, `repair_required`, and `repair_kind` when available
 - optional frontend dependency status when Home Assistant exposes Lovelace resources
 - generated UI/card summary
+- generated-card entity reference availability
 - unavailable or unknown configured entities
 - diagnostics warnings
 
@@ -40,6 +41,7 @@ The diagnostics platform uses Home Assistant `async_redact_data` plus HI's own U
 It redacts sensitive keys and values such as:
 
 - tokens and bearer credentials
+- credential-style keys
 - secrets and passwords
 - API keys
 - webhook URLs

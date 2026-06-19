@@ -344,10 +344,32 @@ card:
       show_label: true
       state_display: |
         [[[
-          const modeState = (states['sensor.air_control_mode']?.state || 'normal');
+          const rawMode = String(states['sensor.air_control_mode']?.state || '').trim();
+          const mode = rawMode.toLowerCase();
+          const knownModes = new Set([
+            'normal',
+            'co_emergency',
+            'danger',
+            'air_quality',
+            'global_gate',
+            'away',
+            'cooking',
+            'bathroom',
+            'bath',
+            'paused',
+            'manual_override',
+            'disabled',
+            'telemetry_unavailable',
+          ]);
+          const modeKnown =
+            !!mode &&
+            mode !== 'unknown' &&
+            mode !== 'unavailable' &&
+            (knownModes.has(mode) || mode.includes('alert'));
+          if (!modeKnown) return 'UNKNOWN';
           const display = states['sensor.air_control_mode']?.attributes?.display;
           if (display && String(display).trim()) return String(display);
-          return modeState.replace(/_/g,' ').toUpperCase();
+          return rawMode.replace(/_/g,' ').toUpperCase();
         ]]]
       label: |
         [[[
@@ -372,7 +394,28 @@ card:
       custom_fields:
         status: |
           [[[
-            const mode = (states['sensor.air_control_mode']?.state || 'normal').toLowerCase();
+            const rawMode = String(states['sensor.air_control_mode']?.state || '').trim().toLowerCase();
+            const knownModes = new Set([
+              'normal',
+              'co_emergency',
+              'danger',
+              'air_quality',
+              'global_gate',
+              'away',
+              'cooking',
+              'bathroom',
+              'bath',
+              'paused',
+              'manual_override',
+              'disabled',
+              'telemetry_unavailable',
+            ]);
+            const modeKnown =
+              !!rawMode &&
+              rawMode !== 'unknown' &&
+              rawMode !== 'unavailable' &&
+              (knownModes.has(rawMode) || rawMode.includes('alert'));
+            const mode = modeKnown ? rawMode : 'unknown';
 
             const coE  = states['input_boolean.air_co_emergency_active']?.state === 'on';
             const aqU  = states['input_boolean.air_aq_upstairs_active']?.state === 'on';
@@ -405,14 +448,22 @@ card:
             const gateReason = String(states['sensor.air_control_reason']?.state || '').toLowerCase();
             const timeGateActive = gateActive && gateReason.includes('time gate');
             const presenceGateActive = gateActive && gateReason.includes('presence gate');
-            const ready = mode === 'normal' && !red && !zone1 && !zone2 && !aqActive && !gateActive;
+            const ready = modeKnown && mode === 'normal' && !red && !zone1 && !zone2 && !aqActive && !gateActive;
 
+            const escapeHtml = (value) => String(value ?? '')
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
             const chip = (t, c, glow=false) =>
               `<span class="cv-chip ${glow ? 'glow' : ''}" style="--cv:${c}; border-color: color-mix(in srgb, var(--cv) 55%, rgba(148,163,184,0.18));">
-                <span class="t">${t}</span>
+                <span class="t">${escapeHtml(t)}</span>
               </span>`;
 
             const cMode = (() => {
+              if (mode === 'telemetry_unavailable') return '#f59e0b';
+              if (!modeKnown) return '#94a3b8';
               if (red || coE || mode === 'co_emergency' || mode.includes('alert') || mode === 'danger') return '#ef4444';
               if (gateActive) return '#f59e0b';
               if (zone1) return '#38bdf8';
@@ -425,6 +476,8 @@ card:
               return '#94a3b8';
             })();
             const modeBadgeLabel = (() => {
+              if (mode === 'telemetry_unavailable') return 'TELEMETRY UNAVAILABLE';
+              if (!modeKnown) return 'UNKNOWN';
               if (red) return 'ALERT';
               if (gateActive) return 'GATE';
               if (zone1) return 'ZONE 1';
@@ -458,16 +511,40 @@ card:
           ]]]
         reason: |
           [[[
+            const escapeHtml = (value) => String(value ?? '')
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
             try {
-              const mode = (states['sensor.air_control_mode']?.state || 'normal').toLowerCase();
+              const rawMode = String(states['sensor.air_control_mode']?.state || '').trim().toLowerCase();
+              const knownModes = new Set([
+                'normal',
+                'co_emergency',
+                'danger',
+                'air_quality',
+                'global_gate',
+                'away',
+                'cooking',
+                'bathroom',
+                'bath',
+                'paused',
+                'manual_override',
+                'disabled',
+                'telemetry_unavailable',
+              ]);
+              const modeKnown =
+                !!rawMode &&
+                rawMode !== 'unknown' &&
+                rawMode !== 'unavailable' &&
+                (knownModes.has(rawMode) || rawMode.includes('alert'));
+              const mode = modeKnown ? rawMode : 'unknown';
+              const modeUnavailable = !modeKnown;
               const txt = (id) => String(states[id]?.state || '').trim();
               const on = (id) => states[id]?.state === 'on';
               const tActive = (id) => states[id]?.state === 'active';
               const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
-              const isHome = (id) => states[id]?.state === 'home';
-              const alarmState = txt('alarm_control_panel.senyo1_sky_com') || 'unknown';
-              const justynaHome = isHome('person.justyna') || isHome('device_tracker.justyna');
-              const senyoHome = isHome('person.senyo') || isHome('device_tracker.senyos_phone');
               const isAlertActiveEntity = (id) => {
                 const stateObj = states[id];
                 if (stateObj?.state !== 'on') return false;
@@ -486,6 +563,27 @@ card:
               const activeAlertNames = activeAlertIds.map(
                 (id) => states[id]?.attributes?.friendly_name || id
               );
+              const alertContextId =
+                Object.keys(states).find((id) => id === 'sensor.active_alert_context') ||
+                Object.keys(states).find((id) => /^sensor\\..*active_alert_context$/.test(id));
+              const alertTelemetry = states[alertContextId]?.attributes?.alert_telemetry;
+              const degradedAlertItems = Array.isArray(alertTelemetry)
+                ? alertTelemetry.filter((item) => item && item.degraded === true)
+                : [];
+              const degradedAlertContext = degradedAlertItems.length > 0;
+              const degradedAlertSummary = (item) =>
+                String(item?.source_summary || item?.companion || item?.label || 'Alert candidate').trim();
+              const degradedAlertReasons = (item) => Array.isArray(item?.degraded_reasons)
+                ? item.degraded_reasons.map((reason) => String(reason || '').trim()).filter(Boolean)
+                : [];
+              const firstDegradedAlert = degradedAlertItems[0] || null;
+              const degradedAlertLabel = degradedAlertSummary(firstDegradedAlert) || 'Alert candidate';
+              const degradedAlertReason = (() => {
+                const reasons = degradedAlertReasons(firstDegradedAlert);
+                if (!reasons.length) return 'no mapped output lane is available';
+                const reason = reasons[0].replace(/\.$/, '');
+                return reason ? reason.charAt(0).toLowerCase() + reason.slice(1) : 'no mapped output lane is available';
+              })();
 
               const condRaw = String(states['sensor.worst_room_condensation']?.attributes?.risk || '').toLowerCase();
               const mouldRaw = String(states['sensor.worst_room_mould']?.attributes?.risk || '').toLowerCase();
@@ -503,6 +601,7 @@ card:
                 mode === 'co_emergency' ||
                 mode === 'air_quality' ||
                 mode === 'global_gate' ||
+                mode === 'telemetry_unavailable' ||
                 mode === 'cooking' ||
                 mode === 'bathroom' ||
                 mode === 'bath';
@@ -537,16 +636,22 @@ card:
                 humidifying ||
                 fanIso ||
                 humIso ||
+                modeUnavailable ||
                 mode === 'manual_override' ||
                 mode === 'paused' ||
                 mode === 'away' ||
                 mode === 'global_gate' ||
                 !!r ||
+                degradedAlertContext ||
                 alertOnlyUi;
               if (!showReason) return `<div class="cv-reason"></div>`;
 
               const lines = [];
-              if (on('input_boolean.air_co_emergency_active') || mode === 'co_emergency') {
+              if (mode === 'telemetry_unavailable') {
+                lines.push('Stage: Required telemetry unavailable; automation standing down until telemetry recovers.');
+              } else if (modeUnavailable) {
+                lines.push('Stage: Air-control mode unavailable; UI waiting for backend telemetry.');
+              } else if (on('input_boolean.air_co_emergency_active') || mode === 'co_emergency') {
                 if (alertOnlyUi) lines.push('Stage: CO emergency monitoring active (no automation output controls configured).');
                 else lines.push('Stage: CO emergency override (all purifiers forced to 100%).');
               } else if (activeAlertNames.length) {
@@ -567,7 +672,7 @@ card:
                 lines.push('Stage: Monitor + alerts only (no automation output controls configured).');
               } else if (mode === 'away') {
                 lines.push('Stage: Presence gate away (system disarmed).');
-                lines.push(`Presence: Alarm=${alarmState}, Justyna=${justynaHome ? 'home' : 'away'}, Senyo=${senyoHome ? 'home' : 'away'}.`);
+                lines.push('Presence: configured presence gate is blocking automation.');
               } else if (mode === 'manual_override') {
                 lines.push('Stage: Manual override (automation standing down).');
               } else if (mode === 'paused') {
@@ -576,6 +681,9 @@ card:
 
               if (condAlert) lines.push(`Risk: Condensation ${cap(condRaw)} in ${condRoom}.`);
               if (mouldAlert) lines.push(`Risk: Mould ${cap(mouldRaw)} in ${mouldRoom}.`);
+              if (degradedAlertContext && !alertLaneActive) {
+                lines.push(`Alert: ${degradedAlertLabel} is active, but HI skipped alert automation because ${degradedAlertReason}.`);
+              }
 
               if (!alertOnlyUi) {
                 if (tActive('timer.air_cooking_min_run')) lines.push('Timer: Zone 1 minimum runtime is active.');
@@ -590,7 +698,7 @@ card:
               if (r) lines.push(`Engine: ${r}`);
               if (!lines.length) lines.push('Alert context active.');
 
-              return `<div class="cv-reason">${lines.join('<br>')}</div>`;
+              return `<div class="cv-reason">${lines.map(escapeHtml).join('<br>')}</div>`;
             } catch (e) {
               return `<div class="cv-reason">Reason unavailable.</div>`;
             }
@@ -631,10 +739,16 @@ card:
               return '#4ade80';
             };
 
+            const escapeHtml = (value) => String(value ?? '')
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
             const chip = (k, v, unit, c) => `
               <span class="cv-chip" style="--cv:${c};">
-                <span class="k">${k}</span>
-                <span class="v" style="color:${c};">${v === null ? '—' : v}${unit || ''}</span>
+                <span class="k">${escapeHtml(k)}</span>
+                <span class="v" style="color:${c};">${escapeHtml(v === null ? '—' : `${v}${unit || ''}`)}</span>
               </span>`;
             const maybeChip = (k, v, unit, c) => (v === null ? '' : chip(k, v, unit, c));
 
@@ -675,10 +789,16 @@ card:
               return isNaN(v) ? null : v;
             };
 
+            const escapeHtml = (value) => String(value ?? '')
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
             const chip = (k, v, unit, c) => `
               <span class="cv-chip" style="--cv:${c};">
-                <span class="k">${k}</span>
-                <span class="v" style="color:${c};">${v === null ? '—' : v}${unit || ''}</span>
+                <span class="k">${escapeHtml(k)}</span>
+                <span class="v" style="color:${c};">${escapeHtml(v === null ? '—' : `${v}${unit || ''}`)}</span>
               </span>`;
 
             const s1 = (v) => (v === null ? null : `${v > 0 ? '+' : ''}${v.toFixed(1)}`);
@@ -771,10 +891,16 @@ card:
             const slopeCfg = cfg.slope || {};
             if (!slopeCfg.show_temperature_chips) return '';
 
+            const escapeHtml = (value) => String(value ?? '')
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
             const chip = (k, v, unit, c) => `
               <span class="cv-chip" style="--cv:${c};">
-                <span class="k">${k}</span>
-                <span class="v" style="color:${c};">${v === null ? '—' : v}${unit || ''}</span>
+                <span class="k">${escapeHtml(k)}</span>
+                <span class="v" style="color:${c};">${escapeHtml(v === null ? '—' : `${v}${unit || ''}`)}</span>
               </span>`;
             const telemetry = Array.isArray(cfg.telemetry) ? cfg.telemetry : [];
             const zones = cfg.zones && typeof cfg.zones === 'object' ? cfg.zones : {};
@@ -871,7 +997,27 @@ card:
           - background: rgba(2,6,23,0.38)
           - border: |
               [[[
-                const mode = (states['sensor.air_control_mode']?.state || 'normal').toLowerCase();
+                const mode = String(states['sensor.air_control_mode']?.state || '').trim().toLowerCase();
+                const borderKnownModes = new Set([
+                  'normal',
+                  'co_emergency',
+                  'danger',
+                  'air_quality',
+                  'global_gate',
+                  'away',
+                  'cooking',
+                  'bathroom',
+                  'bath',
+                  'paused',
+                  'manual_override',
+                  'disabled',
+                  'telemetry_unavailable',
+                ]);
+                const borderModeKnown =
+                  !!mode &&
+                  mode !== 'unknown' &&
+                  mode !== 'unavailable' &&
+                  (borderKnownModes.has(mode) || mode.includes('alert'));
                 const anyAlertActive = Object.keys(states).some((id) => {
                   const stateObj = states[id];
                   if (stateObj?.state !== 'on') return false;
@@ -888,6 +1034,8 @@ card:
                   mode === 'co_emergency' ||
                   coE ||
                   (!gateActive && anyAlertActive);
+                if (mode === 'telemetry_unavailable') return '1px solid rgba(245,158,11,0.78)';
+                if (!borderModeKnown) return '1px solid rgba(148,163,184,0.55)';
                 if (red) return '1px solid rgba(239,68,68,0.85)';
                 if (gateActive) return '1px solid rgba(245,158,11,0.78)';
                 if (zone1) return '1px solid rgba(56,189,248,0.75)';
@@ -1063,11 +1211,10 @@ card:
               - padding: 12px
               - background: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const red =
-                      states['binary_sensor.humidity_danger']?.state === 'on' ||
-                      states['binary_sensor.condensation_danger']?.state === 'on' ||
-                      states['binary_sensor.mould_danger']?.state === 'on' ||
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
                       states['input_boolean.air_co_emergency_active']?.state === 'on';
 
                     if (red) return 'linear-gradient(145deg, rgba(239,68,68,0.16), rgba(239,68,68,0.05)), rgba(2,6,23,0.35)';
@@ -1077,11 +1224,10 @@ card:
                   ]]]
               - border: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const red =
-                      states['binary_sensor.humidity_danger']?.state === 'on' ||
-                      states['binary_sensor.condensation_danger']?.state === 'on' ||
-                      states['binary_sensor.mould_danger']?.state === 'on' ||
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
                       states['input_boolean.air_co_emergency_active']?.state === 'on';
 
                     if (red) return '1px solid rgba(239,68,68,0.70)';
@@ -1091,11 +1237,10 @@ card:
                   ]]]
               - box-shadow: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const red =
-                      states['binary_sensor.humidity_danger']?.state === 'on' ||
-                      states['binary_sensor.condensation_danger']?.state === 'on' ||
-                      states['binary_sensor.mould_danger']?.state === 'on' ||
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
                       states['input_boolean.air_co_emergency_active']?.state === 'on';
 
                     if (red) return '0 0 18px rgba(239,68,68,0.35)';
@@ -1106,11 +1251,10 @@ card:
             icon:
               - color: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const red =
-                      states['binary_sensor.humidity_danger']?.state === 'on' ||
-                      states['binary_sensor.condensation_danger']?.state === 'on' ||
-                      states['binary_sensor.mould_danger']?.state === 'on' ||
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
                       states['input_boolean.air_co_emergency_active']?.state === 'on';
                     if (red) return '#ef4444';
                     return (m === 'normal') ? '#e5e7eb' : '#94a3b8';
@@ -1118,11 +1262,10 @@ card:
             name:
               - color: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const red =
-                      states['binary_sensor.humidity_danger']?.state === 'on' ||
-                      states['binary_sensor.condensation_danger']?.state === 'on' ||
-                      states['binary_sensor.mould_danger']?.state === 'on' ||
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
                       states['input_boolean.air_co_emergency_active']?.state === 'on';
                     if (red) return '#fee2e2';
                     return (m === 'normal') ? '#e5e7eb' : 'rgba(226,232,240,0.78)';
@@ -1134,18 +1277,17 @@ card:
           show_state: false
           tap_action:
             action: more-info
-            entity: sensor.wirelesstag_kitchen_humidity
+            entity: sensor.kitchen_humidity
           styles:
             card:
               - border-radius: 18px
               - padding: 12px
               - background: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const red =
-                      states['binary_sensor.humidity_danger']?.state === 'on' ||
-                      states['binary_sensor.condensation_danger']?.state === 'on' ||
-                      states['binary_sensor.mould_danger']?.state === 'on' ||
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
                       states['input_boolean.air_co_emergency_active']?.state === 'on';
 
                     if (red) return 'linear-gradient(145deg, rgba(239,68,68,0.16), rgba(239,68,68,0.05)), rgba(2,6,23,0.35)';
@@ -1155,11 +1297,10 @@ card:
                   ]]]
               - border: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const red =
-                      states['binary_sensor.humidity_danger']?.state === 'on' ||
-                      states['binary_sensor.condensation_danger']?.state === 'on' ||
-                      states['binary_sensor.mould_danger']?.state === 'on' ||
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
                       states['input_boolean.air_co_emergency_active']?.state === 'on';
 
                     if (red) return '1px solid rgba(239,68,68,0.70)';
@@ -1169,11 +1310,10 @@ card:
                   ]]]
               - box-shadow: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const red =
-                      states['binary_sensor.humidity_danger']?.state === 'on' ||
-                      states['binary_sensor.condensation_danger']?.state === 'on' ||
-                      states['binary_sensor.mould_danger']?.state === 'on' ||
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
                       states['input_boolean.air_co_emergency_active']?.state === 'on';
 
                     if (red) return '0 0 18px rgba(239,68,68,0.35)';
@@ -1184,11 +1324,10 @@ card:
             icon:
               - color: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const red =
-                      states['binary_sensor.humidity_danger']?.state === 'on' ||
-                      states['binary_sensor.condensation_danger']?.state === 'on' ||
-                      states['binary_sensor.mould_danger']?.state === 'on' ||
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
                       states['input_boolean.air_co_emergency_active']?.state === 'on';
                     if (red) return '#ef4444';
                     return (m === 'cooking') ? '#38bdf8' : '#94a3b8';
@@ -1196,11 +1335,10 @@ card:
             name:
               - color: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const red =
-                      states['binary_sensor.humidity_danger']?.state === 'on' ||
-                      states['binary_sensor.condensation_danger']?.state === 'on' ||
-                      states['binary_sensor.mould_danger']?.state === 'on' ||
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
                       states['input_boolean.air_co_emergency_active']?.state === 'on';
                     if (red) return '#fee2e2';
                     return (m === 'cooking') ? '#bae6fd' : 'rgba(226,232,240,0.78)';
@@ -1212,20 +1350,19 @@ card:
           show_state: false
           tap_action:
             action: more-info
-            entity: sensor.wirelesstag_bathroom_humidity
+            entity: sensor.bathroom_humidity
           styles:
             card:
               - border-radius: 18px
               - padding: 12px
               - background: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const active = (m === 'bathroom' || m === 'bath');
 
                     const red =
-                      states['binary_sensor.humidity_danger']?.state === 'on' ||
-                      states['binary_sensor.condensation_danger']?.state === 'on' ||
-                      states['binary_sensor.mould_danger']?.state === 'on' ||
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
                       states['input_boolean.air_co_emergency_active']?.state === 'on';
 
                     if (red) return 'linear-gradient(145deg, rgba(239,68,68,0.16), rgba(239,68,68,0.05)), rgba(2,6,23,0.35)';
@@ -1235,13 +1372,12 @@ card:
                   ]]]
               - border: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const active = (m === 'bathroom' || m === 'bath');
 
                     const red =
-                      states['binary_sensor.humidity_danger']?.state === 'on' ||
-                      states['binary_sensor.condensation_danger']?.state === 'on' ||
-                      states['binary_sensor.mould_danger']?.state === 'on' ||
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
                       states['input_boolean.air_co_emergency_active']?.state === 'on';
 
                     if (red) return '1px solid rgba(239,68,68,0.70)';
@@ -1251,13 +1387,12 @@ card:
                   ]]]
               - box-shadow: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const active = (m === 'bathroom' || m === 'bath');
 
                     const red =
-                      states['binary_sensor.humidity_danger']?.state === 'on' ||
-                      states['binary_sensor.condensation_danger']?.state === 'on' ||
-                      states['binary_sensor.mould_danger']?.state === 'on' ||
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
                       states['input_boolean.air_co_emergency_active']?.state === 'on';
 
                     if (red) return '0 0 18px rgba(239,68,68,0.35)';
@@ -1268,13 +1403,12 @@ card:
             icon:
               - color: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const active = (m === 'bathroom' || m === 'bath');
 
                     const red =
-                      states['binary_sensor.humidity_danger']?.state === 'on' ||
-                      states['binary_sensor.condensation_danger']?.state === 'on' ||
-                      states['binary_sensor.mould_danger']?.state === 'on' ||
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
                       states['input_boolean.air_co_emergency_active']?.state === 'on';
 
                     if (red) return '#ef4444';
@@ -1283,13 +1417,12 @@ card:
             name:
               - color: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const active = (m === 'bathroom' || m === 'bath');
 
                     const red =
-                      states['binary_sensor.humidity_danger']?.state === 'on' ||
-                      states['binary_sensor.condensation_danger']?.state === 'on' ||
-                      states['binary_sensor.mould_danger']?.state === 'on' ||
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
                       states['input_boolean.air_co_emergency_active']?.state === 'on';
 
                     if (red) return '#fee2e2';
@@ -1309,15 +1442,14 @@ card:
               - padding: 12px
               - background: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const active = (m === 'air_quality') ||
                       (states['input_boolean.air_aq_upstairs_active']?.state === 'on') ||
                       (states['input_boolean.air_aq_downstairs_active']?.state === 'on');
 
                     const red =
-                      states['binary_sensor.humidity_danger']?.state === 'on' ||
-                      states['binary_sensor.condensation_danger']?.state === 'on' ||
-                      states['binary_sensor.mould_danger']?.state === 'on' ||
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
                       states['input_boolean.air_co_emergency_active']?.state === 'on';
 
                     if (red) return 'linear-gradient(145deg, rgba(239,68,68,0.16), rgba(239,68,68,0.05)), rgba(2,6,23,0.35)';
@@ -1327,15 +1459,14 @@ card:
                   ]]]
               - border: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const active = (m === 'air_quality') ||
                       (states['input_boolean.air_aq_upstairs_active']?.state === 'on') ||
                       (states['input_boolean.air_aq_downstairs_active']?.state === 'on');
 
                     const red =
-                      states['binary_sensor.humidity_danger']?.state === 'on' ||
-                      states['binary_sensor.condensation_danger']?.state === 'on' ||
-                      states['binary_sensor.mould_danger']?.state === 'on' ||
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
                       states['input_boolean.air_co_emergency_active']?.state === 'on';
 
                     if (red) return '1px solid rgba(239,68,68,0.70)';
@@ -1345,15 +1476,14 @@ card:
                   ]]]
               - box-shadow: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const active = (m === 'air_quality') ||
                       (states['input_boolean.air_aq_upstairs_active']?.state === 'on') ||
                       (states['input_boolean.air_aq_downstairs_active']?.state === 'on');
 
                     const red =
-                      states['binary_sensor.humidity_danger']?.state === 'on' ||
-                      states['binary_sensor.condensation_danger']?.state === 'on' ||
-                      states['binary_sensor.mould_danger']?.state === 'on' ||
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
                       states['input_boolean.air_co_emergency_active']?.state === 'on';
 
                     if (red) return '0 0 18px rgba(239,68,68,0.35)';
@@ -1364,15 +1494,14 @@ card:
             icon:
               - color: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const active = (m === 'air_quality') ||
                       (states['input_boolean.air_aq_upstairs_active']?.state === 'on') ||
                       (states['input_boolean.air_aq_downstairs_active']?.state === 'on');
 
                     const red =
-                      states['binary_sensor.humidity_danger']?.state === 'on' ||
-                      states['binary_sensor.condensation_danger']?.state === 'on' ||
-                      states['binary_sensor.mould_danger']?.state === 'on' ||
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
                       states['input_boolean.air_co_emergency_active']?.state === 'on';
 
                     if (red) return '#ef4444';
@@ -1381,15 +1510,14 @@ card:
             name:
               - color: |
                   [[[
-                    const m = (entity.state || 'normal').toLowerCase();
+                    const m = String(entity?.state || '').trim().toLowerCase();
                     const active = (m === 'air_quality') ||
                       (states['input_boolean.air_aq_upstairs_active']?.state === 'on') ||
                       (states['input_boolean.air_aq_downstairs_active']?.state === 'on');
 
                     const red =
-                      states['binary_sensor.humidity_danger']?.state === 'on' ||
-                      states['binary_sensor.condensation_danger']?.state === 'on' ||
-                      states['binary_sensor.mould_danger']?.state === 'on' ||
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
                       states['input_boolean.air_co_emergency_active']?.state === 'on';
 
                     if (red) return '#fee2e2';

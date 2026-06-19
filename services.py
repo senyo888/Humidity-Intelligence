@@ -19,10 +19,12 @@ from homeassistant.helpers import config_validation as cv
 from .const import CONF_SHOW_OUTPUT_ENTITY_DETAILS, DEFAULT_SHOW_OUTPUT_ENTITY_DETAILS, DOMAIN
 from .helpers.cleanup import list_all_generated_files, list_generated_files, remove_files, remove_dashboard
 from .helpers.drift import humidity_drift_dependency_status, humidity_drift_warning
+from .helpers.diagnostics_redaction import redact_diagnostics_payload
 from .helpers.frontend_dependencies import (
     async_frontend_dependency_status,
     frontend_dependency_not_inspectable,
 )
+from .helpers.level_labels import resolve_level_label_details
 from .helpers.local_versions import (
     DEFAULT_MAX_TOTAL_BYTES,
     DEFAULT_RETAIN_COUNT,
@@ -56,10 +58,52 @@ SERVICE_LIST_SAVED_VERSIONS = "list_saved_versions"
 _FLASH_LIGHT_LOCKS_KEY = "_flash_light_locks"
 
 _ALLOWED_LAYOUTS = {"v2_mobile", "v2_tablet", "v1_mobile", "view_cards_button"}
+_ALLOWED_VISUAL_POWER_DOMAINS = {"light", "switch"}
+_GENERATED_CARD_ENTITY_DOMAINS = (
+    "alarm_control_panel",
+    "binary_sensor",
+    "button",
+    "calendar",
+    "camera",
+    "climate",
+    "cover",
+    "device_tracker",
+    "event",
+    "fan",
+    "humidifier",
+    "input_boolean",
+    "input_button",
+    "input_datetime",
+    "input_number",
+    "input_select",
+    "input_text",
+    "light",
+    "lock",
+    "media_player",
+    "number",
+    "person",
+    "remote",
+    "scene",
+    "script",
+    "select",
+    "sensor",
+    "siren",
+    "switch",
+    "timer",
+    "update",
+    "vacuum",
+    "weather",
+    "zone",
+)
+_GENERATED_CARD_ENTITY_RE = re.compile(
+    r"\b(?:"
+    + "|".join(re.escape(domain) for domain in _GENERATED_CARD_ENTITY_DOMAINS)
+    + r")\.[A-Za-z0-9_]+\b"
+)
 _SAFE_FILENAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 _SAFE_DASHBOARD_PATH_RE = re.compile(r"^[a-z0-9_-]{1,64}$")
 _RELEASE_CHECK_MANIFEST_VERSION_RE = re.compile(
-    r"^2\.0\.(?:5|6(?:-(?:beta|rc)\.[1-9]\d*)?)$"
+    r"^2\.0\.(?:5|6(?:-(?:beta|rc)\.[1-9]\d*)?|7(?:-(?:beta|rc)\.[1-9]\d*)?)$"
 )
 _SENSITIVE_ATTR_EXACT = {
     "access_token",
@@ -68,6 +112,9 @@ _SENSITIVE_ATTR_EXACT = {
     "password",
     "api_key",
     "authorization",
+    "credential",
+    "credentials",
+    "credential_json",
     "latitude",
     "longitude",
     "gps_accuracy",
@@ -89,6 +136,7 @@ _SENSITIVE_ATTR_PARTIAL = (
     "access_key",
     "authorization",
     "bearer",
+    "credential",
     "latitude",
     "longitude",
     "gps_",
@@ -148,6 +196,14 @@ def _validate_rgb_color(value) -> List[int]:
     return values[:3]
 
 
+def _validate_visual_power_entity(value: str) -> str:
+    text = cv.entity_id(value)
+    domain = text.split(".", 1)[0]
+    if domain not in _ALLOWED_VISUAL_POWER_DOMAINS:
+        raise vol.Invalid("Visual alert power_entity must be a switch or light entity")
+    return text
+
+
 def _validate_bool(value) -> bool:
     if isinstance(value, bool):
         return value
@@ -161,7 +217,7 @@ def _validate_bool(value) -> bool:
 
 
 SERVICE_FLASH_SCHEMA = vol.Schema({
-    vol.Optional("power_entity"): cv.entity_id,
+    vol.Optional("power_entity"): _validate_visual_power_entity,
     vol.Optional("lights", default=[]): cv.entity_ids,
     vol.Optional("color", default=[255, 0, 0]): _validate_rgb_color,
     vol.Optional("duration", default=10): vol.All(vol.Coerce(int), vol.Range(min=1, max=300)),
@@ -338,7 +394,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
                 }
 
             path = hass.config.path(filename)
-            await hass.async_add_executor_job(_write_json, path, payload)
+            await hass.async_add_executor_job(_write_json, path, redact_diagnostics_payload(payload))
         except Exception as err:
             _LOGGER.exception("Failed to write diagnostics JSON")
             raise HomeAssistantError(f"Failed to write diagnostics JSON: {err}") from err
@@ -420,11 +476,17 @@ async def async_register_services(hass: HomeAssistant) -> None:
                     missing_entities.append(ent)
             frontend_dependencies = await async_frontend_dependency_status(hass)
             drift_dependency = humidity_drift_dependency_status(hass)
+            card_entity_availability = _generated_card_entity_availability(
+                hass,
+                data.get("cards", {}) or {},
+            )
 
             report[entry.entry_id] = {
                 "missing_entities": missing_entities,
+                "generated_card_entity_availability": card_entity_availability,
                 "frontend_dependency_resources": frontend_dependencies,
                 "humidity_drift_7d": drift_dependency,
+                "pm25_entity_id_normalization": _pm25_normalization_status(data),
                 "local_version_preservation": local_version_status,
                 "telemetry_count": len(entry.data.get("telemetry", [])),
                 "unresolved_placeholders": data.get("unresolved_placeholders", []),
@@ -827,6 +889,9 @@ def _build_diagnostics_summary(
         warnings.append(f"{len(unavailable)} configured/mapped entity references are missing, unknown, or unavailable.")
     if drift_dependency_warning:
         warnings.append(drift_dependency_warning)
+    pm25_normalization = _pm25_normalization_status(runtime_data)
+    if pm25_normalization.get("blocked"):
+        warnings.append("PM25 aggregate entity ID normalization is blocked by an existing target entity.")
     if not telemetry:
         warnings.append("No telemetry sensors are configured.")
     if not zones and not effective.get("alert_only_mode"):
@@ -854,12 +919,14 @@ def _build_diagnostics_summary(
             "custom_low": effective.get("temperature_comfort_custom_low"),
             "custom_high": effective.get("temperature_comfort_custom_high"),
         },
+        "level_labels": resolve_level_label_details(effective),
         "zone_mappings": _zone_mapping_summary(zones),
         "zone_mapping_duplicates": duplicates,
         "alert_mappings": _alert_mapping_summary(alerts),
         "active_alert_resolution": runtime_data.get("alert_telemetry", []),
         "visual_alerts": _visual_alert_summary(alerts),
         "humidity_drift_7d": drift_dependency,
+        "pm25_entity_id_normalization": pm25_normalization,
         "local_version_preservation": local_version_status or cached_local_version_status(hass),
         "unavailable_or_unknown_entities": unavailable,
         "warnings": warnings,
@@ -932,8 +999,9 @@ def _build_v205_release_check_entry_report(
         {"show_output_entity_details": show_output_details, "failures": visibility_failures},
     )
 
-    unresolved = runtime_data.get("unresolved_placeholders_by_card") or {}
-    if not unresolved:
+    if "unresolved_placeholders_by_card" in runtime_data:
+        unresolved = runtime_data.get("unresolved_placeholders_by_card") or {}
+    else:
         unresolved = runtime_data.get("unresolved_placeholders") or []
     _add_check(
         checks,
@@ -941,6 +1009,18 @@ def _build_v205_release_check_entry_report(
         "pass" if not unresolved else "fail",
         "No unresolved placeholders are recorded for generated cards." if not unresolved else "Generated cards have unresolved placeholders.",
         {"unresolved": unresolved},
+    )
+
+    card_entity_availability = _generated_card_entity_availability(hass, cards)
+    card_entity_status = card_entity_availability["status"]
+    _add_check(
+        checks,
+        "generated_card_entity_availability",
+        card_entity_status,
+        "All generated card entity references resolve in Home Assistant."
+        if card_entity_status == "pass"
+        else "Generated cards contain missing, unknown, or unavailable entity references.",
+        card_entity_availability,
     )
 
     card_sanity_failures = _generated_card_text_sanity_failures(cards)
@@ -1000,6 +1080,18 @@ def _build_v205_release_check_entry_report(
         drift_dependency,
     )
 
+    pm25_normalization = _pm25_normalization_status(runtime_data)
+    pm25_blocked = bool(pm25_normalization.get("blocked"))
+    _add_check(
+        checks,
+        "pm25_entity_id_normalization",
+        "warn" if pm25_blocked else "pass",
+        "PM25 aggregate entity ID normalization has no blocked conflicts."
+        if not pm25_blocked
+        else "PM25 aggregate entity ID normalization is blocked by an existing target entity.",
+        pm25_normalization,
+    )
+
     local_snapshot_status, local_snapshot_message, local_snapshot_details = _local_snapshot_release_check(
         local_version_status or cached_local_version_status(hass),
         require_local_hi_snapshot=require_local_hi_snapshot,
@@ -1034,11 +1126,11 @@ def _release_check_manifest_status(manifest_version: Optional[str]) -> Tuple[str
     if manifest_version and _RELEASE_CHECK_MANIFEST_VERSION_RE.fullmatch(manifest_version):
         return (
             "pass",
-            f"Manifest version is {version}; release-check contract is valid for the v2.0.5/v2.0.6 line.",
+            f"Manifest version is {version}; release-check contract is valid for the v2.0.5-v2.0.7 line.",
         )
     return (
         "fail",
-        f"Manifest version is {version}; expected v2.0.5 or a v2.0.6 beta/rc/stable version.",
+        f"Manifest version is {version}; expected v2.0.5 or a v2.0.6/v2.0.7 beta/rc/stable version.",
     )
 
 
@@ -1124,6 +1216,25 @@ def _combined_check_status(items: List[dict]) -> str:
     return "pass"
 
 
+def _pm25_normalization_status(runtime_data: dict) -> dict:
+    details = runtime_data.get("pm25_entity_id_normalization")
+    if not isinstance(details, dict):
+        return {"status": "not_run", "changed": {}, "blocked": []}
+    changed = details.get("changed") if isinstance(details.get("changed"), dict) else {}
+    blocked = details.get("blocked") if isinstance(details.get("blocked"), list) else []
+    if blocked:
+        status = "blocked"
+    elif changed:
+        status = "changed"
+    else:
+        status = "ok"
+    return {
+        "status": status,
+        "changed": changed,
+        "blocked": blocked,
+    }
+
+
 def _output_details_visibility_failures(cards: dict, show_output_details: bool) -> List[str]:
     failures: List[str] = []
     for layout in ("v2_mobile", "v2_tablet"):
@@ -1147,6 +1258,57 @@ def _generated_card_text_sanity_failures(cards: dict) -> List[str]:
         if re.search(r"type:\s*conditional\s*\n\s*(?:conditions:\s*\[\]|card:\s*(?:\n|$))", text):
             failures.append(f"{layout}: invalid conditional block")
     return failures
+
+
+def _generated_card_entity_availability(hass: HomeAssistant, cards: dict) -> dict:
+    missing: List[dict] = []
+    unavailable: List[dict] = []
+    seen: set[tuple[str, str]] = set()
+
+    for layout, card in sorted((cards or {}).items()):
+        for entity_id in _extract_generated_card_entity_ids(str(card)):
+            key = (str(layout), entity_id)
+            if key in seen:
+                continue
+            seen.add(key)
+            state = hass.states.get(entity_id)
+            if state is None:
+                missing.append({"layout": str(layout), "entity_id": entity_id})
+                continue
+            state_text = str(state.state).lower()
+            if state_text in {"unknown", "unavailable"}:
+                unavailable.append(
+                    {
+                        "layout": str(layout),
+                        "entity_id": entity_id,
+                        "status": state_text,
+                    }
+                )
+
+    status = "pass"
+    if missing:
+        status = "fail"
+    elif unavailable:
+        status = "warn"
+
+    return {
+        "status": status,
+        "checked_entity_count": len(seen),
+        "missing_entities": missing,
+        "unknown_or_unavailable_entities": unavailable,
+    }
+
+
+def _extract_generated_card_entity_ids(card: str) -> List[str]:
+    entity_ids: List[str] = []
+    seen: set[str] = set()
+    for match in _GENERATED_CARD_ENTITY_RE.finditer(card or ""):
+        entity_id = match.group(0)
+        if entity_id in seen:
+            continue
+        seen.add(entity_id)
+        entity_ids.append(entity_id)
+    return entity_ids
 
 
 def _layouts_from_written_paths(paths: List[str]) -> set[str]:

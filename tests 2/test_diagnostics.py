@@ -91,6 +91,9 @@ def _load_diagnostics_module():
     _install_homeassistant_stubs()
     _install_package_scaffold()
     _load_module(f"{PKG}.const", ROOT / "const.py")
+    level_labels_path = ROOT / "helpers" / "level_labels.py"
+    if level_labels_path.exists():
+        _load_module(f"{PKG}.helpers.level_labels", level_labels_path)
     _load_module(f"{PKG}.helpers.frontend_dependencies", ROOT / "helpers" / "frontend_dependencies.py")
     _load_module(f"{PKG}.helpers.seasonal", ROOT / "helpers" / "seasonal.py")
     _load_module(f"{PKG}.helpers.zone_validation", ROOT / "helpers" / "zone_validation.py")
@@ -260,6 +263,15 @@ def test_native_diagnostics_payload_contains_support_sections():
     assert payload["generated_ui"]["cached_layouts"] == ["v2_mobile", "v2_tablet"]
 
 
+def test_manifest_declares_diagnostics_component_for_native_support():
+    manifest = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
+    declared = set(manifest.get("dependencies", [])) | set(
+        manifest.get("after_dependencies", [])
+    )
+
+    assert "diagnostics" in declared
+
+
 def test_native_diagnostics_redacts_sensitive_keys_and_url_values():
     diagnostics = _load_diagnostics_module()
 
@@ -284,6 +296,26 @@ def test_native_diagnostics_redacts_sensitive_keys_and_url_values():
     assert "REDACTION_FIXTURE_UNIQUE_ID" not in rendered
     assert "sensor.kitchen_humidity" in rendered
     assert "[REDACTED]" in rendered
+
+
+def test_diagnostics_redacts_credential_style_keys():
+    diagnostics = _load_diagnostics_module()
+
+    payload = diagnostics.redact_diagnostics_payload(
+        {
+            "credential": "REDACTION_FIXTURE_CREDENTIAL",
+            "credentials": {"raw": "REDACTION_FIXTURE_CREDENTIALS"},
+            "credential_json": "{\"token\":\"REDACTION_FIXTURE_JSON\"}",
+            "safe_label": "Kitchen",
+        }
+    )
+    rendered = json.dumps(payload, sort_keys=True)
+
+    assert "REDACTION_FIXTURE_CREDENTIAL" not in rendered
+    assert "REDACTION_FIXTURE_CREDENTIALS" not in rendered
+    assert "REDACTION_FIXTURE_JSON" not in rendered
+    assert payload["safe_label"] == "Kitchen"
+    assert payload["credential"] == "[REDACTED]"
 
 
 def test_unavailable_entities_are_reported_without_crashing():
@@ -315,6 +347,31 @@ def test_native_diagnostics_reports_house_drift_statistics_dependency():
     assert drift["repair_kind"] == "missing_helper"
     assert drift["repair_required"] is True
     assert any("HI House Humidity Drift 7d" in warning for warning in payload["runtime"]["warnings"])
+
+
+def test_native_diagnostics_reports_blocked_pm25_normalization():
+    diagnostics = _load_diagnostics_module()
+    hass = _sample_hass()
+    hass.data["humidity_intelligence"]["entry123"]["pm25_entity_id_normalization"] = {
+        "changed": {},
+        "blocked": [
+            {
+                "unique_suffix": "house_pm25_average",
+                "current_entity_id": "sensor.hi_house_pm2_5_average",
+                "target_entity_id": "sensor.hi_house_pm25_average",
+                "reason": "target_exists",
+            }
+        ],
+    }
+
+    payload = asyncio.run(
+        diagnostics.async_get_config_entry_diagnostics(hass, _sample_entry())
+    )
+
+    pm25 = payload["diagnostics_summary"]["pm25_entity_id_normalization"]
+    assert pm25["status"] == "blocked"
+    assert pm25["blocked"][0]["reason"] == "target_exists"
+    assert any("PM25 aggregate entity ID normalization is blocked" in warning for warning in payload["runtime"]["warnings"])
 
 
 def test_native_diagnostics_distinguishes_existing_not_ready_drift_helper():
@@ -379,6 +436,28 @@ def test_native_diagnostics_reports_temperature_comfort_warm_boundary():
     assert comfort["watch_high"] == 23.0
 
 
+def test_native_diagnostics_reports_canonical_level_label_sources():
+    diagnostics = _load_diagnostics_module()
+    entry = _sample_entry()
+    entry.options["level_labels"] = {
+        "level1": "  Ground <Floor>  ",
+        "level2": "",
+    }
+
+    payload = asyncio.run(
+        diagnostics.async_get_config_entry_diagnostics(_sample_hass(), entry)
+    )
+
+    assert payload["configuration"]["options_summary"]["level_labels"] == {
+        "level1": {"label": "Ground Floor", "source": "config"},
+        "level2": {"label": "Level 2", "source": "fallback"},
+    }
+    assert payload["diagnostics_summary"]["level_labels"] == {
+        "level1": {"label": "Ground Floor", "source": "config"},
+        "level2": {"label": "Level 2", "source": "fallback"},
+    }
+
+
 def test_to_redact_covers_required_sensitive_terms():
     diagnostics = _load_diagnostics_module()
     redacted = {str(item).lower() for item in diagnostics.TO_REDACT}
@@ -399,6 +478,9 @@ def test_to_redact_covers_required_sensitive_terms():
         "mac_address",
         "ssid",
         "address",
+        "credential",
+        "credentials",
+        "credential_json",
         "device_id",
         "unique_id",
     ):
