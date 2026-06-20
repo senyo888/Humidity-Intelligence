@@ -114,6 +114,8 @@ At its core, Humidity Intelligence is about creating a calmer, more stable livin
 
 ![Humidity Intelligence quick demo](assets/readme/hi_quick_demo.gif)
 
+<p><em>Sanitized HA Lab runtime playback with output isolation enabled. The clip shows backend-owned mode, reason, chip, and badge changes across normal, Zone 1, Zone 2, AQ, alert, manual override, and unavailable-telemetry states.</em></p>
+
 </details>
 
 ---
