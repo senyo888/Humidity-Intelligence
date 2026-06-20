@@ -6,7 +6,11 @@ Reusable Lovelace examples built on the Humidity Intelligence V2 generated card 
 
 These examples are public documentation artifacts. They should demonstrate safe, canonical UI patterns without exposing private Home Assistant entity IDs, addresses, screenshots, or personal data.
 
-The root README keeps one canonical V2 UI screenshot near the top. This gallery carries the broader example set for users who want to inspect layout variants without loading the front page with screenshots.
+The browseable UI Gallery lives in the GitHub Wiki:
+
+- [UI Gallery](https://github.com/senyo888/humidity-intelligence/wiki/UI-Gallery)
+
+This repository directory remains the canonical source for gallery YAML, preview assets, example notes, and contribution review. The Wiki is a visual navigation layer only; it must not define new entity semantics, backend behavior, lane priority, generated-card logic, or install guidance that differs from the repository.
 
 ## Available Layouts
 

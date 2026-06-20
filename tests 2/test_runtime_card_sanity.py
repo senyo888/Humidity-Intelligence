@@ -17,6 +17,31 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 ENTRY_ID = "entry123"
 PKG = "hi_testpkg"
 
+PUBLIC_CARD_SURFACES = (
+    ROOT / "ui" / "cards" / "v2_mobile.yaml",
+    ROOT / "ui" / "cards" / "v2_tablet.yaml",
+    ROOT / "ui-gallery" / "default-v2-mobile-aq" / "card.yaml",
+    ROOT / "ui-gallery" / "default-v2-tablet-zone-2" / "card.yaml",
+    ROOT / "tmp_out" / "v2_mobile.yaml",
+    ROOT / "tmp_out" / "v2_tablet.yaml",
+    ROOT / "ui" / "_sensor_ids.txt",
+    ROOT / "ui" / "register.py",
+    ROOT / "tests 2" / "test_slope_sanity.py",
+)
+
+PRIVATE_CARD_IDENTIFIERS = (
+    "alarm_control_panel.private_fixture_alarm_a",
+    "person.private_fixture_person_a",
+    "person.private_fixture_person_b",
+    "device_tracker.private_fixture_phone_a",
+    "sensor.private_fixture_room_humidity_a",
+    "sensor.private_fixture_room_humidity_b",
+    "sensor.private_fixture_room_temperature_a",
+    "sensor.private_fixture_room_temperature_b",
+    "sensor.private_fixture_zone_temperature_a",
+    "Room Private Fixture A",
+)
+
 
 def _install_homeassistant_stubs() -> None:
     """Install lightweight Home Assistant stubs into sys.modules."""
@@ -25,6 +50,7 @@ def _install_homeassistant_stubs() -> None:
     config_entries = types.ModuleType("homeassistant.config_entries")
     const = types.ModuleType("homeassistant.const")
     components = types.ModuleType("homeassistant.components")
+    diagnostics_mod = types.ModuleType("homeassistant.components.diagnostics")
     sensor_mod = types.ModuleType("homeassistant.components.sensor")
     binary_sensor_mod = types.ModuleType("homeassistant.components.binary_sensor")
     lovelace = types.ModuleType("homeassistant.components.lovelace")
@@ -54,6 +80,9 @@ def _install_homeassistant_stubs() -> None:
 
     class Entity:
         pass
+
+    def async_generate_entity_id(_format_string, suggested_object_id, hass=None):
+        return f"sensor.{suggested_object_id}"
 
     class SensorEntity(Entity):
         pass
@@ -145,6 +174,21 @@ def _install_homeassistant_stubs() -> None:
     def async_track_time_interval(*args, **kwargs):
         return lambda: None
 
+    def async_redact_data(data, to_redact):
+        redact = {str(item).lower() for item in to_redact}
+
+        def redact_value(value):
+            if isinstance(value, dict):
+                return {
+                    key: "[REDACTED]" if str(key).lower() in redact else redact_value(item)
+                    for key, item in value.items()
+                }
+            if isinstance(value, list):
+                return [redact_value(item) for item in value]
+            return value
+
+        return redact_value(data)
+
     core.HomeAssistant = HomeAssistant
     core.ServiceCall = ServiceCall
     config_entries.ConfigEntry = ConfigEntry
@@ -156,6 +200,7 @@ def _install_homeassistant_stubs() -> None:
     sensor_mod.SensorStateClass = SensorStateClass
     binary_sensor_mod.BinarySensorEntity = BinarySensorEntity
     lovelace_const.LOVELACE_DATA = "lovelace"
+    diagnostics_mod.async_redact_data = async_redact_data
     config_validation.entity_id = str
     config_validation.entity_ids = _ensure_list
     config_validation.ensure_list = _ensure_list
@@ -164,6 +209,7 @@ def _install_homeassistant_stubs() -> None:
     event.async_track_time_interval = async_track_time_interval
     device_registry.DeviceInfo = DeviceInfo
     entity_helper.Entity = Entity
+    entity_helper.async_generate_entity_id = async_generate_entity_id
     entity_registry.async_get = lambda hass: None
     util.slugify = lambda value: str(value).lower().replace(" ", "_")
     voluptuous.Schema = Schema
@@ -180,6 +226,7 @@ def _install_homeassistant_stubs() -> None:
     sys.modules["homeassistant.config_entries"] = config_entries
     sys.modules["homeassistant.const"] = const
     sys.modules["homeassistant.components"] = components
+    sys.modules["homeassistant.components.diagnostics"] = diagnostics_mod
     sys.modules["homeassistant.components.sensor"] = sensor_mod
     sys.modules["homeassistant.components.binary_sensor"] = binary_sensor_mod
     sys.modules["homeassistant.components.lovelace"] = lovelace
@@ -225,6 +272,9 @@ def _load_target_modules():
     _install_package_scaffold()
 
     _load_module(f"{PKG}.const", ROOT / "const.py")
+    level_labels_path = ROOT / "helpers" / "level_labels.py"
+    if level_labels_path.exists():
+        _load_module(f"{PKG}.helpers.level_labels", level_labels_path)
     engine_mod = _load_module(f"{PKG}.automations.engine", ROOT / "automations" / "engine.py")
     register_mod = _load_module(f"{PKG}.ui.register", ROOT / "ui" / "register.py")
     return engine_mod, register_mod
@@ -234,6 +284,9 @@ def _load_services_module():
     _install_homeassistant_stubs()
     _install_package_scaffold()
     _load_module(f"{PKG}.const", ROOT / "const.py")
+    level_labels_path = ROOT / "helpers" / "level_labels.py"
+    if level_labels_path.exists():
+        _load_module(f"{PKG}.helpers.level_labels", level_labels_path)
     return _load_module(f"{PKG}.services", ROOT / "services.py")
 
 
@@ -242,6 +295,16 @@ def _load_core_module():
     _install_package_scaffold()
     _load_module(f"{PKG}.const", ROOT / "const.py")
     return _load_module(f"{PKG}.sensors.core", ROOT / "sensors" / "core.py")
+
+
+def _load_entity_registry_helper_module():
+    _install_homeassistant_stubs()
+    _install_package_scaffold()
+    _load_module(f"{PKG}.const", ROOT / "const.py")
+    return _load_module(
+        f"{PKG}.helpers.entity_registry",
+        ROOT / "helpers" / "entity_registry.py",
+    )
 
 
 def _load_frontend_dependencies_module():
@@ -376,6 +439,17 @@ class _FakeConfigEntries:
 
 class _FakeRegistry:
     def async_get_entity_id(self, domain, _integration, unique_id):
+        suffix = unique_id.split("_", 2)[-1]
+        return f"{domain}.hi_{suffix}"
+
+
+class _FakeRegistryMissingUniqueIds:
+    def __init__(self, missing_unique_ids):
+        self._missing = set(missing_unique_ids)
+
+    def async_get_entity_id(self, domain, _integration, unique_id):
+        if unique_id in self._missing:
+            return None
         suffix = unique_id.split("_", 2)[-1]
         return f"{domain}.hi_{suffix}"
 
@@ -2327,6 +2401,7 @@ async def _run_card_assertions(register_mod) -> None:
                 "source_entities": ["sensor.kitchen_t", "sensor.bed_t"],
                 "show_temperature_chips": True,
             },
+            "level_labels": {"level1": "Ground Floor", "level2": "Loft"},
         },
         options={},
     )
@@ -2343,6 +2418,10 @@ async def _run_card_assertions(register_mod) -> None:
     assert tablet.startswith("# Humidity Intelligence V2 Tablet Dashboard YAML")
     assert "Call the service humidity_intelligence.dump_cards" in mobile
     assert "Dashboard Manual card" in tablet
+    assert hass.data["humidity_intelligence"][ENTRY_ID]["level_labels"] == {
+        "level1": "Ground Floor",
+        "level2": "Loft",
+    }
 
     room_placeholders = [
         "sensor.bedroom_humidity",
@@ -2366,8 +2445,14 @@ async def _run_card_assertions(register_mod) -> None:
         assert "House VOC" in card
         assert "House CO" in card
         assert "House Temp" in card
-        assert "Upstairs Temp" in card
-        assert "Downstairs Temp" in card
+        assert "Loft Temp" in card
+        assert "Ground Floor Temp" in card
+        assert "Loft AVG" in card
+        assert "Ground Floor AVG" in card
+        assert "AQ Loft" in card
+        assert "AQ Ground Floor" in card
+        assert "Upstairs" not in card
+        assert "Downstairs" not in card
         assert "show_temperature_chips" in card
         assert "slope_map" in card
         assert "sensor.hi_house_temperature_comfort_low" in card
@@ -2386,11 +2471,51 @@ async def _run_card_assertions(register_mod) -> None:
         assert "activeAlertNames.forEach" not in card
         assert "if (alertLaneActive && alertContext" in card
         assert "const danger = alertLaneActive" in card
+        assert "states['binary_sensor.humidity_danger']?.state === 'on'" not in card
+        assert "states['binary_sensor.condensation_danger']?.state === 'on'" not in card
+        assert "states['binary_sensor.mould_danger']?.state === 'on'" not in card
+        assert "_humidity_danger']?.state === 'on'" not in card
+        assert "_condensation_danger']?.state === 'on'" not in card
+        assert "_mould_danger']?.state === 'on'" not in card
+        assert "alert_telemetry" in card
+        assert "degraded === true" in card
+        assert "DEGRADED ALERT CONTEXT" not in card
+        assert "Stage: Degraded alert context detected" not in card
+        assert "const degradedAlertItems" in card
+        assert "const degradedAlertLabel" in card
+        assert "const degradedAlertReason" in card
+        assert "if (degradedAlertContext && !alertLaneActive)" in card
+        assert "Alert: ${degradedAlertLabel} is active, but HI skipped alert automation because ${degradedAlertReason}." in card
+        assert card.index("Stage: Air-quality assist running.") < card.index("if (degradedAlertContext && !alertLaneActive)")
         assert "(!gateActive && anyAlertActive)" in card
+        assert "states['sensor.air_control_mode']?.state || 'normal'" not in card
+        assert "entity.state || 'normal'" not in card
+        assert "'telemetry_unavailable'," in card
+        assert "const modeKnown =" in card
+        assert "const mode = modeKnown ? rawMode : 'unknown'" in card
+        assert "if (!modeKnown) return 'UNKNOWN';" in card
+        assert "const ready = modeKnown && mode === 'normal'" in card
+        assert "if (mode === 'telemetry_unavailable') return '#f59e0b';" in card
+        assert "if (mode === 'telemetry_unavailable') return 'TELEMETRY UNAVAILABLE';" in card
+        assert "mode === 'telemetry_unavailable'" in card
+        assert "mode === 'telemetry_unavailable' ||" in card
+        assert "const modeUnavailable = !modeKnown" in card
+        assert "modeUnavailable ||" in card
+        assert "Stage: Required telemetry unavailable; automation standing down until telemetry recovers." in card
+        assert "Stage: Air-control mode unavailable; UI waiting for backend telemetry." in card
+        assert "if (mode === 'telemetry_unavailable') return '1px solid rgba(245,158,11" in card
+        assert card.index("if (mode === 'telemetry_unavailable') return '#f59e0b';") < card.index("if (red || coE")
+        assert card.index("if (!modeKnown) return '#94a3b8';") < card.index("if (red || coE")
+        assert card.index("if (mode === 'telemetry_unavailable') return 'TELEMETRY UNAVAILABLE';") < card.index("if (red) return 'ALERT';")
+        assert card.index("if (!modeKnown) return 'UNKNOWN';") < card.index("if (red) return 'ALERT';")
+        assert "const borderModeKnown =" in card
+        assert "if (!borderModeKnown) return '1px solid rgba(148,163,184,0.55)';" in card
+        assert card.index("if (!borderModeKnown) return '1px solid rgba(148,163,184,0.55)';") < card.index("if (red) return '1px solid rgba(239,68,68,0.85)'")
+        assert card.index("if (mode === 'telemetry_unavailable') return '1px solid rgba(245,158,11") < card.index("if (red) return '1px solid rgba(239,68,68,0.85)'")
         assert "sensor.hi_level2_avg_temperature" in card
         assert "sensor.hi_level1_avg_temperature" in card
-        assert card.index("House AVG") < card.index("Upstairs AVG") < card.index("Downstairs AVG")
-        assert card.index("House IAQ") < card.index("Upstairs IAQ") < card.index("Downs.. IAQ")
+        assert card.index("House AVG") < card.index("Loft AVG") < card.index("Ground Floor AVG")
+        assert card.index("House IAQ") < card.index("Loft IAQ") < card.index("Ground Floor IAQ")
 
     assert _contains_v2_border_pill_sync_logic(mobile)
     assert _contains_v2_border_pill_sync_logic(tablet)
@@ -2442,6 +2567,35 @@ async def _run_output_detail_visibility_assertions(register_mod) -> None:
         assert "name: Outputs" in card
         assert "air_control_output_expanded" in card
         assert "hi:output-details" not in card
+
+
+async def _run_optional_aq_output_detail_pruning_assertions(register_mod) -> None:
+    sys.modules["homeassistant.helpers.entity_registry"].async_get = lambda hass: _FakeRegistryMissingUniqueIds(
+        {
+            f"hi_{ENTRY_ID}_level1_pm25_average",
+            f"hi_{ENTRY_ID}_level2_pm25_average",
+        }
+    )
+
+    data = _base_entry_data()
+    data["show_output_entity_details"] = True
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=data, options={})
+    hass = _FakeHass(entry, {})
+
+    mapping = await register_mod.async_build_entity_mapping(hass, ENTRY_ID)
+    cards = await register_mod.async_register_cards(hass, ENTRY_ID, mapping)
+
+    assert "sensor.air_control_downstairs_pm25_average" not in mapping
+    assert "sensor.air_control_upstairs_pm25_average" not in mapping
+    assert hass.data["humidity_intelligence"][ENTRY_ID].get("unresolved_placeholders_by_card", {}) == {}
+
+    for card in (cards.get("v2_mobile", ""), cards.get("v2_tablet", "")):
+        assert "entity: sensor.air_control_downstairs_pm25_average" not in card
+        assert "entity: sensor.air_control_upstairs_pm25_average" not in card
+        assert "name: Level 1 PM2.5" not in card
+        assert "name: Level 2 PM2.5" not in card
+        assert "name: Level 1 IAQ" in card
+        assert "name: Level 1 CO" in card
 
 
 async def _run_alert_only_card_assertions(register_mod) -> None:
@@ -2571,9 +2725,25 @@ def test_card_render_sanity_and_placeholder_resolution():
     asyncio.run(_run_card_assertions(register_mod))
 
 
+def test_level_label_card_replacement_is_single_pass_for_swapped_names():
+    _, register_mod = _load_target_modules()
+
+    rendered = register_mod._apply_level_labels(
+        "AQ Downstairs / AQ Upstairs / Downs.. IAQ / name: Downstairs IAQ",
+        {"level1": "Upstairs", "level2": "Downstairs"},
+    )
+
+    assert rendered == "AQ Upstairs / AQ Downstairs / Upstairs IAQ / name: Upstairs IAQ"
+
+
 def test_output_detail_visibility_option_prunes_v2_cards():
     _, register_mod = _load_target_modules()
     asyncio.run(_run_output_detail_visibility_assertions(register_mod))
+
+
+def test_optional_aq_output_detail_rows_prune_when_aggregate_entities_are_unresolved():
+    _, register_mod = _load_target_modules()
+    asyncio.run(_run_optional_aq_output_detail_pruning_assertions(register_mod))
 
 
 def test_card_render_hides_controls_in_alert_only_mode():
@@ -2719,6 +2889,63 @@ def test_visual_alert_flash_restores_initial_light_state_and_serializes_overlap(
     asyncio.run(_run_visual_flash_restore_assertions(services_mod))
 
 
+def test_public_card_surfaces_do_not_ship_private_entity_ids():
+    offenders = []
+    for path in PUBLIC_CARD_SURFACES:
+        if not path.exists():
+            continue
+        source = path.read_text()
+        for marker in PRIVATE_CARD_IDENTIFIERS:
+            if marker in source:
+                offenders.append(f"{path.relative_to(ROOT)}: {marker}")
+
+    assert offenders == []
+
+
+def test_public_v2_gallery_cards_preserve_air_control_mode_truth():
+    gallery_cards = (
+        ROOT / "ui-gallery" / "default-v2-mobile-aq" / "card.yaml",
+        ROOT / "ui-gallery" / "default-v2-tablet-zone-2" / "card.yaml",
+    )
+
+    for path in gallery_cards:
+        source = path.read_text()
+        assert "states['sensor.air_control_mode']?.state || 'normal'" not in source
+        assert "entity.state || 'normal'" not in source
+        assert "'telemetry_unavailable'," in source
+        assert "const modeKnown =" in source
+        assert "const mode = modeKnown ? rawMode : 'unknown'" in source
+        assert "if (!modeKnown) return 'UNKNOWN';" in source
+        assert "const ready = modeKnown && mode === 'normal'" in source
+        assert "states['binary_sensor.humidity_danger']?.state === 'on'" not in source
+        assert "states['binary_sensor.condensation_danger']?.state === 'on'" not in source
+        assert "states['binary_sensor.mould_danger']?.state === 'on'" not in source
+        assert "_humidity_danger']?.state === 'on'" not in source
+        assert "_condensation_danger']?.state === 'on'" not in source
+        assert "_mould_danger']?.state === 'on'" not in source
+        assert "if (mode === 'telemetry_unavailable') return '#f59e0b';" in source
+        assert "if (mode === 'telemetry_unavailable') return 'TELEMETRY UNAVAILABLE';" in source
+        assert "mode === 'telemetry_unavailable' ||" in source
+        assert "const modeUnavailable = !modeKnown" in source
+        assert "modeUnavailable ||" in source
+        assert "const danger = alertLaneActive" in source
+        assert "const degradedAlertItems" in source
+        assert "if (degradedAlertContext && !alertLaneActive)" in source
+        assert "tempColor(tempValueC(entity))" in source
+        assert "slopeEntityFor(item)" in source
+        assert "Stage: Required telemetry unavailable; automation standing down until telemetry recovers." in source
+        assert "Stage: Air-control mode unavailable; UI waiting for backend telemetry." in source
+        assert "if (mode === 'telemetry_unavailable') return '1px solid rgba(245,158,11" in source
+        assert source.index("if (mode === 'telemetry_unavailable') return '#f59e0b';") < source.index("if (red || coE")
+        assert source.index("if (!modeKnown) return '#94a3b8';") < source.index("if (red || coE")
+        assert source.index("if (mode === 'telemetry_unavailable') return 'TELEMETRY UNAVAILABLE';") < source.index("if (red) return 'ALERT';")
+        assert source.index("if (!modeKnown) return 'UNKNOWN';") < source.index("if (red) return 'ALERT';")
+        assert "const borderModeKnown =" in source
+        assert "if (!borderModeKnown) return '1px solid rgba(148,163,184,0.55)';" in source
+        assert source.index("if (!borderModeKnown) return '1px solid rgba(148,163,184,0.55)';") < source.index("if (red) return '1px solid rgba(239,68,68,0.85)'")
+        assert source.index("if (mode === 'telemetry_unavailable') return '1px solid rgba(245,158,11") < source.index("if (red) return '1px solid rgba(239,68,68,0.85)'")
+
+
 def test_startup_ui_refresh_contract_is_wired():
     init_source = (ROOT / "__init__.py").read_text()
     const_source = (ROOT / "const.py").read_text()
@@ -2730,6 +2957,7 @@ def test_startup_ui_refresh_contract_is_wired():
     assert ".async_listen_once(" in init_source
     assert "@callback" in init_source
     assert "hass.create_task(_run_startup_ui_refresh())" in init_source
+    assert "hass.async_create_task(_async_refresh_and_dump_cards" not in init_source
     assert ".add_done_callback(" not in init_source
     assert "startup_ui_refresh_scheduled" in init_source
     assert "SERVICE_REFRESH_UI" in init_source
@@ -2836,6 +3064,18 @@ def test_readme_uses_manifest_version_badge_not_static_ha_compatibility_badge():
     assert "manifest.json" in readme_source
     assert "query=%24.version" in readme_source
     assert "Home%20Assistant-2026.4.3%2B" not in readme_source
+
+
+def test_readme_only_shows_two_latest_release_notes_before_previous_releases():
+    readme_source = (ROOT / "README.md").read_text()
+    release_notes = readme_source.split("## Release Notes", 1)[1]
+    visible_notes, previous_releases = release_notes.split("<details>", 1)
+
+    assert "### v2.0.7" in visible_notes
+    assert "### v2.0.6" in visible_notes
+    assert "### v2.0.5" not in visible_notes
+    assert "<summary>Previous Releases</summary>" in previous_releases
+    assert "### v2.0.5" in previous_releases
 
 
 def test_dump_cards_without_layout_exports_all_cached_layouts():
@@ -2968,7 +3208,7 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
         hass,
         entry,
         runtime_data,
-        manifest_version="2.0.6-beta.1",
+        manifest_version="2.0.7-beta.1",
         frontend_dependencies={
             "status": "not_inspectable",
             "reason": "Lovelace resource collection is not available in this Home Assistant runtime context.",
@@ -3003,7 +3243,7 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
         hass,
         entry,
         runtime_data,
-        manifest_version="2.0.6-beta.1",
+        manifest_version="2.0.7-beta.1",
     )
     beta_checks = {check["id"]: check for check in beta_report["checks"]}
     assert beta_checks["manifest_version"]["status"] == "pass"
@@ -3202,6 +3442,162 @@ def test_diagnostics_summary_can_surface_shared_frontend_dependency_status_witho
     assert "frontend_dependency_resources" not in live_summary
 
 
+def test_support_diagnostics_summary_uses_canonical_level_label_source():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data=_base_entry_data(),
+        options={
+            "level_labels": {
+                "level1": "  Ground <Floor>  ",
+                "level2": "",
+            }
+        },
+    )
+    hass = _FakeHass(entry, {})
+
+    summary = services_mod._build_diagnostics_summary(
+        hass,
+        entry.data,
+        entry.options,
+        {},
+        {},
+    )
+
+    assert summary["level_labels"] == {
+        "level1": {"label": "Ground Floor", "source": "config"},
+        "level2": {"label": "Level 2", "source": "fallback"},
+    }
+
+
+def test_flash_lights_power_entity_rejects_non_switch_light_domains():
+    services_mod = _load_services_module()
+
+    assert services_mod._validate_visual_power_entity("switch.alert_power") == "switch.alert_power"
+    assert services_mod._validate_visual_power_entity("light.alert_power") == "light.alert_power"
+
+    try:
+        services_mod._validate_visual_power_entity("fan.extractor")
+    except Exception as err:
+        assert "switch or light" in str(err)
+    else:
+        raise AssertionError("fan power_entity should be rejected")
+
+
+def test_dump_diagnostics_legacy_export_redacts_sensitive_payload_before_write():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(
+                "72",
+                {
+                    "friendly_name": "https://user:pass@example.invalid/sensor?token=REDACTION_FIXTURE",
+                    "access_token": "REDACTION_FIXTURE_STATE_TOKEN",
+                    "host": "REDACTION_FIXTURE_STATE_HOST",
+                },
+            )
+        },
+    )
+    hass.config = _DumpCardsConfig(tempfile.mkdtemp())
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.data["lovelace"] = SimpleNamespace(
+        resources=_FakeLovelaceResources(
+            [
+                _NoStringResource(
+                    {
+                        "url": (
+                            "https://user:pass@example.invalid/card-mod.js"
+                            "?token=REDACTION_FIXTURE_RESOURCE_TOKEN"
+                        )
+                    }
+                ),
+                _NoStringResource({"url": "/hacsfiles/button-card/button-card.js?v=abc123"}),
+            ],
+            loaded=True,
+        )
+    )
+    hass.data["humidity_intelligence"][ENTRY_ID].update(
+        {
+            "config": {
+                **entry.data,
+                "api_key": "REDACTION_FIXTURE_API_KEY",
+                "host": "REDACTION_FIXTURE_HOST",
+                "ip_address": "REDACTION_FIXTURE_IP",
+                "device_id": "REDACTION_FIXTURE_DEVICE_ID",
+                "unique_id": "REDACTION_FIXTURE_UNIQUE_ID",
+                "external_url": "https://alice:pass@example.invalid/path?access_token=REDACTION_FIXTURE",
+            },
+            "options": {
+                "access_token": "REDACTION_FIXTURE_ACCESS_TOKEN",
+                "password": "REDACTION_FIXTURE_PASSWORD",
+            },
+            "entity_map": {
+                "humidity": "sensor.kitchen_h",
+                "diagnostic_entity": "sensor.private_diagnostic",
+            },
+            "cards": {"v2_mobile": "type: entities\n"},
+        }
+    )
+
+    async def local_version_status(_hass):
+        return {"status": "not_configured"}
+
+    captured = {}
+
+    def capture_write(path, payload):
+        captured["path"] = path
+        captured["payload"] = payload
+
+    original_local_version_status = services_mod.async_local_version_status
+    original_write_json = services_mod._write_json
+    try:
+        services_mod.async_local_version_status = local_version_status
+        services_mod._write_json = capture_write
+        asyncio.run(services_mod.async_register_services(hass))
+        handler = hass.services.handlers[(services_mod.DOMAIN, services_mod.SERVICE_DUMP_DIAGNOSTICS)]
+        asyncio.run(handler(SimpleNamespace(data={"entry_id": ENTRY_ID})))
+    finally:
+        services_mod.async_local_version_status = original_local_version_status
+        services_mod._write_json = original_write_json
+
+    rendered = json.dumps(captured["payload"], sort_keys=True)
+    for secret in (
+        "REDACTION_FIXTURE_API_KEY",
+        "REDACTION_FIXTURE_ACCESS_TOKEN",
+        "REDACTION_FIXTURE_PASSWORD",
+        "REDACTION_FIXTURE_HOST",
+        "REDACTION_FIXTURE_IP",
+        "REDACTION_FIXTURE_DEVICE_ID",
+        "REDACTION_FIXTURE_UNIQUE_ID",
+        "REDACTION_FIXTURE_RESOURCE_TOKEN",
+        "REDACTION_FIXTURE_STATE_TOKEN",
+        "REDACTION_FIXTURE_STATE_HOST",
+        "alice:pass",
+        "user:pass",
+    ):
+        assert secret not in rendered
+
+    assert "[REDACTED]" in rendered
+    assert "[REDACTED_URL]" in rendered
+    assert "sensor.kitchen_h" in rendered
+
+
+def test_generated_v2_cards_escape_dynamic_html_text():
+    for path in (
+        ROOT / "ui" / "cards" / "v2_mobile.yaml",
+        ROOT / "ui" / "cards" / "v2_tablet.yaml",
+        ROOT / "ui-gallery" / "default-v2-mobile-aq" / "card.yaml",
+        ROOT / "ui-gallery" / "default-v2-tablet-zone-2" / "card.yaml",
+    ):
+        source = path.read_text(encoding="utf-8")
+        assert "const escapeHtml = " in source, path
+        assert "lines.map(escapeHtml).join('<br>')" in source, path
+        assert "${escapeHtml(k)}" in source, path
+        assert "${escapeHtml(v === null ? '—' : `${v}${unit || ''}`)}" in source, path
+
+
 def test_diagnostics_summary_surfaces_temperature_comfort_warm_boundary():
     services_mod = _load_services_module()
     entry = SimpleNamespace(
@@ -3337,7 +3733,7 @@ def test_v205_release_check_warns_on_drift_dependency_without_hidden_pass():
             },
             "unresolved_placeholders_by_card": {},
         },
-        manifest_version="2.0.6-beta.1",
+        manifest_version="2.0.7-beta.1",
         frontend_dependencies={"status": "not_inspectable"},
     )
     checks = {check["id"]: check for check in report["checks"]}
@@ -3375,7 +3771,7 @@ def test_v205_release_check_warns_on_low_statistics_coverage():
             },
             "unresolved_placeholders_by_card": {},
         },
-        manifest_version="2.0.6-beta.1",
+        manifest_version="2.0.7-beta.1",
         frontend_dependencies={"status": "not_inspectable"},
     )
     checks = {check["id"]: check for check in report["checks"]}
@@ -3453,6 +3849,153 @@ def test_frontend_dependency_status_is_non_blocking_for_release_contract_checks(
     assert checks["configured_entity_availability"]["status"] == "pass"
     assert checks["house_humidity_drift_7d_dependency"]["status"] == "pass"
     assert checks["generated_cards_text_sanity"]["status"] == "pass"
+
+
+def test_v205_release_check_fails_stale_generated_card_entity_references():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.house_humidity_mean_7d": _FakeState(43),
+            "sensor.humidity_intelligence_hi_level1_iaq_average": _FakeState(87),
+        },
+    )
+
+    report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        {
+            "entity_map": {},
+            "cards": {
+                "v2_mobile": (
+                    "type: entities\n"
+                    "entities:\n"
+                    "  - entity: sensor.humidity_intelligence_hi_level1_iaq_average\n"
+                    "    name: Downstairs IAQ\n"
+                    "  - entity: sensor.air_control_downstairs_pm25_average\n"
+                    "    name: Downstairs PM2.5\n"
+                ),
+                "v2_tablet": "type: markdown\ncontent: Tablet ready\n",
+                "v1_mobile": "type: markdown\ncontent: Legacy ready\n",
+                "view_cards_button": "type: button\nname: View cards\n",
+            },
+            "unresolved_placeholders_by_card": {},
+        },
+        manifest_version="2.0.7-beta.1",
+        frontend_dependencies={"status": "not_inspectable"},
+    )
+    checks = {check["id"]: check for check in report["checks"]}
+
+    assert report["status"] == "fail"
+    assert checks["generated_card_entity_availability"]["status"] == "fail"
+    assert checks["generated_card_entity_availability"]["details"]["missing_entities"] == [
+        {"layout": "v2_mobile", "entity_id": "sensor.air_control_downstairs_pm25_average"}
+    ]
+
+
+def test_generated_card_entity_extraction_includes_embedded_js_references():
+    services_mod = _load_services_module()
+
+    entity_ids = services_mod._extract_generated_card_entity_ids(
+        "\n".join(
+            [
+                "type: custom:button-card",
+                "entity: sensor.hi_air_control_mode",
+                "tap_action:",
+                "  service_data:",
+                "    entity_id: input_boolean.air_control_enabled",
+                "custom_fields:",
+                "  reason: >",
+                "    [[[",
+                "      const pause = states['timer.air_control_pause']?.state;",
+                "      const output = fanTxt('fan.kitchen_air');",
+                "      const docs = 'https://github.com/senyo888/Humidity-Intelligence';",
+                "    ]]]",
+            ]
+        )
+    )
+
+    assert entity_ids == [
+        "sensor.hi_air_control_mode",
+        "input_boolean.air_control_enabled",
+        "timer.air_control_pause",
+        "fan.kitchen_air",
+    ]
+
+
+def test_v205_release_check_fails_js_only_stale_generated_card_references():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.house_humidity_mean_7d": _FakeState(43),
+        },
+    )
+
+    report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        {
+            "entity_map": {},
+            "cards": {
+                "v2_mobile": (
+                    "type: markdown\n"
+                    "content: |\n"
+                    "  [[[ return states['sensor.hi_js_only_missing']?.state || 'unknown'; ]]]\n"
+                ),
+                "v2_tablet": "type: markdown\ncontent: Tablet ready\n",
+                "v1_mobile": "type: markdown\ncontent: Legacy ready\n",
+                "view_cards_button": "type: button\nname: View cards\n",
+            },
+            "unresolved_placeholders_by_card": {},
+        },
+        manifest_version="2.0.7-beta.1",
+        frontend_dependencies={"status": "not_inspectable"},
+    )
+    checks = {check["id"]: check for check in report["checks"]}
+
+    assert checks["generated_card_entity_availability"]["status"] == "fail"
+    assert checks["generated_card_entity_availability"]["details"]["missing_entities"] == [
+        {"layout": "v2_mobile", "entity_id": "sensor.hi_js_only_missing"}
+    ]
+
+
+def test_v205_release_check_uses_card_scoped_unresolved_placeholders_when_available():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.house_humidity_mean_7d": _FakeState(43),
+        },
+    )
+
+    report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        {
+            "entity_map": {},
+            "cards": {
+                "v2_mobile": "type: markdown\ncontent: Mobile ready\n",
+                "v2_tablet": "type: markdown\ncontent: Tablet ready\n",
+                "v1_mobile": "type: markdown\ncontent: Legacy ready\n",
+                "view_cards_button": "type: button\nname: View cards\n",
+            },
+            "unresolved_placeholders": [
+                "fan.kitchen_air",
+                "sensor.air_control_downstairs_pm25_average",
+            ],
+            "unresolved_placeholders_by_card": {},
+        },
+        manifest_version="2.0.7-beta.1",
+        frontend_dependencies={"status": "not_inspectable"},
+    )
+    checks = {check["id"]: check for check in report["checks"]}
+
+    assert checks["unresolved_placeholders"]["status"] == "pass"
+    assert checks["unresolved_placeholders"]["details"]["unresolved"] == {}
 
 
 def test_v205_release_check_service_is_documented_and_registered():
@@ -3591,11 +4134,13 @@ def test_alert_configuration_contract_uses_internal_sources():
     assert "diagnostics_summary" in services_source
     assert "visual_alerts" in services_source
     assert "active_alert_resolution" in services_source
+    assert "pm25_entity_id_normalization" in services_source
     sensor_source = (ROOT / "sensor.py").read_text()
     assert '"config": _sanitize_json(config)' not in sensor_source
     assert '"entity_map": _sanitize_json(entity_map)' not in sensor_source
     assert '"alert_telemetry": _sanitize_json(alert_telemetry)' not in sensor_source
     assert "_compact_diagnostics_summary" in sensor_source
+    assert "pm25_entity_id_normalization" in sensor_source
     assert "Use service humidity_intelligence.dump_diagnostics" in sensor_source
     assert "HUMIDITY_ALERT_FLASH_COUNT = 10" in (ROOT / "automations" / "engine.py").read_text()
     assert "HUMIDITY_ALERT_REPEAT_MINUTES = 30" in (ROOT / "automations" / "engine.py").read_text()
@@ -3615,7 +4160,7 @@ def test_v206_drift_statistics_helper_docs_preserve_repair_status_split():
     assert "Statistics helper" in readme
     assert "Do not fabricate history" in readme
     assert "not ready or unavailable" in readme
-    assert "2.0.6" in changelog
+    assert "2.0.7" in changelog
     assert "setup/repair" in changelog
     assert "algorithm" not in changelog.lower()
 
@@ -3643,6 +4188,226 @@ def test_level_average_ignores_unknown_unavailable_and_non_numeric_states():
 
     engine = engine_mod.HIAutomationEngine(hass, entry)
     assert engine._level_avg("iaq", "level1") == 57.2
+
+
+def test_pm25_aggregate_sensors_use_object_id_safe_pm25_names_for_new_installs():
+    core_mod = _load_core_module()
+    entry = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data={
+            "telemetry": [
+                {"entity_id": "sensor.l1_pm25", "sensor_type": "pm25", "level": "level1", "room": "Hallway"},
+                {"entity_id": "sensor.l2_pm25", "sensor_type": "pm25", "level": "level2", "room": "Bedroom"},
+            ],
+            "zones": {},
+        },
+        options={},
+    )
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.l1_pm25": _FakeState("5.0", {"unit_of_measurement": "μg/m³"}),
+            "sensor.l2_pm25": _FakeState("7.0", {"unit_of_measurement": "μg/m³"}),
+        },
+    )
+
+    sensors, _binary_sensors, _sources = core_mod.build_entities(hass, entry)
+    by_unique_id = {sensor._attr_unique_id: sensor for sensor in sensors}
+
+    expected = {
+        f"hi_{ENTRY_ID}_house_pm25_average": "HI House PM25 Average",
+        f"hi_{ENTRY_ID}_level1_pm25_average": "HI Level1 PM25 Average",
+        f"hi_{ENTRY_ID}_level2_pm25_average": "HI Level2 PM25 Average",
+    }
+    for unique_id, name in expected.items():
+        sensor = by_unique_id[unique_id]
+        assert sensor._attr_name == name
+        assert "PM2.5" not in sensor._attr_name
+
+
+def test_pm25_aggregate_sensors_degrade_when_all_pm25_sources_unavailable():
+    core_mod = _load_core_module()
+    entry = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data={
+            "telemetry": [
+                {"entity_id": "sensor.l1_pm25", "sensor_type": "pm25", "level": "level1", "room": "Hallway"},
+                {"entity_id": "sensor.l2_pm25", "sensor_type": "pm25", "level": "level2", "room": "Bedroom"},
+            ],
+            "zones": {},
+        },
+        options={},
+    )
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.l1_pm25": _FakeState("unknown", {"unit_of_measurement": "μg/m³"}),
+            "sensor.l2_pm25": _FakeState("unavailable", {"unit_of_measurement": "μg/m³"}),
+        },
+    )
+
+    sensors, _binary_sensors, _sources = core_mod.build_entities(hass, entry)
+    by_unique_id = {sensor._attr_unique_id: sensor for sensor in sensors}
+
+    assert by_unique_id[f"hi_{ENTRY_ID}_house_pm25_average"]._attr_native_value is None
+    assert by_unique_id[f"hi_{ENTRY_ID}_level1_pm25_average"]._attr_native_value is None
+    assert by_unique_id[f"hi_{ENTRY_ID}_level2_pm25_average"]._attr_native_value is None
+
+
+def test_pm25_aggregate_registry_normalizes_legacy_pm2_5_entity_ids():
+    registry_mod = _load_entity_registry_helper_module()
+
+    class _Entry:
+        def __init__(self, entity_id):
+            self.entity_id = entity_id
+
+    class _Registry:
+        def __init__(self):
+            self.updated = []
+            self.entries = {
+                "sensor.hi_house_pm2_5_average": _Entry("sensor.hi_house_pm2_5_average"),
+                "sensor.hi_house_voc_average": _Entry("sensor.hi_house_voc_average"),
+            }
+
+        def async_get_entity_id(self, domain, platform, unique_id):
+            if (domain, platform, unique_id) == (
+                "sensor",
+                "humidity_intelligence",
+                f"hi_{ENTRY_ID}_house_pm25_average",
+            ):
+                return "sensor.hi_house_pm2_5_average"
+            return None
+
+        def async_get(self, entity_id):
+            return self.entries.get(entity_id)
+
+        def async_update_entity(self, entity_id, *, new_entity_id):
+            entry = self.entries.pop(entity_id)
+            entry.entity_id = new_entity_id
+            self.entries[new_entity_id] = entry
+            self.updated.append((entity_id, new_entity_id))
+
+    registry = _Registry()
+    hass = SimpleNamespace()
+    sys.modules["homeassistant.helpers.entity_registry"].async_get = lambda _hass: registry
+
+    changed = registry_mod.normalize_pm25_aggregate_entity_ids(hass, ENTRY_ID)
+
+    assert changed == {
+        "changed": {
+            "sensor.hi_house_pm2_5_average": "sensor.hi_house_pm25_average",
+        },
+        "blocked": [],
+    }
+    assert "sensor.hi_house_pm25_average" in registry.entries
+    assert "sensor.hi_house_pm2_5_average" not in registry.entries
+    assert "sensor.hi_house_voc_average" in registry.entries
+    assert registry.updated == [
+        ("sensor.hi_house_pm2_5_average", "sensor.hi_house_pm25_average")
+    ]
+
+
+def test_pm25_aggregate_registry_reports_blocked_target_conflict():
+    registry_mod = _load_entity_registry_helper_module()
+
+    class _Entry:
+        def __init__(self, entity_id):
+            self.entity_id = entity_id
+
+    class _Registry:
+        def __init__(self):
+            self.updated = []
+            self.entries = {
+                "sensor.hi_house_pm2_5_average": _Entry("sensor.hi_house_pm2_5_average"),
+                "sensor.hi_house_pm25_average": _Entry("sensor.hi_house_pm25_average"),
+            }
+
+        def async_get_entity_id(self, domain, platform, unique_id):
+            if (domain, platform, unique_id) == (
+                "sensor",
+                "humidity_intelligence",
+                f"hi_{ENTRY_ID}_house_pm25_average",
+            ):
+                return "sensor.hi_house_pm2_5_average"
+            return None
+
+        def async_get(self, entity_id):
+            return self.entries.get(entity_id)
+
+        def async_update_entity(self, entity_id, *, new_entity_id):
+            self.updated.append((entity_id, new_entity_id))
+
+    registry = _Registry()
+    hass = SimpleNamespace()
+    sys.modules["homeassistant.helpers.entity_registry"].async_get = lambda _hass: registry
+
+    status = registry_mod.normalize_pm25_aggregate_entity_ids(hass, ENTRY_ID)
+
+    assert status == {
+        "changed": {},
+        "blocked": [
+            {
+                "unique_suffix": "house_pm25_average",
+                "current_entity_id": "sensor.hi_house_pm2_5_average",
+                "target_entity_id": "sensor.hi_house_pm25_average",
+                "reason": "target_exists",
+            }
+        ],
+    }
+    assert registry.updated == []
+
+
+def test_v205_release_check_warns_on_blocked_pm25_normalization():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.house_humidity_mean_7d": _FakeState(43),
+        },
+    )
+    runtime_data = {
+        "entity_map": {},
+        "cards": {
+            "v2_mobile": "type: markdown\ncontent: Mobile ready\n",
+            "v2_tablet": "type: markdown\ncontent: Tablet ready\n",
+            "v1_mobile": "type: markdown\ncontent: Legacy ready\n",
+            "view_cards_button": "type: button\nname: View cards\n",
+        },
+        "unresolved_placeholders_by_card": {},
+        "pm25_entity_id_normalization": {
+            "changed": {},
+            "blocked": [
+                {
+                    "unique_suffix": "house_pm25_average",
+                    "current_entity_id": "sensor.hi_house_pm2_5_average",
+                    "target_entity_id": "sensor.hi_house_pm25_average",
+                    "reason": "target_exists",
+                }
+            ],
+        },
+    }
+
+    report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        runtime_data,
+        manifest_version="2.0.7-beta.1",
+        frontend_dependencies={"status": "not_inspectable"},
+    )
+    checks = {check["id"]: check for check in report["checks"]}
+    summary = services_mod._build_diagnostics_summary(
+        hass,
+        entry.data,
+        entry.options,
+        {},
+        runtime_data,
+    )
+
+    assert checks["pm25_entity_id_normalization"]["status"] == "warn"
+    assert checks["pm25_entity_id_normalization"]["details"]["status"] == "blocked"
+    assert summary["pm25_entity_id_normalization"]["status"] == "blocked"
+    assert any("PM25 aggregate entity ID normalization is blocked" in warning for warning in summary["warnings"])
 
 
 if __name__ == "__main__":

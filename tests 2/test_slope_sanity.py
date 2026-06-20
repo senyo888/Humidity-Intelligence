@@ -201,27 +201,27 @@ def test_slope_entities_are_seeded_immediately_on_setup_for_all_sources():
         data={
             "telemetry": [
                 {
-                    "entity_id": "sensor.wirelesstag_willow_s_room_temperature",
+                    "entity_id": "sensor.room_alpha_temperature",
                     "sensor_type": "temperature",
-                    "room": "Willow's Room",
+                    "room": "Room Alpha",
                 },
                 {
-                    "entity_id": "sensor.wirelesstag_bedroom_temperature",
+                    "entity_id": "sensor.room_beta_temperature",
                     "sensor_type": "temperature",
-                    "room": "Bedroom",
+                    "room": "Room Beta",
                 },
                 {
-                    "entity_id": "sensor.wirelesstag_landing_temperature_2",
+                    "entity_id": "sensor.room_gamma_temperature",
                     "sensor_type": "temperature",
-                    "room": "Landing",
+                    "room": "Room Gamma",
                 }
             ],
             "slope": {
                 "mode": "hi_calculates",
                 "source_entities": [
-                    "sensor.wirelesstag_willow_s_room_temperature",
-                    "sensor.wirelesstag_bedroom_temperature",
-                    "sensor.wirelesstag_landing_temperature_2",
+                    "sensor.room_alpha_temperature",
+                    "sensor.room_beta_temperature",
+                    "sensor.room_gamma_temperature",
                 ],
             },
         },
@@ -229,15 +229,15 @@ def test_slope_entities_are_seeded_immediately_on_setup_for_all_sources():
     )
     hass = _FakeHass(
         {
-            "sensor.wirelesstag_willow_s_room_temperature": _FakeState(
+            "sensor.room_alpha_temperature": _FakeState(
                 "20.21",
                 {"unit_of_measurement": "°C"},
             ),
-            "sensor.wirelesstag_bedroom_temperature": _FakeState(
+            "sensor.room_beta_temperature": _FakeState(
                 "20.62",
                 {"unit_of_measurement": "°C"},
             ),
-            "sensor.wirelesstag_landing_temperature_2": _FakeState(
+            "sensor.room_gamma_temperature": _FakeState(
                 "19.75",
                 {"unit_of_measurement": "°C"},
             ),
@@ -247,13 +247,13 @@ def test_slope_entities_are_seeded_immediately_on_setup_for_all_sources():
                 (
                     "sensor",
                     "humidity_intelligence",
-                    "hi_entry123_slope_willow_s_room",
-                ): "sensor.humidity_intelligence_hi_willow_s_room_temperature_slope",
+                    "hi_entry123_slope_room_alpha",
+                ): "sensor.humidity_intelligence_hi_room_alpha_temperature_slope",
                 (
                     "sensor",
                     "humidity_intelligence",
-                    "hi_entry123_slope_bedroom",
-                ): "sensor.hi_bedroom_temperature_slope",
+                    "hi_entry123_slope_room_beta",
+                ): "sensor.hi_room_beta_temperature_slope",
             }
         ),
     )
@@ -261,14 +261,14 @@ def test_slope_entities_are_seeded_immediately_on_setup_for_all_sources():
     sensors, slope_sources, slope_map = slope_mod.build_slope_entities(hass, entry)
 
     assert slope_sources == [
-        "sensor.wirelesstag_willow_s_room_temperature",
-        "sensor.wirelesstag_bedroom_temperature",
-        "sensor.wirelesstag_landing_temperature_2",
+        "sensor.room_alpha_temperature",
+        "sensor.room_beta_temperature",
+        "sensor.room_gamma_temperature",
     ]
     assert slope_map == {
-        "sensor.wirelesstag_willow_s_room_temperature": "sensor.humidity_intelligence_hi_willow_s_room_temperature_slope",
-        "sensor.wirelesstag_bedroom_temperature": "sensor.hi_bedroom_temperature_slope",
-        "sensor.wirelesstag_landing_temperature_2": "sensor.hi_landing_temperature_slope",
+        "sensor.room_alpha_temperature": "sensor.humidity_intelligence_hi_room_alpha_temperature_slope",
+        "sensor.room_beta_temperature": "sensor.hi_room_beta_temperature_slope",
+        "sensor.room_gamma_temperature": "sensor.hi_room_gamma_temperature_slope",
     }
     assert len(sensors) == 3
     for sensor in sensors:

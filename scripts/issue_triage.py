@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import os
 import re
@@ -698,35 +699,47 @@ def _markdown_list(items: list[str]) -> str:
     return "\n".join(f"- {item}" for item in items)
 
 
+_MARKDOWN_META_RE = re.compile(r"([\\`*_{}\[\]()#+!|])")
+
+
+def _escape_report_text(value: Any) -> str:
+    text = html.escape(str(value or ""), quote=True).replace("=", "&#61;")
+    return _MARKDOWN_META_RE.sub(r"\\\1", text)
+
+
 def _issue_anchor(issue: AnalyzedIssue) -> str:
-    return f"#{issue.number} {issue.title}"
+    return f"#{_escape_report_text(issue.number)} {_escape_report_text(issue.title)}"
 
 
 def _render_issue(issue: AnalyzedIssue) -> str:
-    current_labels = ", ".join(issue.current_labels) if issue.current_labels else "none"
-    suggested_labels = ", ".join(issue.suggested_labels)
-    signals = ", ".join(issue.signals)
+    current_labels = (
+        ", ".join(_escape_report_text(label) for label in issue.current_labels)
+        if issue.current_labels
+        else "none"
+    )
+    suggested_labels = ", ".join(_escape_report_text(label) for label in issue.suggested_labels)
+    signals = ", ".join(_escape_report_text(signal) for signal in issue.signals)
 
     return textwrap.dedent(
         f"""
-        ### #{issue.number} {issue.title}
+        ### #{_escape_report_text(issue.number)} {_escape_report_text(issue.title)}
 
-        - URL: {issue.url}
-        - Author: {issue.author}
-        - Created: {issue.created_at}
-        - Updated: {issue.updated_at}
+        - URL: {_escape_report_text(issue.url)}
+        - Author: {_escape_report_text(issue.author)}
+        - Created: {_escape_report_text(issue.created_at)}
+        - Updated: {_escape_report_text(issue.updated_at)}
         - Current labels: {current_labels}
         - Triage signals: {signals}
-        - Short summary: {issue.summary}
-        - Detected category: {issue.category}
-        - Suggested priority: {issue.priority}
-        - Suggested owner: {issue.owner}
+        - Short summary: {_escape_report_text(issue.summary)}
+        - Detected category: {_escape_report_text(issue.category)}
+        - Suggested priority: {_escape_report_text(issue.priority)}
+        - Suggested owner: {_escape_report_text(issue.owner)}
         - Suggested labels: {suggested_labels}
-        - Diagnostics bundle: {issue.diagnostics_bundle}
-        - Proposal required: {issue.proposal_required}
-        - Release blocker: {issue.release_blocker}
-        - Recommended action: {issue.recommended_action}
-        - Confidence level: {issue.confidence}
+        - Diagnostics bundle: {_escape_report_text(issue.diagnostics_bundle)}
+        - Proposal required: {_escape_report_text(issue.proposal_required)}
+        - Release blocker: {_escape_report_text(issue.release_blocker)}
+        - Recommended action: {_escape_report_text(issue.recommended_action)}
+        - Confidence level: {_escape_report_text(issue.confidence)}
         """
     ).strip()
 
@@ -757,7 +770,7 @@ def render_report(
         if issue.needs_human_decision
     ]
     label_lines = [
-        f"{_issue_anchor(issue)}: {', '.join(issue.suggested_labels)}"
+        f"{_issue_anchor(issue)}: {', '.join(_escape_report_text(label) for label in issue.suggested_labels)}"
         for issue in report_issues
         if issue.suggested_labels != ["no label change suggested"]
     ]
@@ -767,7 +780,11 @@ def render_report(
         owned = [issue for issue in report_issues if issue.owner == owner]
         if not owned:
             continue
-        issue_refs = ", ".join(f"#{issue.number} ({issue.priority}, {issue.category})" for issue in owned)
+        issue_refs = ", ".join(
+            f"#{_escape_report_text(issue.number)} "
+            f"({_escape_report_text(issue.priority)}, {_escape_report_text(issue.category)})"
+            for issue in owned
+        )
         handoff_lines.append(f"{owner}: {issue_refs}")
 
     next_actions: list[str] = [

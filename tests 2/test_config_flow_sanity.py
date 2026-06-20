@@ -131,6 +131,7 @@ def _install_homeassistant_stubs() -> None:
     selector.TextSelector = _Selector
     selector.TextSelectorConfig = _SelectorConfig
     selector.TextSelectorType = SimpleNamespace(TEXT="text")
+    selector.TimeSelector = _Selector
     selector.NumberSelector = _Selector
     selector.NumberSelectorConfig = _SelectorConfig
     selector.NumberSelectorMode = SimpleNamespace(SLIDER="slider", BOX="box")
@@ -181,6 +182,9 @@ def _load_config_flow_module():
     _install_homeassistant_stubs()
     _install_package_scaffold()
     _load_module(f"{PKG}.const", ROOT / "const.py")
+    level_labels_path = ROOT / "helpers" / "level_labels.py"
+    if level_labels_path.exists():
+        _load_module(f"{PKG}.helpers.level_labels", level_labels_path)
     _load_module(f"{PKG}.helpers.parsing", ROOT / "helpers" / "parsing.py")
     _load_module(f"{PKG}.helpers.drift", ROOT / "helpers" / "drift.py")
     _load_module(
@@ -221,8 +225,55 @@ def _schema_select_labels(result: dict, field: str):
     raise AssertionError(f"{field!r} not present in schema")
 
 
+def _schema_has_field(result: dict, field: str) -> bool:
+    return any(getattr(key, "key", key) == field for key in result["data_schema"].schema)
+
+
+def _advanced_schema_has_field(result: dict, field: str) -> bool:
+    for key, section_obj in result["data_schema"].schema.items():
+        if getattr(key, "key", key) != "show_advanced_options":
+            continue
+        section_schema = section_obj["schema"]
+        return any(
+            getattr(section_key, "key", section_key) == field
+            for section_key in section_schema.schema
+        )
+    raise AssertionError("'show_advanced_options' not present in schema")
+
+
+def _advanced_schema_default(result: dict, field: str):
+    for key, section_obj in result["data_schema"].schema.items():
+        if getattr(key, "key", key) != "show_advanced_options":
+            continue
+        section_schema = section_obj["schema"]
+        for section_key in section_schema.schema:
+            if getattr(section_key, "key", section_key) == field:
+                return getattr(section_key, "default", None)
+        raise AssertionError(f"{field!r} not present in advanced schema")
+    raise AssertionError("'show_advanced_options' not present in schema")
+
+
 def _option_labels(options):
     return [option["label"] for option in options]
+
+
+def _base_telemetry():
+    return [
+        {
+            "entity_id": "sensor.kitchen_humidity",
+            "sensor_type": "humidity",
+            "friendly_name": "Kitchen humidity",
+            "level": "level1",
+            "room": "Kitchen",
+        },
+        {
+            "entity_id": "sensor.kitchen_temperature",
+            "sensor_type": "temperature",
+            "friendly_name": "Kitchen temperature",
+            "level": "level1",
+            "room": "Kitchen",
+        },
+    ]
 
 
 def test_setup_add_sensor_cancel_requires_confirmation_and_preserves_entries():
@@ -347,6 +398,20 @@ def test_each_zone_exposes_both_level_choices_and_preserves_explicit_selection()
     assert flow._data["zones"]["zone2"]["level"] == "level1"
 
 
+def test_value_label_option_helper_preserves_order_values_and_labels():
+    config_flow = _load_config_flow_module()
+
+    options = config_flow._value_label_options([
+        {"value": "alpha", "label": "Alpha"},
+        {"value": "beta", "label": "Beta"},
+    ])
+
+    assert options == [
+        {"value": "alpha", "label": "Alpha"},
+        {"value": "beta", "label": "Beta"},
+    ]
+
+
 def test_options_new_zone2_defaults_to_level2_and_preserves_trigger_ownership():
     config_flow = _load_config_flow_module()
     entry = SimpleNamespace(
@@ -416,6 +481,698 @@ def test_frontend_dependency_page_excludes_drift_helper_status_and_keeps_card_de
     assert "type: custom:mod-card" in generated_card_text
     assert "bubble-card" not in dependency_names
     assert "custom:bubble-card" not in generated_card_text
+
+
+def test_walkthrough_placeholders_are_supplied_by_config_and_options_flow_results():
+    config_flow = _load_config_flow_module()
+    walkthrough_url = config_flow.CONFIGURATION_WALKTHROUGH_URL
+
+    setup_flow = config_flow.HumidityIntelligenceConfigFlow()
+    setup_flow.hass = SimpleNamespace(data={})
+    dependencies = asyncio.run(setup_flow.async_step_dependencies())
+    ui_install = asyncio.run(setup_flow.async_step_ui_install())
+
+    entry = SimpleNamespace(data={}, options={})
+    options_flow = config_flow.HumidityIntelligenceOptionsFlow(entry)
+    options_flow.hass = SimpleNamespace(data={})
+    options_dependencies = asyncio.run(options_flow.async_step_options_dependencies())
+
+    for result in (dependencies, ui_install, options_dependencies):
+        placeholders = result["description_placeholders"]
+        assert placeholders["walkthrough_url"] == walkthrough_url
+
+
+def test_dependency_schema_builder_sets_skip_default():
+    config_flow = _load_config_flow_module()
+    schema = config_flow._dependency_schema(default_skip=True)
+
+    default = None
+    for key in schema.schema:
+        if getattr(key, "key", key) == "skip":
+            default = getattr(key, "default", None)
+            break
+
+    assert default is True
+
+
+def test_presence_states_schema_builder_preserves_defaults_and_options():
+    config_flow = _load_config_flow_module()
+    schema = config_flow._presence_states_schema(["home", "occupied"])
+
+    defaults = {}
+    select_values = {}
+    for key, selector_obj in schema.schema.items():
+        field = getattr(key, "key", key)
+        defaults[field] = getattr(key, "default", None)
+        select_values[field] = [
+            option["value"]
+            for option in getattr(selector_obj.config, "options", [])
+        ]
+
+    assert defaults["present_states"] == ["home", "occupied"]
+    assert defaults["away_states"] == []
+    assert select_values["present_states"] == ["home", "occupied"]
+    assert select_values["away_states"] == ["home", "occupied"]
+
+
+def test_setup_surfaces_link_to_configuration_walkthrough():
+    config_source = (ROOT / "config_flow.py").read_text()
+    strings = json.loads((ROOT / "strings.json").read_text())
+    translations = json.loads((ROOT / "translations" / "en.json").read_text())
+    walkthrough_url = "https://github.com/senyo888/humidity-intelligence/wiki/Configuration-Walkthrough"
+
+    for payload in (strings, translations):
+        setup_description = payload["config"]["step"]["dependencies"]["description"]
+        options_description = payload["options"]["step"]["options_dependencies"]["description"]
+        ui_install_description = payload["config"]["step"]["ui_install"]["description"]
+
+        assert "Configuration Walkthrough" in setup_description
+        assert "{walkthrough_url}" in setup_description
+        assert walkthrough_url not in setup_description
+        assert "Configuration Walkthrough" in options_description
+        assert "{walkthrough_url}" in options_description
+        assert walkthrough_url not in options_description
+        assert "Next step: Configuration Walkthrough" in ui_install_description
+        assert "{walkthrough_url}" in ui_install_description
+        assert walkthrough_url not in ui_install_description
+
+    assert walkthrough_url in config_source
+    assert config_source.count('"walkthrough_url": CONFIGURATION_WALKTHROUGH_URL') == 3
+
+
+def test_setup_gates_flattens_advanced_section_and_preserves_visible_values():
+    config_flow = _load_config_flow_module()
+    flow = config_flow.HumidityIntelligenceConfigFlow()
+    flow.hass = SimpleNamespace()
+
+    result = asyncio.run(
+        flow.async_step_gates(
+            {
+                "enable_time_gate": True,
+                "start_time": "07:30",
+                "end_time": "21:15",
+                "outside_action": "pause",
+                "alert_only_mode": True,
+                "target_profile": "custom",
+                "temperature_comfort_mode": "custom",
+                "enable_presence_gate": False,
+                "presence_entities": [],
+                "show_advanced_options": {
+                    "engine_interval_minutes": 9,
+                    "auto_refresh_ui_on_startup": False,
+                    "show_output_entity_details": True,
+                    "custom_target_low": 42.5,
+                    "custom_target_high": 58.5,
+                    "temperature_comfort_custom_low": 18.5,
+                    "temperature_comfort_custom_high": 22.5,
+                },
+            }
+        )
+    )
+
+    assert result["step_id"] == "telemetry"
+    assert flow._data["time_gate"] == {
+        "enabled": True,
+        "start": "07:30",
+        "end": "21:15",
+        "outside_action": "pause",
+    }
+    assert flow._data["alert_only_mode"] is True
+    assert flow._data["target_profile"] == "custom"
+    assert flow._data["temperature_comfort_mode"] == "custom"
+    assert flow._data["presence_gate"] == {
+        "enabled": False,
+        "entities": [],
+        "present_states": [],
+        "away_states": [],
+    }
+    assert flow._data["engine_interval_minutes"] == 9
+    assert flow._data["auto_refresh_ui_on_startup"] is False
+    assert flow._data["show_output_entity_details"] is True
+    assert flow._data["custom_target_low"] == 42.5
+    assert flow._data["custom_target_high"] == 58.5
+    assert flow._data["temperature_comfort_custom_low"] == 18.5
+    assert flow._data["temperature_comfort_custom_high"] == 22.5
+
+
+def test_setup_gates_no_longer_exposes_or_mutates_level_display_labels():
+    config_flow = _load_config_flow_module()
+    flow = config_flow.HumidityIntelligenceConfigFlow()
+    flow.hass = SimpleNamespace()
+
+    form = asyncio.run(flow.async_step_gates())
+    result = asyncio.run(
+        flow.async_step_gates(
+            {
+                "enable_time_gate": False,
+                "start_time": "08:00",
+                "end_time": "22:00",
+                "outside_action": "no_action",
+                "alert_only_mode": False,
+                "target_profile": "auto",
+                "temperature_comfort_mode": "auto",
+                "enable_presence_gate": False,
+                "presence_entities": [],
+                "show_advanced_options": {
+                    "level1_label": "  Ground <Floor>\n'North Wing' Very Long Name  ",
+                    "level2_label": "   ",
+                },
+            }
+        )
+    )
+
+    assert not _advanced_schema_has_field(form, "level1_label")
+    assert not _advanced_schema_has_field(form, "level2_label")
+    assert result["step_id"] == "telemetry"
+    assert "level_labels" not in flow._data
+
+
+def test_setup_zones_menu_offers_level_display_labels_before_zone_configuration():
+    config_flow = _load_config_flow_module()
+    flow = config_flow.HumidityIntelligenceConfigFlow()
+    flow.hass = SimpleNamespace()
+
+    result = asyncio.run(flow.async_step_zones())
+
+    assert result["menu_options"] == [
+        "level_labels",
+        "zone1",
+        "zone2",
+        "zones_done",
+        "zones_back",
+    ]
+
+
+def test_setup_zones_level_display_labels_editor_sanitizes_before_zone_config():
+    config_flow = _load_config_flow_module()
+    flow = config_flow.HumidityIntelligenceConfigFlow()
+    flow.hass = SimpleNamespace()
+
+    form = asyncio.run(flow.async_step_level_labels())
+    result = asyncio.run(
+        flow.async_step_level_labels(
+            {
+                "level1_label": "  Ground <Floor>\n'North Wing' Very Long Name  ",
+                "level2_label": "   ",
+            }
+        )
+    )
+
+    assert _schema_default(form, "level1_label") == ""
+    assert _schema_default(form, "level2_label") == ""
+    assert result["step_id"] == "zones"
+    assert flow._data["level_labels"] == {
+        "level1": "Ground Floor North Wing Very Lon",
+        "level2": "",
+    }
+    assert config_flow.resolve_level_label_details(flow._data)["level1"] == {
+        "label": "Ground Floor North Wing Very Lon",
+        "source": "config",
+    }
+    assert config_flow.resolve_level_label_details(flow._data)["level2"] == {
+        "label": "Level 2",
+        "source": "fallback",
+    }
+
+
+def test_options_gates_flattens_advanced_section_and_preserves_visible_values():
+    config_flow = _load_config_flow_module()
+    entry = SimpleNamespace(data={}, options={})
+    flow = config_flow.HumidityIntelligenceOptionsFlow(entry)
+    flow.hass = SimpleNamespace()
+
+    result = asyncio.run(
+        flow.async_step_options_gates(
+            {
+                "enable_time_gate": True,
+                "start_time": "06:45",
+                "end_time": "23:00",
+                "outside_action": "safe_state",
+                "alert_only_mode": True,
+                "target_profile": "winter",
+                "enable_presence_gate": False,
+                "presence_entities": [],
+                "show_advanced_options": {
+                    "engine_interval_minutes": 11,
+                    "auto_refresh_ui_on_startup": False,
+                    "show_output_entity_details": False,
+                    "custom_target_low": 44.0,
+                    "custom_target_high": 59.0,
+                },
+            }
+        )
+    )
+
+    assert result["step_id"] == "init"
+    assert flow._options["time_gate"] == {
+        "enabled": True,
+        "start": "06:45",
+        "end": "23:00",
+        "outside_action": "safe_state",
+    }
+    assert flow._options["presence_gate"] == {
+        "enabled": False,
+        "entities": [],
+        "present_states": [],
+        "away_states": [],
+    }
+    assert flow._options["alert_only_mode"] is True
+    assert flow._options["target_profile"] == "winter"
+    assert flow._options["engine_interval_minutes"] == 11
+    assert flow._options["auto_refresh_ui_on_startup"] is False
+    assert flow._options["show_output_entity_details"] is False
+    assert flow._options["custom_target_low"] == 44.0
+    assert flow._options["custom_target_high"] == 59.0
+
+
+def test_options_gates_no_longer_exposes_or_mutates_level_display_labels():
+    config_flow = _load_config_flow_module()
+    entry = SimpleNamespace(
+        data={"level_labels": {"level1": "Ground Floor", "level2": "Loft"}},
+        options={},
+    )
+    flow = config_flow.HumidityIntelligenceOptionsFlow(entry)
+    flow.hass = SimpleNamespace()
+
+    form = asyncio.run(flow.async_step_options_gates())
+    result = asyncio.run(
+        flow.async_step_options_gates(
+            {
+                "enable_time_gate": False,
+                "start_time": "08:00",
+                "end_time": "22:00",
+                "outside_action": "no_action",
+                "alert_only_mode": False,
+                "target_profile": "auto",
+                "enable_presence_gate": False,
+                "presence_entities": [],
+                "show_advanced_options": {
+                    "level1_label": "",
+                    "level2_label": "  Upper\tDeck<> # North: Wing  ",
+                },
+            }
+        )
+    )
+
+    assert not _advanced_schema_has_field(form, "level1_label")
+    assert not _advanced_schema_has_field(form, "level2_label")
+    assert result["step_id"] == "init"
+    assert "level_labels" not in flow._options
+
+
+def test_options_zone_options_offer_level_labels_before_zone_editing():
+    config_flow = _load_config_flow_module()
+    entry = SimpleNamespace(
+        data={"level_labels": {"level1": "Ground Floor", "level2": "Loft"}},
+        options={},
+    )
+    flow = config_flow.HumidityIntelligenceOptionsFlow(entry)
+    flow.hass = SimpleNamespace()
+
+    form = asyncio.run(flow.async_step_options_zones())
+
+    assert _schema_select_values(form, "action") == [
+        "level_labels",
+        "zone1",
+        "zone2",
+        "done",
+    ]
+    assert _schema_select_labels(form, "action")[0] == "Level display labels"
+
+
+def test_options_zones_level_display_labels_editor_uses_existing_labels_and_allows_clearing():
+    config_flow = _load_config_flow_module()
+    entry = SimpleNamespace(
+        data={"level_labels": {"level1": "Ground Floor", "level2": "Loft"}},
+        options={},
+    )
+    flow = config_flow.HumidityIntelligenceOptionsFlow(entry)
+    flow.hass = SimpleNamespace()
+
+    form = asyncio.run(flow.async_step_options_level_labels())
+    result = asyncio.run(
+        flow.async_step_options_level_labels(
+            {
+                "level1_label": "",
+                "level2_label": "  Upper\tDeck<> # North: Wing  ",
+            }
+        )
+    )
+
+    assert _schema_default(form, "level1_label") == "Ground Floor"
+    assert _schema_default(form, "level2_label") == "Loft"
+    assert result["step_id"] == "options_zones"
+    assert flow._options["level_labels"] == {
+        "level1": "",
+        "level2": "Upper Deck North Wing",
+    }
+    assert config_flow.resolve_level_labels(entry.data, flow._options) == {
+        "level1": "Level 1",
+        "level2": "Upper Deck North Wing",
+    }
+
+
+def test_options_thresholds_preserve_existing_zones_and_ignore_missing_zone_thresholds():
+    config_flow = _load_config_flow_module()
+    zone1 = {
+        "enabled": True,
+        "level": "level1",
+        "rooms": ["Kitchen"],
+        "triggers": ["humidity_high"],
+        "outputs": ["fan.kitchen"],
+        "thresholds": {
+            "humidity_high": 6,
+            "condensation_risk": 3,
+            "mould_risk": 1,
+            "air_quality_bad": 72,
+        },
+    }
+    entry = SimpleNamespace(
+        data={
+            "zones": {"zone1": dict(zone1)},
+            "temperature_comfort_mode": "auto",
+            "temperature_comfort_custom_low": 19.5,
+            "temperature_comfort_custom_high": 21.0,
+        },
+        options={},
+    )
+    flow = config_flow.HumidityIntelligenceOptionsFlow(entry)
+    flow.hass = SimpleNamespace()
+
+    form = asyncio.run(flow.async_step_options_thresholds())
+    result = asyncio.run(
+        flow.async_step_options_thresholds(
+            {
+                "temperature_comfort_mode": "custom",
+                "show_advanced_options": {
+                    "temperature_comfort_custom_low": 18.0,
+                    "temperature_comfort_custom_high": 22.0,
+                },
+            }
+        )
+    )
+
+    assert result["step_id"] == "init"
+    assert _schema_has_field(form, "temperature_comfort_mode")
+    assert _advanced_schema_has_field(form, "zone1_threshold_humidity_high")
+    assert not _advanced_schema_has_field(form, "zone2_threshold_humidity_high")
+    assert flow._options["temperature_comfort_mode"] == "custom"
+    assert flow._options["temperature_comfort_custom_low"] == 18.0
+    assert flow._options["temperature_comfort_custom_high"] == 22.0
+    assert set(flow._options["zones"]) == {"zone1"}
+    assert flow._options["zones"]["zone1"]["thresholds"] == zone1["thresholds"]
+
+
+def test_setup_alert_add_flattens_advanced_section_and_preserves_visible_values():
+    config_flow = _load_config_flow_module()
+    flow = config_flow.HumidityIntelligenceConfigFlow()
+    flow.hass = SimpleNamespace()
+    flow._telemetry = _base_telemetry()
+
+    result = asyncio.run(
+        flow.async_step_alert_add(
+            {
+                "enabled": False,
+                "trigger_type": "humidity_danger",
+                "room": "Kitchen",
+                "lights": ["light.hi_alert"],
+                "show_advanced_options": {
+                    "power_entity": "switch.hi_alert_power",
+                    "flash_mode": "white",
+                    "duration": 45,
+                },
+            }
+        )
+    )
+
+    assert result["step_id"] == "alerts"
+    assert flow._data["alerts"] == flow._alerts
+    assert flow._alerts == [
+        {
+            "enabled": False,
+            "trigger_type": "humidity_danger",
+            "threshold": None,
+            "room": "Kitchen",
+            "lights": ["light.hi_alert"],
+            "power_entity": "switch.hi_alert_power",
+            "flash_mode": "white",
+            "duration": 45,
+        }
+    ]
+
+
+def test_setup_alert_add_rejects_room_without_required_source_sensors():
+    config_flow = _load_config_flow_module()
+    flow = config_flow.HumidityIntelligenceConfigFlow()
+    flow.hass = SimpleNamespace()
+    flow._telemetry = [_base_telemetry()[0]]
+
+    result = asyncio.run(
+        flow.async_step_alert_add(
+            {
+                "enabled": True,
+                "trigger_type": "mould_risk",
+                "room": "Kitchen",
+                "lights": ["light.hi_alert"],
+                "show_advanced_options": {
+                    "flash_mode": "red",
+                    "duration": 30,
+                },
+            }
+        )
+    )
+
+    assert result["type"] == "form"
+    assert result["step_id"] == "alert_add"
+    assert result["errors"] == {"room": "room_missing_temp_humidity"}
+    assert flow._alerts == []
+    assert "alerts" not in flow._data
+
+
+def test_options_alert_add_clamps_static_threshold_and_returns_to_alerts():
+    config_flow = _load_config_flow_module()
+    entry = SimpleNamespace(
+        data={
+            "telemetry": _base_telemetry(),
+            "alerts": [],
+        },
+        options={},
+    )
+    flow = config_flow.HumidityIntelligenceOptionsFlow(entry)
+    flow.hass = SimpleNamespace()
+
+    result = asyncio.run(
+        flow.async_step_options_alert_add(
+            {
+                "enabled": True,
+                "trigger_type": "co_emergency",
+                "room": "Kitchen",
+                "lights": ["light.hi_alert"],
+                "show_advanced_options": {
+                    "threshold": 500,
+                    "power_entity": "switch.hi_alert_power",
+                    "flash_mode": "white",
+                    "duration": 999,
+                },
+            }
+        )
+    )
+
+    assert result["step_id"] == "options_alerts"
+    assert flow._options["alerts"] == [
+        {
+            "enabled": True,
+            "trigger_type": "co_emergency",
+            "threshold": 100,
+            "room": None,
+            "lights": ["light.hi_alert"],
+            "power_entity": "switch.hi_alert_power",
+            "flash_mode": "white",
+            "duration": 120,
+        }
+    ]
+
+
+def test_setup_alert_add_clamps_static_threshold_and_stores_alert_keys():
+    config_flow = _load_config_flow_module()
+    flow = config_flow.HumidityIntelligenceConfigFlow()
+    flow.hass = SimpleNamespace()
+    flow._telemetry = _base_telemetry()
+
+    result = asyncio.run(
+        flow.async_step_alert_add(
+            {
+                "enabled": True,
+                "trigger_type": "co_emergency",
+                "lights": ["light.hi_alert"],
+                "show_advanced_options": {
+                    "threshold": 999,
+                    "power_entity": "switch.hi_alert_power",
+                    "flash_mode": "red",
+                    "duration": 15,
+                },
+            }
+        )
+    )
+
+    assert result["step_id"] == "alerts"
+    assert flow._data["alerts"] == flow._alerts
+    assert flow._alerts == [
+        {
+            "enabled": True,
+            "trigger_type": "co_emergency",
+            "threshold": 100,
+            "room": None,
+            "lights": ["light.hi_alert"],
+            "power_entity": "switch.hi_alert_power",
+            "flash_mode": "red",
+            "duration": 15,
+        }
+    ]
+
+
+def test_setup_alert_add_rejects_unknown_room_without_storing_alert():
+    config_flow = _load_config_flow_module()
+    flow = config_flow.HumidityIntelligenceConfigFlow()
+    flow.hass = SimpleNamespace()
+    flow._telemetry = _base_telemetry()
+
+    result = asyncio.run(
+        flow.async_step_alert_add(
+            {
+                "enabled": True,
+                "trigger_type": "humidity_danger",
+                "room": "Bathroom",
+                "lights": ["light.hi_alert"],
+            }
+        )
+    )
+
+    assert result["step_id"] == "alert_add"
+    assert result["errors"] == {"room": "room_unknown"}
+    assert flow._alerts == []
+    assert "alerts" not in flow._data
+
+
+def test_options_alert_edit_flattens_advanced_section_and_preserves_visible_values():
+    config_flow = _load_config_flow_module()
+    entry = SimpleNamespace(
+        data={
+            "telemetry": _base_telemetry(),
+            "alerts": [
+                {
+                    "enabled": True,
+                    "trigger_type": "co_emergency",
+                    "threshold": 15,
+                    "room": None,
+                    "lights": ["light.old_alert"],
+                    "power_entity": "switch.old_power",
+                    "flash_mode": "red",
+                    "duration": 10,
+                }
+            ],
+        },
+        options={},
+    )
+    flow = config_flow.HumidityIntelligenceOptionsFlow(entry)
+    flow.hass = SimpleNamespace()
+    flow._pending_alert_index = 0
+
+    result = asyncio.run(
+        flow.async_step_options_alert_edit(
+            {
+                "enabled": False,
+                "trigger_type": "co_emergency",
+                "lights": ["light.new_alert"],
+                "show_advanced_options": {
+                    "threshold": 25,
+                    "power_entity": "switch.new_power",
+                    "flash_mode": "white",
+                    "duration": 55,
+                },
+            }
+        )
+    )
+
+    assert result["step_id"] == "options_alerts"
+    assert flow._options["alerts"] == [
+        {
+            "enabled": False,
+            "trigger_type": "co_emergency",
+            "threshold": 25,
+            "room": None,
+            "lights": ["light.new_alert"],
+            "power_entity": "switch.new_power",
+            "flash_mode": "white",
+            "duration": 55,
+        }
+    ]
+
+
+def test_alert_form_input_payload_helper_preserves_add_and_edit_semantics():
+    config_flow = _load_config_flow_module()
+    telemetry = _base_telemetry()
+
+    added, add_error = config_flow._alert_rule_payload_from_form_input(
+        telemetry=telemetry,
+        user_input={
+            "enabled": True,
+            "trigger_type": "co_emergency",
+            "room": "Kitchen",
+            "lights": ["light.hi_alert"],
+            "show_advanced_options": {
+                "threshold": 500,
+                "power_entity": "switch.hi_alert_power",
+                "flash_mode": "white",
+                "duration": 999,
+            },
+        },
+        config={},
+    )
+
+    assert add_error is None
+    assert added == {
+        "enabled": True,
+        "trigger_type": "co_emergency",
+        "threshold": 100,
+        "room": None,
+        "lights": ["light.hi_alert"],
+        "power_entity": "switch.hi_alert_power",
+        "flash_mode": "white",
+        "duration": 120,
+    }
+
+    existing = {
+        "enabled": True,
+        "trigger_type": "co_emergency",
+        "threshold": 15,
+        "room": None,
+        "lights": ["light.old_alert"],
+        "power_entity": "switch.old_power",
+        "flash_mode": "red",
+        "duration": 10,
+    }
+    edited, edit_error = config_flow._alert_rule_payload_from_form_input(
+        telemetry=telemetry,
+        user_input={
+            "enabled": False,
+            "lights": ["light.new_alert"],
+        },
+        config={},
+        existing_alert=existing,
+    )
+
+    assert edit_error is None
+    assert edited == {
+        "enabled": False,
+        "trigger_type": "co_emergency",
+        "threshold": 15,
+        "room": None,
+        "lights": ["light.new_alert"],
+        "power_entity": "switch.old_power",
+        "flash_mode": "red",
+        "duration": 10,
+    }
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@ jobs:
   validate:
     runs-on: "ubuntu-latest"
     steps:
-      - uses: "actions/checkout@v6"
+      - uses: "actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10" # v6
 
       - name: Stage custom component layout
         shell: bash
@@ -111,4 +111,4 @@ jobs:
           print("Staged Hassfest metadata is normalized.")
           PY
 
-      - uses: home-assistant/actions/hassfest@master
+      - uses: home-assistant/actions/hassfest@e91ad1948e57189485b9c1ad608af0c303946f89 # master

@@ -20,6 +20,7 @@ from .const import (
 from .services import SERVICE_REFRESH_UI, async_register_services, async_unregister_services
 from .helpers.cleanup import list_generated_files, remove_files, remove_dashboard
 from .helpers.drift_repairs import async_update_humidity_drift_repair_issue
+from .helpers.entity_registry import normalize_pm25_aggregate_entity_ids
 from .ui.register import async_register_cards, async_build_entity_mapping
 from .automations import async_setup_entry as async_setup_automations
 from .automations import async_unload_entry as async_unload_automations
@@ -52,6 +53,38 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await async_register_services(hass)
 
+    try:
+        pm25_normalization = normalize_pm25_aggregate_entity_ids(hass, entry.entry_id)
+    except Exception:
+        _LOGGER.exception(
+            "Failed PM2.5 aggregate entity ID normalization for HI entry %s",
+            entry.entry_id,
+        )
+        pm25_normalization = {
+            "changed": {},
+            "blocked": [
+                {
+                    "reason": "normalization_exception",
+                }
+            ],
+        }
+    else:
+        changed_pm25_entity_ids = pm25_normalization.get("changed", {})
+        blocked_pm25_entity_ids = pm25_normalization.get("blocked", [])
+        if changed_pm25_entity_ids:
+            _LOGGER.info(
+                "Normalized HI PM2.5 aggregate entity IDs for entry %s: %s",
+                entry.entry_id,
+                sorted(changed_pm25_entity_ids.values()),
+            )
+        if blocked_pm25_entity_ids:
+            _LOGGER.warning(
+                "HI PM2.5 aggregate entity ID normalization has blocked conflicts for entry %s: %s",
+                entry.entry_id,
+                blocked_pm25_entity_ids,
+            )
+    entry_data["pm25_entity_id_normalization"] = pm25_normalization
+
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor", "binary_sensor", "switch"])
     await async_update_humidity_drift_repair_issue(hass)
     await async_setup_automations(hass, entry)
@@ -66,7 +99,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         cards = {}
     hass.data[DOMAIN][entry.entry_id]["cards"] = cards
     hass.data[DOMAIN][entry.entry_id]["entity_map"] = mapping
-    hass.async_create_task(_async_refresh_and_dump_cards(hass, entry.entry_id))
     _async_register_startup_ui_refresh(hass, entry)
 
     ui_layouts = entry.data.get("ui_layouts") or []
@@ -152,7 +184,7 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 
 async def _async_refresh_and_dump_cards(hass: HomeAssistant, entry_id: str) -> None:
-    """Rebuild mapping and rewrite card files after startup."""
+    """Rebuild mapping and rewrite card files for explicit UI export refreshes."""
     try:
         await hass.services.async_call(
             DOMAIN,
@@ -168,7 +200,7 @@ async def _async_refresh_and_dump_cards(hass: HomeAssistant, entry_id: str) -> N
         )
     except Exception:
         _LOGGER.exception(
-            "Failed startup refresh/dump for Humidity Intelligence entry %s",
+            "Failed UI refresh/dump for Humidity Intelligence entry %s",
             entry_id,
         )
 

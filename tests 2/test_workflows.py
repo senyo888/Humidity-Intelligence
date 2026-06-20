@@ -18,6 +18,20 @@ MUTABLE_ACTION_REF_RE = re.compile(
 
 
 class WorkflowConfigurationTests(unittest.TestCase):
+    def test_validate_compile_step_accepts_root_content_without_warning(self) -> None:
+        workflow = (ROOT / ".github" / "workflows" / "validate.yml").read_text(
+            encoding="utf-8"
+        )
+        hacs = (ROOT / "hacs.json").read_text(encoding="utf-8")
+
+        self.assertIn('"content_in_root": true', hacs)
+        self.assertIn('hacs.get("content_in_root")', workflow)
+        self.assertIn("python -m compileall -q .", workflow)
+        self.assertNotIn("::warning::custom_components/ not found", workflow)
+        self.assertIn(
+            "custom_components/ not found and hacs.json does not set content_in_root: true.",
+            workflow,
+        )
     def test_first_interaction_v3_is_pinned_and_uses_supported_input_names(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "first-interaction.yml").read_text(
             encoding="utf-8"

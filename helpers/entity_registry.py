@@ -13,6 +13,67 @@ from ..const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
+PM25_AGGREGATE_UNIQUE_SUFFIXES = (
+    "house_pm25_average",
+    "level1_pm25_average",
+    "level2_pm25_average",
+)
+
+
+def normalize_pm25_aggregate_entity_ids(hass: HomeAssistant, entry_id: str) -> dict:
+    """Normalize legacy PM2.5 aggregate entity IDs to canonical PM25 slugs."""
+    registry = er.async_get(hass)
+    changed: dict[str, str] = {}
+    blocked: list[dict[str, str]] = []
+
+    for suffix in PM25_AGGREGATE_UNIQUE_SUFFIXES:
+        unique_id = f"hi_{entry_id}_{suffix}"
+        entity_id = registry.async_get_entity_id("sensor", DOMAIN, unique_id)
+        if not entity_id or "pm2_5" not in entity_id:
+            continue
+
+        target_entity_id = entity_id.replace("pm2_5", "pm25")
+        if registry.async_get(target_entity_id):
+            _LOGGER.warning(
+                "Skipping PM2.5 aggregate entity ID normalization for %s because %s already exists",
+                entity_id,
+                target_entity_id,
+            )
+            blocked.append(
+                {
+                    "unique_suffix": suffix,
+                    "current_entity_id": entity_id,
+                    "target_entity_id": target_entity_id,
+                    "reason": "target_exists",
+                }
+            )
+            continue
+
+        try:
+            registry.async_update_entity(entity_id, new_entity_id=target_entity_id)
+        except Exception:
+            _LOGGER.exception(
+                "Failed to normalize PM2.5 aggregate entity ID %s to %s",
+                entity_id,
+                target_entity_id,
+            )
+            blocked.append(
+                {
+                    "unique_suffix": suffix,
+                    "current_entity_id": entity_id,
+                    "target_entity_id": target_entity_id,
+                    "reason": "update_failed",
+                }
+            )
+            continue
+
+        changed[entity_id] = target_entity_id
+
+    return {
+        "changed": changed,
+        "blocked": blocked,
+    }
+
 
 async def adopt_or_create_entity_id(
     hass: HomeAssistant,

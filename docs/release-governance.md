@@ -5,15 +5,17 @@ testing and validation branches.
 
 ## Canonical Version Model
 
-- `2.0.6-beta.1`, `2.0.6-beta.2`: testing builds.
-- `2.0.6-rc.1`: release-candidate builds.
-- `2.0.6`: stable version label.
+- `2.0.7-beta.1`, `2.0.7-beta.2`: testing builds.
+- `2.0.7-rc.1`: release-candidate builds.
+- `2.0.7`: stable version label.
 
 The integration version in `manifest.json` is the release-state source of truth for
 Home Assistant and HACS metadata checks.
 
-v2.0.6 is the current stable release milestone. The rules below remain the active
-promotion model for future versions and for any v2.0.6 maintenance patch.
+v2.0.7 is the current stable release line being prepared from `senyo888-patch-1`.
+v2.0.6 remains the previous stable release milestone on `main` until promotion,
+tagging, and GitHub release publication are completed. The rules below remain the
+active promotion model for future versions and for any maintenance patch.
 
 ## Branch Responsibilities
 
@@ -23,8 +25,8 @@ promotion model for future versions and for any v2.0.6 maintenance patch.
   `senyo888-patch-1`.
 - `main`: stable production version metadata only. No prerelease suffix is allowed.
 - `vMAJOR.MINOR.PATCH`: release-verification branch for the exact matching stable
-  manifest version only. For example, `v2.0.6` may carry `2.0.6`, but not
-  `2.0.6-rc.1` or `2.0.7`.
+  manifest version only. For example, `v2.0.7` may carry `2.0.7`, but not
+  `2.0.7-rc.1` or `2.0.8`.
 - Short-lived development branches, including `Bella/*`, `codex/*`, `feature/*`,
   `fix/*`, `patch/*`, and `test/*`, must not carry stable manifest versions.
 
@@ -52,10 +54,20 @@ until all of these gates are satisfied:
 - Release sanity validation has passed for the change scope, including version
   governance, HACS/package metadata checks, and the relevant Home Assistant runtime,
   direct sanity, service, or generated-card checks.
+- HA Lab beta-validation status is recorded when a beta package has been deployed,
+  activated, soaked, or checked in HA Lab. This is operational evidence only: it can
+  inform Bella, Aetherwing, AetherCore, maintainer, PR, and release-readiness review,
+  but it cannot approve a release, redefine runtime semantics, replace stable Home
+  Assistant validation, or authorize autonomous mutation.
 - The `humidity-intelligence-maintenance` companion has been updated with advisory
   release-gate evidence, blocker notes, or an explicit no-op maintenance status for
   the staging promotion. This records maintenance evidence only; it does not approve
   promotion or change canonical HI truth.
+- Wiki update status is recorded as `updated`, `no-op`, or `blocked` for any release
+  that changes support flow, diagnostics, generated dashboards, HACS/update guidance,
+  configuration behavior, services, entity semantics, or release documentation. The
+  Wiki remains a public support manual; runtime and release truth stay in the
+  repository source and release documentation.
 - The README has maintainer approval before release tagging.
 
 If any gate is missing for the version being prepared, the release state is `not ready`,
@@ -94,3 +106,30 @@ runtime validation, Bella coherence review, Aetherwing validation, or version go
 Preflight findings are packaging/readiness findings only; they must not imply runtime
 behavior, service, diagnostics, UI generation, or configuration-flow changes unless a
 separate implementation patch is explicitly approved.
+
+## HA Lab Operational Beta Validation
+
+HA Lab is admitted into the normal beta-validation workflow as Operational Beta
+Validation Infrastructure. Use it after beta deploys to collect practical runtime
+evidence from an isolated Home Assistant lab instance while preserving repository and
+review authority.
+
+Expected HA Lab evidence for beta-readiness review:
+
+- package deploy identity: source branch/worktree, commit, manifest version, target
+  classification, and clean/dirty source state;
+- Stage A full-package deploy result, including source/remote comparison and rollback
+  backup evidence;
+- runtime activation or restart approval evidence, clearly separated from Stage A
+  deploy authority;
+- read-only soak, diagnostics, service-domain, startup/log, and runtime entity checks;
+- Stage 3 six-sensor runtime-readiness status where the beta touches air-quality or
+  aggregate telemetry truth;
+- generated-card and entity-map sanity findings when UI truth or card exports are in
+  scope;
+- rollback boundary and whether any HA Lab mutation occurred.
+
+HA Lab evidence remains non-binding. It is not release authority, runtime authority,
+stable Home Assistant authority, or a substitute for Bella coherence review,
+Aetherwing runtime/risk validation, AetherCore governance consistency review,
+release-candidate validation, or Senyo approval.

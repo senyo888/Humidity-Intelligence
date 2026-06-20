@@ -13,6 +13,7 @@ from homeassistant.components.sensor import SensorEntity
 
 from .const import DOMAIN
 from .helpers.drift_repairs import async_update_humidity_drift_repair_issue
+from .helpers.level_labels import resolve_level_label_details
 from .helpers.zone_validation import detect_zone_mapping_duplicates, summarize_zone_mapping_duplicates
 from .services import _build_diagnostics_summary
 from .sensors.core import build_entities
@@ -209,11 +210,13 @@ def _compact_diagnostics_summary(summary: dict) -> dict:
     return {
         "target_profile": summary.get("target_profile", {}),
         "temperature_comfort": summary.get("temperature_comfort", {}),
+        "level_labels": summary.get("level_labels", {}),
         "zone_mappings": _compact_zone_mappings(summary.get("zone_mappings", {})),
         "alert_mappings": _compact_alert_mappings(summary.get("alert_mappings", [])),
         "visual_alerts": _compact_visual_alerts(summary.get("visual_alerts", [])),
         "active_alert_resolution": active_alerts,
         "humidity_drift_7d": summary.get("humidity_drift_7d", {}),
+        "pm25_entity_id_normalization": summary.get("pm25_entity_id_normalization", {}),
         "local_version_preservation": summary.get("local_version_preservation", {}),
         "unavailable_or_unknown_entities_count": len(unavailable),
         "unavailable_or_unknown_entities_sample": unavailable[:20],
@@ -251,6 +254,7 @@ def _compact_ui_config(config: dict, options: dict) -> dict:
     slope = effective.get("slope", {}) if isinstance(effective.get("slope", {}), dict) else {}
     return {
         "telemetry": telemetry,
+        "level_labels": resolve_level_label_details(effective),
         "zones": zones,
         "slope": {
             "mode": slope.get("mode"),

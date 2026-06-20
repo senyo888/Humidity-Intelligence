@@ -120,7 +120,8 @@ Output details:
 
 - render the expandable output details panel only when `show_output_entity_details` is enabled
 - stay display-only; the option must not affect lane selection, output writes, isolation switches, or diagnostics
-- require a fresh `humidity_intelligence.dump_cards` export after changing visibility
+- prune unresolved optional AQ aggregate rows instead of leaving `Entity not found` rows
+- require a fresh `humidity_intelligence.dump_cards` export after changing visibility, templates, or backend entity mappings
 
 ---
 
@@ -131,7 +132,7 @@ Output details:
 1. builds placeholder to entity map
 2. substitutes canonical templates
 3. prunes optional rows
-4. reports unresolved placeholders
+4. reports unresolved non-optional placeholders
 
 Inventory files:
 
@@ -154,6 +155,7 @@ Impact:
 
 - partial card degradation
 - diagnostics report the issue
+- `self_check` and release validation also report missing generated-card entity references
 
 ---
 
@@ -166,6 +168,8 @@ The panel must:
 - display correct chip state
 - keep alert chipsets to the lane/status chip plus the resolved alert source/context chip only
 - show alert source/context chips only while the backend runtime mode or alert activity state says an alert lane is active
+- render backend `telemetry_unavailable` as degraded UI truth, not as normal/ready or unknown frontend failure
+- treat missing, unavailable, or unrecognized Air Control Mode telemetry as `UNKNOWN` without inventing a normal lane
 - show readable reason text
 - stay synced with real hardware behavior
 
@@ -183,9 +187,11 @@ If mismatch occurs:
 
 - `show_output_entity_details` controls only the expandable generated-card output details panel.
 - Hiding output details must not affect lane selection, output writes, isolation switches, diagnostics, or entity names.
+- Optional Level 1 / Level 2 display labels are configured from setup Zones and post-configuration Zone Options before Zone 1 / Zone 2 editing. They are generated-card/config-flow/support text only. Empty labels fall back to `Level 1` / `Level 2`, and changing labels requires refreshed/exported card YAML for already-pasted Manual cards.
 - New generated V2 cards default to the cleaner output display unless output details are enabled.
 - `v2_tablet` is the default first-install UI export layout.
-- `humidity_intelligence.dump_cards` remains the supported export path after UI visibility or mapping changes.
+- `humidity_intelligence.dump_cards` remains the supported export path after UI visibility, template, or mapping changes.
+- Already-pasted Manual cards are static; refresh/export updates HI output files, not the pasted card content.
 
 ### Historical v2.0.2 UI Contract Updates
 

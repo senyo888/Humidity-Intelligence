@@ -15,6 +15,13 @@ from homeassistant.helpers import selector
 from homeassistant.helpers.selector import SelectOptionDict
 
 from .helpers.frontend_dependencies import async_render_dependency_status
+from .helpers.level_labels import (
+    level_label as resolve_level_label,
+    level_label_config_from_form,
+    level_label_field_values,
+    resolve_level_label_details,
+    resolve_level_labels,
+)
 from .helpers.zone_validation import detect_zone_mapping_duplicates, summarize_zone_mapping_duplicates
 from .const import (
     DOMAIN,
@@ -44,6 +51,9 @@ from .const import (
     DEFAULT_SHOW_TEMPERATURE_CHIPS,
     CONF_SHOW_OUTPUT_ENTITY_DETAILS,
     DEFAULT_SHOW_OUTPUT_ENTITY_DETAILS,
+    CONF_LEVEL_LABELS,
+    CONF_LEVEL1_LABEL,
+    CONF_LEVEL2_LABEL,
     HUMIDIFIER_BAND_MIN,
     HUMIDIFIER_BAND_MAX,
     HUMIDIFIER_BAND_STEP,
@@ -86,10 +96,41 @@ FORM_ACTION_SAVE = "save"
 FORM_ACTION_CANCEL = "cancel"
 FORM_ACTION_RETURN = "return"
 FORM_ACTION_CLOSE = "close"
+CONFIGURATION_WALKTHROUGH_URL = (
+    "https://github.com/senyo888/humidity-intelligence/wiki/Configuration-Walkthrough"
+)
 
 
 def _advanced_section(fields: Dict[Any, Any]) -> Any:
     return section(vol.Schema(fields), {"collapsed": True})
+
+
+def _dependency_schema(default_skip: bool = False) -> vol.Schema:
+    return vol.Schema({
+        vol.Optional("skip", default=default_skip): selector.BooleanSelector()
+    })
+
+
+def _presence_states_schema(options: List[str]) -> vol.Schema:
+    select_options = [SelectOptionDict(value=o, label=o) for o in options] if options else []
+    return vol.Schema({
+        vol.Required("present_states", default=options or ["home"]): selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=select_options,
+                multiple=True,
+                custom_value=True,
+                mode=selector.SelectSelectorMode.DROPDOWN,
+            )
+        ),
+        vol.Optional("away_states", default=[]): selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=select_options,
+                multiple=True,
+                custom_value=True,
+                mode=selector.SelectSelectorMode.DROPDOWN,
+            )
+        ),
+    })
 
 
 def _flatten_advanced_section_input(user_input: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -110,6 +151,10 @@ def _form_input_default(user_input: Optional[Dict[str, Any]], field: str, defaul
     return default
 
 
+def _value_label_options(items: List[Dict[str, Any]]) -> List[SelectOptionDict]:
+    return [SelectOptionDict(value=item["value"], label=item["label"]) for item in items]
+
+
 def _save_cancel_options(save_label: str) -> List[SelectOptionDict]:
     return [
         SelectOptionDict(value=FORM_ACTION_SAVE, label=save_label),
@@ -122,6 +167,24 @@ def _cancel_confirm_options(return_label: str) -> List[SelectOptionDict]:
         SelectOptionDict(value=FORM_ACTION_RETURN, label=return_label),
         SelectOptionDict(value=FORM_ACTION_CLOSE, label="Close without saving"),
     ]
+
+
+def _level_label_schema(config: Optional[Dict[str, Any]] = None) -> vol.Schema:
+    defaults = level_label_field_values(config or {})
+    return vol.Schema({
+        vol.Optional(
+            CONF_LEVEL1_LABEL,
+            default=defaults["level1"],
+        ): selector.TextSelector(
+            selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+        ),
+        vol.Optional(
+            CONF_LEVEL2_LABEL,
+            default=defaults["level2"],
+        ): selector.TextSelector(
+            selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+        ),
+    })
 
 
 def _configured_zone_items(zones: Dict[str, Any]) -> List[Tuple[str, Dict[str, Any]]]:
@@ -169,13 +232,13 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return await self.async_step_gates()
 
         dep_lines = await _render_dependency_status(self.hass)
-        schema = vol.Schema({
-            vol.Optional("skip", default=False): selector.BooleanSelector()
-        })
         return self.async_show_form(
             step_id="dependencies",
-            data_schema=schema,
-            description_placeholders={"dependencies": dep_lines},
+            data_schema=_dependency_schema(),
+            description_placeholders={
+                "dependencies": dep_lines,
+                "walkthrough_url": CONFIGURATION_WALKTHROUGH_URL,
+            },
         )
 
     async def async_step_gates(self, user_input: Optional[Dict[str, Any]] = None):
@@ -260,14 +323,14 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Optional("end_time", default=gates_default("end_time", DEFAULT_TIME_END)): selector.TimeSelector(),
             vol.Optional("outside_action", default=gates_default("outside_action", OUTSIDE_WINDOW_ACTIONS[0]["value"])): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in OUTSIDE_WINDOW_ACTIONS],
+                    options=_value_label_options(OUTSIDE_WINDOW_ACTIONS),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
             vol.Optional("alert_only_mode", default=gates_default("alert_only_mode", self._data.get("alert_only_mode", False))): selector.BooleanSelector(),
             vol.Optional("target_profile", default=gates_default("target_profile", self._data.get("target_profile", "auto"))): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in TARGET_PROFILE_OPTIONS],
+                    options=_value_label_options(TARGET_PROFILE_OPTIONS),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
@@ -279,7 +342,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
             ): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in TEMPERATURE_COMFORT_PROFILE_OPTIONS],
+                    options=_value_label_options(TEMPERATURE_COMFORT_PROFILE_OPTIONS),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
@@ -372,36 +435,15 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if overlap:
                 return self.async_show_form(
                     step_id="presence_states",
-                    data_schema=self._presence_states_schema(options),
+                    data_schema=_presence_states_schema(options),
                     errors={"away_states": "overlap"},
                 )
             self._data.setdefault("presence_gate", {})["present_states"] = states
             self._data.setdefault("presence_gate", {})["away_states"] = away_states
             return await self.async_step_telemetry()
 
-        schema = self._presence_states_schema(options)
+        schema = _presence_states_schema(options)
         return self.async_show_form(step_id="presence_states", data_schema=schema)
-
-    def _presence_states_schema(self, options: List[str]) -> vol.Schema:
-        select_options = [SelectOptionDict(value=o, label=o) for o in options] if options else []
-        return vol.Schema({
-            vol.Required("present_states", default=options or ["home"]): selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=select_options,
-                    multiple=True,
-                    custom_value=True,
-                    mode=selector.SelectSelectorMode.DROPDOWN,
-                )
-            ),
-            vol.Optional("away_states", default=[]): selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=select_options,
-                    multiple=True,
-                    custom_value=True,
-                    mode=selector.SelectSelectorMode.DROPDOWN,
-                )
-            ),
-        })
 
     async def async_step_telemetry(self, user_input: Optional[Dict[str, Any]] = None):
         """Menu for telemetry sensors."""
@@ -483,14 +525,14 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ),
             vol.Optional("sensor_type", default=SENSOR_TYPES[0]["value"]): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in SENSOR_TYPES],
+                    options=_value_label_options(SENSOR_TYPES),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
             vol.Optional("friendly_name", default=""): selector.TextSelector(),
             vol.Optional("level", default=level_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in LEVELS],
+                    options=_level_value_label_options(self._data),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
@@ -638,14 +680,14 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ),
             vol.Optional("sensor_type", default=current.get("sensor_type")): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in SENSOR_TYPES],
+                    options=_value_label_options(SENSOR_TYPES),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
             vol.Optional("friendly_name", default=current.get("friendly_name", "")): selector.TextSelector(),
             vol.Optional("level", default=current.get("level")): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in LEVELS],
+                    options=_level_value_label_options(self._data),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
@@ -741,16 +783,31 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_zones(self, user_input: Optional[Dict[str, Any]] = None):
         """Menu for zone configuration."""
-        zone_summary = _render_zones_summary(self._zones)
+        zone_summary = _render_zones_summary(self._zones, self._data)
         return self.async_show_menu(
             step_id="zones",
             menu_options=[
+                "level_labels",
                 "zone1",
                 "zone2",
                 "zones_done",
                 "zones_back",
             ],
             description_placeholders={"configured_zones": zone_summary},
+        )
+
+    async def async_step_level_labels(self, user_input: Optional[Dict[str, Any]] = None):
+        """Edit display-only Level 1 / Level 2 labels before zone mapping."""
+        if user_input is not None:
+            self._data[CONF_LEVEL_LABELS] = level_label_config_from_form(
+                user_input,
+                self._data,
+            )
+            return await self.async_step_zones()
+
+        return self.async_show_form(
+            step_id="level_labels",
+            data_schema=_level_label_schema(self._data),
         )
 
     async def async_step_zone1(self, user_input: Optional[Dict[str, Any]] = None):
@@ -808,12 +865,12 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         room_options = [SelectOptionDict(value=r, label=r) for r in rooms_all]
         zone_default = lambda field, default: _form_input_default(user_input, field, default)
         selected_level_default = zone_default("level", level_default)
-        trigger_options = _zone_trigger_options(selected_level_default, zone_key)
+        trigger_options = _zone_trigger_options(selected_level_default, zone_key, self._data)
         schema_fields: Dict[Any, Any] = {
             vol.Optional("enabled", default=zone_default("enabled", existing.get("enabled", False))): selector.BooleanSelector(),
             vol.Optional("level", default=selected_level_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in LEVELS],
+                    options=_level_value_label_options(self._data),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
@@ -1040,7 +1097,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return await self.async_step_aq_thresholds()
             return await self.async_step_aq()
 
-        trigger_options = _aq_trigger_options(level)
+        trigger_options = _aq_trigger_options(level, self._data)
         step_key = f"aq_{level}"
         aq_default = lambda field, default: _form_input_default(user_input, field, default)
         schema_fields: Dict[Any, Any] = {
@@ -1214,21 +1271,15 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
 
             try:
-                room_scope, room_error = _resolve_alert_room_scope(telemetry, trigger_default, room_default)
+                alert, room_error = _alert_rule_payload_from_form_input(
+                    telemetry=telemetry,
+                    user_input=user_input,
+                    config=self._data,
+                )
                 if room_error:
                     errors["room"] = room_error
 
-                if not errors:
-                    alert: Dict[str, Any] = {
-                        "enabled": enabled_default,
-                        "trigger_type": trigger_default,
-                        "threshold": threshold_default_value,
-                        "room": room_scope,
-                        "lights": lights_default,
-                        "power_entity": power_entity_default,
-                        "flash_mode": flash_mode_default,
-                        "duration": duration_default,
-                    }
+                if not errors and alert is not None:
                     self._alerts.append(alert)
                     self._data["alerts"] = self._alerts
                     return await self.async_step_alerts()
@@ -1285,7 +1336,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ),
             vol.Optional("flash_mode", default=flash_mode_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in ALERT_FLASH_MODES],
+                    options=_value_label_options(ALERT_FLASH_MODES),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
@@ -1380,7 +1431,10 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="ui_install",
             data_schema=schema,
-            description_placeholders={"configured_alerts": _render_alerts_summary(self._alerts)},
+            description_placeholders={
+                "configured_alerts": _render_alerts_summary(self._alerts),
+                "walkthrough_url": CONFIGURATION_WALKTHROUGH_URL,
+            },
         )
 
 
@@ -1534,16 +1588,15 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             return await self.async_step_init()
 
         dep_lines = await _render_dependency_status(self.hass)
-        schema = vol.Schema({
-            vol.Optional(
-                "skip",
-                default=bool(self._section("skip_dependencies", False)),
-            ): selector.BooleanSelector()
-        })
         return self.async_show_form(
             step_id="options_dependencies",
-            data_schema=schema,
-            description_placeholders={"dependencies": dep_lines},
+            data_schema=_dependency_schema(
+                default_skip=bool(self._section("skip_dependencies", False))
+            ),
+            description_placeholders={
+                "dependencies": dep_lines,
+                "walkthrough_url": CONFIGURATION_WALKTHROUGH_URL,
+            },
         )
 
     async def async_step_options_gates(self, user_input: Optional[Dict[str, Any]] = None):
@@ -1914,7 +1967,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             step_id="options_thresholds",
             data_schema=vol.Schema(schema_fields),
             description_placeholders={
-                "configured_zones": _render_zones_summary(zones),
+                "configured_zones": _render_zones_summary(zones, self._effective_config()),
                 "advanced_note": ADVANCED_DEFAULTS_NOTE,
             },
         )
@@ -2013,7 +2066,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             ),
             vol.Optional("level", default=level_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in LEVELS],
+                    options=_level_value_label_options(self._effective_config()),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
@@ -2126,7 +2179,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 )
                 return await self.async_step_options_telemetry()
 
-        level_options = [SelectOptionDict(value=o["value"], label=o["label"]) for o in LEVELS]
+        level_options = _level_value_label_options(self._effective_config())
         sensor_type_options = [SelectOptionDict(value=o["value"], label=o["label"]) for o in SENSOR_TYPES]
         entity_default = _sanitize_optional_entity_id(current.get("entity_id"))
         schema = vol.Schema({
@@ -2178,14 +2231,23 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             action = user_input.get("action", "done")
             if action == "done":
                 return await self.async_step_init()
+            if action == "level_labels":
+                return await self.async_step_options_level_labels()
             if action in zone_keys:
                 self._pending_zone_key = action
                 return await self.async_step_options_zone_edit()
 
-        options = [SelectOptionDict(value=key, label=_zone_choice_label(key, zones.get(key, {}))) for key in zone_keys]
+        options = [SelectOptionDict(value="level_labels", label="Level display labels")]
+        options.extend([
+            SelectOptionDict(
+                value=key,
+                label=_zone_choice_label(key, zones.get(key, {}), self._effective_config()),
+            )
+            for key in zone_keys
+        ])
         options.append(SelectOptionDict(value="done", label="Done"))
         schema = vol.Schema({
-            vol.Required("action", default=zone_keys[0]): selector.SelectSelector(
+            vol.Required("action", default="level_labels"): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=options,
                     mode=selector.SelectSelectorMode.DROPDOWN,
@@ -2195,7 +2257,21 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="options_zones",
             data_schema=schema,
-            description_placeholders={"configured_zones": _render_zones_summary(zones)},
+            description_placeholders={"configured_zones": _render_zones_summary(zones, self._effective_config())},
+        )
+
+    async def async_step_options_level_labels(self, user_input: Optional[Dict[str, Any]] = None):
+        """Edit display-only Level 1 / Level 2 labels from Zone Options."""
+        if user_input is not None:
+            self._options[CONF_LEVEL_LABELS] = level_label_config_from_form(
+                user_input,
+                self._effective_config(),
+            )
+            return await self.async_step_options_zones()
+
+        return self.async_show_form(
+            step_id="options_level_labels",
+            data_schema=_level_label_schema(self._effective_config()),
         )
 
     async def async_step_options_zone_edit(self, user_input: Optional[Dict[str, Any]] = None):
@@ -2269,7 +2345,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             return await self.async_step_options_zones()
 
         room_options = [SelectOptionDict(value=room, label=room) for room in _rooms_all(self._section("telemetry", []))]
-        level_options = [SelectOptionDict(value=o["value"], label=o["label"]) for o in LEVELS]
+        level_options = _level_value_label_options(self._effective_config())
         zone_default = lambda field, default: _form_input_default(user_input, field, default)
         selected_level_default = zone_default("level", zone.get("level"))
         schema_fields: Dict[Any, Any] = {
@@ -2290,7 +2366,11 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             ),
             vol.Optional("triggers", default=zone_default("triggers", selected_triggers)): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=_zone_trigger_options(selected_level_default, zone_key),
+                    options=_zone_trigger_options(
+                        selected_level_default,
+                        zone_key,
+                        self._effective_config(),
+                    ),
                     multiple=True,
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
@@ -2359,9 +2439,9 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             SelectOptionDict(
                 value=level,
                 label=(
-                    f"{_level_choice_label(level)}"
+                    f"{_level_choice_label(level, self._effective_config())}"
                     if level in humidifiers
-                    else f"{_level_choice_label(level)} (not configured - select to add)"
+                    else f"{_level_choice_label(level, self._effective_config())} (not configured - select to add)"
                 ),
             )
             for level in levels
@@ -2378,7 +2458,12 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="options_humidifiers",
             data_schema=schema,
-            description_placeholders={"configured_humidifiers": _render_humidifiers_summary(humidifiers)},
+            description_placeholders={
+                "configured_humidifiers": _render_humidifiers_summary(
+                    humidifiers,
+                    self._effective_config(),
+                )
+            },
         )
 
     async def async_step_options_humidifier_edit(self, user_input: Optional[Dict[str, Any]] = None):
@@ -2434,7 +2519,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             step_id="options_humidifier_edit",
             data_schema=schema,
             description_placeholders={
-                "level_label": _level_choice_label(level),
+                "level_label": _level_choice_label(level, self._effective_config()),
                 "advanced_note": ADVANCED_DEFAULTS_NOTE,
             },
         )
@@ -2461,9 +2546,9 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             SelectOptionDict(
                 value=level,
                 label=(
-                    f"{_level_choice_label(level)}"
+                    f"{_level_choice_label(level, self._effective_config())}"
                     if level in aq
-                    else f"{_level_choice_label(level)} (not configured - select to add)"
+                    else f"{_level_choice_label(level, self._effective_config())} (not configured - select to add)"
                 ),
             )
             for level in levels
@@ -2480,7 +2565,12 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="options_aq",
             data_schema=schema,
-            description_placeholders={"configured_aq": _render_aq_summary(aq)},
+            description_placeholders={
+                "configured_aq": _render_aq_summary(
+                    aq,
+                    self._effective_config(),
+                )
+            },
         )
 
     async def async_step_options_aq_edit(self, user_input: Optional[Dict[str, Any]] = None):
@@ -2537,7 +2627,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             vol.Optional("enabled", default=aq_default("enabled", cfg.get("enabled", False))): selector.BooleanSelector(),
             vol.Optional("triggers", default=aq_default("triggers", selected_triggers)): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=_aq_trigger_options(level),
+                    options=_aq_trigger_options(level, self._effective_config()),
                     multiple=True,
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
@@ -2592,7 +2682,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             step_id="options_aq_edit",
             data_schema=vol.Schema(schema_fields),
             description_placeholders={
-                "level_label": _level_choice_label(level),
+                "level_label": _level_choice_label(level, self._effective_config()),
                 "advanced_note": ADVANCED_DEFAULTS_NOTE,
             },
         )
@@ -2670,6 +2760,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             return await self.async_step_options_alerts()
         errors: Dict[str, str] = {}
         telemetry = list(self._section("telemetry", []))
+        config = self._effective_config()
 
         trigger_default = _default_alert_trigger_type()
         enabled_default = True
@@ -2681,7 +2772,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         threshold_default_value: Any = _alert_threshold_value(
             trigger_default,
             None,
-            self._effective_config(),
+            config,
         )
 
         if user_input is not None:
@@ -2697,25 +2788,19 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             threshold_default_value = _alert_threshold_value(
                 trigger_default,
                 user_input.get("threshold"),
-                self._effective_config(),
+                config,
             )
 
             try:
-                room_scope, room_error = _resolve_alert_room_scope(telemetry, trigger_default, room_default)
+                alert, room_error = _alert_rule_payload_from_form_input(
+                    telemetry=telemetry,
+                    user_input=user_input,
+                    config=config,
+                )
                 if room_error:
                     errors["room"] = room_error
 
-                if not errors:
-                    alert = {
-                        "enabled": enabled_default,
-                        "trigger_type": trigger_default,
-                        "threshold": threshold_default_value,
-                        "room": room_scope,
-                        "lights": lights_default,
-                        "power_entity": power_entity_default,
-                        "flash_mode": flash_mode_default,
-                        "duration": duration_default,
-                    }
+                if not errors and alert is not None:
                     alerts.append(alert)
                     self._options["alerts"] = alerts
                     return await self.async_step_options_alerts()
@@ -2734,7 +2819,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         threshold_default_value = _alert_threshold_value(
             trigger_default,
             alert_default("threshold", threshold_default_value),
-            self._effective_config(),
+            config,
         )
         schema_fields: Dict[Any, Any] = {
             vol.Optional("enabled", default=enabled_default): selector.BooleanSelector(),
@@ -2842,6 +2927,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         idx = max(0, min(idx, len(alerts) - 1))
         alert = alerts[idx]
         telemetry = list(self._section("telemetry", []))
+        config = self._effective_config()
         errors: Dict[str, str] = {}
 
         trigger_default = _normalize_alert_trigger_type(alert.get("trigger_type"))
@@ -2854,7 +2940,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         threshold_default = _alert_threshold_value(
             trigger_default,
             alert.get("threshold"),
-            self._effective_config(),
+            config,
         )
 
         if user_input is not None:
@@ -2874,26 +2960,21 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             threshold_default = _alert_threshold_value(
                 trigger_default,
                 user_input.get("threshold", threshold_default),
-                self._effective_config(),
+                config,
             )
 
             try:
-                room_scope, room_error = _resolve_alert_room_scope(telemetry, trigger_default, room_default)
+                updated_alert, room_error = _alert_rule_payload_from_form_input(
+                    telemetry=telemetry,
+                    user_input=user_input,
+                    config=config,
+                    existing_alert=alert,
+                )
                 if room_error:
                     errors["room"] = room_error
 
-                if not errors:
-                    alerts[idx] = {
-                        **alert,
-                        "enabled": enabled_default,
-                        "trigger_type": trigger_default,
-                        "threshold": threshold_default,
-                        "room": room_scope,
-                        "lights": lights_default,
-                        "power_entity": power_entity_default,
-                        "flash_mode": flash_mode_default,
-                        "duration": duration_default,
-                    }
+                if not errors and updated_alert is not None:
+                    alerts[idx] = updated_alert
                     self._options["alerts"] = alerts
                     return await self.async_step_options_alerts()
             except Exception:
@@ -2911,7 +2992,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         threshold_default = _alert_threshold_value(
             trigger_default,
             alert_default("threshold", threshold_default),
-            self._effective_config(),
+            config,
         )
         schema_fields: Dict[Any, Any] = {
             vol.Optional("enabled", default=enabled_default): selector.BooleanSelector(),
@@ -3171,6 +3252,72 @@ def _alert_threshold_value(trigger_type: Any, value: Any, _config: Dict[str, Any
     return _safe_alert_threshold(trigger_type, value, None)
 
 
+def _alert_rule_payload(
+    *,
+    telemetry: List[Dict[str, Any]],
+    enabled: bool,
+    trigger_type: str,
+    threshold: Any,
+    room: Any,
+    lights: List[str],
+    power_entity: Optional[str],
+    flash_mode: str,
+    duration: int,
+    existing_alert: Optional[Dict[str, Any]] = None,
+) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    room_scope, room_error = _resolve_alert_room_scope(telemetry, trigger_type, room)
+    if room_error:
+        return None, room_error
+
+    payload: Dict[str, Any] = {
+        "enabled": enabled,
+        "trigger_type": trigger_type,
+        "threshold": threshold,
+        "room": room_scope,
+        "lights": lights,
+        "power_entity": power_entity,
+        "flash_mode": flash_mode,
+        "duration": duration,
+    }
+    if existing_alert is not None:
+        return {**existing_alert, **payload}, None
+    return payload, None
+
+
+def _alert_rule_payload_from_form_input(
+    *,
+    telemetry: List[Dict[str, Any]],
+    user_input: Dict[str, Any],
+    config: Dict[str, Any],
+    existing_alert: Optional[Dict[str, Any]] = None,
+) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    defaults = existing_alert or {}
+    flattened = _flatten_advanced_section_input(user_input) or {}
+    trigger_type = _normalize_alert_trigger_type(
+        flattened.get("trigger_type", defaults.get("trigger_type"))
+    )
+    return _alert_rule_payload(
+        telemetry=telemetry,
+        enabled=bool(flattened.get("enabled", defaults.get("enabled", True))),
+        trigger_type=trigger_type,
+        threshold=_alert_threshold_value(
+            trigger_type,
+            flattened.get("threshold", defaults.get("threshold")),
+            config,
+        ),
+        room=_sanitize_optional_room_scope(flattened.get("room", defaults.get("room"))) or "",
+        lights=_sanitize_entity_ids(flattened.get("lights", defaults.get("lights", []))),
+        power_entity=_sanitize_optional_entity_id(
+            flattened.get("power_entity", defaults.get("power_entity"))
+        ),
+        flash_mode=_normalize_alert_flash_mode(
+            flattened.get("flash_mode", defaults.get("flash_mode"))
+        ),
+        duration=_safe_alert_duration(flattened.get("duration", defaults.get("duration", 10))),
+        existing_alert=existing_alert,
+    )
+
+
 def _safe_alert_threshold(trigger_type: Any, value: Any, fallback: Optional[float] = None) -> Any:
     min_value, max_value, default_value, _ = _alert_threshold_bounds(trigger_type)
     parsed = None
@@ -3370,7 +3517,10 @@ def _render_slope_summary(slope: Dict[str, Any]) -> str:
     return f"Mode: Slope disabled. Temperature chip row: {chips}."
 
 
-def _render_zones_summary(zones: Dict[str, Dict[str, Any]]) -> str:
+def _render_zones_summary(
+    zones: Dict[str, Dict[str, Any]],
+    config: Optional[Dict[str, Any]] = None,
+) -> str:
     """Human-readable summary of zone output levels for config flow pages."""
     if not zones:
         return "No zones configured yet."
@@ -3380,7 +3530,7 @@ def _render_zones_summary(zones: Dict[str, Dict[str, Any]]) -> str:
         if not zone:
             continue
         enabled = "on" if zone.get("enabled") else "off"
-        level = zone.get("level") or "unset"
+        level = _level_choice_label(zone.get("level"), config) if zone.get("level") else "unset"
         normal_level = _fan_level_label(zone.get("output_level", ZONE_OUTPUT_LEVEL_DEFAULT))
         boost_level = _fan_level_label(zone.get("boost_output_level", ZONE_OUTPUT_LEVEL_BOOST_DEFAULT))
         ui_label = _sanitize_ui_label(zone.get("ui_label"), _default_zone_ui_label(zone_key))
@@ -3392,7 +3542,10 @@ def _render_zones_summary(zones: Dict[str, Dict[str, Any]]) -> str:
     return "\n".join(lines) if lines else "No zones configured yet."
 
 
-def _render_humidifiers_summary(humidifiers: Dict[str, Dict[str, Any]]) -> str:
+def _render_humidifiers_summary(
+    humidifiers: Dict[str, Dict[str, Any]],
+    config: Optional[Dict[str, Any]] = None,
+) -> str:
     if not humidifiers:
         return "No humidifier lanes are configured yet."
     lines: List[str] = []
@@ -3403,12 +3556,15 @@ def _render_humidifiers_summary(humidifiers: Dict[str, Dict[str, Any]]) -> str:
         output_summary = ", ".join(outputs) if outputs else "no outputs"
         band_adjust = cfg.get("band_adjust", 0)
         lines.append(
-            f"- {_level_choice_label(level)}: {enabled}, band adjust {band_adjust}%, outputs: {output_summary}"
+            f"- {_level_choice_label(level, config)}: {enabled}, band adjust {band_adjust}%, outputs: {output_summary}"
         )
     return "\n".join(lines)
 
 
-def _render_aq_summary(aq: Dict[str, Dict[str, Any]]) -> str:
+def _render_aq_summary(
+    aq: Dict[str, Dict[str, Any]],
+    config: Optional[Dict[str, Any]] = None,
+) -> str:
     if not aq:
         return "No AQ lanes are configured yet."
     lines: List[str] = []
@@ -3422,7 +3578,7 @@ def _render_aq_summary(aq: Dict[str, Dict[str, Any]]) -> str:
         level_txt = _fan_level_label(cfg.get("output_level", ZONE_OUTPUT_LEVEL_DEFAULT))
         run_duration = cfg.get("run_duration", 30)
         lines.append(
-            f"- {_level_choice_label(level)}: {enabled}, triggers [{trigger_summary}], outputs [{output_summary}], level {level_txt}, run {run_duration} min"
+            f"- {_level_choice_label(level, config)}: {enabled}, triggers [{trigger_summary}], outputs [{output_summary}], level {level_txt}, run {run_duration} min"
         )
     return "\n".join(lines)
 
@@ -3455,9 +3611,13 @@ def _telemetry_label(item: Dict[str, Any]) -> str:
     return f"{display} ({stype}) - {ent}"
 
 
-def _zone_choice_label(zone_key: str, zone: Dict[str, Any]) -> str:
+def _zone_choice_label(
+    zone_key: str,
+    zone: Dict[str, Any],
+    config: Optional[Dict[str, Any]] = None,
+) -> str:
     title = _zone_title(zone_key)
-    level = _level_choice_label(zone.get("level"))
+    level = _level_choice_label(zone.get("level"), config)
     enabled = "Enabled" if zone.get("enabled") else "Disabled"
     ui_label = _sanitize_ui_label(zone.get("ui_label"), _default_zone_ui_label(zone_key))
     return f"{title} - {enabled} ({level}, UI label: {ui_label})"
@@ -3477,14 +3637,24 @@ def _default_zone_level(zone_key: str) -> str:
     return "level1"
 
 
-def _level_choice_label(level: Optional[str]) -> str:
-    if level == "level1":
-        return "Level 1 (Downstairs)"
-    if level == "level2":
-        return "Level 2 (Upstairs)"
-    if level:
-        return str(level)
-    return "Unassigned level"
+def _level_value_label_options(
+    config: Optional[Dict[str, Any]] = None,
+) -> List[SelectOptionDict]:
+    labels = resolve_level_labels(config or {})
+    return [
+        SelectOptionDict(
+            value=item["value"],
+            label=labels.get(item["value"], item["label"]),
+        )
+        for item in LEVELS
+    ]
+
+
+def _level_choice_label(
+    level: Optional[str],
+    config: Optional[Dict[str, Any]] = None,
+) -> str:
+    return resolve_level_label(level, config or {})
 
 
 def _alert_option_label(idx: int, alert: Dict[str, Any]) -> str:
@@ -3557,25 +3727,36 @@ def _levels_with_aq(telemetry: List[Dict[str, Any]]) -> List[str]:
     return sorted(levels)
 
 
-def _zone_trigger_context_label(level: str, zone_key: Optional[str]) -> str:
-    level_label = _level_choice_label(level)
+def _zone_trigger_context_label(
+    level: str,
+    zone_key: Optional[str],
+    config: Optional[Dict[str, Any]] = None,
+) -> str:
+    level_label = _level_choice_label(level, config)
     if zone_key:
         return f"{_zone_title(zone_key)} / {level_label}"
     return level_label
 
 
-def _zone_trigger_options(level: str, zone_key: Optional[str] = None) -> List[SelectOptionDict]:
+def _zone_trigger_options(
+    level: str,
+    zone_key: Optional[str] = None,
+    config: Optional[Dict[str, Any]] = None,
+) -> List[SelectOptionDict]:
     opts = []
     for key, trig in TRIGGER_DEFS.items():
-        label = f"{trig['label']} ({_zone_trigger_context_label(level, zone_key)})"
+        label = f"{trig['label']} ({_zone_trigger_context_label(level, zone_key, config)})"
         opts.append(SelectOptionDict(value=key, label=label))
     return opts
 
 
-def _aq_trigger_options(level: str) -> List[SelectOptionDict]:
+def _aq_trigger_options(
+    level: str,
+    config: Optional[Dict[str, Any]] = None,
+) -> List[SelectOptionDict]:
     opts = []
     for key, trig in AQ_TRIGGER_DEFS.items():
-        label = f"{trig['label']} ({level})"
+        label = f"{trig['label']} ({_level_choice_label(level, config)})"
         opts.append(SelectOptionDict(value=key, label=label))
     return opts
 
