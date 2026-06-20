@@ -32,7 +32,6 @@ class WorkflowConfigurationTests(unittest.TestCase):
             "custom_components/ not found and hacs.json does not set content_in_root: true.",
             workflow,
         )
-    def test_first_interaction_v3_uses_supported_input_names(self) -> None:
     def test_first_interaction_v3_is_pinned_and_uses_supported_input_names(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "first-interaction.yml").read_text(
             encoding="utf-8"
