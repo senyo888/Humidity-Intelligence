@@ -27,6 +27,9 @@ active promotion model for future versions and for any maintenance patch.
 - `vMAJOR.MINOR.PATCH`: release-verification branch for the exact matching stable
   manifest version only. For example, `v2.0.7` may carry `2.0.7`, but not
   `2.0.7-rc.1` or `2.0.8`.
+- `dependabot/*`: automated dependency-maintenance branches may inherit the
+  current stable manifest version from their base branch. They are not release
+  lanes and do not approve, tag, or publish a release.
 - Short-lived development branches, including `Bella/*`, `codex/*`, `feature/*`,
   `fix/*`, `patch/*`, and `test/*`, must not carry stable manifest versions.
 
@@ -84,7 +87,8 @@ in CI. It rejects:
 - stable versions on short-lived testing branches
 - prerelease or mismatched stable versions on `vMAJOR.MINOR.PATCH` branches
 - stable versions on unapproved branches outside `senyo888-patch-1`, `develop`, and
-  `main`, plus exact matching `vMAJOR.MINOR.PATCH` release-verification branches
+  `main`, exact matching `vMAJOR.MINOR.PATCH` release-verification branches, and
+  automated `dependabot/*` dependency-maintenance branches
 
 This is a release-boundary guard only. It does not alter runtime logic, entity
 semantics, generated dashboards, or Home Assistant services.
