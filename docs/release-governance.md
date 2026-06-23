@@ -12,10 +12,14 @@ testing and validation branches.
 The integration version in `manifest.json` is the release-state source of truth for
 Home Assistant and HACS metadata checks.
 
-v2.0.7 is the current stable release line being prepared from `senyo888-patch-1`.
-v2.0.6 remains the previous stable release milestone on `main` until promotion,
-tagging, and GitHub release publication are completed. The rules below remain the
-active promotion model for future versions and for any maintenance patch.
+v2.0.7 is the current stable release line. Stable `2.0.7` metadata is present on
+`main`, while `senyo888-patch-1` may still carry final release-validation fixes
+ahead of `main` until those fixes are promoted. Tagging and GitHub release
+publication remain gated until final validation, promotion, and maintainer
+approval are complete. HA Lab advisory validation for commit `55dc2b9` passed on
+2026-06-23 after lab-only deploy and manual restart; it remains evidence input,
+not release authority. The rules below remain the active promotion model for future
+versions and for any maintenance patch.
 
 ## Branch Responsibilities
 
@@ -27,6 +31,9 @@ active promotion model for future versions and for any maintenance patch.
 - `vMAJOR.MINOR.PATCH`: release-verification branch for the exact matching stable
   manifest version only. For example, `v2.0.7` may carry `2.0.7`, but not
   `2.0.7-rc.1` or `2.0.8`.
+- `dependabot/*`: automated dependency-maintenance branches may inherit the
+  current stable manifest version from their base branch. They are not release
+  lanes and do not approve, tag, or publish a release.
 - Short-lived development branches, including `Bella/*`, `codex/*`, `feature/*`,
   `fix/*`, `patch/*`, and `test/*`, must not carry stable manifest versions.
 
@@ -84,7 +91,8 @@ in CI. It rejects:
 - stable versions on short-lived testing branches
 - prerelease or mismatched stable versions on `vMAJOR.MINOR.PATCH` branches
 - stable versions on unapproved branches outside `senyo888-patch-1`, `develop`, and
-  `main`, plus exact matching `vMAJOR.MINOR.PATCH` release-verification branches
+  `main`, exact matching `vMAJOR.MINOR.PATCH` release-verification branches, and
+  automated `dependabot/*` dependency-maintenance branches
 
 This is a release-boundary guard only. It does not alter runtime logic, entity
 semantics, generated dashboards, or Home Assistant services.

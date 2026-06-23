@@ -61,6 +61,15 @@ class VersionGovernanceTests(unittest.TestCase):
         self.assertEqual(result, 1)
         self.assertIn("must not carry stable version", stderr)
 
+    def test_dependabot_branch_may_carry_current_stable_version(self) -> None:
+        result, stdout, stderr = self._run_check(
+            branch="dependabot/github_actions/actions/checkout-7.0.0",
+            version="2.0.7",
+        )
+
+        self.assertEqual(result, 0, stderr)
+        self.assertIn("Version governance OK", stdout)
+
     def test_active_branch_prefers_github_head_ref_over_base_ref(self) -> None:
         env = {
             "GITHUB_BASE_REF": "develop",

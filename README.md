@@ -58,7 +58,7 @@ It gives you:
 
 Current release: **v2.0.7**.
 
-v2.0.7 is the stable release line prepared from `senyo888-patch-1`; v2.0.6 remains the previous stable release on `main` until promotion, tagging, and GitHub release publication are completed.
+v2.0.7 metadata is present on `main`; `senyo888-patch-1` remains the final staging lane for release-validation fixes until those fixes are promoted. HA Lab advisory validation for commit `55dc2b9` passed on 2026-06-23 after the lab-only package deploy and manual restart. Tagging and GitHub release publication remain gated until final validation, promotion, and maintainer approval are complete.
 
 ---
 
@@ -348,6 +348,8 @@ must be reviewable from tracked repository files.
 - PM2.5 aggregate runtime truth now exposes canonical `pm25` aggregate entity IDs when PM2.5 telemetry is configured, including setup-time normalization for existing `pm2_5` aggregate IDs
 - generated-card validation now checks entity references embedded in exported YAML, so stale Manual-card entity IDs are caught by `self_check` / `v205_release_check`
 - generated-card validation now includes entity references embedded inside generated-card JavaScript/string expressions, not just YAML `entity:` rows
+- generated-card release validation now filters JavaScript service names, predicate prefixes, object properties, and entity-prefix strings so false-positive card fragments do not fail release checks
+- HA Lab advisory validation passed for commit `55dc2b9` with identity, HI presence, scenario-matrix read-only baseline, and Stage 3 six-sensor runtime-readiness checks; this remains lab evidence, not release authority
 - PM2.5 aggregate entity-ID normalization now reports blocked canonical-target conflicts through diagnostics, `self_check`, and `v205_release_check`
 - generated V2 Current Air Control cards keep selected command lanes in the chip row while moving unmapped alert/no-automation context into reason text
 - generated V2 Current Air Control cards now render backend `telemetry_unavailable` as explicit degraded state and avoid falling back to `normal` / `READY` when the mode sensor is missing or unavailable
@@ -821,6 +823,8 @@ CO emergency pressure. Details are in
 - fixed PM2.5 aggregate runtime truth so configured PM2.5 telemetry exposes canonical backend-owned PM25 aggregate entities instead of relying on Home Assistant's dotted `pm2_5` name slug
 - hardened generated-card AQ output details so unresolved optional AQ aggregate rows are pruned instead of rendering stale `Entity not found` rows, with generated-card entity reference checks in `self_check` and `v205_release_check`
 - expanded generated-card entity reference checks so stale IDs embedded inside generated-card JavaScript/string expressions are reported, and PM2.5 aggregate entity-ID normalization conflicts are surfaced through diagnostics, `self_check`, and `v205_release_check`
+- filtered generated-card release-validation extraction so JavaScript service names, predicate prefixes, object properties, and entity-prefix strings no longer fail generated-card entity availability checks
+- recorded HA Lab advisory validation for commit `55dc2b9`: lab identity, HI presence/diagnostics, scenario-matrix read-only baseline, and Stage 3 six-sensor runtime-readiness checks passed after lab-only deploy and manual restart; no stable-instance access, HA service calls, helper mutation, dashboard mutation, restart, reload, or output writes were performed by Codex
 - changed generated V2 Current Air Control cards so red control-row styling follows selected alert/CO runtime truth, while degraded or unmapped alert candidates remain in reason text instead of primary chip-row space
 - fixed generated V2 Current Air Control cards so missing or unavailable Air Control Mode telemetry no longer renders as normal/ready, and backend `telemetry_unavailable` is shown as degraded UI truth ahead of stale helper-derived alert or AQ state
 - moved optional Level 1 / Level 2 display-label editing into setup Zones and post-configuration Zone Options before Zone 1 / Zone 2 editing, with diagnostics and generated cards using the same sanitized fallback-aware label source

@@ -3910,6 +3910,9 @@ def test_generated_card_entity_extraction_includes_embedded_js_references():
                 "    [[[",
                 "      const pause = states['timer.air_control_pause']?.state;",
                 "      const output = fanTxt('fan.kitchen_air');",
+                "      const service = 'switch.toggle';",
+                "      const prefix = id.startsWith('sensor.hi_');",
+                "      const rooms = zone && zone.enabled !== false && Array.isArray(zone?.rooms);",
                 "      const docs = 'https://github.com/senyo888/Humidity-Intelligence';",
                 "    ]]]",
             ]

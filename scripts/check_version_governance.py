@@ -31,6 +31,8 @@ TESTING_BRANCH_PREFIXES = (
     "test/",
 )
 
+DEPENDENCY_MAINTENANCE_BRANCH_PREFIXES = ("dependabot/",)
+
 STABLE_ALLOWED_BRANCHES = {"senyo888-patch-1", "develop", "main"}
 
 
@@ -65,6 +67,10 @@ def _manifest_version() -> str:
 
 def _is_testing_branch(branch: str) -> bool:
     return branch.startswith(TESTING_BRANCH_PREFIXES)
+
+
+def _is_dependency_maintenance_branch(branch: str) -> bool:
+    return branch.startswith(DEPENDENCY_MAINTENANCE_BRANCH_PREFIXES)
 
 
 def _release_branch_version(branch: str) -> str | None:
@@ -114,7 +120,12 @@ def main() -> int:
         )
         return 1
 
-    if not label and branch not in STABLE_ALLOWED_BRANCHES and not release_branch_version:
+    if (
+        not label
+        and branch not in STABLE_ALLOWED_BRANCHES
+        and not release_branch_version
+        and not _is_dependency_maintenance_branch(branch)
+    ):
         print(
             f"Branch '{branch}' must not carry stable version '{version}'.",
             file=sys.stderr,
