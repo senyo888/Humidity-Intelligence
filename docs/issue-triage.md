@@ -60,7 +60,22 @@ python3 scripts/issue_triage.py --output .codex/reports/issue_triage/weekly_issu
 
 # Test report rendering from a saved GitHub issues JSON fixture.
 python3 scripts/issue_triage.py --input-json /path/to/issues.json
+
+# Render an optional external advisory queue from a local directory.
+python3 scripts/issue_triage.py --maintenance-queue-dir /path/to/actions/open
+
+# Suppress external advisory queue rendering for an issue-only report fixture.
+python3 scripts/issue_triage.py --skip-maintenance-queue
 ```
+
+## External Advisory Queue
+
+The report can optionally render public-safe advisory YAML files from a local
+directory. These entries are inert report text only: they do not authorize
+implementation, GitHub issue mutation, Home Assistant calls, runtime changes,
+generated dashboard edits, entity-semantic changes, or release-state changes.
+Malformed or private-looking entries become report warnings instead of stopping the
+issue triage run.
 
 ## Safe Optional Scheduling
 
