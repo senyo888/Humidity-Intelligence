@@ -1302,13 +1302,55 @@ def _generated_card_entity_availability(hass: HomeAssistant, cards: dict) -> dic
 def _extract_generated_card_entity_ids(card: str) -> List[str]:
     entity_ids: List[str] = []
     seen: set[str] = set()
-    for match in _GENERATED_CARD_ENTITY_RE.finditer(card or ""):
+    text = card or ""
+    for match in _GENERATED_CARD_ENTITY_RE.finditer(text):
         entity_id = match.group(0)
+        if not _is_generated_card_entity_reference(text, match):
+            continue
         if entity_id in seen:
             continue
         seen.add(entity_id)
         entity_ids.append(entity_id)
     return entity_ids
+
+
+def _is_generated_card_entity_reference(card: str, match: re.Match[str]) -> bool:
+    """Return true when a generated-card match is an HA entity reference.
+
+    Card JavaScript also contains object properties such as ``zone.enabled``,
+    service names such as ``switch.toggle``, and string prefixes such as
+    ``sensor.hi_``. Those are not Home Assistant entity references and should
+    not fail release validation.
+    """
+    entity_id = match.group(0)
+    start, end = match.span()
+    if entity_id.endswith("_"):
+        return False
+
+    before = card[max(0, start - 80) : start]
+    after = card[end : min(len(card), end + 8)]
+    before_stripped = before.rstrip()
+
+    if re.search(r"(?:^|[\s{,])entity(?:_id)?:\s*$", before):
+        return True
+
+    if before_stripped.endswith(("states['", 'states["')):
+        return True
+
+    quote = card[start - 1] if start > 0 else ""
+    if quote in {"'", '"'} and after.startswith(quote):
+        if re.search(r"(?:^|[\s;])(?:const|let|var)?\s*service\s*=\s*['\"]$", before_stripped):
+            return False
+        predicate_prefixes = (
+            ".startsWith(" + quote,
+            ".endsWith(" + quote,
+            ".includes(" + quote,
+        )
+        if before_stripped.endswith(predicate_prefixes):
+            return False
+        return True
+
+    return False
 
 
 def _layouts_from_written_paths(paths: List[str]) -> set[str]:
