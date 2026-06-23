@@ -31,6 +31,14 @@ This project follows a practical changelog format for Home Assistant and HACS us
 - Expanded generated-card entity reference checks so stale IDs embedded inside
   generated-card JavaScript/string expressions are reported, not only YAML `entity:`
   rows.
+- Filtered generated-card release-validation extraction so JavaScript service names,
+  predicate prefixes, object properties, and entity-prefix strings no longer fail
+  generated-card entity availability checks.
+- Recorded HA Lab advisory validation for commit `55dc2b9`: lab identity, HI
+  presence/diagnostics, scenario-matrix read-only baseline, and Stage 3 six-sensor
+  runtime-readiness checks passed after lab-only deploy and manual restart, without
+  stable-instance access, service calls, helper mutation, dashboard mutation,
+  restart, reload, or output writes by Codex.
 - Added diagnostics, `self_check`, and `v205_release_check` reporting for PM2.5
   aggregate entity-ID normalization conflicts when a canonical `pm25` target entity
   already exists.

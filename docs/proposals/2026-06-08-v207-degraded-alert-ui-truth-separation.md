@@ -9,8 +9,8 @@ title: V2.0.7 Degraded Alert UI Truth Separation
 created: 2026-06-08
 category: ui
 target_version: v2.0.7
-authority_status: review-only
-state: REVIEW
+authority_status: implemented
+state: IMPLEMENTED
 owner: Aetherwing
 risk_level: medium
 runtime_impact: ui-only
@@ -20,15 +20,29 @@ affected_surfaces:
   - public-docs
 rollback_defined: true
 expiry_or_review_date: 2026-06-22
-bella_approved: false
-aetherwing_validated: false
-ha_lab_validated: false
-release_candidate_validated: false
+bella_approved: true
+aetherwing_validated: true
+ha_lab_validated: advisory_read_only
+release_candidate_validated: warning_only
 entity_contract_changed: false
 service_contract_changed: false
 lane_order_risk: false
 stable_runtime_risk: false
+implemented_in: v2.0.7
+release_candidate_validation_note: stable-instance availability warnings remain non-blocking advisories
+ha_lab_validation_note: 2026-06-23 HA Lab identity, HI presence, scenario-matrix read-only baseline, and Stage 3 runtime readiness passed for commit 55dc2b9; rendered UI was not validated
+closed: 2026-06-23
 ```
+
+## Closure Status
+
+This proposal is now a historical governance record. The v2.0.7 implementation moved
+red control-row styling to selected alert/CO runtime truth, kept degraded or unmapped
+alert candidates in reason text, and preserved backend lane ordering and entity
+semantics. HA Lab validation remains separate advisory evidence and is not claimed by
+this proposal record as rendered-UI approval. The 2026-06-23 HA Lab run confirmed the
+lab target identity, HI install/diagnostics presence, read-only baseline, and Stage 3
+runtime readiness for commit `55dc2b9`.
 
 ## Scope
 
@@ -363,14 +377,15 @@ All lanes converge on a card-template-first proposal. Backend helper work remain
 deferred until there is evidence that card-only logic cannot stay maintainable or
 truthful.
 
-## Senyo Approval Gate
+## Senyo Approval Gate (Historical)
 
-FINAL VERDICT: PROCEED WITH REVIEW OF THIS PROPOSAL.
+FINAL VERDICT: IMPLEMENTED IN V2.0.7.
 
-IMPLEMENTATION ALLOWED: NO.
+IMPLEMENTATION ALLOWED: CLOSED; no further implementation is authorized by this proposal.
 
-SENYO REVIEW REQUIRED: YES.
+SENYO RELEASE REVIEW REQUIRED: YES.
 
-This proposal may be staged for Senyo review. No implementation, dashboard template
-edit, backend helper, docs promotion, release note, commit, push, or branch switch is
-authorized by this artifact.
+This proposal remains in the repository as the public governance record for the
+implemented UI truth correction. Future changes require a new proposal, issue, or
+release patch with its own validation evidence. This proposal closure does not
+approve tagging, publishing, or GitHub release creation.
