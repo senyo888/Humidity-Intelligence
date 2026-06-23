@@ -12,10 +12,14 @@ testing and validation branches.
 The integration version in `manifest.json` is the release-state source of truth for
 Home Assistant and HACS metadata checks.
 
-v2.0.7 is the current stable release line being prepared from `senyo888-patch-1`.
-v2.0.6 remains the previous stable release milestone on `main` until promotion,
-tagging, and GitHub release publication are completed. The rules below remain the
-active promotion model for future versions and for any maintenance patch.
+v2.0.7 is the current stable release line. Stable `2.0.7` metadata is present on
+`main`, while `senyo888-patch-1` may still carry final release-validation fixes
+ahead of `main` until those fixes are promoted. Tagging and GitHub release
+publication remain gated until final validation, promotion, and maintainer
+approval are complete. HA Lab advisory validation for commit `55dc2b9` passed on
+2026-06-23 after lab-only deploy and manual restart; it remains evidence input,
+not release authority. The rules below remain the active promotion model for future
+versions and for any maintenance patch.
 
 ## Branch Responsibilities
 
