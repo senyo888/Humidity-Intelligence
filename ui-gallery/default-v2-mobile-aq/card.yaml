@@ -1797,12 +1797,44 @@ card:
             action: more-info
           styles:
             card:
-              - border-radius: 18px
-              - padding: 12px
+              - border-radius: 20px
+              - padding: 10px 12px
               - min-height: 132px
               - background: rgba(2,6,23,0.35)
-              - border: 1px solid rgba(148,163,184,0.22)
-              - box-shadow: 0 0 18px rgba(148,163,184,0.12)
+              - border: |
+                  [[[
+                    const summary = entity?.attributes?.diagnostics_summary || {};
+                    const stability = summary.stability_score || {};
+                    const score = stability.score || {};
+                    const rawValue =
+                      score.display_score ??
+                      stability.display_score ??
+                      entity?.attributes?.stability_score_display_score;
+                    const value = Number(rawValue);
+                    const classification = String(
+                      score.display_classification ||
+                      stability.display_classification ||
+                      entity?.attributes?.stability_score_display_classification ||
+                      ''
+                    ).toLowerCase();
+                    const suppression = String(
+                      score.suppression_reason ||
+                      stability.suppression_reason ||
+                      entity?.attributes?.stability_score_suppression_reason ||
+                      ''
+                    );
+                    const hasValue = Number.isFinite(value);
+                    const completeWhite = !hasValue || value >= 99 || classification === 'excellent';
+                    const color =
+                      suppression === 'current_telemetry_unavailable' ? '#94a3b8' :
+                      completeWhite ? '#f8fafc' :
+                      classification === 'good' ? '#4ade80' :
+                      classification === 'unstable' ? '#f9a8d4' :
+                      classification === 'poor' ? '#db2777' :
+                      '#f8fafc';
+                    return `1px solid ${color}`;
+                  ]]]
+              - box-shadow: inset 0 0 0 1px rgba(255,255,255,0.035), 0 0 16px rgba(15,23,42,0.55)
               - backdrop-filter: blur(12px)
               - "-webkit-backdrop-filter": blur(12px)
             grid:
