@@ -3023,7 +3023,7 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
             "animation: hi-stability-led-shimmer 6000ms ease-in-out infinite;",
             "@keyframes hi-stability-white-shimmer",
             "@keyframes hi-stability-led-shimmer",
-            "return `1px solid ${color}`;",
+            "- border: 1px solid rgba(148,163,184,0.22)",
             "- box-shadow: inset 0 0 0 1px rgba(255,255,255,0.035), 0 0 16px rgba(15,23,42,0.55)",
             "inset: 14px;",
             "box-shadow: 0 0 9px 3px var(--hi-stability-color);",
@@ -3054,6 +3054,8 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
             missing_stability_markers.append(f"{path.relative_to(ROOT)}: stale oversized center aura")
         if "return `2px solid ${color}`;" in source:
             missing_stability_markers.append(f"{path.relative_to(ROOT)}: stability border no longer matches row")
+        if "return `1px solid ${color}`;" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: stability border light should be off")
         if "box-shadow: 0 0 6px 2px var(--hi-stability-color);" in source:
             missing_stability_markers.append(f"{path.relative_to(ROOT)}: stale undersized center aura")
         if "classification === 'excellent' ? '#22c55e'" in source:
