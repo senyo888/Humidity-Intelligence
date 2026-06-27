@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import pathlib
+import stat
 import sys
 import tempfile
 import unittest
@@ -245,6 +246,28 @@ forbidden_actions:
         self.assertTrue(any("forbidden action listed as allowed" in warning for warning in queue.warnings))
         self.assertIn("Queue parse warnings: 3", report)
         self.assertIn("No open maintenance review queue actions found.", report)
+
+    def test_write_report_rejects_paths_outside_repository(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            outside_path = pathlib.Path(tmpdir) / "outside.md"
+
+            with self.assertRaises(ValueError):
+                self.triage._write_report(outside_path, "unsafe report")
+
+            self.assertFalse(outside_path.exists())
+
+    def test_write_report_uses_confined_private_atomic_file(self) -> None:
+        output_path = ROOT / "tmp_out" / "issue_triage_writer_test.md"
+        output_path.unlink(missing_ok=True)
+
+        try:
+            self.triage._write_report(output_path, "safe report")
+
+            self.assertEqual("safe report", output_path.read_text(encoding="utf-8"))
+            mode = stat.S_IMODE(output_path.stat().st_mode)
+            self.assertEqual(0o600, mode)
+        finally:
+            output_path.unlink(missing_ok=True)
 
     def test_issue_with_downloaded_diagnostics_gets_has_diagnostics_label(self) -> None:
         issue = {

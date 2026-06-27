@@ -43,6 +43,31 @@ def summarize_zone_mapping_duplicates(duplicates: Dict[str, List[str]]) -> str:
     return "; ".join(sections)
 
 
+def summarize_zone_mapping_duplicate_counts(duplicates: Dict[str, List[str]]) -> Dict[str, Any]:
+    """Summarize duplicate zone mappings without exposing entity IDs."""
+    return {
+        "count": len(duplicates or {}),
+        "pairs": {
+            str(pair_key): {"entity_count": len(entities or [])}
+            for pair_key, entities in sorted((duplicates or {}).items())
+        },
+    }
+
+
+def summarize_zone_mapping_duplicate_count_warning(duplicates: Dict[str, List[str]]) -> str:
+    """Create a privacy-safe warning string for duplicate zone mappings."""
+    if not duplicates:
+        return ""
+    pair_count = len(duplicates)
+    source_count = sum(len(entities or []) for entities in duplicates.values())
+    pair_word = "pair" if pair_count == 1 else "pairs"
+    source_word = "source" if source_count == 1 else "sources"
+    return (
+        f"{pair_count} duplicate zone mapping {pair_word} includes "
+        f"{source_count} overlapping telemetry {source_word}."
+    )
+
+
 def _zone_sensor_sources(telemetry: List[Dict[str, Any]], zone: Dict[str, Any]) -> Set[str]:
     level = str(zone.get("level") or "").strip()
     rooms = {

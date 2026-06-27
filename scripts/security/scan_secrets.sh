@@ -23,11 +23,21 @@ case "$mode" in
   tracked)
     tmp_dir="$(mktemp -d)"
     trap 'rm -rf "$tmp_dir"' EXIT
+    scanned_files=0
     while IFS= read -r -d '' path; do
       [ -f "$path" ] || continue
       mkdir -p "$tmp_dir/$(dirname "$path")"
       cp -p "$path" "$tmp_dir/$path"
+      scanned_files=$((scanned_files + 1))
     done < <(git ls-files -z)
+    if [ "$scanned_files" -eq 0 ]; then
+      cat >&2 <<'EOF'
+No tracked files found to scan; refusing to pass the tracked secret scan.
+
+Verify the repository root and tracked checkout before using this result for release readiness.
+EOF
+      exit 1
+    fi
     gitleaks dir --redact --no-banner --config "$ROOT_DIR/.gitleaks.toml" "$tmp_dir"
     ;;
   full-history)

@@ -21,6 +21,11 @@ approval are complete. HA Lab advisory validation for commit `55dc2b9` passed on
 not release authority. The rules below remain the active promotion model for future
 versions and for any maintenance patch.
 
+For a `2.0.8-beta.1` candidate, Stage A HA Lab package deploy evidence is not enough
+to claim beta runtime validation. The release-readiness record must separately state
+whether restart/reload approval, post-restart read-only checks, generated-card evidence,
+Bella review, Aetherwing review, and maintainer staging approval are complete.
+
 ## Branch Responsibilities
 
 - `senyo888-patch-1`: staging lane for all manifest labels. It may carry beta, rc,

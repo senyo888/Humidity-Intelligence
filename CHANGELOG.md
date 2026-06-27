@@ -8,6 +8,26 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+- Blocked default generated V2 dashboard YAML from shipping runtime mutation controls:
+  pause/resume, system enable/disable, manual override, output expander service
+  calls, and the standalone View Cards service button are now read-only/default-safe
+  surfaces. Backend services remain available through Home Assistant service/admin
+  workflows.
+- Replaced the generated V2 Pause LIVE tile with a passive compact
+  gauge-style Stability preview badge. The badge reads future v2.1 Stability
+  Score diagnostics from the existing HI diagnostics sensor when present,
+  otherwise it degrades without calculating scores, requiring a new sensor, or
+  creating a control path. Current/complete Stability shimmer is paced at 10 beats
+  per minute with a 6 second animation cycle.
+- Kept global pause/resume support, but global all-entry pause/resume calls now
+  require an admin user context. Per-entry calls remain scoped to the supplied
+  config entry.
+- Hardened release hygiene and support output handling: the tracked secret scan now
+  fails closed when no tracked files are selected, issue-triage reports are written
+  through a confined private atomic writer, and diagnostics/support exports use
+  sanitized structure/count/status summaries instead of raw entity IDs, room names,
+  entity maps, state dumps, or Lovelace resource URLs.
+
 ## 2.0.7
 
 - Promoted integration metadata to stable `2.0.7`.

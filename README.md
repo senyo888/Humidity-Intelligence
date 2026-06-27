@@ -60,6 +60,8 @@ Current release: **v2.0.7**.
 
 v2.0.7 metadata is present on `main`; `senyo888-patch-1` remains the final staging lane for release-validation fixes until those fixes are promoted. HA Lab advisory validation for commit `55dc2b9` passed on 2026-06-23 after the lab-only package deploy and manual restart. Tagging and GitHub release publication remain gated until final validation, promotion, and maintainer approval are complete.
 
+Unreleased v2.0.8 beta candidate work is under Bella/Aetherwing proposal review. That candidate makes default generated V2 dashboards read-only status surfaces, replaces the Pause LIVE tile with a passive Stability preview badge, hardens global pause/resume admin boundaries, and sanitizes diagnostics/support exports. It is not a published release and does not change deterministic lane ordering, entity semantics, or migration requirements.
+
 ---
 
 ## Project Site and Search Discovery
@@ -683,17 +685,26 @@ Use Home Assistant Developer Tools:
 Notes:
 - `entry_id` is optional for most services. If omitted, HI uses all entries or first valid entry based on service behavior.
 - File outputs are written into your HA config folder.
+- Default generated V2 dashboards are read-only status surfaces. Runtime-changing
+  actions such as pause/resume, enable/disable, manual override, dashboard creation,
+  and file cleanup belong in Home Assistant service/admin workflows.
+- The generated V2 control row uses a passive Stability preview badge instead of
+  a Pause LIVE control tile. It reflects future v2.1 diagnostics when available
+  and does not calculate scores, select lanes, or change runtime behavior. The
+  current/complete shimmer uses a slow 10 BPM cadence, one pulse every 6 seconds.
+- Global `pause_control` / `resume_control` calls with no `entry_id` require an
+  admin user context. Supplying `entry_id` scopes the call to that config entry.
 
 Common service groups:
 
 | Service | Use |
 | --- | --- |
-| `create_dashboard` | create a Lovelace dashboard from a rendered HI layout |
-| `view_cards` | render cards, write them to file, and send a file-path notification |
+| `create_dashboard` | create a Lovelace dashboard from a rendered HI layout through an explicit service call |
+| `view_cards` | render cards, write them to file, and send a file-path notification through an explicit service call |
 | `dump_cards` | export generated card YAML for static Manual dashboards |
 | `refresh_ui` | rebuild placeholder mappings and refresh cached rendered UI output |
 | `flash_lights` | test configured visual alert behavior |
-| `pause_control` / `resume_control` | pause or resume the automation engine |
+| `pause_control` / `resume_control` | pause or resume the automation engine; global all-entry calls require admin context |
 | `self_check` | run mapping, generated-card entity, telemetry, drift-helper, and frontend-dependency checks |
 | `v205_release_check` | run read-only v2.0.5-v2.0.7 generated-card and release-validation support checks |
 | `create_local_backup` / `list_saved_versions` | manage package-local HI snapshots for advanced validation |
@@ -717,7 +728,7 @@ data:
   filename: humidity_intelligence_v205_release_check.json
 ```
 
-For GitHub support issues, prefer the native Home Assistant diagnostics download from the Humidity Intelligence integration entry. Use `dump_diagnostics` for fuller local maintainer/debug workflows after reviewing the export.
+For GitHub support issues, prefer the native Home Assistant diagnostics download from the Humidity Intelligence integration entry. Diagnostics and `dump_diagnostics` exports report sanitized structure, counts, and statuses instead of raw entity IDs, room names, entity maps, state dumps, or Lovelace resource URLs. Use `dump_diagnostics` for fuller local maintainer/debug workflows after reviewing the export.
 
 Detailed manual:
 

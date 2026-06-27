@@ -11,6 +11,7 @@ import re
 import ssl
 import subprocess
 import sys
+import tempfile
 import textwrap
 import urllib.error
 import urllib.parse
@@ -25,6 +26,7 @@ DEFAULT_REPOSITORY = "senyo888/humidity-intelligence"
 DEFAULT_OUTPUT = ".codex/reports/issue_triage/daily_issue_triage.md"
 DEFAULT_MAINTENANCE_QUEUE_DIR = "maintenance/triage/actions/open"
 DEFAULT_LOOKBACK_DAYS = 3
+REPO_ROOT = Path(__file__).resolve().parents[1]
 PER_PAGE = 100
 CA_BUNDLE_CANDIDATES = (
     "/etc/ssl/cert.pem",
@@ -1421,9 +1423,35 @@ def _load_issues_from_json(path: Path) -> FetchResult:
     )
 
 
+def _resolve_report_path(path: Path) -> Path:
+    candidate = path if path.is_absolute() else REPO_ROOT / path
+    resolved = candidate.resolve()
+    try:
+        resolved.relative_to(REPO_ROOT)
+    except ValueError as exc:
+        raise ValueError(f"Refusing to write report outside repository: {path}") from exc
+    return resolved
+
+
 def _write_report(path: Path, report: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(report, encoding="utf-8")
+    target = _resolve_report_path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(
+        prefix=f".{target.name}.",
+        suffix=".tmp",
+        dir=target.parent,
+        text=True,
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(report)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(tmp_path, 0o600)
+        os.replace(tmp_path, target)
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:

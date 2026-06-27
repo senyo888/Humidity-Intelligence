@@ -4,6 +4,12 @@ from __future__ import annotations
 
 import pathlib
 import re
+import shutil
+import os
+import stat
+import subprocess
+import tempfile
+import textwrap
 import unittest
 
 
@@ -18,6 +24,75 @@ MUTABLE_ACTION_REF_RE = re.compile(
 
 
 class WorkflowConfigurationTests(unittest.TestCase):
+    def test_secret_scan_fails_closed_when_tracked_mode_has_no_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workdir = pathlib.Path(tmpdir)
+            script = workdir / "scripts" / "security" / "scan_secrets.sh"
+            script.parent.mkdir(parents=True)
+            shutil.copy2(ROOT / "scripts" / "security" / "scan_secrets.sh", script)
+            shutil.copy2(ROOT / ".gitleaks.toml", workdir / ".gitleaks.toml")
+
+            fake_bin = workdir / "bin"
+            fake_bin.mkdir()
+            fake_gitleaks = fake_bin / "gitleaks"
+            fake_gitleaks.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+            fake_gitleaks.chmod(fake_gitleaks.stat().st_mode | stat.S_IXUSR)
+
+            subprocess.run(["git", "init", "-q"], cwd=workdir, check=True)
+            result = subprocess.run(
+                ["bash", str(script), "tracked"],
+                cwd=workdir,
+                env={"PATH": f"{fake_bin}:{os.environ.get('PATH', '')}"},
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("No tracked files found", result.stderr)
+
+    def test_secret_scan_runs_gitleaks_when_tracked_files_exist(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workdir = pathlib.Path(tmpdir)
+            script = workdir / "scripts" / "security" / "scan_secrets.sh"
+            script.parent.mkdir(parents=True)
+            shutil.copy2(ROOT / "scripts" / "security" / "scan_secrets.sh", script)
+            shutil.copy2(ROOT / ".gitleaks.toml", workdir / ".gitleaks.toml")
+            (workdir / "README.md").write_text("tracked file\n", encoding="utf-8")
+
+            fake_bin = workdir / "bin"
+            fake_bin.mkdir()
+            marker = workdir / "gitleaks-called.txt"
+            fake_gitleaks = fake_bin / "gitleaks"
+            fake_gitleaks.write_text(
+                textwrap.dedent(
+                    f"""\
+                    #!/usr/bin/env bash
+                    printf '%s\n' "$@" > {marker}
+                    exit 0
+                    """
+                ),
+                encoding="utf-8",
+            )
+            fake_gitleaks.chmod(fake_gitleaks.stat().st_mode | stat.S_IXUSR)
+
+            subprocess.run(["git", "init", "-q"], cwd=workdir, check=True)
+            subprocess.run(["git", "add", "README.md"], cwd=workdir, check=True)
+            result = subprocess.run(
+                ["bash", str(script), "tracked"],
+                cwd=workdir,
+                env={"PATH": f"{fake_bin}:{os.environ.get('PATH', '')}"},
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertTrue(marker.exists())
+            self.assertIn("dir", marker.read_text(encoding="utf-8"))
+
     def test_validate_compile_step_accepts_root_content_without_warning(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "validate.yml").read_text(
             encoding="utf-8"

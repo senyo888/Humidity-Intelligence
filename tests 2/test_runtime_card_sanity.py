@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import importlib.util
 import json
 import pathlib
@@ -418,12 +419,24 @@ class _FakeBool:
 class _FakeTimer:
     def __init__(self):
         self.native_value = "idle"
+        self.start_calls = 0
+        self.cancel_calls = 0
 
     async def async_start(self, duration):
+        self.start_calls += 1
         self.native_value = "active"
 
     async def async_cancel(self):
+        self.cancel_calls += 1
         self.native_value = "idle"
+
+
+class _FakeAuth:
+    def __init__(self, users):
+        self._users = dict(users)
+
+    async def async_get_user(self, user_id):
+        return self._users.get(user_id)
 
 
 class _FakeConfigEntries:
@@ -2416,7 +2429,7 @@ async def _run_card_assertions(register_mod) -> None:
     assert hass.data["humidity_intelligence"][ENTRY_ID].get("unresolved_placeholders_by_card", {}) == {}
     assert mobile.startswith("# Humidity Intelligence V2 Mobile Dashboard YAML")
     assert tablet.startswith("# Humidity Intelligence V2 Tablet Dashboard YAML")
-    assert "Call the service humidity_intelligence.dump_cards" in mobile
+    assert "Export refreshed Humidity Intelligence card YAML from Home Assistant." in mobile
     assert "Dashboard Manual card" in tablet
     assert hass.data["humidity_intelligence"][ENTRY_ID]["level_labels"] == {
         "level1": "Ground Floor",
@@ -2889,6 +2902,50 @@ def test_visual_alert_flash_restores_initial_light_state_and_serializes_overlap(
     asyncio.run(_run_visual_flash_restore_assertions(services_mod))
 
 
+def test_global_pause_and_resume_require_admin_user_context():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth(
+        {
+            "admin": SimpleNamespace(is_admin=True),
+            "viewer": SimpleNamespace(is_admin=False),
+        }
+    )
+
+    asyncio.run(services_mod.async_register_services(hass))
+    pause_handler = hass.services.handlers[(services_mod.DOMAIN, services_mod.SERVICE_PAUSE_CONTROL)]
+    resume_handler = hass.services.handlers[(services_mod.DOMAIN, services_mod.SERVICE_RESUME_CONTROL)]
+    timer = hass.data[services_mod.DOMAIN][ENTRY_ID]["hi_timers"]["air_control_pause"]
+
+    try:
+        asyncio.run(pause_handler(SimpleNamespace(data={}, context=SimpleNamespace(user_id="viewer"))))
+    except Exception as err:
+        assert "requires an admin user" in str(err)
+    else:
+        raise AssertionError("global pause should reject non-admin user context")
+
+    assert timer.start_calls == 0
+
+    asyncio.run(pause_handler(SimpleNamespace(data={}, context=SimpleNamespace(user_id="admin"))))
+    assert timer.start_calls == 1
+    assert timer.native_value == "active"
+
+    try:
+        asyncio.run(resume_handler(SimpleNamespace(data={}, context=SimpleNamespace(user_id="viewer"))))
+    except Exception as err:
+        assert "requires an admin user" in str(err)
+    else:
+        raise AssertionError("global resume should reject non-admin user context")
+
+    assert timer.cancel_calls == 0
+
+    asyncio.run(resume_handler(SimpleNamespace(data={}, context=SimpleNamespace(user_id="admin"))))
+    assert timer.cancel_calls == 1
+    assert timer.native_value == "idle"
+
+
 def test_public_card_surfaces_do_not_ship_private_entity_ids():
     offenders = []
     for path in PUBLIC_CARD_SURFACES:
@@ -2900,6 +2957,116 @@ def test_public_card_surfaces_do_not_ship_private_entity_ids():
                 offenders.append(f"{path.relative_to(ROOT)}: {marker}")
 
     assert offenders == []
+
+
+def test_default_public_card_surfaces_are_read_only():
+    default_surfaces = (
+        ROOT / "ui" / "cards" / "v2_mobile.yaml",
+        ROOT / "ui" / "cards" / "v2_tablet.yaml",
+        ROOT / "ui" / "cards" / "view_cards_button.yaml",
+        ROOT / "ui-gallery" / "default-v2-mobile-aq" / "card.yaml",
+        ROOT / "ui-gallery" / "default-v2-tablet-zone-2" / "card.yaml",
+    )
+    mutation_markers = (
+        "action: call-service",
+        "action: toggle",
+        "humidity_intelligence.pause_control",
+        "humidity_intelligence.resume_control",
+        "humidity_intelligence.refresh_ui",
+        "humidity_intelligence.dump_cards",
+        "humidity_intelligence.view_cards",
+        "humidity_intelligence.create_dashboard",
+        "humidity_intelligence.purge_files",
+    )
+    offenders = []
+    for path in default_surfaces:
+        source = path.read_text(encoding="utf-8")
+        for marker in mutation_markers:
+            if marker in source:
+                offenders.append(f"{path.relative_to(ROOT)}: {marker}")
+
+    assert offenders == []
+
+
+def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pause_tile():
+    default_surfaces = (
+        ROOT / "ui" / "cards" / "v2_mobile.yaml",
+        ROOT / "ui" / "cards" / "v2_tablet.yaml",
+        ROOT / "ui-gallery" / "default-v2-mobile-aq" / "card.yaml",
+        ROOT / "ui-gallery" / "default-v2-tablet-zone-2" / "card.yaml",
+    )
+    forbidden_pause_tile_markers = (
+        "name: Pause",
+        "icon: mdi:pause-circle",
+        "return entity.state === 'active' ? 'PAUSED' : 'LIVE';",
+    )
+    missing_stability_markers = []
+    pause_tile_offenders = []
+    for path in default_surfaces:
+        source = path.read_text(encoding="utf-8")
+        for marker in forbidden_pause_tile_markers:
+            if marker in source:
+                pause_tile_offenders.append(f"{path.relative_to(ROOT)}: {marker}")
+        for marker in (
+            "type: custom:button-card",
+            "name: Stability Score",
+            "entity: sensor.hi_diagnostics",
+            "show_label: false",
+            "hi-stability-gauge",
+            "hi-stability-gauge-white",
+            "hi-stability-leds",
+            'return `<i class="led-${index} ${active ? \'active\' : \'\'}"></i>`;',
+            ".hi-stability-leds i.led-3 { left: 40px; top: 2px; }",
+            "const completeWhite = !hasValue || value >= 99 || classification === 'excellent';",
+            "completeWhite ? '#f8fafc'",
+            "animation: hi-stability-white-shimmer 6000ms ease-in-out infinite;",
+            "animation: hi-stability-led-shimmer 6000ms ease-in-out infinite;",
+            "@keyframes hi-stability-white-shimmer",
+            "@keyframes hi-stability-led-shimmer",
+            "return `1px solid ${color}`;",
+            "- box-shadow: inset 0 0 0 1px rgba(255,255,255,0.035), 0 0 16px rgba(15,23,42,0.55)",
+            "inset: 14px;",
+            "box-shadow: 0 0 9px 3px var(--hi-stability-color);",
+            "display_score",
+            "display_classification",
+            "const normalized = hasValue ? Math.max(-1, Math.min(1, (value - 50) / 50)) : 0;",
+            "direction === 'left'",
+        ):
+            if marker not in source:
+                missing_stability_markers.append(f"{path.relative_to(ROOT)}: {marker}")
+        if source.count("min-height: 132px") < 3:
+            missing_stability_markers.append(
+                f"{path.relative_to(ROOT)}: System/Stability/Manual row height mismatch"
+            )
+        if "hi-stability-ring" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: stale button-card ring")
+        if "type: custom:custom-gauge-card" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: invalid custom gauge dependency")
+        if "attribute: stability_score_display_score" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: invalid flattened score attribute")
+        if "FUTURE 2.1" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: stale bottom future label")
+        if "repeating-conic-gradient" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: stale full-circumference LED halo")
+        if "bottom: 5px;" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: stale bottom LED row")
+        if "box-shadow: 0 0 15px 5px var(--hi-stability-color);" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: stale oversized center aura")
+        if "return `2px solid ${color}`;" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: stability border no longer matches row")
+        if "box-shadow: 0 0 6px 2px var(--hi-stability-color);" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: stale undersized center aura")
+        if "classification === 'excellent' ? '#22c55e'" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: completed stability hue is not white")
+        if "classification === 'excellent' ? '#38bdf8'" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: completed stability hue is not white")
+        if "hi-stability-white-shimmer 2600ms" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: stale 2600ms stability pulse")
+        if "hi-stability-led-shimmer 2600ms" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: stale 2600ms stability led pulse")
+
+    assert pause_tile_offenders == []
+    assert missing_stability_markers == []
 
 
 def test_public_v2_gallery_cards_preserve_air_control_mode_truth():
@@ -3470,6 +3637,40 @@ def test_support_diagnostics_summary_uses_canonical_level_label_source():
     }
 
 
+def test_support_diagnostics_summary_sanitizes_duplicate_zone_mapping_evidence():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=copy.deepcopy(_base_entry_data()), options={})
+    entry.data["zones"]["zone2"] = {
+        "enabled": True,
+        "level": "level1",
+        "rooms": ["Kitchen"],
+        "outputs": ["fan.zone2_private"],
+        "triggers": ["humidity_high"],
+    }
+    hass = _FakeHass(entry, {})
+
+    summary = services_mod._build_diagnostics_summary(
+        hass,
+        entry.data,
+        entry.options,
+        {},
+        {},
+    )
+    support_summary = services_mod._support_safe_diagnostics_summary(summary)
+    rendered = json.dumps(support_summary, sort_keys=True)
+
+    assert "sensor.kitchen_h" not in rendered
+    assert "Kitchen" not in rendered
+    assert support_summary["zone_mapping_duplicates"] == {
+        "count": 1,
+        "pairs": {"zone1:zone2": {"entity_count": 3}},
+    }
+    assert (
+        "1 duplicate zone mapping pair includes 3 overlapping telemetry sources."
+        in support_summary["warnings"]
+    )
+
+
 def test_flash_lights_power_entity_rejects_non_switch_light_domains():
     services_mod = _load_services_module()
 
@@ -3579,9 +3780,12 @@ def test_dump_diagnostics_legacy_export_redacts_sensitive_payload_before_write()
     ):
         assert secret not in rendered
 
-    assert "[REDACTED]" in rendered
-    assert "[REDACTED_URL]" in rendered
-    assert "sensor.kitchen_h" in rendered
+    assert "sensor.kitchen_h" not in rendered
+    assert "sensor.private_diagnostic" not in rendered
+    assert "/hacsfiles/button-card/button-card.js" not in rendered
+    assert "configuration_summary" in captured["payload"][ENTRY_ID]
+    assert "entity_map_summary" in captured["payload"][ENTRY_ID]
+    assert captured["payload"][ENTRY_ID]["entity_map_summary"]["mapped_entity_count"] == 2
 
 
 def test_generated_v2_cards_escape_dynamic_html_text():

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import importlib.util
 import json
 import pathlib
@@ -254,11 +255,11 @@ def test_native_diagnostics_payload_contains_support_sections():
 
     assert payload["integration"]["domain"] == "humidity_intelligence"
     assert payload["integration"]["home_assistant_version"] == "2026.5.2"
-    assert payload["configuration"]["selected_entities"]["telemetry"][0]["entity_id"] == "sensor.kitchen_humidity"
+    assert payload["configuration"]["selected_entity_summary"]["telemetry"]["count"] == 1
     assert payload["configuration"]["enabled_feature_areas"]["zone_control"] is True
     assert payload["runtime"]["active_lane"] == "alert"
-    assert payload["runtime"]["gate_states"]["presence_gate"]["entities"][0]["state"] == "unknown"
-    assert payload["runtime"]["output_states"]["fan_outputs"][0]["entity_id"] == "fan.kitchen_extract"
+    assert payload["runtime"]["gate_states"]["presence_gate"]["entity_status"]["by_status"]["unknown"] == 1
+    assert payload["runtime"]["output_states"]["fan_outputs"]["by_status"]["unavailable"] == 1
     assert payload["frontend"]["dependency_status"]
     assert payload["generated_ui"]["cached_layouts"] == ["v2_mobile", "v2_tablet"]
 
@@ -294,8 +295,66 @@ def test_native_diagnostics_redacts_sensitive_keys_and_url_values():
     assert "REDACTION_FIXTURE_SSID" not in rendered
     assert "REDACTION_FIXTURE_DEVICE_ID" not in rendered
     assert "REDACTION_FIXTURE_UNIQUE_ID" not in rendered
-    assert "sensor.kitchen_humidity" in rendered
+    assert "sensor.kitchen_humidity" not in rendered
     assert "[REDACTED]" in rendered
+
+
+def test_native_diagnostics_uses_sanitized_counts_status_not_raw_private_ids():
+    diagnostics = _load_diagnostics_module()
+
+    payload = asyncio.run(
+        diagnostics.async_get_config_entry_diagnostics(_sample_hass(), _sample_entry())
+    )
+    rendered = json.dumps(payload, sort_keys=True)
+
+    assert "sensor.kitchen_humidity" not in rendered
+    assert "fan.kitchen_extract" not in rendered
+    assert "person.alice" not in rendered
+    assert "Kitchen" not in rendered
+    assert "/hacsfiles/button-card/button-card.js" not in rendered
+    assert "https://user:pass@example.invalid/card-mod.js" not in rendered
+
+    selected = payload["configuration"]["selected_entity_summary"]
+    assert selected["telemetry"]["count"] == 1
+    assert selected["zones"]["zone1"]["output_count"] == 1
+    assert selected["presence_gate"]["entity_count"] == 1
+    assert selected["alerts"][0]["visual_light_count"] == 1
+    assert selected["alerts"][0]["has_power_entity"] is True
+
+    unavailable = payload["runtime"]["unavailable_or_unknown_entities"]
+    assert unavailable["count"] == 4
+    assert unavailable["by_status"]["missing"] == 2
+    assert unavailable["by_status"]["unknown"] == 1
+    assert unavailable["by_status"]["unavailable"] == 1
+
+
+def test_native_diagnostics_sanitizes_duplicate_zone_mapping_evidence():
+    diagnostics = _load_diagnostics_module()
+    entry = _sample_entry()
+    entry.data = copy.deepcopy(entry.data)
+    entry.data["zones"]["zone2"] = {
+        "enabled": True,
+        "level": "level1",
+        "rooms": ["Kitchen"],
+        "outputs": ["fan.second_private_extract"],
+        "triggers": ["humidity_high"],
+    }
+    hass = _sample_hass()
+    hass.data["humidity_intelligence"][entry.entry_id]["config"] = entry.data
+
+    payload = asyncio.run(diagnostics.async_get_config_entry_diagnostics(hass, entry))
+    rendered = json.dumps(payload, sort_keys=True)
+
+    assert "sensor.kitchen_humidity" not in rendered
+    assert "Kitchen" not in rendered
+    assert payload["diagnostics_summary"]["zone_mapping_duplicates"] == {
+        "count": 1,
+        "pairs": {"zone1:zone2": {"entity_count": 1}},
+    }
+    assert (
+        "1 duplicate zone mapping pair includes 1 overlapping telemetry source."
+        in payload["diagnostics_summary"]["warnings"]
+    )
 
 
 def test_diagnostics_redacts_credential_style_keys():
@@ -328,8 +387,10 @@ def test_unavailable_entities_are_reported_without_crashing():
     )
 
     unavailable = payload["runtime"]["unavailable_or_unknown_entities"]
-    assert {"entity_id": "sensor.missing_entity", "status": "missing"} in unavailable
-    assert {"entity_id": "fan.kitchen_extract", "status": "unavailable"} in unavailable
+    assert unavailable["count"] == 5
+    assert unavailable["by_status"]["missing"] == 3
+    assert unavailable["by_status"]["unknown"] == 1
+    assert unavailable["by_status"]["unavailable"] == 1
 
 
 def test_native_diagnostics_reports_house_drift_statistics_dependency():
@@ -370,7 +431,8 @@ def test_native_diagnostics_reports_blocked_pm25_normalization():
 
     pm25 = payload["diagnostics_summary"]["pm25_entity_id_normalization"]
     assert pm25["status"] == "blocked"
-    assert pm25["blocked"][0]["reason"] == "target_exists"
+    assert pm25["blocked_count"] == 1
+    assert pm25["blocked_reasons"] == ["target_exists"]
     assert any("PM25 aggregate entity ID normalization is blocked" in warning for warning in payload["runtime"]["warnings"])
 
 

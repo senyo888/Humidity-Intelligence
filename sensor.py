@@ -14,7 +14,10 @@ from homeassistant.components.sensor import SensorEntity
 from .const import DOMAIN
 from .helpers.drift_repairs import async_update_humidity_drift_repair_issue
 from .helpers.level_labels import resolve_level_label_details
-from .helpers.zone_validation import detect_zone_mapping_duplicates, summarize_zone_mapping_duplicates
+from .helpers.zone_validation import (
+    detect_zone_mapping_duplicates,
+    summarize_zone_mapping_duplicate_count_warning,
+)
 from .services import _build_diagnostics_summary
 from .sensors.core import build_entities
 from .sensors.slope import build_slope_entities
@@ -89,7 +92,7 @@ class HIDiagnosticsSensor(SensorEntity):
         unresolved = data.get("unresolved_placeholders") or []
         unresolved_by_card = data.get("unresolved_placeholders_by_card") or {}
         duplicates = detect_zone_mapping_duplicates(telemetry, zones if isinstance(zones, dict) else {})
-        duplicate_summary = summarize_zone_mapping_duplicates(duplicates)
+        duplicate_summary = summarize_zone_mapping_duplicate_count_warning(duplicates)
         self._attr_native_value = "warning" if duplicates else "ok"
         summary = _build_diagnostics_summary(
             self.hass,

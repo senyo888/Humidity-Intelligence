@@ -6,7 +6,7 @@
 # - Do not paste this into configuration.yaml.
 #
 # How to use after an upgrade or UI-changing option update:
-# 1. Call the service humidity_intelligence.dump_cards.
+# 1. Export refreshed Humidity Intelligence card YAML from Home Assistant.
 # 2. Open /config/humidity_intelligence_cards_v2_tablet.yaml.
 # 3. Replace the old Manual card YAML with the full contents of that file.
 # 4. Save the dashboard and hard-refresh the browser/app if the old UI remains cached.
@@ -1535,60 +1535,233 @@ card:
               return entity.state === 'on' ? 'ARMED' : 'DISABLED';
             ]]]
           tap_action:
-            action: toggle
+            action: more-info
           hold_action:
             action: more-info
           styles:
             card:
               - border-radius: 20px
               - padding: 14px
+              - min-height: 132px
               - background: rgba(2,6,23,0.35)
               - border: 1px solid rgba(148,163,184,0.22)
               - backdrop-filter: blur(12px)
               - "-webkit-backdrop-filter": blur(12px)
         - type: custom:button-card
-          entity: timer.air_control_pause
-          name: Pause
-          icon: mdi:pause-circle
-          show_state: true
-          show_label: null
-          state_display: |
-            [[[
-              return entity.state === 'active' ? 'PAUSED' : 'LIVE';
-            ]]]
-          label: |
-            [[[
-              const st = states['timer.air_control_pause']?.state;
-              return (st === 'active') ? 'Tap to resume' : 'Tap for 1 hour';
-            ]]]
+          entity: sensor.hi_diagnostics
+          name: Stability Score
+          show_icon: false
+          show_state: false
+          show_label: false
+          custom_fields:
+            gauge: |
+              [[[
+                const summary = entity?.attributes?.diagnostics_summary || {};
+                const stability = summary.stability_score || {};
+                const score = stability.score || {};
+                const rawValue =
+                  score.display_score ??
+                  stability.display_score ??
+                  entity?.attributes?.stability_score_display_score;
+                const value = Number(rawValue);
+                const classification = String(
+                  score.display_classification ||
+                  stability.display_classification ||
+                  entity?.attributes?.stability_score_display_classification ||
+                  ''
+                ).toLowerCase();
+                const availability = String(
+                  stability.availability ||
+                  entity?.attributes?.stability_score_availability ||
+                  ''
+                );
+                const suppression = String(
+                  score.suppression_reason ||
+                  stability.suppression_reason ||
+                  entity?.attributes?.stability_score_suppression_reason ||
+                  ''
+                );
+                const hasValue = Number.isFinite(value);
+                const completeWhite = !hasValue || value >= 99 || classification === 'excellent';
+                const color =
+                  suppression === 'current_telemetry_unavailable' ? '#94a3b8' :
+                  availability === 'insufficient_coverage' || suppression === 'coverage_below_threshold' ? '#38bdf8' :
+                  completeWhite ? '#f8fafc' :
+                  classification === 'good' ? '#4ade80' :
+                  classification === 'unstable' ? '#f9a8d4' :
+                  classification === 'poor' ? '#db2777' :
+                  '#f8fafc';
+                const normalized = hasValue ? Math.max(-1, Math.min(1, (value - 50) / 50)) : 0;
+                const direction = normalized < 0 ? 'left' : 'right';
+                const activeDots = hasValue ? Math.max(1, Math.min(7, Math.round(Math.abs(normalized) * 7))) : 1;
+                const center = 3;
+                const dots = Array.from({ length: 7 }, (_, index) => {
+                  const active = hasValue
+                    ? direction === 'left'
+                      ? index <= center && center - index < activeDots
+                      : index >= center && index - center < activeDots
+                    : index === center;
+                  return `<i class="led-${index} ${active ? 'active' : ''}"></i>`;
+                }).join('');
+                const valueText = hasValue ? String(Math.round(value)) : '2.1';
+                const unitText = hasValue ? 'score' : 'future';
+                const gaugeClass = color === '#f8fafc'
+                  ? 'hi-stability-gauge hi-stability-gauge-white'
+                  : 'hi-stability-gauge';
+                return `<div class="${gaugeClass}" style="--hi-stability-color:${color};">
+                  <div class="hi-stability-center"><span>${valueText}</span><small>${unitText}</small></div>
+                  <div class="hi-stability-leds">${dots}</div>
+                </div>`;
+              ]]]
           tap_action:
-            action: call-service
-            service: |
-              [[[
-                return (states['timer.air_control_pause']?.state === 'active')
-                  ? 'humidity_intelligence.resume_control'
-                  : 'humidity_intelligence.pause_control';
-              ]]]
+            action: more-info
           hold_action:
-            action: call-service
-            service: |
-              [[[
-                return (states['timer.air_control_pause']?.state === 'active')
-                  ? 'humidity_intelligence.resume_control'
-                  : 'humidity_intelligence.pause_control';
-              ]]]
+            action: more-info
           styles:
             card:
               - border-radius: 20px
-              - padding: 14px
+              - padding: 10px 12px
+              - min-height: 132px
               - background: rgba(2,6,23,0.35)
-              - border: 1px solid rgba(148,163,184,0.22)
+              - border: |
+                  [[[
+                    const summary = entity?.attributes?.diagnostics_summary || {};
+                    const stability = summary.stability_score || {};
+                    const score = stability.score || {};
+                    const rawValue =
+                      score.display_score ??
+                      stability.display_score ??
+                      entity?.attributes?.stability_score_display_score;
+                    const value = Number(rawValue);
+                    const classification = String(
+                      score.display_classification ||
+                      stability.display_classification ||
+                      entity?.attributes?.stability_score_display_classification ||
+                      ''
+                    ).toLowerCase();
+                    const suppression = String(
+                      score.suppression_reason ||
+                      stability.suppression_reason ||
+                      entity?.attributes?.stability_score_suppression_reason ||
+                      ''
+                    );
+                    const hasValue = Number.isFinite(value);
+                    const completeWhite = !hasValue || value >= 99 || classification === 'excellent';
+                    const color =
+                      suppression === 'current_telemetry_unavailable' ? '#94a3b8' :
+                      completeWhite ? '#f8fafc' :
+                      classification === 'good' ? '#4ade80' :
+                      classification === 'unstable' ? '#f9a8d4' :
+                      classification === 'poor' ? '#db2777' :
+                      '#f8fafc';
+                    return `1px solid ${color}`;
+                  ]]]
+              - box-shadow: inset 0 0 0 1px rgba(255,255,255,0.035), 0 0 16px rgba(15,23,42,0.55)
               - backdrop-filter: blur(12px)
               - "-webkit-backdrop-filter": blur(12px)
-            label:
-              - font-size: 12px
-              - opacity: 0.75
-              - margin-top: 2px
+            grid:
+              - grid-template-areas: '"gauge" "n"'
+              - grid-template-rows: 86px min-content
+              - row-gap: 0
+            name:
+              - grid-area: n
+              - color: "#e5e7eb"
+              - font-size: 13px
+              - font-weight: 700
+            custom_fields:
+              gauge:
+                - grid-area: gauge
+                - align-self: center
+                - justify-self: center
+          extra_styles: |
+            .hi-stability-gauge {
+              width: 82px;
+              height: 82px;
+              border-radius: 999px;
+              position: relative;
+              display: grid;
+              place-items: center;
+              background: #000;
+              box-shadow: none;
+            }
+            .hi-stability-gauge::before {
+              content: "";
+              position: absolute;
+              inset: 14px;
+              border-radius: 999px;
+              box-shadow: 0 0 9px 3px var(--hi-stability-color);
+              opacity: 0.42;
+            }
+            .hi-stability-gauge::after {
+              content: "";
+              position: absolute;
+              inset: 20px;
+              border-radius: 999px;
+              background: #000;
+              box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08), 0 0 10px rgba(0,0,0,0.85);
+            }
+            .hi-stability-gauge-white::before {
+              animation: hi-stability-white-shimmer 6000ms ease-in-out infinite;
+            }
+            .hi-stability-center {
+              position: relative;
+              z-index: 1;
+              display: grid;
+              place-items: center;
+              line-height: 1.05;
+            }
+            .hi-stability-center span {
+              color: #f8fafc;
+              font-size: 26px;
+              font-weight: 800;
+            }
+            .hi-stability-center small {
+              color: #6b7280;
+              font-size: 9px;
+              font-weight: 700;
+              letter-spacing: 0;
+              margin-top: 3px;
+            }
+            .hi-stability-leds {
+              position: absolute;
+              z-index: 2;
+              left: 50%;
+              top: 0;
+              width: 82px;
+              height: 18px;
+              transform: translateX(-50%);
+            }
+            .hi-stability-leds i {
+              position: absolute;
+              width: 2px;
+              height: 2px;
+              border-radius: 999px;
+              opacity: 0;
+              background: transparent;
+            }
+            .hi-stability-leds i.led-0 { left: 25px; top: 8px; }
+            .hi-stability-leds i.led-1 { left: 30px; top: 5px; }
+            .hi-stability-leds i.led-2 { left: 35px; top: 3px; }
+            .hi-stability-leds i.led-3 { left: 40px; top: 2px; }
+            .hi-stability-leds i.led-4 { left: 45px; top: 3px; }
+            .hi-stability-leds i.led-5 { left: 50px; top: 5px; }
+            .hi-stability-leds i.led-6 { left: 55px; top: 8px; }
+            .hi-stability-leds i.active {
+              opacity: 1;
+              background: var(--hi-stability-color);
+              box-shadow: 0 0 3px var(--hi-stability-color);
+            }
+            .hi-stability-gauge-white .hi-stability-leds i.active {
+              animation: hi-stability-led-shimmer 6000ms ease-in-out infinite;
+            }
+            @keyframes hi-stability-white-shimmer {
+              0%, 100% { opacity: 0.34; filter: brightness(0.92); }
+              50% { opacity: 0.64; filter: brightness(1.25); }
+            }
+            @keyframes hi-stability-led-shimmer {
+              0%, 100% { opacity: 0.65; }
+              50% { opacity: 1; }
+            }
         - type: custom:button-card
           entity: input_boolean.air_control_manual_override
           name: Manual
@@ -1607,6 +1780,7 @@ card:
             card:
               - border-radius: 20px
               - padding: 14px
+              - min-height: 132px
               - background: rgba(2,6,23,0.35)
               - border: 1px solid rgba(148,163,184,0.22)
               - backdrop-filter: blur(12px)
@@ -1616,7 +1790,7 @@ card:
               - opacity: 0.75
               - margin-top: 2px
           tap_action:
-            action: toggle
+            action: more-info
           hold_action:
             action: more-info
     # hi:output-details:start
@@ -1627,10 +1801,7 @@ card:
       show_state: false
       show_label: true
       tap_action:
-        action: call-service
-        service: switch.toggle
-        service_data:
-          entity_id: input_boolean.air_control_output_expanded
+        action: more-info
       custom_fields:
         chevron: |
           [[[
