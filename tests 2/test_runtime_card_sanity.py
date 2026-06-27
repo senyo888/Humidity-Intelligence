@@ -3375,7 +3375,7 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
         hass,
         entry,
         runtime_data,
-        manifest_version="2.0.7-beta.1",
+        manifest_version="2.0.8-beta.1",
         frontend_dependencies={
             "status": "not_inspectable",
             "reason": "Lovelace resource collection is not available in this Home Assistant runtime context.",
@@ -3410,7 +3410,7 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
         hass,
         entry,
         runtime_data,
-        manifest_version="2.0.7-beta.1",
+        manifest_version="2.0.8-beta.1",
     )
     beta_checks = {check["id"]: check for check in beta_report["checks"]}
     assert beta_checks["manifest_version"]["status"] == "pass"
@@ -4215,6 +4215,8 @@ def test_v205_release_check_service_is_documented_and_registered():
     assert "handle_v205_release_check" in services_source
     assert "SERVICE_V205_RELEASE_CHECK" in services_source.split("async_unregister_services", 1)[1]
     assert "v205_release_check:" in services_yaml
+    assert "v2.0.5-v2.0.8" in services_yaml
+    assert "v2.0.5-v2.0.8" in readme_source
     assert "write_test_exports" in services_yaml
     assert "humidity_intelligence.v205_release_check" in readme_source
     assert "humidity_intelligence_v205_release_check.json" in readme_source

@@ -706,7 +706,7 @@ Common service groups:
 | `flash_lights` | test configured visual alert behavior |
 | `pause_control` / `resume_control` | pause or resume the automation engine; global all-entry calls require admin context |
 | `self_check` | run mapping, generated-card entity, telemetry, drift-helper, and frontend-dependency checks |
-| `v205_release_check` | run read-only v2.0.5-v2.0.7 generated-card and release-validation support checks |
+| `v205_release_check` | run read-only v2.0.5-v2.0.8 generated-card and release-validation support checks |
 | `create_local_backup` / `list_saved_versions` | manage package-local HI snapshots for advanced validation |
 | `dump_diagnostics` | export fuller local diagnostics for maintainer/debug workflows |
 | `purge_files` | intentionally remove generated HI artifacts |

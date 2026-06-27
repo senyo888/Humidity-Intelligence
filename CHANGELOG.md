@@ -27,6 +27,9 @@ This project follows a practical changelog format for Home Assistant and HACS us
   through a confined private atomic writer, and diagnostics/support exports use
   sanitized structure/count/status summaries instead of raw entity IDs, room names,
   entity maps, state dumps, or Lovelace resource URLs.
+- Extended the existing `v205_release_check` manifest-version contract to accept
+  the v2.0.8 beta/rc/stable line while preserving the backward-compatible service
+  name.
 
 ## 2.0.7
 
