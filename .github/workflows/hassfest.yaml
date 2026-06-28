@@ -111,4 +111,4 @@ jobs:
           print("Staged Hassfest metadata is normalized.")
           PY
 
-      - uses: home-assistant/actions/hassfest@e91ad1948e57189485b9c1ad608af0c303946f89 # master
+      - uses: home-assistant/actions/hassfest@f4ca6f671bd429efb108c0f2fa0ae8af0215986c # master
