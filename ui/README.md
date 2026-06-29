@@ -116,9 +116,15 @@ Temperature chips:
 - show room slope chips only for configured temperature slope sources or provided slope sensors
 - resolve calculated slope chips through diagnostics/backend slope mapping so Home Assistant registry-assigned entity IDs stay truthful
 
+Control row:
+
+- preserve the v2.0.7 tap-to-toggle behavior for the System and Manual helper buttons
+- keep the Stability Score badge passive; it must not pause/resume, select lanes, or create output writes
+
 Output details:
 
 - render the expandable output details panel only when `show_output_entity_details` is enabled
+- tap the Outputs header to toggle the expander helper; this is UI-only and does not command devices
 - stay display-only; the option must not affect lane selection, output writes, isolation switches, or diagnostics
 - prune unresolved optional AQ aggregate rows instead of leaving `Entity not found` rows
 - require a fresh `humidity_intelligence.dump_cards` export after changing visibility, templates, or backend entity mappings

@@ -43,6 +43,63 @@ PRIVATE_CARD_IDENTIFIERS = (
     "Room Private Fixture A",
 )
 
+OUTPUT_DETAILS_SURFACES = (
+    ROOT / "ui" / "cards" / "v2_mobile.yaml",
+    ROOT / "ui" / "cards" / "v2_tablet.yaml",
+    ROOT / "ui-gallery" / "default-v2-mobile-aq" / "card.yaml",
+    ROOT / "ui-gallery" / "default-v2-tablet-zone-2" / "card.yaml",
+)
+
+OUTPUT_EXPANDER_TOGGLE_ACTION = """      tap_action:
+        action: call-service
+        service: switch.toggle
+        service_data:
+          entity_id: input_boolean.air_control_output_expanded"""
+V207_CONTROL_TOGGLE_ACTION = """          tap_action:
+            action: toggle"""
+V207_CONTROL_TOGGLE_ENTITIES = (
+    "input_boolean.air_control_enabled",
+    "input_boolean.air_control_manual_override",
+)
+
+
+def _output_details_block(source: str) -> str:
+    start = source.index("# hi:output-details:start")
+    end = source.index("# hi:output-details:end", start)
+    return source[start:end]
+
+
+def _strip_allowed_output_expander_toggle(source: str) -> str:
+    try:
+        block = _output_details_block(source)
+    except ValueError:
+        return source
+    stripped = block.replace(OUTPUT_EXPANDER_TOGGLE_ACTION, "")
+    return source.replace(block, stripped)
+
+
+def _button_card_block(source: str, entity_id: str) -> str:
+    entity_marker = f"entity: {entity_id}"
+    entity_index = source.index(entity_marker)
+    start = source.rfind("        - type: custom:button-card", 0, entity_index)
+    if start == -1:
+        start = entity_index
+    next_start = source.find("        - type: custom:button-card", entity_index + len(entity_marker))
+    if next_start == -1:
+        next_start = len(source)
+    return source[start:next_start]
+
+
+def _strip_allowed_v207_control_toggles(source: str) -> str:
+    for entity_id in V207_CONTROL_TOGGLE_ENTITIES:
+        try:
+            block = _button_card_block(source, entity_id)
+        except ValueError:
+            continue
+        stripped = block.replace(V207_CONTROL_TOGGLE_ACTION, "")
+        source = source.replace(block, stripped)
+    return source
+
 
 def _install_homeassistant_stubs() -> None:
     """Install lightweight Home Assistant stubs into sys.modules."""
@@ -2959,7 +3016,7 @@ def test_public_card_surfaces_do_not_ship_private_entity_ids():
     assert offenders == []
 
 
-def test_default_public_card_surfaces_are_read_only():
+def test_default_public_card_surfaces_block_unsafe_service_controls():
     default_surfaces = (
         ROOT / "ui" / "cards" / "v2_mobile.yaml",
         ROOT / "ui" / "cards" / "v2_tablet.yaml",
@@ -2981,11 +3038,43 @@ def test_default_public_card_surfaces_are_read_only():
     offenders = []
     for path in default_surfaces:
         source = path.read_text(encoding="utf-8")
+        source = _strip_allowed_output_expander_toggle(source)
+        source = _strip_allowed_v207_control_toggles(source)
         for marker in mutation_markers:
             if marker in source:
                 offenders.append(f"{path.relative_to(ROOT)}: {marker}")
 
     assert offenders == []
+
+
+def test_system_and_manual_buttons_use_v207_toggle_actions():
+    missing = []
+    hold_action = "          hold_action:\n            action: more-info"
+    labels = {
+        "input_boolean.air_control_enabled": "System",
+        "input_boolean.air_control_manual_override": "Manual",
+    }
+    for path in OUTPUT_DETAILS_SURFACES:
+        source = path.read_text(encoding="utf-8")
+        for entity_id, label in labels.items():
+            block = _button_card_block(source, entity_id)
+            if V207_CONTROL_TOGGLE_ACTION not in block:
+                missing.append(f"{path.relative_to(ROOT)}: {label} tap toggle missing")
+            if hold_action not in block:
+                missing.append(f"{path.relative_to(ROOT)}: {label} hold more-info missing")
+
+    assert missing == []
+
+
+def test_output_details_header_uses_v207_expander_toggle_action():
+    missing = []
+    for path in OUTPUT_DETAILS_SURFACES:
+        source = path.read_text(encoding="utf-8")
+        block = _output_details_block(source)
+        if OUTPUT_EXPANDER_TOGGLE_ACTION not in block:
+            missing.append(f"{path.relative_to(ROOT)}: missing output expander toggle")
+
+    assert missing == []
 
 
 def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pause_tile():

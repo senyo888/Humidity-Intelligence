@@ -686,8 +686,9 @@ Notes:
 - `entry_id` is optional for most services. If omitted, HI uses all entries or first valid entry based on service behavior.
 - File outputs are written into your HA config folder.
 - Default generated V2 dashboards are read-only status surfaces. Runtime-changing
-  actions such as pause/resume, enable/disable, manual override, dashboard creation,
-  and file cleanup belong in Home Assistant service/admin workflows.
+  actions such as pause/resume, dashboard creation, and file cleanup belong in
+  Home Assistant service/admin workflows. System and Manual buttons keep the
+  v2.0.7 helper-toggle behavior.
 - The generated V2 control row uses a passive Stability preview badge instead of
   a Pause LIVE control tile. It reflects future v2.1 diagnostics when available
   and does not calculate scores, select lanes, or change runtime behavior. The

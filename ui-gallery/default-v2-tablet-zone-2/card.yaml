@@ -1536,7 +1536,7 @@ card:
               return entity.state === 'on' ? 'ARMED' : 'DISABLED';
             ]]]
           tap_action:
-            action: more-info
+            action: toggle
           hold_action:
             action: more-info
           styles:
@@ -1759,7 +1759,7 @@ card:
               - opacity: 0.75
               - margin-top: 2px
           tap_action:
-            action: more-info
+            action: toggle
           hold_action:
             action: more-info
     # hi:output-details:start
@@ -1770,7 +1770,10 @@ card:
       show_state: false
       show_label: true
       tap_action:
-        action: more-info
+        action: call-service
+        service: switch.toggle
+        service_data:
+          entity_id: input_boolean.air_control_output_expanded
       custom_fields:
         chevron: |
           [[[

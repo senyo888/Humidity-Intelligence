@@ -9,10 +9,12 @@ This project follows a practical changelog format for Home Assistant and HACS us
 ## Unreleased
 
 - Blocked default generated V2 dashboard YAML from shipping runtime mutation controls:
-  pause/resume, system enable/disable, manual override, output expander service
-  calls, and the standalone View Cards service button are now read-only/default-safe
-  surfaces. Backend services remain available through Home Assistant service/admin
-  workflows.
+  pause/resume and the standalone View Cards service button are now
+  read-only/default-safe surfaces. The System and Manual buttons keep the
+  v2.0.7 tap-to-toggle helper behavior, and the output details expander keeps
+  the v2.0.7 UI-only helper toggle so the bottom Outputs section still opens
+  from the card. Backend services remain available through Home Assistant
+  service/admin workflows.
 - Replaced the generated V2 Pause LIVE tile with a passive compact
   gauge-style Stability preview badge. The badge reads future v2.1 Stability
   Score diagnostics from the existing HI diagnostics sensor when present,
