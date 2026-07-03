@@ -8,6 +8,17 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+- Added a first-run welcome page before Frontend Dependencies that explains the
+  staged setup method, with README guidance and telemetry copy updated so users
+  can safely save a small initial sensor set and return through Options later.
+- Fixed Temperature Slope setup/options submission so collapsed Advanced source
+  lists that submit empty fall back to the configured temperature sensors instead
+  of re-rendering the same form with a hidden validation error.
+- Added Home Assistant Area/Label setup assistance for telemetry configuration:
+  HI can use registry metadata to suggest room/level defaults and diagnostics
+  mismatch counts, while saving only explicit HI telemetry fields. Areas and Labels
+  are advisory only and do not affect lane ordering, entity semantics, generated-card
+  truth, output control, or migration behavior.
 - Blocked default generated V2 dashboard YAML from shipping runtime mutation controls:
   pause/resume and the standalone View Cards service button are now
   read-only/default-safe surfaces. The System and Manual buttons keep the

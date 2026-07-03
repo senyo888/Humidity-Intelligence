@@ -434,6 +434,16 @@ Or:
 - Complete backend setup first
 - Add the UI layer afterwards
 
+### Configuration Method
+
+Recommended: staged setup. Add a small core sensor set first, complete setup,
+save the integration, then return through Options to add the remaining sensors,
+rooms, zones, air-quality inputs, humidifiers, alerts, and dashboard exports.
+This gives you a saved baseline before the configuration grows.
+
+Advanced: full setup. If your sensor layout is already mapped, add every sensor
+during first setup and continue through the whole flow in one pass.
+
 
 ---
 
@@ -605,6 +615,8 @@ Key setup guidance:
 
 - add humidity and temperature telemetry for active levels
 - assign telemetry to stable, readable rooms and levels
+- review any Home Assistant Area/Label setup suggestions before saving them as
+  explicit HI room or level values; Area and Label metadata is advisory only
 - optionally set Level 1 / Level 2 display labels from Zones before Zone 1 / Zone 2 setup; labels are display-only and fall back to `Level 1` / `Level 2`
 - keep zone labels and output mappings clear enough for reason text and diagnostics
 - use recommended thresholds first, then tune from options after observing behavior
@@ -614,6 +626,11 @@ Key setup guidance:
 
 The default first UI export is `v2_tablet`. `show_output_entity_details` is display-only and controls whether generated cards include the expandable output details panel.
 Level display labels are also display-only. Changing them updates generated-card/config-flow/support text after options are saved and cards are refreshed, but it does not rename entities, helpers, levels, zones, outputs, or runtime lanes.
+
+Home Assistant Area and Label setup assistance is read-only. HI may suggest room or
+level defaults from registry metadata, and diagnostics may report sanitized mismatch
+counts, but runtime control keeps using saved HI telemetry, zone, AQ, humidifier, and
+alert mappings.
 
 Detailed manual:
 
@@ -657,7 +674,8 @@ When modifying options:
 
 Common post-configuration areas:
 
-- `Sensors`: add, edit, or delete telemetry rows
+- `Sensors`: add, edit, or delete telemetry rows; Area/Label suggestions are
+  advisory defaults only and become HI truth only if saved into explicit fields
 - `Global Gates`: edit time, presence, alert-only, and target-profile behavior
 - `Zones`: edit display-only Level 1 / Level 2 labels before Zone 1 / Zone 2 configuration
 - `Thresholds & Comfort`: review comfort mode and zone thresholds

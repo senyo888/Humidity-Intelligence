@@ -31,6 +31,10 @@ from .helpers.frontend_dependencies import (
 from .helpers.level_labels import resolve_level_label_details
 from .helpers.local_versions import async_local_version_status, cached_local_version_status
 from .helpers.seasonal import resolve_target_profile, resolve_temperature_comfort_profile
+from .helpers.setup_assist import (
+    diagnostics_setup_assist_summary,
+    diagnostics_setup_assist_warnings,
+)
 from .helpers.zone_validation import (
     detect_zone_mapping_duplicates,
     summarize_zone_mapping_duplicate_count_warning,
@@ -416,6 +420,7 @@ def _diagnostics_summary(
     unavailable = _unavailable_configured_entities(hass, config, entity_map)
     drift_dependency = humidity_drift_dependency_status(hass)
     drift_dependency_warning = humidity_drift_warning(drift_dependency)
+    setup_assist = diagnostics_setup_assist_summary(hass, telemetry)
     warnings = []
     if duplicate_summary:
         warnings.append(duplicate_summary)
@@ -423,6 +428,7 @@ def _diagnostics_summary(
         warnings.append(f"{len(unavailable)} configured/mapped entity references are missing, unknown, or unavailable.")
     if drift_dependency_warning:
         warnings.append(drift_dependency_warning)
+    warnings.extend(diagnostics_setup_assist_warnings(setup_assist))
     pm25_normalization = _pm25_normalization_status(runtime_data)
     if pm25_normalization.get("blocked_count"):
         warnings.append("PM25 aggregate entity ID normalization is blocked by an existing target entity.")
@@ -460,6 +466,7 @@ def _diagnostics_summary(
         "active_alert_resolution": _alert_resolution_summary(runtime_data.get("alert_telemetry", [])),
         "visual_alerts": _visual_alert_summary(alerts),
         "humidity_drift_7d": drift_dependency,
+        "setup_assist": setup_assist,
         "pm25_entity_id_normalization": pm25_normalization,
         "frontend_dependency_resources": frontend_dependencies,
         "local_version_preservation": local_version_status or cached_local_version_status(hass),

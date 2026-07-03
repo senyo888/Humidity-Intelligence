@@ -26,7 +26,9 @@ def _install_homeassistant_stubs() -> None:
     data_entry_flow = types.ModuleType("homeassistant.data_entry_flow")
     helpers = types.ModuleType("homeassistant.helpers")
     area_registry = types.ModuleType("homeassistant.helpers.area_registry")
+    device_registry = types.ModuleType("homeassistant.helpers.device_registry")
     entity_registry = types.ModuleType("homeassistant.helpers.entity_registry")
+    label_registry = types.ModuleType("homeassistant.helpers.label_registry")
     selector = types.ModuleType("homeassistant.helpers.selector")
     lovelace_const = types.ModuleType("homeassistant.components.lovelace.const")
     voluptuous = types.ModuleType("voluptuous")
@@ -68,8 +70,11 @@ def _install_homeassistant_stubs() -> None:
         pass
 
     class _Registry:
-        def async_get(self, _key):
-            return None
+        def __init__(self, attr):
+            self._attr = attr
+
+        def async_get(self, key):
+            return self._attr.get(key)
 
     class _SchemaKey:
         def __init__(self, key, default=None):
@@ -117,8 +122,10 @@ def _install_homeassistant_stubs() -> None:
     config_entries.ConfigFlow = ConfigFlow
     config_entries.OptionsFlow = OptionsFlow
     data_entry_flow.section = section
-    area_registry.async_get = lambda _hass: _Registry()
-    entity_registry.async_get = lambda _hass: _Registry()
+    area_registry.async_get = lambda hass: _Registry(getattr(hass, "areas", {}))
+    device_registry.async_get = lambda hass: _Registry(getattr(hass, "devices", {}))
+    entity_registry.async_get = lambda hass: _Registry(getattr(hass, "entities", {}))
+    label_registry.async_get = lambda hass: _Registry(getattr(hass, "labels", {}))
     lovelace_const.LOVELACE_DATA = "lovelace"
 
     selector.SelectOptionDict = SelectOptionDict
@@ -141,7 +148,9 @@ def _install_homeassistant_stubs() -> None:
     voluptuous.Required = _SchemaKey
 
     helpers.area_registry = area_registry
+    helpers.device_registry = device_registry
     helpers.entity_registry = entity_registry
+    helpers.label_registry = label_registry
     helpers.selector = selector
 
     sys.modules["homeassistant"] = ha
@@ -153,7 +162,9 @@ def _install_homeassistant_stubs() -> None:
     sys.modules["homeassistant.data_entry_flow"] = data_entry_flow
     sys.modules["homeassistant.helpers"] = helpers
     sys.modules["homeassistant.helpers.area_registry"] = area_registry
+    sys.modules["homeassistant.helpers.device_registry"] = device_registry
     sys.modules["homeassistant.helpers.entity_registry"] = entity_registry
+    sys.modules["homeassistant.helpers.label_registry"] = label_registry
     sys.modules["homeassistant.helpers.selector"] = selector
     sys.modules["homeassistant.components.lovelace.const"] = lovelace_const
     sys.modules["voluptuous"] = voluptuous
@@ -187,6 +198,7 @@ def _load_config_flow_module():
         _load_module(f"{PKG}.helpers.level_labels", level_labels_path)
     _load_module(f"{PKG}.helpers.parsing", ROOT / "helpers" / "parsing.py")
     _load_module(f"{PKG}.helpers.drift", ROOT / "helpers" / "drift.py")
+    _load_module(f"{PKG}.helpers.setup_assist", ROOT / "helpers" / "setup_assist.py")
     _load_module(
         f"{PKG}.helpers.frontend_dependencies",
         ROOT / "helpers" / "frontend_dependencies.py",
@@ -276,6 +288,34 @@ def _base_telemetry():
     ]
 
 
+def _hass_with_setup_assist_metadata():
+    return SimpleNamespace(
+        areas={
+            "upstairs_bathroom": SimpleNamespace(
+                name="Upstairs bathroom",
+                labels={"wet-room"},
+            ),
+        },
+        devices={
+            "device-1": SimpleNamespace(
+                area_id=None,
+                labels={"humidity-intelligence"},
+            ),
+        },
+        entities={
+            "sensor.example_humidity": SimpleNamespace(
+                area_id="upstairs_bathroom",
+                device_id="device-1",
+                labels={"humidity-intelligence"},
+            ),
+        },
+        labels={
+            "humidity-intelligence": SimpleNamespace(name="Humidity Intelligence"),
+            "wet-room": SimpleNamespace(name="Wet room"),
+        },
+    )
+
+
 def test_setup_add_sensor_cancel_requires_confirmation_and_preserves_entries():
     config_flow = _load_config_flow_module()
     flow = config_flow.HumidityIntelligenceConfigFlow()
@@ -313,6 +353,135 @@ def test_setup_add_sensor_cancel_requires_confirmation_and_preserves_entries():
     assert closed["reason"] == "user_cancelled"
 
 
+def test_setup_add_sensor_uses_advisory_area_default_without_saving_provenance():
+    config_flow = _load_config_flow_module()
+    flow = config_flow.HumidityIntelligenceConfigFlow()
+    flow.hass = _hass_with_setup_assist_metadata()
+
+    form = asyncio.run(
+        flow.async_step_telemetry_add({"entity_id": "sensor.example_humidity"})
+    )
+
+    assert form["type"] == "form"
+    assert form["step_id"] == "telemetry_add"
+    assert _schema_default(form, "entity_id") == "sensor.example_humidity"
+    assert _schema_default(form, "room") == "Upstairs bathroom"
+    assert _schema_default(form, "level") == "level2"
+    assert not _schema_has_field(form, "friendly_name")
+    assert "Suggested from Home Assistant Area" in form["description_placeholders"]["setup_assist"]
+    assert "Suggested from Home Assistant Label" in form["description_placeholders"]["setup_assist"]
+
+    saved = asyncio.run(
+        flow.async_step_telemetry_add(
+            {
+                "entity_id": "sensor.example_humidity",
+                "sensor_type": "humidity",
+                "level": "level2",
+                "room": "Upstairs bathroom",
+            }
+        )
+    )
+
+    assert saved["step_id"] == "telemetry"
+    assert flow._data["telemetry"] == [
+        {
+            "entity_id": "sensor.example_humidity",
+            "sensor_type": "humidity",
+            "friendly_name": "Upstairs bathroom",
+            "level": "level2",
+            "room": "Upstairs bathroom",
+        }
+    ]
+    assert "setup_assist" not in flow._data
+
+
+def test_setup_add_sensor_uses_entity_id_when_no_area_name_is_entered():
+    config_flow = _load_config_flow_module()
+    flow = config_flow.HumidityIntelligenceConfigFlow()
+    flow.hass = SimpleNamespace()
+
+    result = asyncio.run(
+        flow.async_step_telemetry_add(
+            {
+                "entity_id": "sensor.example_humidity",
+                "sensor_type": "humidity",
+                "level": "level1",
+                "room": "",
+            }
+        )
+    )
+
+    assert result["step_id"] == "telemetry"
+    assert flow._data["telemetry"] == [
+        {
+            "entity_id": "sensor.example_humidity",
+            "sensor_type": "humidity",
+            "friendly_name": "sensor.example_humidity",
+            "level": "level1",
+            "room": "sensor.example_humidity",
+        }
+    ]
+    assert "Unknown room" not in result["description_placeholders"]["existing"]
+    assert "- sensor.example_humidity (Level 1): humidity (sensor.example_humidity)" in result[
+        "description_placeholders"
+    ]["existing"]
+
+
+def test_setup_add_sensor_existing_summary_includes_level_label():
+    config_flow = _load_config_flow_module()
+    flow = config_flow.HumidityIntelligenceConfigFlow()
+    flow.hass = SimpleNamespace()
+    flow._data["level_labels"] = {"level1": "Ground Floor", "level2": "Upstairs"}
+    flow._telemetry = [
+        {
+            "entity_id": "sensor.bedroom_humidity",
+            "sensor_type": "humidity",
+            "friendly_name": "Bedroom",
+            "level": "level1",
+            "room": "Bedroom",
+        },
+        {
+            "entity_id": "sensor.bathroom_humidity",
+            "sensor_type": "humidity",
+            "friendly_name": "Bathroom",
+            "level": "level2",
+            "room": "Bathroom",
+        },
+    ]
+
+    form = asyncio.run(flow.async_step_telemetry_add())
+    existing = form["description_placeholders"]["existing"]
+
+    assert "- Bedroom (Ground Floor): humidity (sensor.bedroom_humidity)" in existing
+    assert "- Bathroom (Upstairs): humidity (sensor.bathroom_humidity)" in existing
+
+
+def test_setup_edit_sensor_uses_single_area_name_field_for_display_and_mapping():
+    config_flow = _load_config_flow_module()
+    flow = config_flow.HumidityIntelligenceConfigFlow()
+    flow.hass = SimpleNamespace()
+    flow._telemetry = [_base_telemetry()[0]]
+    flow._data["telemetry_edit_index"] = 0
+
+    form = asyncio.run(flow.async_step_telemetry_edit())
+    result = asyncio.run(
+        flow.async_step_telemetry_edit(
+            {
+                "entity_id": "sensor.kitchen_humidity",
+                "sensor_type": "humidity",
+                "level": "level1",
+                "room": "Kitchen",
+            }
+        )
+    )
+
+    assert form["step_id"] == "telemetry_edit"
+    assert not _schema_has_field(form, "friendly_name")
+    assert result["step_id"] == "telemetry"
+    assert flow._data["telemetry"][0]["room"] == "Kitchen"
+    assert flow._data["telemetry"][0]["friendly_name"] == "Kitchen"
+
+
 def test_options_add_sensor_cancel_requires_confirmation_and_preserves_options():
     config_flow = _load_config_flow_module()
     existing = {
@@ -346,6 +515,139 @@ def test_options_add_sensor_cancel_requires_confirmation_and_preserves_options()
 
     assert closed["type"] == "abort"
     assert closed["reason"] == "user_cancelled"
+
+
+def test_options_add_sensor_uses_advisory_area_default_without_saving_provenance():
+    config_flow = _load_config_flow_module()
+    entry = SimpleNamespace(data={"telemetry": []}, options={})
+    flow = config_flow.HumidityIntelligenceOptionsFlow(entry)
+    flow.hass = _hass_with_setup_assist_metadata()
+
+    form = asyncio.run(
+        flow.async_step_options_telemetry_add({"entity_id": "sensor.example_humidity"})
+    )
+
+    assert form["type"] == "form"
+    assert form["step_id"] == "options_telemetry_add"
+    assert _schema_default(form, "entity_id") == "sensor.example_humidity"
+    assert _schema_default(form, "room") == "Upstairs bathroom"
+    assert _schema_default(form, "level") == "level2"
+    assert not _schema_has_field(form, "friendly_name")
+    assert "Suggested from Home Assistant Area" in form["description_placeholders"]["setup_assist"]
+
+    saved = asyncio.run(
+        flow.async_step_options_telemetry_add(
+            {
+                "entity_id": "sensor.example_humidity",
+                "sensor_type": "humidity",
+                "level": "level2",
+                "room": "Upstairs bathroom",
+            }
+        )
+    )
+
+    assert saved["step_id"] == "options_telemetry"
+    assert flow._options["telemetry"] == [
+        {
+            "entity_id": "sensor.example_humidity",
+            "sensor_type": "humidity",
+            "friendly_name": "Upstairs bathroom",
+            "level": "level2",
+            "room": "Upstairs bathroom",
+        }
+    ]
+    assert "setup_assist" not in flow._options
+
+
+def test_options_add_sensor_uses_entity_id_when_no_area_name_is_entered():
+    config_flow = _load_config_flow_module()
+    entry = SimpleNamespace(data={"telemetry": []}, options={})
+    flow = config_flow.HumidityIntelligenceOptionsFlow(entry)
+    flow.hass = SimpleNamespace()
+
+    result = asyncio.run(
+        flow.async_step_options_telemetry_add(
+            {
+                "entity_id": "sensor.example_humidity",
+                "sensor_type": "humidity",
+                "level": "level1",
+                "room": "",
+            }
+        )
+    )
+
+    assert result["step_id"] == "options_telemetry"
+    assert flow._options["telemetry"] == [
+        {
+            "entity_id": "sensor.example_humidity",
+            "sensor_type": "humidity",
+            "friendly_name": "sensor.example_humidity",
+            "level": "level1",
+            "room": "sensor.example_humidity",
+        }
+    ]
+    assert "Unknown room" not in result["description_placeholders"]["telemetry_summary"]
+    assert "- sensor.example_humidity (Level 1): humidity (sensor.example_humidity)" in result[
+        "description_placeholders"
+    ]["telemetry_summary"]
+
+
+def test_options_edit_sensor_area_name_uses_common_room_dropdown_and_custom_values():
+    config_flow = _load_config_flow_module()
+    entry = SimpleNamespace(data={"telemetry": [_base_telemetry()[0]]}, options={})
+    flow = config_flow.HumidityIntelligenceOptionsFlow(entry)
+    flow.hass = SimpleNamespace()
+
+    form = asyncio.run(flow.async_step_options_telemetry_edit())
+
+    assert form["step_id"] == "options_telemetry_edit"
+    assert _schema_default(form, "room") == "Kitchen"
+    assert not _schema_has_field(form, "friendly_name")
+    assert _schema_select_values(form, "room")[:3] == [
+        "Bathroom",
+        "Bedroom",
+        "Cloakroom",
+    ]
+    for key, selector_obj in form["data_schema"].schema.items():
+        if getattr(key, "key", key) == "room":
+            assert selector_obj.config.custom_value is True
+            break
+    else:
+        raise AssertionError("'room' not present in schema")
+
+
+def test_telemetry_area_name_dropdown_includes_common_household_areas():
+    config_flow = _load_config_flow_module()
+    flow = config_flow.HumidityIntelligenceConfigFlow()
+    flow.hass = SimpleNamespace()
+
+    form = asyncio.run(flow.async_step_telemetry_add())
+    area_names = _schema_select_values(form, "room")
+
+    assert area_names == [
+        "Bathroom",
+        "Bedroom",
+        "Cloakroom",
+        "Dining Room",
+        "Downstairs Toilet",
+        "Ensuite",
+        "Garage",
+        "Hallway",
+        "Kitchen",
+        "Landing",
+        "Living Room",
+        "Lounge",
+        "Master Bedroom",
+        "Office",
+        "Shower Room",
+        "Spare Room",
+        "Study",
+        "Toilet",
+        "Utility",
+        "Wet Room",
+    ]
+    assert len(area_names) == 20
+    assert area_names == sorted(area_names, key=str.casefold)
 
 
 def test_zone2_setup_defaults_to_level2_and_trigger_labels_name_zone_and_level():
@@ -489,6 +791,7 @@ def test_walkthrough_placeholders_are_supplied_by_config_and_options_flow_result
 
     setup_flow = config_flow.HumidityIntelligenceConfigFlow()
     setup_flow.hass = SimpleNamespace(data={})
+    welcome = asyncio.run(setup_flow.async_step_welcome())
     dependencies = asyncio.run(setup_flow.async_step_dependencies())
     ui_install = asyncio.run(setup_flow.async_step_ui_install())
 
@@ -497,9 +800,29 @@ def test_walkthrough_placeholders_are_supplied_by_config_and_options_flow_result
     options_flow.hass = SimpleNamespace(data={})
     options_dependencies = asyncio.run(options_flow.async_step_options_dependencies())
 
-    for result in (dependencies, ui_install, options_dependencies):
+    for result in (welcome, dependencies, ui_install, options_dependencies):
         placeholders = result["description_placeholders"]
         assert placeholders["walkthrough_url"] == walkthrough_url
+
+
+def test_setup_starts_with_welcome_page_before_frontend_dependencies():
+    config_flow = _load_config_flow_module()
+    flow = config_flow.HumidityIntelligenceConfigFlow()
+    flow.hass = SimpleNamespace(data={})
+
+    welcome = asyncio.run(flow.async_step_user())
+
+    assert welcome["type"] == "form"
+    assert welcome["step_id"] == "welcome"
+    assert welcome["data_schema"].schema == {}
+    assert (
+        welcome["description_placeholders"]["walkthrough_url"]
+        == config_flow.CONFIGURATION_WALKTHROUGH_URL
+    )
+
+    dependencies = asyncio.run(flow.async_step_welcome({}))
+    assert dependencies["type"] == "form"
+    assert dependencies["step_id"] == "dependencies"
 
 
 def test_dependency_schema_builder_sets_skip_default():
@@ -542,10 +865,14 @@ def test_setup_surfaces_link_to_configuration_walkthrough():
     walkthrough_url = "https://github.com/senyo888/humidity-intelligence/wiki/Configuration-Walkthrough"
 
     for payload in (strings, translations):
+        welcome_description = payload["config"]["step"]["welcome"]["description"]
         setup_description = payload["config"]["step"]["dependencies"]["description"]
         options_description = payload["options"]["step"]["options_dependencies"]["description"]
         ui_install_description = payload["config"]["step"]["ui_install"]["description"]
 
+        assert "Configuration Walkthrough" in welcome_description
+        assert "{walkthrough_url}" in welcome_description
+        assert walkthrough_url not in welcome_description
         assert "Configuration Walkthrough" in setup_description
         assert "{walkthrough_url}" in setup_description
         assert walkthrough_url not in setup_description
@@ -557,7 +884,32 @@ def test_setup_surfaces_link_to_configuration_walkthrough():
         assert walkthrough_url not in ui_install_description
 
     assert walkthrough_url in config_source
-    assert config_source.count('"walkthrough_url": CONFIGURATION_WALKTHROUGH_URL') == 3
+    assert config_source.count('"walkthrough_url": CONFIGURATION_WALKTHROUGH_URL') == 4
+
+
+def test_welcome_and_telemetry_copy_support_staged_setup_method():
+    strings = json.loads((ROOT / "strings.json").read_text())
+    translations = json.loads((ROOT / "translations" / "en.json").read_text())
+
+    for payload in (strings, translations):
+        steps = payload["config"]["step"]
+        assert "welcome" in steps
+        welcome = steps["welcome"]
+        welcome_description = welcome["description"]
+        telemetry_description = steps["telemetry"]["description"]
+
+        assert welcome["title"] == "Welcome to Humidity Intelligence"
+        assert "Recommended setup method" in welcome_description
+        assert "start small" in welcome_description
+        assert "return to Options" in welcome_description
+        assert "saved baseline" in welcome_description
+        assert "Advanced setup method" in welcome_description
+        assert "Frontend Dependencies" in welcome_description
+        assert "{walkthrough_url}" in welcome_description
+
+        assert "start with a small core set" in telemetry_description
+        assert "return later from Options" in telemetry_description
+        assert "Add as many entities as possible now" not in telemetry_description
 
 
 def test_setup_gates_flattens_advanced_section_and_preserves_visible_values():
@@ -645,6 +997,59 @@ def test_setup_gates_no_longer_exposes_or_mutates_level_display_labels():
     assert not _advanced_schema_has_field(form, "level2_label")
     assert result["step_id"] == "telemetry"
     assert "level_labels" not in flow._data
+
+
+def test_setup_slope_empty_collapsed_sources_falls_back_to_temperature_sensors():
+    config_flow = _load_config_flow_module()
+    flow = config_flow.HumidityIntelligenceConfigFlow()
+    flow.hass = SimpleNamespace()
+    flow._telemetry = _base_telemetry()
+    flow._data["telemetry"] = flow._telemetry
+
+    result = asyncio.run(
+        flow.async_step_slope(
+            {
+                "slope_mode": "hi_calculates",
+                "show_advanced_options": {
+                    "slope_sources": [],
+                    "slope_sensors": [],
+                },
+            }
+        )
+    )
+
+    assert result["step_id"] == "zones"
+    assert flow._data["slope"] == {
+        "mode": "hi_calculates",
+        "source_entities": ["sensor.kitchen_temperature"],
+        "show_temperature_chips": False,
+    }
+
+
+def test_options_slope_empty_collapsed_sources_falls_back_to_temperature_sensors():
+    config_flow = _load_config_flow_module()
+    entry = SimpleNamespace(data={"telemetry": _base_telemetry()}, options={})
+    flow = config_flow.HumidityIntelligenceOptionsFlow(entry)
+    flow.hass = SimpleNamespace()
+
+    result = asyncio.run(
+        flow.async_step_options_slope(
+            {
+                "slope_mode": "hi_calculates",
+                "show_advanced_options": {
+                    "slope_sources": [],
+                    "slope_sensors": [],
+                },
+            }
+        )
+    )
+
+    assert result["step_id"] == "init"
+    assert flow._options["slope"] == {
+        "mode": "hi_calculates",
+        "source_entities": ["sensor.kitchen_temperature"],
+        "show_temperature_chips": False,
+    }
 
 
 def test_setup_zones_menu_offers_level_display_labels_before_zone_configuration():

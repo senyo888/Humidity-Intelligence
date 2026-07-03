@@ -25,6 +25,11 @@ def _install_homeassistant_stubs() -> None:
     core = types.ModuleType("homeassistant.core")
     config_entries = types.ModuleType("homeassistant.config_entries")
     const = types.ModuleType("homeassistant.const")
+    helpers = types.ModuleType("homeassistant.helpers")
+    area_registry = types.ModuleType("homeassistant.helpers.area_registry")
+    device_registry = types.ModuleType("homeassistant.helpers.device_registry")
+    entity_registry = types.ModuleType("homeassistant.helpers.entity_registry")
+    label_registry = types.ModuleType("homeassistant.helpers.label_registry")
 
     class HomeAssistant:
         pass
@@ -35,6 +40,13 @@ def _install_homeassistant_stubs() -> None:
     class UnitOfTemperature:
         CELSIUS = "°C"
         FAHRENHEIT = "°F"
+
+    class _Registry:
+        def __init__(self, entries):
+            self._entries = dict(entries)
+
+        def async_get(self, key):
+            return self._entries.get(key)
 
     def async_redact_data(data, to_redact):
         redact = {str(item).lower() for item in to_redact}
@@ -57,6 +69,14 @@ def _install_homeassistant_stubs() -> None:
     const.__version__ = "2026.5.2"
     const.UnitOfTemperature = UnitOfTemperature
     lovelace_const.LOVELACE_DATA = "lovelace"
+    area_registry.async_get = lambda hass: _Registry(getattr(hass, "areas", {}))
+    device_registry.async_get = lambda hass: _Registry(getattr(hass, "devices", {}))
+    entity_registry.async_get = lambda hass: _Registry(getattr(hass, "entities", {}))
+    label_registry.async_get = lambda hass: _Registry(getattr(hass, "labels", {}))
+    helpers.area_registry = area_registry
+    helpers.device_registry = device_registry
+    helpers.entity_registry = entity_registry
+    helpers.label_registry = label_registry
 
     sys.modules["homeassistant"] = ha
     sys.modules["homeassistant.components"] = components
@@ -66,6 +86,11 @@ def _install_homeassistant_stubs() -> None:
     sys.modules["homeassistant.core"] = core
     sys.modules["homeassistant.config_entries"] = config_entries
     sys.modules["homeassistant.const"] = const
+    sys.modules["homeassistant.helpers"] = helpers
+    sys.modules["homeassistant.helpers.area_registry"] = area_registry
+    sys.modules["homeassistant.helpers.device_registry"] = device_registry
+    sys.modules["homeassistant.helpers.entity_registry"] = entity_registry
+    sys.modules["homeassistant.helpers.label_registry"] = label_registry
 
 
 def _install_package_scaffold() -> None:
@@ -96,6 +121,7 @@ def _load_diagnostics_module():
     if level_labels_path.exists():
         _load_module(f"{PKG}.helpers.level_labels", level_labels_path)
     _load_module(f"{PKG}.helpers.frontend_dependencies", ROOT / "helpers" / "frontend_dependencies.py")
+    _load_module(f"{PKG}.helpers.setup_assist", ROOT / "helpers" / "setup_assist.py")
     _load_module(f"{PKG}.helpers.seasonal", ROOT / "helpers" / "seasonal.py")
     _load_module(f"{PKG}.helpers.zone_validation", ROOT / "helpers" / "zone_validation.py")
     return _load_module(f"{PKG}.diagnostics", ROOT / "diagnostics.py")
@@ -126,6 +152,10 @@ class _FakeHass:
     def __init__(self, states, runtime_data):
         self.config = _FakeConfig()
         self.states = _FakeStates(states)
+        self.areas = {}
+        self.devices = {}
+        self.entities = {}
+        self.labels = {}
         self.data = {
             "humidity_intelligence": {"entry123": runtime_data},
             "lovelace": SimpleNamespace(resources=_FakeResources()),
@@ -518,6 +548,50 @@ def test_native_diagnostics_reports_canonical_level_label_sources():
         "level1": {"label": "Ground Floor", "source": "config"},
         "level2": {"label": "Level 2", "source": "fallback"},
     }
+
+
+def test_native_diagnostics_reports_sanitized_area_label_advisory_mismatches():
+    diagnostics = _load_diagnostics_module()
+    hass = _sample_hass()
+    hass.areas = {
+        "utility": SimpleNamespace(
+            name="Example utility",
+            labels={"humidity-intelligence"},
+        ),
+    }
+    hass.entities = {
+        "sensor.kitchen_humidity": SimpleNamespace(
+            area_id="utility",
+            device_id=None,
+            labels={"humidity-intelligence"},
+        ),
+    }
+    hass.labels = {
+        "humidity-intelligence": SimpleNamespace(name="Example label"),
+    }
+
+    payload = asyncio.run(
+        diagnostics.async_get_config_entry_diagnostics(hass, _sample_entry())
+    )
+    rendered = json.dumps(payload, sort_keys=True)
+
+    setup_assist = payload["diagnostics_summary"]["setup_assist"]
+    assert setup_assist == {
+        "status": "available",
+        "telemetry_checked_count": 1,
+        "area_context_count": 1,
+        "label_context_count": 1,
+        "area_mismatch_count": 1,
+        "conflicting_level_hint_count": 0,
+        "unsupported_metadata": False,
+    }
+    assert any(
+        "HA Area differs from saved HI room" in warning
+        for warning in payload["diagnostics_summary"]["warnings"]
+    )
+    assert "Example utility" not in rendered
+    assert "Example label" not in rendered
+    assert "sensor.kitchen_humidity" not in rendered
 
 
 def test_to_redact_covers_required_sensitive_terms():

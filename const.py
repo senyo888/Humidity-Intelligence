@@ -49,18 +49,26 @@ LEVELS = [
 ]
 
 COMMON_ROOMS = [
-    "Kitchen",
-    "Bedroom",
     "Bathroom",
-    "Toilet",
-    "Living Room",
-    "Hallway",
-    "Landing",
-    "Study",
+    "Bedroom",
+    "Cloakroom",
     "Dining Room",
-    "Utility",
+    "Downstairs Toilet",
+    "Ensuite",
     "Garage",
+    "Hallway",
+    "Kitchen",
+    "Landing",
+    "Living Room",
+    "Lounge",
+    "Master Bedroom",
     "Office",
+    "Shower Room",
+    "Spare Room",
+    "Study",
+    "Toilet",
+    "Utility",
+    "Wet Room",
 ]
 
 OUTSIDE_WINDOW_ACTIONS = [

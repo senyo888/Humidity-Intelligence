@@ -20,6 +20,8 @@ Please review the bundle before attaching if you are concerned about privacy. Th
 - config entry and options summary
 - selected telemetry, gate, zone, AQ, humidifier, alert, and output entities
 - enabled feature areas
+- Home Assistant Area/Label setup-assist status, including sanitized counts for
+  advisory metadata context and saved-room mismatches
 - current runtime mode/lane and reason text
 - gate states
 - output state summary
@@ -49,7 +51,9 @@ It redacts sensitive keys and values such as:
 - latitude, longitude, and address-style location fields
 - usernames, email, phone, host, IP, MAC, SSID, device ID, and unique ID fields
 
-Entity IDs are intentionally included because they are usually needed to debug mappings and unavailable entities. Review the file before uploading if your entity names contain personal information.
+Native diagnostics prefer structure, counts, and statuses over raw entity IDs, room
+names, Area names, Label names, entity maps, and state dumps. Review the file before
+uploading if your local names contain personal information.
 
 ## If You Cannot Download Diagnostics
 

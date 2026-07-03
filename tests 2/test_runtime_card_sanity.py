@@ -3284,8 +3284,8 @@ def test_advanced_tuning_uses_collapsible_sections_not_submit_reveal():
     assert "_advanced_toggle" not in config_source
     assert "self._advanced_visible" not in config_source
     assert "self._advanced_inputs" not in config_source
-    assert 'slope_sources = user_input.get("slope_sources", temp_entities)' in config_source
-    assert 'slope_sources = _sanitize_entity_ids(user_input.get("slope_sources", default_sources))' in config_source
+    assert 'slope_sources = _sanitize_entity_ids(user_input.get("slope_sources") or temp_entities)' in config_source
+    assert 'slope_sources = _sanitize_entity_ids(user_input.get("slope_sources") or default_sources)' in config_source
     assert '"run_duration": user_input.get("run_duration", existing.get("run_duration", 30))' in config_source
 
     advanced_steps = (
