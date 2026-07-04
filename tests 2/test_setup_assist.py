@@ -182,6 +182,28 @@ def test_setup_assist_logs_registry_failures_without_changing_fallback():
     debug.assert_called()
 
 
+def test_setup_assist_entity_lookup_failure_is_not_reported_as_missing():
+    setup_assist = _load_setup_assist_module()
+
+    class BrokenEntityRegistry:
+        def async_get(self, _entity_id):
+            raise RuntimeError("entity lookup exploded")
+
+    hass = SimpleNamespace(entities={}, devices={}, areas={}, labels={})
+    with (
+        mock.patch.object(setup_assist.er, "async_get", return_value=BrokenEntityRegistry()),
+        mock.patch.object(setup_assist._LOGGER, "debug") as debug,
+    ):
+        suggestion = setup_assist.setup_assist_suggestion(
+            hass,
+            "sensor.example_humidity",
+        )
+
+    assert suggestion.status == "unsupported"
+    assert suggestion.warnings == ("entity_lookup_failed",)
+    debug.assert_called()
+
+
 if __name__ == "__main__":
     tests = [
         (name, value)

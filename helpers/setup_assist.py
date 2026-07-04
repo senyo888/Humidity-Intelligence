@@ -106,7 +106,7 @@ def setup_assist_suggestion(
             clean_entity_id,
             err,
         )
-        entity_entry = None
+        return unsupported_setup_assist_suggestion("entity_lookup_failed", clean_entity_id)
     if entity_entry is None:
         return SetupAssistSuggestion(entity_id=clean_entity_id, status="not_found")
 
