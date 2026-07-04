@@ -59,10 +59,9 @@ This project follows a practical changelog format for Home Assistant and HACS us
 - Extended the existing `v205_release_check` manifest-version contract to accept
   the v2.0.8 beta/rc/stable line while preserving the backward-compatible service
   name.
-- Release-candidate preparation impact: manifest metadata is stable `2.0.8` on the
-  `senyo888-patch-1` lane for promotion review. GitHub release publication, tagging,
-  branch promotion, and the user-facing package record stay with the normal maintainer
-  approval flow.
+- Release-candidate preparation impact: manifest metadata is stable `2.0.8`, while
+  GitHub release publication, tagging, branch promotion, and the user-facing package
+  record stay with the normal maintainer approval flow.
 - Runtime impact: deterministic lane ordering, output-writer boundaries, entity
   semantics, and migration shape stay aligned with the existing backend contract.
   Generated dashboards should be refreshed or re-exported after update when users rely

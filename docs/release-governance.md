@@ -18,8 +18,8 @@ v2.0.7 remains the latest published stable release line until a v2.0.8 stable ta
 GitHub release are explicitly approved. Stable `2.0.7` metadata is present on `main`.
 
 The v2.0.8 candidate is now staged as stable manifest metadata `2.0.8` on
-`senyo888-patch-1` for promotion review toward `develop`. GitHub release publication,
-tagging, `develop` push/merge, and `main` promotion remain explicit maintainer actions.
+`develop` after develop-review merge. GitHub release publication, tagging, `main`
+promotion, and the user-facing package record remain explicit maintainer actions.
 Senyo has maintainer-confirmed stable-instance testing for v2.0.8; that evidence is
 recorded as maintainer confirmation unless independently verified in the same
 validation packet. Stable-instance access or mutation requires explicit approval for
@@ -32,14 +32,15 @@ review, Aetherwing review, AetherCore governance review, Aetherbite security/pri
 review, maintainer stable-instance confirmation, and maintainer promotion approval are
 complete.
 
-## v2.0.8 Develop-Review PR Completion
+## v2.0.8 Develop Source Boundary
 
-The current v2.0.8 develop-review PR may be completed only as a develop-review merge,
-not as a release publication step.
+The v2.0.8 develop-review merge makes `develop` the release-review source only. It
+does not publish a release, create a tag, publish a GitHub Release, or authorize
+promotion to `main`.
 
-Before merging the PR to `develop`:
+Before using `develop` for a `main` promotion PR:
 
-1. Push the final `senyo888-patch-1` review-fix commit and confirm GitHub CI is green.
+1. Confirm the develop-review PR merged to `develop` and GitHub CI is green.
 2. Confirm CodeRabbit or human review comments have either been fixed or explicitly
    marked not applicable with a short reason.
 3. Record sanitized HA Lab evidence in the PR body or a PR comment. Stage A package
@@ -51,7 +52,8 @@ Before merging the PR to `develop`:
 4. Keep the generated-dashboard checkbox honest: if `refresh_ui`, dashboard paste,
    or browser refresh was not performed, leave that item unchecked and explain that
    users should re-export or refresh generated cards after install.
-5. Obtain the required approving review from a reviewer with write access.
+5. Preserve the hard release gates below as separate `main`, tag, and GitHub Release
+   approval requirements.
 
 After the PR merges to `develop`, do not tag, publish a GitHub Release, or promote to
 `main` until the hard release gates below pass. Final release promotion still requires
