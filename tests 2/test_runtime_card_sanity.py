@@ -3003,6 +3003,19 @@ def test_global_pause_and_resume_require_admin_user_context():
     assert timer.native_value == "idle"
 
 
+def test_support_state_summary_treats_blank_state_as_unknown():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {"sensor.blank_state": _FakeState("   ")})
+
+    summary = services_mod._support_state_summary(hass, ["sensor.blank_state"])
+
+    assert summary == {
+        "count": 1,
+        "by_status": {"available": 0, "missing": 0, "unknown": 1, "unavailable": 0},
+    }
+
+
 def test_public_card_surfaces_do_not_ship_private_entity_ids():
     offenders = []
     for path in PUBLIC_CARD_SURFACES:

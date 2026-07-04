@@ -919,7 +919,9 @@ def _support_state_summary(hass: HomeAssistant, entity_ids) -> dict:
         if state is None:
             counts["missing"] += 1
             continue
-        state_text = str(getattr(state, "state", "unknown")).lower()
+        state_text = str(getattr(state, "state", "unknown") or "").strip().lower()
+        if not state_text:
+            state_text = "unknown"
         if state_text in {"unknown", "unavailable"}:
             counts[state_text] += 1
         else:
