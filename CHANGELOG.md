@@ -8,6 +8,65 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+- No unreleased changes.
+
+## 2.0.8
+
+- Added a first-run welcome page before Frontend Dependencies that explains the
+  staged setup method, with README guidance and telemetry copy updated so users
+  can safely save a small initial sensor set and return through Options later.
+- Fixed Temperature Slope setup/options submission so collapsed Advanced source
+  lists that submit empty fall back to the configured temperature sensors instead
+  of re-rendering the same form with a hidden validation error.
+- Added Home Assistant Area/Label setup assistance for telemetry configuration:
+  HI can use registry metadata to suggest room/level defaults and diagnostics
+  mismatch counts, while saving only explicit HI telemetry fields. Areas and Labels
+  are advisory only and do not affect lane ordering, entity semantics, generated-card
+  truth, output control, or migration behavior.
+- Blocked default generated V2 dashboard YAML from shipping runtime mutation controls:
+  pause/resume and the standalone View Cards service button are now
+  read-only/default-safe surfaces. The System and Manual buttons keep the
+  v2.0.7 tap-to-toggle helper behavior, and the output details expander keeps
+  the v2.0.7 UI-only helper toggle so the bottom Outputs section still opens
+  from the card. Backend services remain available through Home Assistant
+  service/admin workflows.
+- Replaced the generated V2 Pause LIVE tile with a passive compact
+  gauge-style Stability preview badge. The badge reads future v2.1 Stability
+  Score diagnostics from the existing HI diagnostics sensor when present,
+  otherwise it degrades without calculating scores, requiring a new sensor, or
+  creating a control path. Current/complete Stability shimmer is paced at 10 beats
+  per minute with a 6 second animation cycle.
+- Hardened the Stability preview fallback so null or empty future score values stay
+  in the default future/preview state instead of rendering as a real score of zero,
+  and aligned the tablet/gallery System and Manual card glow with the mobile layout.
+- Made Home Assistant setup-assist suggestions an explicit telemetry form preview
+  action so advisory Area/Label-derived defaults are reachable without changing the
+  normal save path.
+- Kept global pause/resume support, but global all-entry pause/resume calls now
+  require an admin user context. Per-entry calls remain scoped to the supplied
+  config entry.
+- Hardened release hygiene and support output handling: the tracked secret scan now
+  fails closed when no tracked files are selected, issue-triage reports are written
+  through a confined private atomic writer, and diagnostics/support exports favor
+  sanitized structure/count/status summaries and redaction. `self_check` and
+  release-validation reports may still include configured/generated entity IDs needed
+  to debug missing mappings, so treat those exports as local/private until reviewed or
+  sanitized before public sharing.
+- Expanded issue-triage public-safety checks to reject macOS, Linux, and Windows
+  local absolute paths, and bucketed mapped runtime entity state in native diagnostics
+  into privacy-safe availability categories instead of exposing raw Home Assistant
+  state text.
+- Extended the existing `v205_release_check` manifest-version contract to accept
+  the v2.0.8 beta/rc/stable line while preserving the backward-compatible service
+  name.
+- Release-candidate preparation impact: manifest metadata is stable `2.0.8`, while
+  GitHub release publication, tagging, branch promotion, and the user-facing package
+  record stay with the normal maintainer approval flow.
+- Runtime impact: deterministic lane ordering, output-writer boundaries, entity
+  semantics, and migration shape stay aligned with the existing backend contract.
+  Generated dashboards should be refreshed or re-exported after update when users rely
+  on default V2 cards or pasted Manual-card YAML.
+
 ## 2.0.7
 
 - Promoted integration metadata to stable `2.0.7`.
@@ -85,7 +144,7 @@ This project follows a practical changelog format for Home Assistant and HACS us
 - Differentiated missing helper, helper not ready or unavailable, non-numeric helper, low history coverage, and invalid source states without fabricating drift values.
 - Refined optional Current Air Control temperature chip colours to use backend-owned seasonal cold, comfort, warm, and hot boundaries.
 - Retuned Spring and Summer temperature chip comfort/warm bands while keeping the backend-owned seasonal boundary model unchanged.
-- Exposed the resolved temperature warm boundary through comfort sensor attributes and diagnostics so generated cards do not hard-code seasonal thresholds.
+- Exposed the resolved temperature warm boundary through comfort sensor attributes and diagnostics so generated cards read seasonal thresholds from backend truth.
 - Kept setup/options Frontend Dependencies pages frontend-only; drift dependency truth remains available through diagnostics, self-check, release-check, drift sensor attributes, and Repairs.
 - Preserved the existing drift calculation and legacy `sensor.house_humidity_mean_7d` compatibility.
 - Kept lane ordering, AQ, humidifier, alert, output, migration, restore, HACS update, and runtime-control behavior unchanged except for the explicit `telemetry_unavailable` mode/entity truth correction.

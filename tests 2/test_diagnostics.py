@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import importlib.util
 import json
 import pathlib
@@ -24,6 +25,11 @@ def _install_homeassistant_stubs() -> None:
     core = types.ModuleType("homeassistant.core")
     config_entries = types.ModuleType("homeassistant.config_entries")
     const = types.ModuleType("homeassistant.const")
+    helpers = types.ModuleType("homeassistant.helpers")
+    area_registry = types.ModuleType("homeassistant.helpers.area_registry")
+    device_registry = types.ModuleType("homeassistant.helpers.device_registry")
+    entity_registry = types.ModuleType("homeassistant.helpers.entity_registry")
+    label_registry = types.ModuleType("homeassistant.helpers.label_registry")
 
     class HomeAssistant:
         pass
@@ -34,6 +40,13 @@ def _install_homeassistant_stubs() -> None:
     class UnitOfTemperature:
         CELSIUS = "°C"
         FAHRENHEIT = "°F"
+
+    class _Registry:
+        def __init__(self, entries):
+            self._entries = dict(entries)
+
+        def async_get(self, key):
+            return self._entries.get(key)
 
     def async_redact_data(data, to_redact):
         redact = {str(item).lower() for item in to_redact}
@@ -56,6 +69,14 @@ def _install_homeassistant_stubs() -> None:
     const.__version__ = "2026.5.2"
     const.UnitOfTemperature = UnitOfTemperature
     lovelace_const.LOVELACE_DATA = "lovelace"
+    area_registry.async_get = lambda hass: _Registry(getattr(hass, "areas", {}))
+    device_registry.async_get = lambda hass: _Registry(getattr(hass, "devices", {}))
+    entity_registry.async_get = lambda hass: _Registry(getattr(hass, "entities", {}))
+    label_registry.async_get = lambda hass: _Registry(getattr(hass, "labels", {}))
+    helpers.area_registry = area_registry
+    helpers.device_registry = device_registry
+    helpers.entity_registry = entity_registry
+    helpers.label_registry = label_registry
 
     sys.modules["homeassistant"] = ha
     sys.modules["homeassistant.components"] = components
@@ -65,6 +86,11 @@ def _install_homeassistant_stubs() -> None:
     sys.modules["homeassistant.core"] = core
     sys.modules["homeassistant.config_entries"] = config_entries
     sys.modules["homeassistant.const"] = const
+    sys.modules["homeassistant.helpers"] = helpers
+    sys.modules["homeassistant.helpers.area_registry"] = area_registry
+    sys.modules["homeassistant.helpers.device_registry"] = device_registry
+    sys.modules["homeassistant.helpers.entity_registry"] = entity_registry
+    sys.modules["homeassistant.helpers.label_registry"] = label_registry
 
 
 def _install_package_scaffold() -> None:
@@ -95,6 +121,7 @@ def _load_diagnostics_module():
     if level_labels_path.exists():
         _load_module(f"{PKG}.helpers.level_labels", level_labels_path)
     _load_module(f"{PKG}.helpers.frontend_dependencies", ROOT / "helpers" / "frontend_dependencies.py")
+    _load_module(f"{PKG}.helpers.setup_assist", ROOT / "helpers" / "setup_assist.py")
     _load_module(f"{PKG}.helpers.seasonal", ROOT / "helpers" / "seasonal.py")
     _load_module(f"{PKG}.helpers.zone_validation", ROOT / "helpers" / "zone_validation.py")
     return _load_module(f"{PKG}.diagnostics", ROOT / "diagnostics.py")
@@ -125,6 +152,10 @@ class _FakeHass:
     def __init__(self, states, runtime_data):
         self.config = _FakeConfig()
         self.states = _FakeStates(states)
+        self.areas = {}
+        self.devices = {}
+        self.entities = {}
+        self.labels = {}
         self.data = {
             "humidity_intelligence": {"entry123": runtime_data},
             "lovelace": SimpleNamespace(resources=_FakeResources()),
@@ -254,13 +285,26 @@ def test_native_diagnostics_payload_contains_support_sections():
 
     assert payload["integration"]["domain"] == "humidity_intelligence"
     assert payload["integration"]["home_assistant_version"] == "2026.5.2"
-    assert payload["configuration"]["selected_entities"]["telemetry"][0]["entity_id"] == "sensor.kitchen_humidity"
+    assert payload["configuration"]["selected_entity_summary"]["telemetry"]["count"] == 1
     assert payload["configuration"]["enabled_feature_areas"]["zone_control"] is True
     assert payload["runtime"]["active_lane"] == "alert"
-    assert payload["runtime"]["gate_states"]["presence_gate"]["entities"][0]["state"] == "unknown"
-    assert payload["runtime"]["output_states"]["fan_outputs"][0]["entity_id"] == "fan.kitchen_extract"
+    assert payload["runtime"]["gate_states"]["presence_gate"]["entity_status"]["by_status"]["unknown"] == 1
+    assert payload["runtime"]["output_states"]["fan_outputs"]["by_status"]["unavailable"] == 1
     assert payload["frontend"]["dependency_status"]
     assert payload["generated_ui"]["cached_layouts"] == ["v2_mobile", "v2_tablet"]
+
+
+def test_entity_status_summary_treats_blank_state_as_unknown():
+    diagnostics = _load_diagnostics_module()
+    hass = _sample_hass()
+    hass.states._values["sensor.blank_state"] = _FakeState("   ")
+
+    summary = diagnostics._entity_status_summary(hass, ["sensor.blank_state"])
+
+    assert summary == {
+        "count": 1,
+        "by_status": {"available": 0, "missing": 0, "unknown": 1, "unavailable": 0},
+    }
 
 
 def test_manifest_declares_diagnostics_component_for_native_support():
@@ -294,8 +338,72 @@ def test_native_diagnostics_redacts_sensitive_keys_and_url_values():
     assert "REDACTION_FIXTURE_SSID" not in rendered
     assert "REDACTION_FIXTURE_DEVICE_ID" not in rendered
     assert "REDACTION_FIXTURE_UNIQUE_ID" not in rendered
-    assert "sensor.kitchen_humidity" in rendered
+    assert "sensor.kitchen_humidity" not in rendered
     assert "[REDACTED]" in rendered
+
+
+def test_native_diagnostics_uses_sanitized_counts_status_not_raw_private_ids():
+    diagnostics = _load_diagnostics_module()
+
+    payload = asyncio.run(
+        diagnostics.async_get_config_entry_diagnostics(_sample_hass(), _sample_entry())
+    )
+    rendered = json.dumps(payload, sort_keys=True)
+
+    assert "sensor.kitchen_humidity" not in rendered
+    assert "fan.kitchen_extract" not in rendered
+    assert "person.alice" not in rendered
+    assert "Kitchen" not in rendered
+    assert "/hacsfiles/button-card/button-card.js" not in rendered
+    assert "https://user:pass@example.invalid/card-mod.js" not in rendered
+
+    selected = payload["configuration"]["selected_entity_summary"]
+    assert selected["telemetry"]["count"] == 1
+    assert selected["zones"]["zone1"]["output_count"] == 1
+    assert selected["presence_gate"]["entity_count"] == 1
+    assert selected["alerts"][0]["visual_light_count"] == 1
+    assert selected["alerts"][0]["has_power_entity"] is True
+
+    unavailable = payload["runtime"]["unavailable_or_unknown_entities"]
+    assert unavailable["count"] == 4
+    assert unavailable["by_status"]["missing"] == 2
+    assert unavailable["by_status"]["unknown"] == 1
+    assert unavailable["by_status"]["unavailable"] == 1
+
+    mapped = payload["runtime"]["mapped_runtime_entities"]
+    assert mapped["air_control_mode"]["status"] == "available"
+    assert mapped["air_control_reason"]["status"] == "available"
+    assert mapped["zone_output"]["status"] == "unavailable"
+    assert "humidity danger in kitchen" not in json.dumps(mapped, sort_keys=True).lower()
+
+
+def test_native_diagnostics_sanitizes_duplicate_zone_mapping_evidence():
+    diagnostics = _load_diagnostics_module()
+    entry = _sample_entry()
+    entry.data = copy.deepcopy(entry.data)
+    entry.data["zones"]["zone2"] = {
+        "enabled": True,
+        "level": "level1",
+        "rooms": ["Kitchen"],
+        "outputs": ["fan.second_private_extract"],
+        "triggers": ["humidity_high"],
+    }
+    hass = _sample_hass()
+    hass.data["humidity_intelligence"][entry.entry_id]["config"] = entry.data
+
+    payload = asyncio.run(diagnostics.async_get_config_entry_diagnostics(hass, entry))
+    rendered = json.dumps(payload, sort_keys=True)
+
+    assert "sensor.kitchen_humidity" not in rendered
+    assert "Kitchen" not in rendered
+    assert payload["diagnostics_summary"]["zone_mapping_duplicates"] == {
+        "count": 1,
+        "pairs": {"zone1:zone2": {"entity_count": 1}},
+    }
+    assert (
+        "1 duplicate zone mapping pair includes 1 overlapping telemetry source."
+        in payload["diagnostics_summary"]["warnings"]
+    )
 
 
 def test_diagnostics_redacts_credential_style_keys():
@@ -328,8 +436,10 @@ def test_unavailable_entities_are_reported_without_crashing():
     )
 
     unavailable = payload["runtime"]["unavailable_or_unknown_entities"]
-    assert {"entity_id": "sensor.missing_entity", "status": "missing"} in unavailable
-    assert {"entity_id": "fan.kitchen_extract", "status": "unavailable"} in unavailable
+    assert unavailable["count"] == 5
+    assert unavailable["by_status"]["missing"] == 3
+    assert unavailable["by_status"]["unknown"] == 1
+    assert unavailable["by_status"]["unavailable"] == 1
 
 
 def test_native_diagnostics_reports_house_drift_statistics_dependency():
@@ -370,7 +480,8 @@ def test_native_diagnostics_reports_blocked_pm25_normalization():
 
     pm25 = payload["diagnostics_summary"]["pm25_entity_id_normalization"]
     assert pm25["status"] == "blocked"
-    assert pm25["blocked"][0]["reason"] == "target_exists"
+    assert pm25["blocked_count"] == 1
+    assert pm25["blocked_reasons"] == ["target_exists"]
     assert any("PM25 aggregate entity ID normalization is blocked" in warning for warning in payload["runtime"]["warnings"])
 
 
@@ -456,6 +567,50 @@ def test_native_diagnostics_reports_canonical_level_label_sources():
         "level1": {"label": "Ground Floor", "source": "config"},
         "level2": {"label": "Level 2", "source": "fallback"},
     }
+
+
+def test_native_diagnostics_reports_sanitized_area_label_advisory_mismatches():
+    diagnostics = _load_diagnostics_module()
+    hass = _sample_hass()
+    hass.areas = {
+        "utility": SimpleNamespace(
+            name="Example utility",
+            labels={"humidity-intelligence"},
+        ),
+    }
+    hass.entities = {
+        "sensor.kitchen_humidity": SimpleNamespace(
+            area_id="utility",
+            device_id=None,
+            labels={"humidity-intelligence"},
+        ),
+    }
+    hass.labels = {
+        "humidity-intelligence": SimpleNamespace(name="Example label"),
+    }
+
+    payload = asyncio.run(
+        diagnostics.async_get_config_entry_diagnostics(hass, _sample_entry())
+    )
+    rendered = json.dumps(payload, sort_keys=True)
+
+    setup_assist = payload["diagnostics_summary"]["setup_assist"]
+    assert setup_assist == {
+        "status": "available",
+        "telemetry_checked_count": 1,
+        "area_context_count": 1,
+        "label_context_count": 1,
+        "area_mismatch_count": 1,
+        "conflicting_level_hint_count": 0,
+        "unsupported_metadata": False,
+    }
+    assert any(
+        "HA Area differs from saved HI room" in warning
+        for warning in payload["diagnostics_summary"]["warnings"]
+    )
+    assert "Example utility" not in rendered
+    assert "Example label" not in rendered
+    assert "sensor.kitchen_humidity" not in rendered
 
 
 def test_to_redact_covers_required_sensitive_terms():

@@ -9,8 +9,6 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import section
-from homeassistant.helpers import area_registry as ar
-from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import selector
 from homeassistant.helpers.selector import SelectOptionDict
 
@@ -22,6 +20,8 @@ from .helpers.level_labels import (
     resolve_level_label_details,
     resolve_level_labels,
 )
+from .helpers.setup_assist import advisory_text as setup_assist_advisory_text
+from .helpers.setup_assist import setup_assist_suggestion
 from .helpers.zone_validation import detect_zone_mapping_duplicates, summarize_zone_mapping_duplicates
 from .const import (
     DOMAIN,
@@ -93,6 +93,7 @@ ADVANCED_DEFAULTS_NOTE = (
     "Humidity Intelligence applies recommended defaults unless you customise these settings."
 )
 FORM_ACTION_SAVE = "save"
+FORM_ACTION_PREVIEW = "preview"
 FORM_ACTION_CANCEL = "cancel"
 FORM_ACTION_RETURN = "return"
 FORM_ACTION_CLOSE = "close"
@@ -162,6 +163,14 @@ def _save_cancel_options(save_label: str) -> List[SelectOptionDict]:
     ]
 
 
+def _save_preview_cancel_options(save_label: str) -> List[SelectOptionDict]:
+    return [
+        SelectOptionDict(value=FORM_ACTION_SAVE, label=save_label),
+        SelectOptionDict(value=FORM_ACTION_PREVIEW, label="Preview HA suggestion"),
+        SelectOptionDict(value=FORM_ACTION_CANCEL, label="Cancel"),
+    ]
+
+
 def _cancel_confirm_options(return_label: str) -> List[SelectOptionDict]:
     return [
         SelectOptionDict(value=FORM_ACTION_RETURN, label=return_label),
@@ -220,10 +229,23 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._cancel_return_step = "telemetry"
 
     async def async_step_user(self, user_input: Optional[Dict[str, Any]] = None):
-        """Entry point for the flow. Present the frontend dependencies page first."""
+        """Entry point for the flow. Present the first-run welcome guidance."""
         await self.async_set_unique_id(DOMAIN)
         self._abort_if_unique_id_configured()
-        return await self.async_step_dependencies()
+        return await self.async_step_welcome()
+
+    async def async_step_welcome(self, user_input: Optional[Dict[str, Any]] = None):
+        """Introduce setup strategy before optional frontend dependency checks."""
+        if user_input is not None:
+            return await self.async_step_dependencies()
+
+        return self.async_show_form(
+            step_id="welcome",
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                "walkthrough_url": CONFIGURATION_WALKTHROUGH_URL,
+            },
+        )
 
     async def async_step_dependencies(self, user_input: Optional[Dict[str, Any]] = None):
         """Collect optional frontend dependency information and allow skipping."""
@@ -478,49 +500,54 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="telemetry",
             data_schema=schema,
             description_placeholders={
-                "existing": _render_existing_telemetry(self._telemetry),
+                "existing": _render_existing_telemetry(self._telemetry, self._data),
             },
         )
 
     async def async_step_telemetry_add(self, user_input: Optional[Dict[str, Any]] = None):
         """Add a telemetry sensor entry."""
         errors: Dict[str, str] = {}
+        preview_entity_id = _sanitize_optional_entity_id(user_input.get("entity_id")) if user_input else None
+        preview_only = _is_setup_assist_preview_input(user_input)
         if user_input is not None:
             action = user_input.get("action", FORM_ACTION_SAVE)
             if action == FORM_ACTION_CANCEL:
                 return await self._async_show_cancel_confirm("telemetry")
 
             entity_id = _sanitize_optional_entity_id(user_input.get("entity_id"))
-            if not entity_id:
+            if preview_only:
+                pass
+            elif not entity_id:
                 errors["entity_id"] = "required"
             elif any(t.get("entity_id") == entity_id for t in self._telemetry):
                 errors["entity_id"] = "duplicate_entity"
             else:
+                area_name = _telemetry_display_value(user_input.get("room"), entity_id)
                 entry = {
                     "entity_id": entity_id,
                     "sensor_type": user_input.get("sensor_type", SENSOR_TYPES[0]["value"]),
-                    "friendly_name": user_input.get("friendly_name", ""),
+                    "friendly_name": area_name,
                     "level": user_input.get("level", LEVELS[0]["value"]),
-                    "room": user_input.get("room", ""),
+                    "room": area_name,
                 }
                 self._telemetry.append(entry)
                 self._data["telemetry"] = self._telemetry
                 return await self.async_step_telemetry()
 
-        default_room, default_level = _suggest_room_and_level(
+        default_room, default_level, assist_text = _setup_assist_defaults(
             self.hass,
-            _sanitize_optional_entity_id(user_input.get("entity_id")) if user_input else None,
+            preview_entity_id,
         )
-        room_options = [SelectOptionDict(value=o, label=o) for o in COMMON_ROOMS]
+        room_options = _room_select_options(default_room)
         level_default = default_level or LEVELS[0]["value"]
         schema = vol.Schema({
             vol.Optional("action", default=FORM_ACTION_SAVE): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=_save_cancel_options("Save sensor"),
+                    options=_save_preview_cancel_options("Save sensor"),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
-            vol.Optional("entity_id"): selector.EntitySelector(
+            _optional_entity_selector_key("entity_id", preview_entity_id): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="sensor", multiple=False)
             ),
             vol.Optional("sensor_type", default=SENSOR_TYPES[0]["value"]): selector.SelectSelector(
@@ -529,7 +556,6 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
-            vol.Optional("friendly_name", default=""): selector.TextSelector(),
             vol.Optional("level", default=level_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=_level_value_label_options(self._data),
@@ -550,7 +576,8 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=schema,
             errors=errors,
             description_placeholders={
-                "existing": _render_existing_telemetry(self._telemetry),
+                "existing": _render_existing_telemetry(self._telemetry, self._data),
+                "setup_assist": assist_text,
             },
         )
 
@@ -633,7 +660,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=schema,
             errors=errors,
             description_placeholders={
-                "existing": _render_existing_telemetry(self._telemetry),
+                "existing": _render_existing_telemetry(self._telemetry, self._data),
             },
         )
 
@@ -656,18 +683,26 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             elif any(i != index and t.get("entity_id") == entity_id for i, t in enumerate(self._telemetry)):
                 errors["entity_id"] = "duplicate_entity"
             else:
+                area_name = _telemetry_display_value(
+                    user_input.get("room", current.get("room", "")),
+                    entity_id,
+                )
                 current.update({
                     "entity_id": entity_id,
                     "sensor_type": user_input.get("sensor_type", current.get("sensor_type", SENSOR_TYPES[0]["value"])),
-                    "friendly_name": user_input.get("friendly_name", ""),
+                    "friendly_name": area_name,
                     "level": user_input.get("level", current.get("level", LEVELS[0]["value"])),
-                    "room": user_input.get("room", ""),
+                    "room": area_name,
                 })
                 self._telemetry[index] = current
                 self._data["telemetry"] = self._telemetry
                 return await self.async_step_telemetry()
 
-        room_options = [SelectOptionDict(value=o, label=o) for o in COMMON_ROOMS]
+        _room, _level, assist_text = _setup_assist_defaults(
+            self.hass,
+            _sanitize_optional_entity_id(current.get("entity_id")),
+        )
+        room_options = _room_select_options(current.get("room") or _room)
         schema = vol.Schema({
             vol.Optional("action", default=FORM_ACTION_SAVE): selector.SelectSelector(
                 selector.SelectSelectorConfig(
@@ -684,7 +719,6 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
-            vol.Optional("friendly_name", default=current.get("friendly_name", "")): selector.TextSelector(),
             vol.Optional("level", default=current.get("level")): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=_level_value_label_options(self._data),
@@ -704,6 +738,9 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="telemetry_edit",
             data_schema=schema,
             errors=errors,
+            description_placeholders={
+                "setup_assist": assist_text,
+            },
         )
 
     async def async_step_slope(self, user_input: Optional[Dict[str, Any]] = None):
@@ -722,7 +759,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             user_input = _flatten_advanced_section_input(user_input)
 
             mode = user_input["slope_mode"]
-            slope_sources = user_input.get("slope_sources", temp_entities)
+            slope_sources = _sanitize_entity_ids(user_input.get("slope_sources") or temp_entities)
             provided_sensors = user_input.get("slope_sensors", [])
             show_temperature_chips = bool(
                 user_input.get(
@@ -2003,13 +2040,15 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="options_telemetry",
             data_schema=schema,
-            description_placeholders={"telemetry_summary": _render_existing_telemetry(telemetry)},
+            description_placeholders={"telemetry_summary": _render_existing_telemetry(telemetry, self._effective_config())},
         )
 
     async def async_step_options_telemetry_add(self, user_input: Optional[Dict[str, Any]] = None):
         """Add a telemetry sensor from post-configuration options."""
         telemetry = list(self._section("telemetry", []))
         errors: Dict[str, str] = {}
+        preview_entity_id = _sanitize_optional_entity_id(user_input.get("entity_id")) if user_input else None
+        preview_only = _is_setup_assist_preview_input(user_input)
 
         if user_input is not None:
             action = user_input.get("action", FORM_ACTION_SAVE)
@@ -2017,17 +2056,20 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 return await self._async_show_options_cancel_confirm("options_telemetry")
 
             entity_id = _sanitize_optional_entity_id(user_input.get("entity_id"))
-            if not entity_id:
+            if preview_only:
+                pass
+            elif not entity_id:
                 errors["entity_id"] = "required"
             elif any(item.get("entity_id") == entity_id for item in telemetry):
                 errors["entity_id"] = "duplicate_entity"
             else:
+                area_name = _telemetry_display_value(user_input.get("room"), entity_id)
                 entry = {
                     "entity_id": entity_id,
                     "sensor_type": user_input.get("sensor_type", SENSOR_TYPES[0]["value"]),
-                    "friendly_name": user_input.get("friendly_name", ""),
+                    "friendly_name": area_name,
                     "level": user_input.get("level", LEVELS[0]["value"]),
-                    "room": user_input.get("room", ""),
+                    "room": area_name,
                 }
                 telemetry.append(entry)
                 self._options["telemetry"] = telemetry
@@ -2039,20 +2081,20 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 )
                 return await self.async_step_options_telemetry()
 
-        default_room, default_level = _suggest_room_and_level(
+        default_room, default_level, assist_text = _setup_assist_defaults(
             self.hass,
-            _sanitize_optional_entity_id(user_input.get("entity_id")) if user_input else None,
+            preview_entity_id,
         )
-        room_options = [SelectOptionDict(value=o, label=o) for o in COMMON_ROOMS]
+        room_options = _room_select_options(default_room)
         level_default = default_level or LEVELS[0]["value"]
         schema = vol.Schema({
             vol.Optional("action", default=FORM_ACTION_SAVE): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=_save_cancel_options("Save sensor"),
+                    options=_save_preview_cancel_options("Save sensor"),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
-            vol.Optional("entity_id"): selector.EntitySelector(
+            _optional_entity_selector_key("entity_id", preview_entity_id): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="sensor", multiple=False)
             ),
             vol.Optional("sensor_type", default=SENSOR_TYPES[0]["value"]): selector.SelectSelector(
@@ -2060,9 +2102,6 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                     options=[SelectOptionDict(value=o["value"], label=o["label"]) for o in SENSOR_TYPES],
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
-            ),
-            vol.Optional("friendly_name", default=""): selector.TextSelector(
-                selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
             ),
             vol.Optional("level", default=level_default): selector.SelectSelector(
                 selector.SelectSelectorConfig(
@@ -2083,7 +2122,10 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             step_id="options_telemetry_add",
             data_schema=schema,
             errors=errors,
-            description_placeholders={"telemetry_summary": _render_existing_telemetry(telemetry)},
+            description_placeholders={
+                "telemetry_summary": _render_existing_telemetry(telemetry, self._effective_config()),
+                "setup_assist": assist_text,
+            },
         )
 
     async def async_step_options_telemetry_manage(self, user_input: Optional[Dict[str, Any]] = None):
@@ -2141,7 +2183,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             step_id="options_telemetry_manage",
             data_schema=schema,
             errors=errors,
-            description_placeholders={"telemetry_summary": _render_existing_telemetry(telemetry)},
+            description_placeholders={"telemetry_summary": _render_existing_telemetry(telemetry, self._effective_config())},
         )
 
     async def async_step_options_telemetry_edit(self, user_input: Optional[Dict[str, Any]] = None):
@@ -2163,13 +2205,18 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             if selected_entity and any(i != idx and item.get("entity_id") == selected_entity for i, item in enumerate(telemetry)):
                 errors["entity_id"] = "duplicate_entity"
             else:
+                saved_entity_id = selected_entity or _sanitize_optional_entity_id(current.get("entity_id"))
+                area_name = _telemetry_display_value(
+                    user_input.get("room", current.get("room", "")),
+                    saved_entity_id,
+                )
                 telemetry[idx] = {
                     **current,
-                    "entity_id": selected_entity or _sanitize_optional_entity_id(current.get("entity_id")),
+                    "entity_id": saved_entity_id,
                     "sensor_type": user_input.get("sensor_type", current.get("sensor_type", SENSOR_TYPES[0]["value"])),
-                    "friendly_name": user_input.get("friendly_name", current.get("friendly_name", "")),
+                    "friendly_name": area_name,
                     "level": user_input.get("level", current.get("level")),
-                    "room": user_input.get("room", current.get("room")),
+                    "room": area_name,
                 }
                 self._options["telemetry"] = telemetry
                 _LOGGER.info(
@@ -2182,6 +2229,8 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         level_options = _level_value_label_options(self._effective_config())
         sensor_type_options = [SelectOptionDict(value=o["value"], label=o["label"]) for o in SENSOR_TYPES]
         entity_default = _sanitize_optional_entity_id(current.get("entity_id"))
+        _room, _level, assist_text = _setup_assist_defaults(self.hass, entity_default)
+        room_options = _room_select_options(current.get("room") or _room)
         schema = vol.Schema({
             vol.Optional("action", default=FORM_ACTION_SAVE): selector.SelectSelector(
                 selector.SelectSelectorConfig(
@@ -2198,17 +2247,19 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
-            vol.Optional("friendly_name", default=current.get("friendly_name", "")): selector.TextSelector(
-                selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
-            ),
             vol.Optional("level", default=current.get("level")): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=level_options,
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
-            vol.Optional("room", default=current.get("room", "")): selector.TextSelector(
-                selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+            vol.Optional("room", default=current.get("room", "")): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=room_options,
+                    multiple=False,
+                    custom_value=True,
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
             ),
         })
         return self.async_show_form(
@@ -2219,6 +2270,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
                 "sensor_position": str(idx + 1),
                 "sensor_total": str(len(telemetry)),
                 "selected_sensor": _telemetry_label(current),
+                "setup_assist": assist_text,
             },
         )
 
@@ -3077,7 +3129,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
             user_input = _flatten_advanced_section_input(user_input)
 
             mode = user_input.get("slope_mode", default_mode)
-            slope_sources = _sanitize_entity_ids(user_input.get("slope_sources", default_sources))
+            slope_sources = _sanitize_entity_ids(user_input.get("slope_sources") or default_sources)
             provided_sensors = _sanitize_entity_ids(user_input.get("slope_sensors", []))
             show_temperature_chips = bool(
                 user_input.get(CONF_SHOW_TEMPERATURE_CHIPS, default_show_temperature_chips)
@@ -3179,6 +3231,14 @@ def _sanitize_optional_entity_id(value: Any) -> Optional[str]:
     if not text or text.lower() in {"none", "null"}:
         return None
     return text
+
+
+def _telemetry_display_value(value: Any, entity_id: Optional[str]) -> str:
+    """Return a saved display value, falling back to the sensor id."""
+    text = str(value or "").strip()
+    if text:
+        return text
+    return entity_id or ""
 
 
 def _sanitize_entity_ids(values: Any) -> List[str]:
@@ -3583,16 +3643,20 @@ def _render_aq_summary(
     return "\n".join(lines)
 
 
-def _render_existing_telemetry(telemetry: List[Dict[str, Any]]) -> str:
+def _render_existing_telemetry(
+    telemetry: List[Dict[str, Any]],
+    config: Optional[Dict[str, Any]] = None,
+) -> str:
     if not telemetry:
         return "None yet."
     lines = []
     for item in telemetry:
-        room = item.get("room") or "Unknown room"
-        display = item.get("friendly_name") or room
+        ent = item.get("entity_id") or "unknown"
+        room = item.get("room") or ent
+        display = room
+        level = _level_choice_label(item.get("level"), config or {})
         stype = item.get("sensor_type")
-        ent = item.get("entity_id")
-        lines.append(f"- {display}: {stype} ({ent})")
+        lines.append(f"- {display} ({level}): {stype} ({ent})")
     return "\n".join(lines)
 
 
@@ -3604,10 +3668,10 @@ def _telemetry_options(telemetry: List[Dict[str, Any]]) -> List[SelectOptionDict
 
 
 def _telemetry_label(item: Dict[str, Any]) -> str:
-    room = item.get("room") or "Unknown room"
-    display = item.get("friendly_name") or room
-    stype = str(item.get("sensor_type") or "sensor").replace("_", " ").title()
     ent = item.get("entity_id") or "unknown"
+    room = item.get("room") or ent
+    display = room
+    stype = str(item.get("sensor_type") or "sensor").replace("_", " ").title()
     return f"{display} ({stype}) - {ent}"
 
 
@@ -3666,25 +3730,44 @@ def _alert_option_label(idx: int, alert: Dict[str, Any]) -> str:
     return f"Indicator {idx + 1} - {trigger_label}{room_suffix} ({enabled})"
 
 
-def _suggest_room_and_level(hass: HomeAssistant, entity_id: str | None = None) -> tuple[str, str]:
-    if not entity_id:
-        return "", ""
-    entity_reg = er.async_get(hass)
-    area_reg = ar.async_get(hass)
-    entry = entity_reg.async_get(entity_id)
-    if not entry or not entry.area_id:
-        return "", ""
-    area = area_reg.async_get(entry.area_id)
-    if not area:
-        return "", ""
-    room = area.name
-    level = ""
-    name_lower = room.lower()
-    if "upstairs" in name_lower or "level 2" in name_lower or "second" in name_lower:
-        level = "level2"
-    elif "downstairs" in name_lower or "level 1" in name_lower or "ground" in name_lower:
-        level = "level1"
-    return room, level
+def _setup_assist_defaults(
+    hass: HomeAssistant,
+    entity_id: str | None = None,
+) -> tuple[str, str, str]:
+    suggestion = setup_assist_suggestion(hass, entity_id)
+    return suggestion.room, suggestion.level, setup_assist_advisory_text(suggestion)
+
+
+def _is_setup_assist_preview_input(user_input: Optional[Dict[str, Any]]) -> bool:
+    if not isinstance(user_input, dict):
+        return False
+    if not _sanitize_optional_entity_id(user_input.get("entity_id")):
+        return False
+    if user_input.get("action") == FORM_ACTION_PREVIEW:
+        return True
+    explicit_fields = {
+        "sensor_type",
+        "friendly_name",
+        "level",
+        "room",
+    }
+    return not any(field in user_input for field in explicit_fields)
+
+
+def _room_select_options(*extra_rooms: Any) -> List[SelectOptionDict]:
+    rooms: List[str] = []
+    seen = set()
+    for room in [*COMMON_ROOMS, *extra_rooms]:
+        text = str(room or "").strip()
+        key = text.casefold()
+        if not text or key in seen:
+            continue
+        seen.add(key)
+        rooms.append(text)
+    return [
+        SelectOptionDict(value=room, label=room)
+        for room in sorted(rooms, key=str.casefold)
+    ]
 
 
 def _rooms_by_level(telemetry: List[Dict[str, Any]]) -> Dict[str, List[str]]:

@@ -1,9 +1,9 @@
 # Runtime Simulation Validation
 
 This maintainer validation harness proves backend-owned Air Control Mode truth with
-deterministic fake telemetry. It is production validation infrastructure, not a
-v2.1 display fixture, not HA Lab evidence, and not a Home Assistant runtime
-service.
+deterministic fake telemetry. It is local validation infrastructure for code checks.
+V2.1 display fixtures, HA Lab evidence, and live Home Assistant runtime validation
+remain separate surfaces.
 
 ## Scope
 
@@ -49,14 +49,14 @@ python3 -m pytest -q "tests 2/test_air_control_mode_simulation.py"
 ## Safety Boundaries
 
 - Fake telemetry is test-only Python data.
-- The harness does not create helpers, services, automations, dashboards, or
-  persistent Home Assistant entities.
-- Fan and humidifier output isolation defaults on, so fake scenarios do not
-  write fake fan outputs by default.
+- The harness runs locally without creating helpers, services, automations,
+  dashboards, or persistent Home Assistant entities.
+- Fan and humidifier output isolation defaults on, so fake scenarios stay away from
+  fan output writes by default.
 - CO pressure cannot be triggered accidentally. A CO value at or above the
   emergency threshold requires `co_pressure=True` in the scenario.
-- Each run constructs a fresh fake runtime, so scenario state does not leak into
-  the next case.
+- Each run constructs a fresh fake runtime, keeping scenario state isolated between
+  cases.
 
 ## Release Interpretation
 
@@ -64,7 +64,7 @@ Passing this harness proves the backend engine can consume simulated telemetry
 and that the exposed Air Control Mode/Reason sensors reflect the selected
 runtime mode for the covered scenarios.
 
-It does not replace:
+It complements:
 
 - full Home Assistant install/update validation
 - startup log review

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import importlib.util
 import json
 import pathlib
@@ -41,6 +42,63 @@ PRIVATE_CARD_IDENTIFIERS = (
     "sensor.private_fixture_zone_temperature_a",
     "Room Private Fixture A",
 )
+
+OUTPUT_DETAILS_SURFACES = (
+    ROOT / "ui" / "cards" / "v2_mobile.yaml",
+    ROOT / "ui" / "cards" / "v2_tablet.yaml",
+    ROOT / "ui-gallery" / "default-v2-mobile-aq" / "card.yaml",
+    ROOT / "ui-gallery" / "default-v2-tablet-zone-2" / "card.yaml",
+)
+
+OUTPUT_EXPANDER_TOGGLE_ACTION = """      tap_action:
+        action: call-service
+        service: switch.toggle
+        service_data:
+          entity_id: input_boolean.air_control_output_expanded"""
+V207_CONTROL_TOGGLE_ACTION = """          tap_action:
+            action: toggle"""
+V207_CONTROL_TOGGLE_ENTITIES = (
+    "input_boolean.air_control_enabled",
+    "input_boolean.air_control_manual_override",
+)
+
+
+def _output_details_block(source: str) -> str:
+    start = source.index("# hi:output-details:start")
+    end = source.index("# hi:output-details:end", start)
+    return source[start:end]
+
+
+def _strip_allowed_output_expander_toggle(source: str) -> str:
+    try:
+        block = _output_details_block(source)
+    except ValueError:
+        return source
+    stripped = block.replace(OUTPUT_EXPANDER_TOGGLE_ACTION, "")
+    return source.replace(block, stripped)
+
+
+def _button_card_block(source: str, entity_id: str) -> str:
+    entity_marker = f"entity: {entity_id}"
+    entity_index = source.index(entity_marker)
+    start = source.rfind("        - type: custom:button-card", 0, entity_index)
+    if start == -1:
+        start = entity_index
+    next_start = source.find("        - type: custom:button-card", entity_index + len(entity_marker))
+    if next_start == -1:
+        next_start = len(source)
+    return source[start:next_start]
+
+
+def _strip_allowed_v207_control_toggles(source: str) -> str:
+    for entity_id in V207_CONTROL_TOGGLE_ENTITIES:
+        try:
+            block = _button_card_block(source, entity_id)
+        except ValueError:
+            continue
+        stripped = block.replace(V207_CONTROL_TOGGLE_ACTION, "")
+        source = source.replace(block, stripped)
+    return source
 
 
 def _install_homeassistant_stubs() -> None:
@@ -418,12 +476,24 @@ class _FakeBool:
 class _FakeTimer:
     def __init__(self):
         self.native_value = "idle"
+        self.start_calls = 0
+        self.cancel_calls = 0
 
     async def async_start(self, duration):
+        self.start_calls += 1
         self.native_value = "active"
 
     async def async_cancel(self):
+        self.cancel_calls += 1
         self.native_value = "idle"
+
+
+class _FakeAuth:
+    def __init__(self, users):
+        self._users = dict(users)
+
+    async def async_get_user(self, user_id):
+        return self._users.get(user_id)
 
 
 class _FakeConfigEntries:
@@ -2416,7 +2486,7 @@ async def _run_card_assertions(register_mod) -> None:
     assert hass.data["humidity_intelligence"][ENTRY_ID].get("unresolved_placeholders_by_card", {}) == {}
     assert mobile.startswith("# Humidity Intelligence V2 Mobile Dashboard YAML")
     assert tablet.startswith("# Humidity Intelligence V2 Tablet Dashboard YAML")
-    assert "Call the service humidity_intelligence.dump_cards" in mobile
+    assert "Export refreshed Humidity Intelligence card YAML from Home Assistant." in mobile
     assert "Dashboard Manual card" in tablet
     assert hass.data["humidity_intelligence"][ENTRY_ID]["level_labels"] == {
         "level1": "Ground Floor",
@@ -2889,6 +2959,63 @@ def test_visual_alert_flash_restores_initial_light_state_and_serializes_overlap(
     asyncio.run(_run_visual_flash_restore_assertions(services_mod))
 
 
+def test_global_pause_and_resume_require_admin_user_context():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth(
+        {
+            "admin": SimpleNamespace(is_admin=True),
+            "viewer": SimpleNamespace(is_admin=False),
+        }
+    )
+
+    asyncio.run(services_mod.async_register_services(hass))
+    pause_handler = hass.services.handlers[(services_mod.DOMAIN, services_mod.SERVICE_PAUSE_CONTROL)]
+    resume_handler = hass.services.handlers[(services_mod.DOMAIN, services_mod.SERVICE_RESUME_CONTROL)]
+    timer = hass.data[services_mod.DOMAIN][ENTRY_ID]["hi_timers"]["air_control_pause"]
+
+    try:
+        asyncio.run(pause_handler(SimpleNamespace(data={}, context=SimpleNamespace(user_id="viewer"))))
+    except Exception as err:
+        assert "requires an admin user" in str(err)
+    else:
+        raise AssertionError("global pause should reject non-admin user context")
+
+    assert timer.start_calls == 0
+
+    asyncio.run(pause_handler(SimpleNamespace(data={}, context=SimpleNamespace(user_id="admin"))))
+    assert timer.start_calls == 1
+    assert timer.native_value == "active"
+
+    try:
+        asyncio.run(resume_handler(SimpleNamespace(data={}, context=SimpleNamespace(user_id="viewer"))))
+    except Exception as err:
+        assert "requires an admin user" in str(err)
+    else:
+        raise AssertionError("global resume should reject non-admin user context")
+
+    assert timer.cancel_calls == 0
+
+    asyncio.run(resume_handler(SimpleNamespace(data={}, context=SimpleNamespace(user_id="admin"))))
+    assert timer.cancel_calls == 1
+    assert timer.native_value == "idle"
+
+
+def test_support_state_summary_treats_blank_state_as_unknown():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {"sensor.blank_state": _FakeState("   ")})
+
+    summary = services_mod._support_state_summary(hass, ["sensor.blank_state"])
+
+    assert summary == {
+        "count": 1,
+        "by_status": {"available": 0, "missing": 0, "unknown": 1, "unavailable": 0},
+    }
+
+
 def test_public_card_surfaces_do_not_ship_private_entity_ids():
     offenders = []
     for path in PUBLIC_CARD_SURFACES:
@@ -2900,6 +3027,162 @@ def test_public_card_surfaces_do_not_ship_private_entity_ids():
                 offenders.append(f"{path.relative_to(ROOT)}: {marker}")
 
     assert offenders == []
+
+
+def test_default_public_card_surfaces_block_unsafe_service_controls():
+    default_surfaces = (
+        ROOT / "ui" / "cards" / "v2_mobile.yaml",
+        ROOT / "ui" / "cards" / "v2_tablet.yaml",
+        ROOT / "ui" / "cards" / "view_cards_button.yaml",
+        ROOT / "ui-gallery" / "default-v2-mobile-aq" / "card.yaml",
+        ROOT / "ui-gallery" / "default-v2-tablet-zone-2" / "card.yaml",
+    )
+    mutation_markers = (
+        "action: call-service",
+        "action: toggle",
+        "humidity_intelligence.pause_control",
+        "humidity_intelligence.resume_control",
+        "humidity_intelligence.refresh_ui",
+        "humidity_intelligence.dump_cards",
+        "humidity_intelligence.view_cards",
+        "humidity_intelligence.create_dashboard",
+        "humidity_intelligence.purge_files",
+    )
+    offenders = []
+    for path in default_surfaces:
+        source = path.read_text(encoding="utf-8")
+        source = _strip_allowed_output_expander_toggle(source)
+        source = _strip_allowed_v207_control_toggles(source)
+        for marker in mutation_markers:
+            if marker in source:
+                offenders.append(f"{path.relative_to(ROOT)}: {marker}")
+
+    assert offenders == []
+
+
+def test_system_and_manual_buttons_use_v207_toggle_actions():
+    missing = []
+    hold_action = "          hold_action:\n            action: more-info"
+    labels = {
+        "input_boolean.air_control_enabled": "System",
+        "input_boolean.air_control_manual_override": "Manual",
+    }
+    for path in OUTPUT_DETAILS_SURFACES:
+        source = path.read_text(encoding="utf-8")
+        for entity_id, label in labels.items():
+            block = _button_card_block(source, entity_id)
+            if V207_CONTROL_TOGGLE_ACTION not in block:
+                missing.append(f"{path.relative_to(ROOT)}: {label} tap toggle missing")
+            if hold_action not in block:
+                missing.append(f"{path.relative_to(ROOT)}: {label} hold more-info missing")
+
+    assert missing == []
+
+
+def test_output_details_header_uses_v207_expander_toggle_action():
+    missing = []
+    for path in OUTPUT_DETAILS_SURFACES:
+        source = path.read_text(encoding="utf-8")
+        block = _output_details_block(source)
+        if OUTPUT_EXPANDER_TOGGLE_ACTION not in block:
+            missing.append(f"{path.relative_to(ROOT)}: missing output expander toggle")
+
+    assert missing == []
+
+
+def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pause_tile():
+    default_surfaces = (
+        ROOT / "ui" / "cards" / "v2_mobile.yaml",
+        ROOT / "ui" / "cards" / "v2_tablet.yaml",
+        ROOT / "ui-gallery" / "default-v2-mobile-aq" / "card.yaml",
+        ROOT / "ui-gallery" / "default-v2-tablet-zone-2" / "card.yaml",
+    )
+    forbidden_pause_tile_markers = (
+        "name: Pause",
+        "icon: mdi:pause-circle",
+        "return entity.state === 'active' ? 'PAUSED' : 'LIVE';",
+    )
+    missing_stability_markers = []
+    pause_tile_offenders = []
+    for path in default_surfaces:
+        source = path.read_text(encoding="utf-8")
+        for marker in forbidden_pause_tile_markers:
+            if marker in source:
+                pause_tile_offenders.append(f"{path.relative_to(ROOT)}: {marker}")
+        for marker in (
+            "type: custom:button-card",
+            "name: Stability Score",
+            "entity: sensor.hi_diagnostics",
+            "show_label: false",
+            "hi-stability-gauge",
+            "hi-stability-gauge-white",
+            "hi-stability-leds",
+            'return `<i class="led-${index} ${active ? \'active\' : \'\'}"></i>`;',
+            ".hi-stability-leds i.led-3 { left: 40px; top: 2px; }",
+            "const completeWhite = !hasValue || value >= 99 || classification === 'excellent';",
+            "completeWhite ? '#f8fafc'",
+            "animation: hi-stability-white-shimmer 6000ms ease-in-out infinite;",
+            "animation: hi-stability-led-shimmer 6000ms ease-in-out infinite;",
+            "@keyframes hi-stability-white-shimmer",
+            "@keyframes hi-stability-led-shimmer",
+            "- border: 1px solid rgba(148,163,184,0.22)",
+            "- box-shadow: inset 0 0 0 1px rgba(255,255,255,0.035), 0 0 16px rgba(15,23,42,0.55)",
+            "inset: 14px;",
+            "box-shadow: 0 0 9px 3px var(--hi-stability-color);",
+            "display_score",
+            "display_classification",
+            "const hasRawValue = rawValue !== null && rawValue !== undefined && rawValue !== '';",
+            "const value = hasRawValue ? Number(rawValue) : NaN;",
+            "const hasValue = hasRawValue && Number.isFinite(value);",
+            "const normalized = hasValue ? Math.max(-1, Math.min(1, (value - 50) / 50)) : 0;",
+            "direction === 'left'",
+        ):
+            if marker not in source:
+                missing_stability_markers.append(f"{path.relative_to(ROOT)}: {marker}")
+        for entity_id in (
+            "input_boolean.air_control_enabled",
+            "input_boolean.air_control_manual_override",
+        ):
+            block = _button_card_block(source, entity_id)
+            if "- box-shadow: 0 0 18px rgba(148,163,184,0.12)" not in block:
+                missing_stability_markers.append(
+                    f"{path.relative_to(ROOT)}: missing v2 control glow for {entity_id}"
+                )
+        if source.count("min-height: 132px") < 3:
+            missing_stability_markers.append(
+                f"{path.relative_to(ROOT)}: System/Stability/Manual row height mismatch"
+            )
+        if "hi-stability-ring" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: stale button-card ring")
+        if "type: custom:custom-gauge-card" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: invalid custom gauge dependency")
+        if "attribute: stability_score_display_score" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: invalid flattened score attribute")
+        if "FUTURE 2.1" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: stale bottom future label")
+        if "repeating-conic-gradient" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: stale full-circumference LED halo")
+        if "bottom: 5px;" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: stale bottom LED row")
+        if "box-shadow: 0 0 15px 5px var(--hi-stability-color);" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: stale oversized center aura")
+        if "return `2px solid ${color}`;" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: stability border no longer matches row")
+        if "return `1px solid ${color}`;" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: stability border light should be off")
+        if "box-shadow: 0 0 6px 2px var(--hi-stability-color);" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: stale undersized center aura")
+        if "classification === 'excellent' ? '#22c55e'" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: completed stability hue is not white")
+        if "classification === 'excellent' ? '#38bdf8'" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: completed stability hue is not white")
+        if "hi-stability-white-shimmer 2600ms" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: stale 2600ms stability pulse")
+        if "hi-stability-led-shimmer 2600ms" in source:
+            missing_stability_markers.append(f"{path.relative_to(ROOT)}: stale 2600ms stability led pulse")
+
+    assert pause_tile_offenders == []
+    assert missing_stability_markers == []
 
 
 def test_public_v2_gallery_cards_preserve_air_control_mode_truth():
@@ -3026,8 +3309,8 @@ def test_advanced_tuning_uses_collapsible_sections_not_submit_reveal():
     assert "_advanced_toggle" not in config_source
     assert "self._advanced_visible" not in config_source
     assert "self._advanced_inputs" not in config_source
-    assert 'slope_sources = user_input.get("slope_sources", temp_entities)' in config_source
-    assert 'slope_sources = _sanitize_entity_ids(user_input.get("slope_sources", default_sources))' in config_source
+    assert 'slope_sources = _sanitize_entity_ids(user_input.get("slope_sources") or temp_entities)' in config_source
+    assert 'slope_sources = _sanitize_entity_ids(user_input.get("slope_sources") or default_sources)' in config_source
     assert '"run_duration": user_input.get("run_duration", existing.get("run_duration", 30))' in config_source
 
     advanced_steps = (
@@ -3071,11 +3354,11 @@ def test_readme_only_shows_two_latest_release_notes_before_previous_releases():
     release_notes = readme_source.split("## Release Notes", 1)[1]
     visible_notes, previous_releases = release_notes.split("<details>", 1)
 
+    assert "### v2.0.8" in visible_notes
     assert "### v2.0.7" in visible_notes
-    assert "### v2.0.6" in visible_notes
-    assert "### v2.0.5" not in visible_notes
+    assert "### v2.0.6" not in visible_notes
     assert "<summary>Previous Releases</summary>" in previous_releases
-    assert "### v2.0.5" in previous_releases
+    assert "### v2.0.6" in previous_releases
 
 
 def test_dump_cards_without_layout_exports_all_cached_layouts():
@@ -3208,7 +3491,7 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
         hass,
         entry,
         runtime_data,
-        manifest_version="2.0.7-beta.1",
+        manifest_version="2.0.8-beta.1",
         frontend_dependencies={
             "status": "not_inspectable",
             "reason": "Lovelace resource collection is not available in this Home Assistant runtime context.",
@@ -3243,7 +3526,7 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
         hass,
         entry,
         runtime_data,
-        manifest_version="2.0.7-beta.1",
+        manifest_version="2.0.8-beta.1",
     )
     beta_checks = {check["id"]: check for check in beta_report["checks"]}
     assert beta_checks["manifest_version"]["status"] == "pass"
@@ -3470,6 +3753,40 @@ def test_support_diagnostics_summary_uses_canonical_level_label_source():
     }
 
 
+def test_support_diagnostics_summary_sanitizes_duplicate_zone_mapping_evidence():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=copy.deepcopy(_base_entry_data()), options={})
+    entry.data["zones"]["zone2"] = {
+        "enabled": True,
+        "level": "level1",
+        "rooms": ["Kitchen"],
+        "outputs": ["fan.zone2_private"],
+        "triggers": ["humidity_high"],
+    }
+    hass = _FakeHass(entry, {})
+
+    summary = services_mod._build_diagnostics_summary(
+        hass,
+        entry.data,
+        entry.options,
+        {},
+        {},
+    )
+    support_summary = services_mod._support_safe_diagnostics_summary(summary)
+    rendered = json.dumps(support_summary, sort_keys=True)
+
+    assert "sensor.kitchen_h" not in rendered
+    assert "Kitchen" not in rendered
+    assert support_summary["zone_mapping_duplicates"] == {
+        "count": 1,
+        "pairs": {"zone1:zone2": {"entity_count": 3}},
+    }
+    assert (
+        "1 duplicate zone mapping pair includes 3 overlapping telemetry sources."
+        in support_summary["warnings"]
+    )
+
+
 def test_flash_lights_power_entity_rejects_non_switch_light_domains():
     services_mod = _load_services_module()
 
@@ -3579,9 +3896,12 @@ def test_dump_diagnostics_legacy_export_redacts_sensitive_payload_before_write()
     ):
         assert secret not in rendered
 
-    assert "[REDACTED]" in rendered
-    assert "[REDACTED_URL]" in rendered
-    assert "sensor.kitchen_h" in rendered
+    assert "sensor.kitchen_h" not in rendered
+    assert "sensor.private_diagnostic" not in rendered
+    assert "/hacsfiles/button-card/button-card.js" not in rendered
+    assert "configuration_summary" in captured["payload"][ENTRY_ID]
+    assert "entity_map_summary" in captured["payload"][ENTRY_ID]
+    assert captured["payload"][ENTRY_ID]["entity_map_summary"]["mapped_entity_count"] == 2
 
 
 def test_generated_v2_cards_escape_dynamic_html_text():
@@ -4011,6 +4331,8 @@ def test_v205_release_check_service_is_documented_and_registered():
     assert "handle_v205_release_check" in services_source
     assert "SERVICE_V205_RELEASE_CHECK" in services_source.split("async_unregister_services", 1)[1]
     assert "v205_release_check:" in services_yaml
+    assert "v2.0.5-v2.0.8" in services_yaml
+    assert "v2.0.5-v2.0.8" in readme_source
     assert "write_test_exports" in services_yaml
     assert "humidity_intelligence.v205_release_check" in readme_source
     assert "humidity_intelligence_v205_release_check.json" in readme_source

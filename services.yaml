@@ -51,7 +51,7 @@ refresh_ui:
         text: {}
 dump_diagnostics:
   name: Dump Diagnostics
-  description: Write diagnostics (config, options, mapping, active target profile, alert resolution, visual alert config, house humidity drift dependency, unavailable entities, cards) to a JSON file in the Home Assistant config folder
+  description: Write sanitized diagnostics (configuration counts, active target profile, alert resolution status, visual alert counts, house humidity drift dependency, unavailable counts, cards) to a JSON file in the Home Assistant config folder
   fields:
     entry_id:
       name: Entry ID
@@ -74,7 +74,7 @@ self_check:
         text: {}
 v205_release_check:
   name: Release Check
-  description: Run a read-only v2.0.5-v2.0.7 validation report for generated-card visibility, generated-card entity availability, dump_cards scope behavior, cached layouts, unresolved placeholders, frontend dependency status, house humidity drift dependency status, PM2.5 aggregate normalization status, optional local HI-only snapshot status, and configured entity availability.
+  description: Run a read-only v2.0.5-v2.0.8 validation report for generated-card visibility, generated-card entity availability, dump_cards scope behavior, cached layouts, unresolved placeholders, frontend dependency status, house humidity drift dependency status, PM2.5 aggregate normalization status, optional local HI-only snapshot status, and configured entity availability.
   fields:
     entry_id:
       name: Entry ID
@@ -209,11 +209,11 @@ purge_files:
         text: {}
 pause_control:
   name: Pause Control
-  description: Pause the automation engine for a number of minutes (default 60)
+  description: Pause the automation engine for a number of minutes (default 60). Omitting entry_id pauses all entries and requires an admin user context.
   fields:
     entry_id:
       name: Entry ID
-      description: Optional config entry ID to pause; omit to pause all
+      description: Optional config entry ID to pause; omit to pause all entries with admin context
       selector:
         text: {}
     minutes:
@@ -227,10 +227,10 @@ pause_control:
           mode: box
 resume_control:
   name: Resume Control
-  description: Resume the automation engine immediately by clearing the pause timer
+  description: Resume the automation engine immediately by clearing the pause timer. Omitting entry_id resumes all entries and requires an admin user context.
   fields:
     entry_id:
       name: Entry ID
-      description: Optional config entry ID to resume; omit to resume all
+      description: Optional config entry ID to resume; omit to resume all entries with admin context
       selector:
         text: {}

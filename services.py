@@ -38,7 +38,11 @@ from .helpers.local_versions import (
     cached_local_version_status,
 )
 from .helpers.seasonal import resolve_target_profile, resolve_temperature_comfort_profile
-from .helpers.zone_validation import detect_zone_mapping_duplicates, summarize_zone_mapping_duplicates
+from .helpers.zone_validation import (
+    detect_zone_mapping_duplicates,
+    summarize_zone_mapping_duplicate_count_warning,
+    summarize_zone_mapping_duplicate_counts,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -103,7 +107,7 @@ _GENERATED_CARD_ENTITY_RE = re.compile(
 _SAFE_FILENAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 _SAFE_DASHBOARD_PATH_RE = re.compile(r"^[a-z0-9_-]{1,64}$")
 _RELEASE_CHECK_MANIFEST_VERSION_RE = re.compile(
-    r"^2\.0\.(?:5|6(?:-(?:beta|rc)\.[1-9]\d*)?|7(?:-(?:beta|rc)\.[1-9]\d*)?)$"
+    r"^2\.0\.(?:5|[6-8](?:-(?:beta|rc)\.[1-9]\d*)?)$"
 )
 _SENSITIVE_ATTR_EXACT = {
     "access_token",
@@ -214,6 +218,18 @@ def _validate_bool(value) -> bool:
         if lowered in {"false", "no", "off", "0"}:
             return False
     raise vol.Invalid("Expected a boolean value")
+
+
+async def _async_require_admin_user(hass: HomeAssistant, call: ServiceCall, service_name: str) -> None:
+    context = getattr(call, "context", None)
+    user_id = getattr(context, "user_id", None)
+    auth = getattr(hass, "auth", None)
+    async_get_user = getattr(auth, "async_get_user", None)
+    if not user_id or not callable(async_get_user):
+        raise HomeAssistantError(f"{service_name} requires an admin user context")
+    user = await async_get_user(user_id)
+    if not bool(getattr(user, "is_admin", False)):
+        raise HomeAssistantError(f"{service_name} requires an admin user context")
 
 
 SERVICE_FLASH_SCHEMA = vol.Schema({
@@ -367,30 +383,23 @@ async def async_register_services(hass: HomeAssistant) -> None:
             for entry in entries:
                 data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
                 entity_map = data.get("entity_map", {})
-                state_dump = {}
-                for ent in entity_map.values():
-                    state = hass.states.get(ent)
-                    if state is None:
-                        continue
-                    state_dump[ent] = {
-                        "state": state.state,
-                        "attributes": _redact_sensitive_attributes(dict(state.attributes)),
-                    }
+                config = data.get("config", {})
+                options = data.get("options", {})
+                diagnostics_summary = _build_diagnostics_summary(
+                    hass,
+                    config,
+                    options,
+                    entity_map,
+                    data,
+                    frontend_dependencies=frontend_dependencies,
+                    local_version_status=local_version_status,
+                )
                 payload[entry.entry_id] = {
-                    "config": _to_jsonable(data.get("config", {})),
-                    "options": _to_jsonable(data.get("options", {})),
-                    "diagnostics_summary": _build_diagnostics_summary(
-                        hass,
-                        data.get("config", {}),
-                        data.get("options", {}),
-                        entity_map,
-                        data,
-                        frontend_dependencies=frontend_dependencies,
-                        local_version_status=local_version_status,
-                    ),
-                    "entity_map": _to_jsonable(entity_map),
+                    "configuration_summary": _support_configuration_summary(config, options),
+                    "diagnostics_summary": _support_safe_diagnostics_summary(diagnostics_summary),
+                    "entity_map_summary": _support_entity_map_summary(entity_map),
                     "cards": list((data.get("cards") or {}).keys()),
-                    "states": state_dump,
+                    "state_summary": _support_state_summary(hass, entity_map.values()),
                 }
 
             path = hass.config.path(filename)
@@ -698,6 +707,8 @@ async def async_register_services(hass: HomeAssistant) -> None:
     async def handle_pause_control(call: ServiceCall) -> None:
         entry_id = call.data.get("entry_id")
         minutes = int(call.data.get("minutes", 60))
+        if not entry_id:
+            await _async_require_admin_user(hass, call, SERVICE_PAUSE_CONTROL)
         entries = []
         if entry_id:
             entry = hass.config_entries.async_get_entry(entry_id)
@@ -728,6 +739,8 @@ async def async_register_services(hass: HomeAssistant) -> None:
 
     async def handle_resume_control(call: ServiceCall) -> None:
         entry_id = call.data.get("entry_id")
+        if not entry_id:
+            await _async_require_admin_user(hass, call, SERVICE_RESUME_CONTROL)
         entries = []
         if entry_id:
             entry = hass.config_entries.async_get_entry(entry_id)
@@ -859,6 +872,141 @@ def _redact_sensitive_attributes(attributes: dict) -> dict:
     return redacted
 
 
+def _support_configuration_summary(config: dict, options: dict) -> dict:
+    effective = dict(config or {}) if isinstance(config, dict) else {}
+    if isinstance(options, dict):
+        effective.update(options)
+    telemetry = [item for item in effective.get("telemetry", []) or [] if isinstance(item, dict)]
+    zones = {key: row for key, row in (effective.get("zones", {}) or {}).items() if isinstance(row, dict)}
+    aq = {key: row for key, row in (effective.get("aq", {}) or {}).items() if isinstance(row, dict)}
+    humidifiers = {
+        key: row for key, row in (effective.get("humidifiers", {}) or {}).items() if isinstance(row, dict)
+    }
+    alerts = [item for item in effective.get("alerts", []) or [] if isinstance(item, dict)]
+    return {
+        "telemetry_count": len(telemetry),
+        "telemetry_by_sensor_type": _count_config_rows(telemetry, "sensor_type"),
+        "telemetry_by_level": _count_config_rows(telemetry, "level"),
+        "zone_count": len(zones),
+        "zone_output_count": sum(len(row.get("outputs") or []) for row in zones.values()),
+        "aq_lane_count": len(aq),
+        "aq_output_count": sum(len(row.get("outputs") or []) for row in aq.values()),
+        "humidifier_lane_count": len(humidifiers),
+        "humidifier_output_count": sum(len(row.get("outputs") or []) for row in humidifiers.values()),
+        "presence_gate_entity_count": len((effective.get("presence_gate", {}) or {}).get("entities") or []),
+        "alert_rule_count": len(alerts),
+        "visual_alert_light_count": sum(len(row.get("lights") or []) for row in alerts),
+        "visual_alert_power_entity_count": len([row for row in alerts if row.get("power_entity")]),
+        "option_keys": sorted(str(key) for key in (options or {})),
+    }
+
+
+def _support_entity_map_summary(entity_map: dict) -> dict:
+    return {
+        "mapped_entity_count": len([value for value in (entity_map or {}).values() if value]),
+        "mapped_keys": sorted(str(key) for key, value in (entity_map or {}).items() if value),
+    }
+
+
+def _support_state_summary(hass: HomeAssistant, entity_ids) -> dict:
+    counts = {"available": 0, "missing": 0, "unknown": 0, "unavailable": 0}
+    total = 0
+    for entity_id in entity_ids or []:
+        if not entity_id:
+            continue
+        total += 1
+        state = hass.states.get(str(entity_id))
+        if state is None:
+            counts["missing"] += 1
+            continue
+        state_text = str(getattr(state, "state", "unknown") or "").strip().lower()
+        if not state_text:
+            state_text = "unknown"
+        if state_text in {"unknown", "unavailable"}:
+            counts[state_text] += 1
+        else:
+            counts["available"] += 1
+    return {"count": total, "by_status": counts}
+
+
+def _support_safe_diagnostics_summary(summary: dict) -> dict:
+    unavailable = summary.get("unavailable_or_unknown_entities") or []
+    active_alerts = [item for item in summary.get("active_alert_resolution") or [] if isinstance(item, dict)]
+    return {
+        "target_profile": summary.get("target_profile", {}),
+        "temperature_comfort": summary.get("temperature_comfort", {}),
+        "level_labels": summary.get("level_labels", {}),
+        "zone_mapping_count": len(summary.get("zone_mappings") or {}),
+        "zone_mapping_duplicates": summary.get("zone_mapping_duplicates", {}),
+        "alert_mapping_count": len(summary.get("alert_mappings") or []),
+        "visual_alert_count": len(summary.get("visual_alerts") or []),
+        "active_alert_resolution": {
+            "count": len(active_alerts),
+            "trigger_types": sorted(
+                {str(item.get("trigger_type")) for item in active_alerts if item.get("trigger_type")}
+            ),
+        },
+        "humidity_drift_7d": summary.get("humidity_drift_7d", {}),
+        "pm25_entity_id_normalization": _support_pm25_normalization_summary(
+            summary.get("pm25_entity_id_normalization") or {}
+        ),
+        "frontend_dependency_resources": _support_frontend_dependency_summary(
+            summary.get("frontend_dependency_resources") or {}
+        ),
+        "local_version_preservation": summary.get("local_version_preservation", {}),
+        "unavailable_or_unknown_entities": _support_unavailable_summary(unavailable),
+        "warnings": list(summary.get("warnings") or []),
+    }
+
+
+def _support_pm25_normalization_summary(value: dict) -> dict:
+    changed = value.get("changed") if isinstance(value.get("changed"), dict) else {}
+    blocked = value.get("blocked") if isinstance(value.get("blocked"), list) else []
+    return {
+        "status": value.get("status", "not_run"),
+        "changed_count": len(changed),
+        "blocked_count": len(blocked),
+        "blocked_reasons": sorted(
+            {str(item.get("reason")) for item in blocked if isinstance(item, dict) and item.get("reason")}
+        ),
+    }
+
+
+def _support_frontend_dependency_summary(value: dict) -> dict:
+    if value.get("status") == "not_inspectable":
+        return {
+            "status": "not_inspectable",
+            "reason": value.get("reason"),
+        }
+    rows = {}
+    for key, row in (value or {}).items():
+        if not isinstance(row, dict):
+            continue
+        rows[str(key)] = {
+            "detected": bool(row.get("detected")),
+            "provided_by": row.get("provided_by"),
+        }
+    return rows
+
+
+def _support_unavailable_summary(value) -> dict:
+    counts = {"missing": 0, "unknown": 0, "unavailable": 0}
+    for item in value or []:
+        if not isinstance(item, dict):
+            continue
+        status = str(item.get("status", "unknown"))
+        counts[status] = counts.get(status, 0) + 1
+    return {"count": len(value or []), "by_status": counts}
+
+
+def _count_config_rows(rows: list[dict], key: str) -> dict:
+    counts: dict[str, int] = {}
+    for row in rows:
+        value = str(row.get(key) or "unknown")
+        counts[value] = counts.get(value, 0) + 1
+    return counts
+
+
 def _build_diagnostics_summary(
     hass: HomeAssistant,
     config: dict,
@@ -882,7 +1030,7 @@ def _build_diagnostics_summary(
     drift_dependency = humidity_drift_dependency_status(hass)
     drift_dependency_warning = humidity_drift_warning(drift_dependency)
     warnings = []
-    duplicate_summary = summarize_zone_mapping_duplicates(duplicates)
+    duplicate_summary = summarize_zone_mapping_duplicate_count_warning(duplicates)
     if duplicate_summary:
         warnings.append(duplicate_summary)
     if unavailable:
@@ -921,7 +1069,7 @@ def _build_diagnostics_summary(
         },
         "level_labels": resolve_level_label_details(effective),
         "zone_mappings": _zone_mapping_summary(zones),
-        "zone_mapping_duplicates": duplicates,
+        "zone_mapping_duplicates": summarize_zone_mapping_duplicate_counts(duplicates),
         "alert_mappings": _alert_mapping_summary(alerts),
         "active_alert_resolution": runtime_data.get("alert_telemetry", []),
         "visual_alerts": _visual_alert_summary(alerts),
@@ -1126,11 +1274,11 @@ def _release_check_manifest_status(manifest_version: Optional[str]) -> Tuple[str
     if manifest_version and _RELEASE_CHECK_MANIFEST_VERSION_RE.fullmatch(manifest_version):
         return (
             "pass",
-            f"Manifest version is {version}; release-check contract is valid for the v2.0.5-v2.0.7 line.",
+            f"Manifest version is {version}; release-check contract is valid for the v2.0.5-v2.0.8 line.",
         )
     return (
         "fail",
-        f"Manifest version is {version}; expected v2.0.5 or a v2.0.6/v2.0.7 beta/rc/stable version.",
+        f"Manifest version is {version}; expected v2.0.5 or a v2.0.6-v2.0.8 beta/rc/stable version.",
     )
 
 
