@@ -7,10 +7,11 @@ The helper fetches open GitHub issues, identifies new, untriaged, or recently up
 items, and writes a structured Markdown report for Bella, Aetherwing, Aetherbite, or
 the human maintainer to review.
 
-It does not close, edit, label, assign, or comment on GitHub issues.
+It writes reports only. Closing, editing, labeling, assigning, and public comments stay
+manual maintainer actions.
 It also treats Community Ideas & Proposals issues as intake signals only: interest and
-comments can inform visibility, but they do not grant implementation, runtime, release,
-or Home Assistant authority.
+comments can inform visibility, while implementation, runtime, release, and Home
+Assistant authority stay with maintainer review.
 
 ## Manual Run
 
@@ -29,9 +30,8 @@ Default output:
 `.codex/` is local workspace output. Keep generated triage reports ignored/local unless
 the maintainer explicitly asks to publish a sanitized summary.
 
-Generated triage reports are timestamped support snapshots. They do not override the
-current release state recorded in `CHANGELOG.md`, `manifest.json`, or
-`docs/release-governance.md`.
+Generated triage reports are timestamped support snapshots. The current release state
+stays in `CHANGELOG.md`, `manifest.json`, and `docs/release-governance.md`.
 
 ## Authentication
 
@@ -71,9 +71,9 @@ python3 scripts/issue_triage.py --skip-maintenance-queue
 ## External Advisory Queue
 
 The report can optionally render public-safe advisory YAML files from a local
-directory. These entries are inert report text only: they do not authorize
-implementation, GitHub issue mutation, Home Assistant calls, runtime changes,
-generated dashboard edits, entity-semantic changes, or release-state changes.
+directory. These entries are inert report text only; implementation, GitHub issue
+mutation, Home Assistant calls, runtime changes, generated dashboard edits,
+entity-semantic changes, and release-state changes stay behind maintainer approval.
 Malformed or private-looking entries become report warnings instead of stopping the
 issue triage run.
 
@@ -135,8 +135,8 @@ The existing `humidity_intelligence.dump_diagnostics` JSON export remains a loca
 maintainer/debug tool. It should not be counted as the safe GitHub issue attachment
 path unless a maintainer explicitly asks for it.
 
-These are manual label recommendations only. The script does not create labels, apply
-labels, comment, close, assign, or upload anything.
+These are manual label recommendations only. Label creation, label application,
+comments, closing, assignment, and uploads stay outside the script.
 
 Suggested maintainer flow:
 
@@ -201,9 +201,9 @@ Community Ideas & Proposals issues include user-friendly intake fields:
 - similar issues or proposals
 - optional screenshots, examples, diagnostics, or workaround
 
-Community idea labels are advisory workflow signals. They do not make the idea
-accepted, scheduled, or implementation-ready. Submitting an idea does not guarantee
-implementation, release scheduling, or acceptance.
+Community idea labels are advisory workflow signals. Acceptance, scheduling,
+implementation-readiness, release scheduling, and roadmap inclusion stay with
+maintainer review.
 
 Expected public lifecycle wording:
 

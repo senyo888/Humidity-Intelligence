@@ -16,10 +16,7 @@ It must:
 - reflect output stage
 - mirror engine behavior
 
-It does not:
-
-- compute control logic
-- infer lane priority
+Control logic and lane priority stay in the backend engine.
 
 
 The engine governs.
@@ -124,7 +121,8 @@ Control row:
 Output details:
 
 - render the expandable output details panel only when `show_output_entity_details` is enabled
-- tap the Outputs header to toggle the expander helper; this is UI-only and does not command devices
+- tap the Outputs header to toggle the expander helper; this is UI-only, with device
+  commands left to the runtime/service paths
 - stay display-only; the option must not affect lane selection, output writes, isolation switches, or diagnostics
 - prune unresolved optional AQ aggregate rows instead of leaving `Entity not found` rows
 - require a fresh `humidity_intelligence.dump_cards` export after changing visibility, templates, or backend entity mappings
@@ -221,10 +219,8 @@ If mismatch occurs:
 
 `v1_mobile.yaml` remains compatible with the V2 engine.
 
-It does not reintroduce:
-
-- v1 backend templates
-- v1 packages
+Legacy support keeps the V2 backend contract. V1 backend templates and packages stay
+retired.
 
 Backend must be fully removed before using V2 runtime.
 

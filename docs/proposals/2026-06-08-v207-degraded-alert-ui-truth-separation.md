@@ -52,9 +52,9 @@ runtime lane clears. The observed stable case is caused by raw environmental dan
 binary sensors remaining active for a degraded or unmapped alert candidate while the
 backend correctly reports a non-alert runtime mode.
 
-This proposal is documentation and governance only. It does not authorize card edits,
-runtime edits, entity changes, service changes, dashboard regeneration, release
-promotion, Home Assistant mutation, or HACS packaging changes.
+This proposal records documentation and governance scope only. Card edits, runtime
+edits, entity changes, service changes, dashboard regeneration, release promotion,
+Home Assistant mutation, and HACS packaging changes require separate approval.
 
 ## Stable-Instance Evidence
 
@@ -79,8 +79,8 @@ Sanitized evidence from local stable diagnostics shows:
   separate validation/reporting noise candidate unless future source review proves it
   participates in the red-row symptom.
 
-The public proposal intentionally does not include private room names, private entity
-IDs, raw telemetry dumps, or machine-specific paths.
+The public proposal intentionally excludes private room names, private entity IDs, raw
+telemetry dumps, and machine-specific paths.
 
 ## Root Cause
 
@@ -202,9 +202,8 @@ danger sensors would weaken diagnostics and risk truth to solve a presentation p
 No Home Assistant runtime impact for this proposal-only artifact.
 
 For the recommended future implementation, runtime behavior should remain unchanged:
-no lane-order change, no output-write change, no alert-resolution change, no CO change,
-no AQ change, no humidifier change, no config-flow change, and no service-contract
-change.
+lane order, output writes, alert resolution, CO behavior, AQ behavior, humidifier
+behavior, config flow, and service contracts stay on the existing runtime contract.
 
 ## Entity Semantics Impact
 
@@ -228,12 +227,12 @@ and paste refreshed YAML after the implemented card-template change.
 
 ## Migration / Restart Impact
 
-No migration required. No restart required for this proposal-only work.
+Migration and restart are outside this proposal-only work.
 
-For the preferred future implementation, no migration should be required. A Home
-Assistant restart or integration reload may be needed only to load updated integration
-files, and generated Manual cards would need refresh/export/re-paste to show the UI
-change.
+For the preferred future implementation, migration should stay at standard
+restart/refresh scope. A Home Assistant restart or integration reload may be needed
+only to load updated integration files, and generated Manual cards would need
+refresh/export/re-paste to show the UI change.
 
 ## Deterministic Lane-Order Risk
 
@@ -343,7 +342,7 @@ principles:
 
 - backend runtime remains authoritative;
 - degraded/unmapped alerts remain visible and safely skipped;
-- UI does not invent lane logic;
+- UI stays anchored to backend lane logic;
 - raw risk truth is not suppressed;
 - generated dashboards remain backend/config/diagnostics truth surfaces;
 - no hidden behavior drift is introduced.
@@ -359,8 +358,8 @@ Docs to revisit if implementation proceeds:
 
 Exact future implementation surfaces are the v2 mobile/tablet card templates and
 targeted card sanity tests. [ui/register.py](../../ui/register.py) already maps
-canonical placeholders to HI entities; that mapping explains the symptom but does not
-need to change for the preferred approach.
+canonical placeholders to HI entities; that mapping explains the symptom while staying
+unchanged for the preferred approach.
 
 Backend runtime tests already cover degraded/unmapped alert candidates continuing to
 the next eligible lane without blind boost. The missing coverage is presentation-level:
@@ -387,5 +386,5 @@ SENYO RELEASE REVIEW REQUIRED: YES.
 
 This proposal remains in the repository as the public governance record for the
 implemented UI truth correction. Future changes require a new proposal, issue, or
-release patch with its own validation evidence. This proposal closure does not
-approve tagging, publishing, or GitHub release creation.
+release patch with its own validation evidence. Tagging, publishing, and GitHub release
+creation remain separate approval steps.

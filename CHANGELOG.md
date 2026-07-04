@@ -8,6 +8,10 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+- No unreleased changes.
+
+## 2.0.8
+
 - Added a first-run welcome page before Frontend Dependencies that explains the
   staged setup method, with README guidance and telemetry copy updated so users
   can safely save a small initial sensor set and return through Options later.
@@ -37,12 +41,22 @@ This project follows a practical changelog format for Home Assistant and HACS us
   config entry.
 - Hardened release hygiene and support output handling: the tracked secret scan now
   fails closed when no tracked files are selected, issue-triage reports are written
-  through a confined private atomic writer, and diagnostics/support exports use
-  sanitized structure/count/status summaries instead of raw entity IDs, room names,
-  entity maps, state dumps, or Lovelace resource URLs.
+  through a confined private atomic writer, and diagnostics/support exports favor
+  sanitized structure/count/status summaries and redaction. `self_check` and
+  release-validation reports may still include configured/generated entity IDs needed
+  to debug missing mappings, so treat those exports as local/private until reviewed or
+  sanitized before public sharing.
 - Extended the existing `v205_release_check` manifest-version contract to accept
   the v2.0.8 beta/rc/stable line while preserving the backward-compatible service
   name.
+- Release-candidate preparation impact: manifest metadata is stable `2.0.8` on the
+  `senyo888-patch-1` lane for promotion review. GitHub release publication, tagging,
+  branch promotion, and the user-facing package record stay with the normal maintainer
+  approval flow.
+- Runtime impact: deterministic lane ordering, output-writer boundaries, entity
+  semantics, and migration shape stay aligned with the existing backend contract.
+  Generated dashboards should be refreshed or re-exported after update when users rely
+  on default V2 cards or pasted Manual-card YAML.
 
 ## 2.0.7
 
@@ -121,7 +135,7 @@ This project follows a practical changelog format for Home Assistant and HACS us
 - Differentiated missing helper, helper not ready or unavailable, non-numeric helper, low history coverage, and invalid source states without fabricating drift values.
 - Refined optional Current Air Control temperature chip colours to use backend-owned seasonal cold, comfort, warm, and hot boundaries.
 - Retuned Spring and Summer temperature chip comfort/warm bands while keeping the backend-owned seasonal boundary model unchanged.
-- Exposed the resolved temperature warm boundary through comfort sensor attributes and diagnostics so generated cards do not hard-code seasonal thresholds.
+- Exposed the resolved temperature warm boundary through comfort sensor attributes and diagnostics so generated cards read seasonal thresholds from backend truth.
 - Kept setup/options Frontend Dependencies pages frontend-only; drift dependency truth remains available through diagnostics, self-check, release-check, drift sensor attributes, and Repairs.
 - Preserved the existing drift calculation and legacy `sensor.house_humidity_mean_7d` compatibility.
 - Kept lane ordering, AQ, humidifier, alert, output, migration, restore, HACS update, and runtime-control behavior unchanged except for the explicit `telemetry_unavailable` mode/entity truth correction.

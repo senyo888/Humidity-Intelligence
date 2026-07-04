@@ -98,5 +98,5 @@ change, update the relevant tracked public docs in the same work.
 
 Release truth must remain in tracked repository files, release notes, and Home
 Assistant metadata. Private maintenance evidence and ignored local planning surfaces
-may support review, but they do not approve releases, redefine runtime behavior, or
-replace tracked validation.
+may support review, while release approval, runtime behavior, and tracked validation
+stay with the canonical repository surfaces.

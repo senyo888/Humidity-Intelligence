@@ -3329,11 +3329,11 @@ def test_readme_only_shows_two_latest_release_notes_before_previous_releases():
     release_notes = readme_source.split("## Release Notes", 1)[1]
     visible_notes, previous_releases = release_notes.split("<details>", 1)
 
+    assert "### v2.0.8" in visible_notes
     assert "### v2.0.7" in visible_notes
-    assert "### v2.0.6" in visible_notes
-    assert "### v2.0.5" not in visible_notes
+    assert "### v2.0.6" not in visible_notes
     assert "<summary>Previous Releases</summary>" in previous_releases
-    assert "### v2.0.5" in previous_releases
+    assert "### v2.0.6" in previous_releases
 
 
 def test_dump_cards_without_layout_exports_all_cached_layouts():
