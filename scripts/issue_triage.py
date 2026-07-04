@@ -482,14 +482,23 @@ def _action_from_data(path: Path, data: dict[str, Any]) -> tuple[MaintenanceActi
     )
 
 
+def _queue_source_dir_display(queue_dir: Path) -> str:
+    candidate = queue_dir if queue_dir.is_absolute() else REPO_ROOT / queue_dir
+    try:
+        return str(candidate.resolve().relative_to(REPO_ROOT))
+    except (OSError, ValueError):
+        return "directory outside repository; path redacted"
+
+
 def load_maintenance_action_queue(queue_dir: Path) -> MaintenanceActionQueue:
     """Load tracked advisory maintenance-review actions without executing them."""
 
+    source_dir = _queue_source_dir_display(queue_dir)
     if not queue_dir.exists():
-        return MaintenanceActionQueue(source_dir=str(queue_dir), actions=[], warnings=[])
+        return MaintenanceActionQueue(source_dir=source_dir, actions=[], warnings=[])
     if not queue_dir.is_dir():
         return MaintenanceActionQueue(
-            source_dir=str(queue_dir),
+            source_dir=source_dir,
             actions=[],
             warnings=[f"{queue_dir}: queue path is not a directory"],
         )
@@ -515,7 +524,7 @@ def load_maintenance_action_queue(queue_dir: Path) -> MaintenanceActionQueue:
             action.id,
         )
     )
-    return MaintenanceActionQueue(source_dir=str(queue_dir), actions=actions, warnings=warnings)
+    return MaintenanceActionQueue(source_dir=source_dir, actions=actions, warnings=warnings)
 
 
 def _issue_number(issue: dict[str, Any]) -> str:

@@ -294,6 +294,19 @@ def test_native_diagnostics_payload_contains_support_sections():
     assert payload["generated_ui"]["cached_layouts"] == ["v2_mobile", "v2_tablet"]
 
 
+def test_entity_status_summary_treats_blank_state_as_unknown():
+    diagnostics = _load_diagnostics_module()
+    hass = _sample_hass()
+    hass.states._values["sensor.blank_state"] = _FakeState("   ")
+
+    summary = diagnostics._entity_status_summary(hass, ["sensor.blank_state"])
+
+    assert summary == {
+        "count": 1,
+        "by_status": {"available": 0, "missing": 0, "unknown": 1, "unavailable": 0},
+    }
+
+
 def test_manifest_declares_diagnostics_component_for_native_support():
     manifest = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
     declared = set(manifest.get("dependencies", [])) | set(

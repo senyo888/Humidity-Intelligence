@@ -247,6 +247,24 @@ forbidden_actions:
         self.assertIn("Queue parse warnings: 3", report)
         self.assertIn("No open maintenance review queue actions found.", report)
 
+    def test_maintenance_queue_source_dir_redacts_absolute_local_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            queue_dir = pathlib.Path(tmpdir) / "private-ha-lab"
+            queue = self.triage.load_maintenance_action_queue(queue_dir)
+            report = self.triage.render_report(
+                repo="senyo888/humidity-intelligence",
+                analyzed_issues=[],
+                generated_at=self.generated_at,
+                lookback_days=3,
+                source_note="unit-test fixture",
+                api_status="offline",
+                rate_limit_note="not checked",
+                maintenance_queue=queue,
+            )
+
+        self.assertNotIn(tmpdir, report)
+        self.assertIn("Source: directory outside repository; path redacted", report)
+
     def test_public_safety_rejects_cross_platform_local_paths(self) -> None:
         for local_path in (
             "/home/runner/work/private-ha-lab",
@@ -254,8 +272,7 @@ forbidden_actions:
         ):
             with self.subTest(local_path=local_path):
                 issue = self.triage._public_safety_issue({"instruction": local_path})
-
-            self.assertEqual(issue, "public-safety rejected private-looking value")
+                self.assertEqual(issue, "public-safety rejected private-looking value")
 
     def test_write_report_rejects_paths_outside_repository(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

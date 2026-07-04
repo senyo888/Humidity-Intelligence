@@ -1,9 +1,9 @@
 # Runtime Simulation Validation
 
 This maintainer validation harness proves backend-owned Air Control Mode truth with
-deterministic fake telemetry. It is production validation infrastructure for local
-code checks. V2.1 display fixtures, HA Lab evidence, and live Home Assistant runtime
-validation remain separate surfaces.
+deterministic fake telemetry. It is local validation infrastructure for code checks.
+V2.1 display fixtures, HA Lab evidence, and live Home Assistant runtime validation
+remain separate surfaces.
 
 ## Scope
 
