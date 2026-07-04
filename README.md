@@ -432,6 +432,8 @@ backend template changes automatically.
 
 ### Option A - HACS (Recommended)
 
+Requires Home Assistant **2026.5.1** or newer.
+
 1. Add custom repository:
    `https://github.com/senyo888/Humidity-Intelligence`
    Category: Integration

@@ -8,7 +8,8 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
-- No unreleased changes.
+- Declared Home Assistant `2026.5.1` as the minimum HACS install/update
+  compatibility floor and surfaced the requirement in installation guidance.
 
 ## 2.0.8
 
