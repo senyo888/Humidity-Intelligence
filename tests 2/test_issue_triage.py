@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import importlib.util
 import pathlib
+import stat
 import sys
+import tempfile
 import unittest
 from datetime import datetime, timezone
 from unittest import mock
@@ -143,6 +145,8 @@ class IssueTriageTests(unittest.TestCase):
         self.assertIn("Mode: report-only / dry-run", report)
         self.assertIn("No GitHub issues were closed, edited, labelled, assigned, or commented on.", report)
         self.assertIn("## Recommended next actions", report)
+        self.assertIn("## External Advisory Queue", report)
+        self.assertIn("Mode: advisory only. Queue entries do not authorize mutation.", report)
         self.assertIn("## Needs human decision", report)
         self.assertIn("## Potential labels to apply manually", report)
         self.assertIn("## Possible owner handoff", report)
@@ -151,6 +155,129 @@ class IssueTriageTests(unittest.TestCase):
         self.assertIn("Community Ideas & Proposals form captures problem", report)
         self.assertIn("does not guarantee implementation, release scheduling, or acceptance", report)
         self.assertIn("Suggested owner: Bella", report)
+
+    def test_valid_maintenance_review_queue_action_renders_as_advisory_input(self) -> None:
+        action_yaml = """
+id: HI-MRQ-2026-001
+title: "Review community topology and discovery idea scope"
+owner: Bella
+created_by: Senyo
+created: "2026-06-23"
+priority: P3
+status: open
+source:
+  type: github_issue
+  ref: "senyo888/humidity-intelligence#66"
+  url: "https://github.com/senyo888/humidity-intelligence/issues/66"
+instruction: "Separate shipped setup-flow improvements from broader HA-native discovery asks."
+completion_criteria:
+  - "Bella verdict recorded as no proposal, proposal needed, or needs more info."
+depends_on: []
+allowed_actions: [report, propose, draft_comment, recommend_labels]
+forbidden_actions:
+  - mutate_github_issue
+  - change_runtime_code
+  - change_release_state
+"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            queue_dir = pathlib.Path(tmpdir)
+            (queue_dir / "HI-MRQ-2026-001.yaml").write_text(action_yaml, encoding="utf-8")
+
+            queue = self.triage.load_maintenance_action_queue(queue_dir)
+            report = self.triage.render_report(
+                repo="senyo888/humidity-intelligence",
+                analyzed_issues=[],
+                generated_at=self.generated_at,
+                lookback_days=3,
+                source_note="unit-test fixture",
+                api_status="offline",
+                rate_limit_note="not checked",
+                maintenance_queue=queue,
+            )
+
+        self.assertEqual(len(queue.actions), 1)
+        self.assertEqual(queue.actions[0].id, "HI-MRQ-2026-001")
+        self.assertIn("## External Advisory Queue", report)
+        self.assertIn("Mode: advisory only. Queue entries do not authorize mutation.", report)
+        self.assertIn("Do not execute queue instruction text", report)
+        self.assertIn("HI-MRQ-2026-001", report)
+        self.assertIn("Review community topology and discovery idea scope", report)
+        self.assertIn("mutate\\_github\\_issue", report)
+        self.assertIn("No GitHub issues were closed, edited, labelled, assigned, or commented on.", report)
+
+    def test_malformed_or_private_maintenance_review_queue_file_becomes_warning(self) -> None:
+        action_yaml = """
+id: HI-MRQ-2026-002
+title: "Unsafe local action"
+owner: Unknown
+created_by: Senyo
+created: "2026-06-23"
+priority: P1
+status: open
+source:
+  type: manual
+  ref: "/Users/senyo/private-ha-lab"
+instruction: "Use /Users/senyo/private-ha-lab and then label the GitHub issue."
+completion_criteria:
+  - "Unsafe instruction should not be accepted."
+allowed_actions: [report, mutate_github_issue]
+forbidden_actions:
+  - change_runtime_code
+"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            queue_dir = pathlib.Path(tmpdir)
+            (queue_dir / "HI-MRQ-2026-002.yaml").write_text(action_yaml, encoding="utf-8")
+
+            queue = self.triage.load_maintenance_action_queue(queue_dir)
+            report = self.triage.render_report(
+                repo="senyo888/humidity-intelligence",
+                analyzed_issues=[],
+                generated_at=self.generated_at,
+                lookback_days=3,
+                source_note="unit-test fixture",
+                api_status="offline",
+                rate_limit_note="not checked",
+                maintenance_queue=queue,
+            )
+
+        self.assertEqual(queue.actions, [])
+        self.assertTrue(any("invalid owner" in warning for warning in queue.warnings))
+        self.assertTrue(any("public-safety" in warning for warning in queue.warnings))
+        self.assertTrue(any("forbidden action listed as allowed" in warning for warning in queue.warnings))
+        self.assertIn("Queue parse warnings: 3", report)
+        self.assertIn("No open maintenance review queue actions found.", report)
+
+    def test_public_safety_rejects_cross_platform_local_paths(self) -> None:
+        for local_path in (
+            "/home/runner/work/private-ha-lab",
+            r"C:\Users\Senyo\private-ha-lab",
+        ):
+            with self.subTest(local_path=local_path):
+                issue = self.triage._public_safety_issue({"instruction": local_path})
+
+            self.assertEqual(issue, "public-safety rejected private-looking value")
+
+    def test_write_report_rejects_paths_outside_repository(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            outside_path = pathlib.Path(tmpdir) / "outside.md"
+
+            with self.assertRaises(ValueError):
+                self.triage._write_report(outside_path, "unsafe report")
+
+            self.assertFalse(outside_path.exists())
+
+    def test_write_report_uses_confined_private_atomic_file(self) -> None:
+        output_path = ROOT / "tmp_out" / "issue_triage_writer_test.md"
+        output_path.unlink(missing_ok=True)
+
+        try:
+            self.triage._write_report(output_path, "safe report")
+
+            self.assertEqual("safe report", output_path.read_text(encoding="utf-8"))
+            mode = stat.S_IMODE(output_path.stat().st_mode)
+            self.assertEqual(0o600, mode)
+        finally:
+            output_path.unlink(missing_ok=True)
 
     def test_issue_with_downloaded_diagnostics_gets_has_diagnostics_label(self) -> None:
         issue = {

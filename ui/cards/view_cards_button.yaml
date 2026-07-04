@@ -3,5 +3,4 @@ name: View HI Cards
 icon: mdi:card-text
 show_state: false
 tap_action:
-  action: call-service
-  service: humidity_intelligence.view_cards
+  action: none

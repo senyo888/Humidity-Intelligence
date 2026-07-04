@@ -115,7 +115,8 @@ Humidity Intelligence is distributed via **HACS as a managed template package**.
 
 This means:
 
-* HACS **does not write directly** to your `configuration.yaml` or `/packages/`
+* HACS manages the integration files; your `configuration.yaml` and `/packages/`
+  remain yours to edit
 * You explicitly decide **how** the package is deployed into your config
 * This keeps your setup predictable and update-safe
 
@@ -554,7 +555,9 @@ This is **not a Home Assistant runtime error**.
 
 * `!include_dir_merge_named` is a **valid and supported** Home Assistant feature.
 * Home Assistant will start normally and the sensors will function as expected.
-* The warning comes from the **VS Code Home Assistant schema validator**, which does not fully understand all advanced YAML directives.
+* The warning comes from the **VS Code Home Assistant schema validator**, whose YAML
+  support is more limited than Home Assistant's runtime parser for advanced
+  directives.
 
 ✅ If Home Assistant starts and the Humidity Intelligence sensors appear, this warning can be safely ignored.
 
@@ -604,7 +607,6 @@ If it helps you understand your building better, a ⭐ or a screenshot in Discus
 ## Constellation Open
 
 ![Humidity Intelligence legacy constellation open](ui-gallery/default-lovelace-ui/default_ui_expanded.png)
-
 
 
 

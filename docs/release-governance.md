@@ -5,21 +5,59 @@ testing and validation branches.
 
 ## Canonical Version Model
 
-- `2.0.7-beta.1`, `2.0.7-beta.2`: testing builds.
-- `2.0.7-rc.1`: release-candidate builds.
-- `2.0.7`: stable version label.
+- `2.0.8-beta.1`: testing build.
+- `2.0.8-rc.1`: release-candidate build.
+- `2.0.8`: stable version label. On `senyo888-patch-1` or `develop`, stable
+  metadata may be staged for promotion review. Published release status comes from
+  `main`, release tags, GitHub release publication, and maintainer approval.
 
 The integration version in `manifest.json` is the release-state source of truth for
 Home Assistant and HACS metadata checks.
 
-v2.0.7 is the current stable release line. Stable `2.0.7` metadata is present on
-`main`, while `senyo888-patch-1` may still carry final release-validation fixes
-ahead of `main` until those fixes are promoted. Tagging and GitHub release
-publication remain gated until final validation, promotion, and maintainer
-approval are complete. HA Lab advisory validation for commit `55dc2b9` passed on
-2026-06-23 after lab-only deploy and manual restart; it remains evidence input,
-not release authority. The rules below remain the active promotion model for future
-versions and for any maintenance patch.
+v2.0.7 remains the latest published stable release line until a v2.0.8 stable tag and
+GitHub release are explicitly approved. Stable `2.0.7` metadata is present on `main`.
+
+The v2.0.8 candidate is now staged as stable manifest metadata `2.0.8` on
+`senyo888-patch-1` for promotion review toward `develop`. GitHub release publication,
+tagging, `develop` push/merge, and `main` promotion remain explicit maintainer actions.
+Senyo has maintainer-confirmed stable-instance testing for v2.0.8; that evidence is
+recorded as maintainer confirmation unless independently verified in the same
+validation packet. Stable-instance access or mutation requires explicit approval for
+this lane.
+
+For a `2.0.8` promotion candidate, release readiness needs more than Stage A HA Lab
+package deploy evidence. The release-readiness record must separately state whether
+restart/reload approval, post-restart read-only checks, generated-card evidence, Bella
+review, Aetherwing review, AetherCore governance review, Aetherbite security/privacy
+review, maintainer stable-instance confirmation, and maintainer promotion approval are
+complete.
+
+## v2.0.8 Develop-Review PR Completion
+
+The current v2.0.8 develop-review PR may be completed only as a develop-review merge,
+not as a release publication step.
+
+Before merging the PR to `develop`:
+
+1. Push the final `senyo888-patch-1` review-fix commit and confirm GitHub CI is green.
+2. Confirm CodeRabbit or human review comments have either been fixed or explicitly
+   marked not applicable with a short reason.
+3. Record sanitized HA Lab evidence in the PR body or a PR comment. Stage A package
+   deploy evidence may prove full-package transport, backup creation, and source/remote
+   hash agreement. Read-only Stage B evidence may prove current HA Lab reachability,
+   runtime readiness, diagnostics/card counts, and scenario baseline. Without a
+   separately approved Home Assistant restart or reload, Stage B does not prove that
+   the just-copied package has been activated by Home Assistant.
+4. Keep the generated-dashboard checkbox honest: if `refresh_ui`, dashboard paste,
+   or browser refresh was not performed, leave that item unchecked and explain that
+   users should re-export or refresh generated cards after install.
+5. Obtain the required approving review from a reviewer with write access.
+
+After the PR merges to `develop`, do not tag, publish a GitHub Release, or promote to
+`main` until the hard release gates below pass. Final release promotion still requires
+maintainer approval, Bella coherence review, Aetherwing runtime/release validation,
+AetherCore governance consistency review, README/release approval, and the normal
+release sanity checks for the exact branch being promoted.
 
 ## Branch Responsibilities
 
@@ -32,8 +70,9 @@ versions and for any maintenance patch.
   manifest version only. For example, `v2.0.7` may carry `2.0.7`, but not
   `2.0.7-rc.1` or `2.0.8`.
 - `dependabot/*`: automated dependency-maintenance branches may inherit the
-  current stable manifest version from their base branch. They are not release
-  lanes and do not approve, tag, or publish a release.
+  current stable manifest version from their base branch. Treat them as maintenance
+  lanes only; release approval, tagging, and publication stay with the normal release
+  gates.
 - Short-lived development branches, including `Bella/*`, `codex/*`, `feature/*`,
   `fix/*`, `patch/*`, and `test/*`, must not carry stable manifest versions.
 
@@ -55,21 +94,21 @@ until all of these gates are satisfied:
 - Bella verification has confirmed source-of-truth alignment, UI truth consistency,
   deterministic release boundaries, and README/release-note coherence.
 - AetherCore verification has confirmed governance coherence, role-boundary integrity,
-  proposal/release-process consistency, and local/public boundary safety. This is a
-  governance verification gate; it does not make AetherCore a runtime authority or
-  release approver.
+  proposal/release-process consistency, and local/public boundary safety. AetherCore's
+  role here is governance verification; runtime authority and release approval stay
+  with the established maintainers and gates.
 - Release sanity validation has passed for the change scope, including version
   governance, HACS/package metadata checks, and the relevant Home Assistant runtime,
   direct sanity, service, or generated-card checks.
 - HA Lab beta-validation status is recorded when a beta package has been deployed,
   activated, soaked, or checked in HA Lab. This is operational evidence only: it can
   inform Bella, Aetherwing, AetherCore, maintainer, PR, and release-readiness review,
-  but it cannot approve a release, redefine runtime semantics, replace stable Home
-  Assistant validation, or authorize autonomous mutation.
+  while release approval, runtime semantics, stable Home Assistant validation, and
+  mutation approval stay with their normal gates.
 - The `humidity-intelligence-maintenance` companion has been updated with advisory
   release-gate evidence, blocker notes, or an explicit no-op maintenance status for
-  the staging promotion. This records maintenance evidence only; it does not approve
-  promotion or change canonical HI truth.
+  the staging promotion. This records maintenance evidence; promotion approval and
+  canonical HI truth stay in the canonical repo.
 - Wiki update status is recorded as `updated`, `no-op`, or `blocked` for any release
   that changes support flow, diagnostics, generated dashboards, HACS/update guidance,
   configuration behavior, services, entity semantics, or release documentation. The
@@ -94,8 +133,8 @@ in CI. It rejects:
   `main`, exact matching `vMAJOR.MINOR.PATCH` release-verification branches, and
   automated `dependabot/*` dependency-maintenance branches
 
-This is a release-boundary guard only. It does not alter runtime logic, entity
-semantics, generated dashboards, or Home Assistant services.
+This guard protects the release boundary. Runtime logic, entity semantics, generated
+dashboards, and Home Assistant services stay governed by the integration source.
 
 ## HACS Integration Preflight
 

@@ -2,6 +2,10 @@
   "title": "Humidity Intelligence",
   "config": {
     "step": {
+      "welcome": {
+        "title": "Welcome to Humidity Intelligence",
+        "description": "Humidity Intelligence is a deterministic Home Assistant control engine for humidity, air quality, condensation, mould risk, and carbon monoxide safety. It uses configured sensors, room mappings, zones, outputs, and runtime gates to make one explainable control decision per cycle.\n\nRecommended setup method\n\nFor most homes, start small. Add a few core sensors first, ideally one humidity sensor and one temperature sensor for a main room. Continue through setup and save the integration. You can then return to Options to add more rooms, sensors, zones, air-quality inputs, humidifiers, alerts, and dashboard exports.\n\nThis staged method gives you a saved baseline to return to, makes setup easier to validate, and avoids losing a long first-run configuration.\n\nAdvanced setup method\n\nIf you already know your full sensor layout, you can add all sensors during first setup and configure everything in one pass.\n\nNext, Humidity Intelligence will check optional Frontend Dependencies. Backend control does not require these cards, but generated dashboards look best when they are installed.\n\nFull Configuration Walkthrough: {walkthrough_url}"
+      },
       "dependencies": {
         "title": "Frontend Dependencies",
         "description": "Optional frontend custom cards used by the Humidity Intelligence dashboards.\n\n{dependencies}\n\nBackend control works without optional frontend cards, but dashboard visuals may degrade until they are installed. If a status is Unknown, verify manually in HACS and Dashboard resources.\n\nNeed help finishing setup? Open the Configuration Walkthrough for the recommended dependency, dashboard, and first-run checks: {walkthrough_url}\n\nThanks to Home Assistant, HACS, and the community developers that make these cards possible.",
@@ -57,21 +61,20 @@
       },
       "telemetry": {
         "title": "Telemetry Inputs",
-        "description": "Select humidity, temperature and air quality sensors. Add as many entities as possible now to improve accuracy and make later steps easier.\n\nExisting sensors:\n{existing}\n\nYou can manage/edit/delete existing sensors before continuing.\n\nYou do not need to add condensation or mould sensors; HI will generate these automatically.",
+        "description": "Select humidity, temperature and air quality sensors. You can start with a small core set, finish setup, and return later from Options to add more sensors. Add all sensors now only if you already know the full layout.\n\nExisting sensors:\n{existing}\n\nYou can manage/edit/delete existing sensors before continuing.\n\nYou do not need to add condensation or mould sensors; HI will generate these automatically.",
         "data": {
           "action": "Next action"
         }
       },
       "telemetry_add": {
         "title": "Add Telemetry Sensor",
-        "description": "Add a humidity, temperature or air-quality sensor.\n\nExisting sensors:\n{existing}\n\nCancel returns to Telemetry Inputs without saving this sensor.",
+        "description": "Add a humidity, temperature or air-quality sensor.\n\nExisting sensors:\n{existing}\n\nHome Assistant setup assistance:\n{setup_assist}\n\nCancel returns to Telemetry Inputs without saving this sensor.",
         "data": {
           "action": "Action",
           "entity_id": "Sensor entity",
           "sensor_type": "Sensor type",
-          "friendly_name": "Friendly name (optional)",
           "level": "Level",
-          "room": "Room"
+          "room": "Friendly area name"
         }
       },
       "telemetry_manage": {
@@ -84,14 +87,13 @@
       },
       "telemetry_edit": {
         "title": "Edit Telemetry Sensor",
-        "description": "Update the selected sensor entry.\n\nCancel returns to Telemetry Inputs without saving changes to this sensor.",
+        "description": "Update the selected sensor entry.\n\nHome Assistant setup assistance:\n{setup_assist}\n\nCancel returns to Telemetry Inputs without saving changes to this sensor.",
         "data": {
           "action": "Action",
           "entity_id": "Sensor entity",
           "sensor_type": "Sensor type",
-          "friendly_name": "Friendly name (optional)",
           "level": "Level",
-          "room": "Room"
+          "room": "Friendly area name"
         }
       },
       "cancel_confirm": {
@@ -535,14 +537,13 @@
       },
       "options_telemetry_add": {
         "title": "Add Telemetry Sensor",
-        "description": "Add a sensor and knit it into HI telemetry.\n\nConfigured telemetry:\n{telemetry_summary}\n\nCancel returns to Telemetry Options without saving this sensor.",
+        "description": "Add a sensor and knit it into HI telemetry.\n\nConfigured telemetry:\n{telemetry_summary}\n\nHome Assistant setup assistance:\n{setup_assist}\n\nCancel returns to Telemetry Options without saving this sensor.",
         "data": {
           "action": "Action",
           "entity_id": "Sensor entity",
           "sensor_type": "Sensor type",
-          "friendly_name": "Friendly name (display only)",
           "level": "Level",
-          "room": "Room"
+          "room": "Friendly area name"
         }
       },
       "options_telemetry_manage": {
@@ -555,14 +556,13 @@
       },
       "options_telemetry_edit": {
         "title": "Edit Telemetry Sensor",
-        "description": "Editing sensor {sensor_position} of {sensor_total}.\n\n{selected_sensor}\n\nCancel returns to Telemetry Options without saving changes to this sensor.",
+        "description": "Editing sensor {sensor_position} of {sensor_total}.\n\n{selected_sensor}\n\nHome Assistant setup assistance:\n{setup_assist}\n\nCancel returns to Telemetry Options without saving changes to this sensor.",
         "data": {
           "action": "Action",
           "entity_id": "Sensor entity",
           "sensor_type": "Sensor type",
-          "friendly_name": "Friendly name (display only)",
           "level": "Level",
-          "room": "Room"
+          "room": "Friendly area name"
         }
       },
       "options_cancel_confirm": {

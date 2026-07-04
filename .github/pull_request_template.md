@@ -36,7 +36,7 @@
 
 ## HA Lab advisory evidence
 
-<!-- State HA Lab status as pass / fail / blocked / not run / not applicable. Include sanitized Stage A, activation, soak, Stage 3, card/entity-map, and rollback evidence when relevant. HA Lab evidence is advisory only and does not replace release gates. -->
+<!-- State HA Lab status as pass / fail / blocked / not run / not applicable. Include sanitized Stage A, activation, soak, Stage 3, card/entity-map, and rollback evidence when relevant. HA Lab evidence is advisory input; release gates still apply. -->
 
 ## Type
 
@@ -59,8 +59,8 @@
 - [ ] No private entity IDs, secrets, addresses, or personal data included.
 - [ ] HACS/custom integration metadata still looks correct.
 - [ ] Deterministic lane ordering is preserved, or the PR explicitly explains an approved semantic change.
-- [ ] UI truth consistency is preserved; generated UI does not invent backend state.
-- [ ] Migration impact is documented, including "none" when no migration is required.
+- [ ] UI truth consistency is preserved; generated UI stays anchored to backend state.
+- [ ] Migration impact is documented, using "none" where appropriate.
 - [ ] Release/readiness impact is stated, including whether Bella/Aetherwing/AetherCore review is needed.
 
 ## UI Gallery submissions

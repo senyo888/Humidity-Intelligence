@@ -20,6 +20,8 @@ Please review the bundle before attaching if you are concerned about privacy. Th
 - config entry and options summary
 - selected telemetry, gate, zone, AQ, humidifier, alert, and output entities
 - enabled feature areas
+- Home Assistant Area/Label setup-assist status, including sanitized counts for
+  advisory metadata context and saved-room mismatches
 - current runtime mode/lane and reason text
 - gate states
 - output state summary
@@ -49,7 +51,9 @@ It redacts sensitive keys and values such as:
 - latitude, longitude, and address-style location fields
 - usernames, email, phone, host, IP, MAC, SSID, device ID, and unique ID fields
 
-Entity IDs are intentionally included because they are usually needed to debug mappings and unavailable entities. Review the file before uploading if your entity names contain personal information.
+Native diagnostics prefer structure, counts, and statuses over raw entity IDs, room
+names, Area names, Label names, entity maps, and state dumps. Review the file before
+uploading if your local names contain personal information.
 
 ## If You Cannot Download Diagnostics
 
@@ -73,13 +77,12 @@ specific runtime, dashboard, or integration behavior. If a proposal is really a 
 configuration problem, maintainers may reclassify it and ask for the native Home
 Assistant diagnostics download.
 
-Community interest helps maintainers understand visibility and demand, but it does not
-approve implementation. Deterministic runtime behavior, UI truth, Home Assistant
-compatibility, maintainability, and maintainer approval remain required before any
-change is planned or implemented.
+Community interest helps maintainers understand visibility and demand. Implementation
+approval stays with maintainer review, deterministic runtime behavior, UI truth, Home
+Assistant compatibility, and maintainability.
 
-Submitting an idea does not guarantee implementation, release scheduling, or
-acceptance. The usual path is:
+Idea submission is an intake signal rather than an implementation, release-scheduling,
+or acceptance commitment. The usual path is:
 
 ```text
 Community idea issue -> maintainer triage -> formal HI proposal only if warranted

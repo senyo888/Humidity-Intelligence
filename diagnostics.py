@@ -31,18 +31,15 @@ from .helpers.frontend_dependencies import (
 from .helpers.level_labels import resolve_level_label_details
 from .helpers.local_versions import async_local_version_status, cached_local_version_status
 from .helpers.seasonal import resolve_target_profile, resolve_temperature_comfort_profile
-from .helpers.zone_validation import detect_zone_mapping_duplicates, summarize_zone_mapping_duplicates
-_SAFE_STATE_ATTRIBUTES = {
-    "device_class",
-    "display",
-    "friendly_name",
-    "humidity",
-    "mode",
-    "percentage",
-    "preset_mode",
-    "target_humidity",
-    "unit_of_measurement",
-}
+from .helpers.setup_assist import (
+    diagnostics_setup_assist_summary,
+    diagnostics_setup_assist_warnings,
+)
+from .helpers.zone_validation import (
+    detect_zone_mapping_duplicates,
+    summarize_zone_mapping_duplicate_count_warning,
+    summarize_zone_mapping_duplicate_counts,
+)
 
 
 async def async_get_config_entry_diagnostics(
@@ -76,16 +73,16 @@ async def async_get_config_entry_diagnostics(
             "runtime_control_changed_by_diagnostics": False,
         },
         "config_entry": {
-            "entry_id": getattr(entry, "entry_id", None),
-            "title": getattr(entry, "title", None),
-            "data": getattr(entry, "data", {}) or {},
-            "options": getattr(entry, "options", {}) or {},
+            "entry_id_present": bool(getattr(entry, "entry_id", None)),
+            "title_present": bool(getattr(entry, "title", None)),
+            "data_keys": sorted(str(key) for key in (getattr(entry, "data", {}) or {})),
+            "option_keys": sorted(str(key) for key in (getattr(entry, "options", {}) or {})),
         },
         "configuration": {
             "summary": _configuration_summary(effective),
             "options_summary": _options_summary(effective),
             "enabled_feature_areas": _enabled_feature_areas(effective),
-            "selected_entities": _selected_entities(effective),
+            "selected_entity_summary": _selected_entity_summary(effective),
         },
         "runtime": _runtime_summary(
             hass,
@@ -211,48 +208,37 @@ def _enabled_feature_areas(config: dict[str, Any]) -> dict[str, bool]:
     }
 
 
-def _selected_entities(config: dict[str, Any]) -> dict[str, Any]:
+def _selected_entity_summary(config: dict[str, Any]) -> dict[str, Any]:
+    telemetry = [item for item in _list(config.get("telemetry")) if isinstance(item, dict)]
+    alerts = [item for item in _list(config.get("alerts")) if isinstance(item, dict)]
     return {
-        "telemetry": [
-            {
-                "entity_id": item.get("entity_id"),
-                "sensor_type": item.get("sensor_type"),
-                "level": item.get("level"),
-                "room": item.get("room"),
-                "friendly_name": item.get("friendly_name"),
-            }
-            for item in _list(config.get("telemetry"))
-            if isinstance(item, dict)
-        ],
-        "presence_gate": list(_dict(config.get("presence_gate")).get("entities") or []),
-        "zones": {
-            key: {
-                "enabled": bool(zone.get("enabled")),
-                "level": zone.get("level"),
-                "rooms": list(zone.get("rooms") or []),
-                "outputs": list(zone.get("outputs") or []),
-            }
-            for key, zone in _dict(config.get("zones")).items()
-            if isinstance(zone, dict)
+        "telemetry": {
+            "count": len(telemetry),
+            "by_sensor_type": _count_by(telemetry, "sensor_type"),
+            "by_level": _count_by(telemetry, "level"),
         },
-        "air_quality": _lane_outputs(config.get("aq")),
-        "humidifiers": _lane_outputs(config.get("humidifiers")),
+        "presence_gate": {
+            "enabled": bool(_dict(config.get("presence_gate")).get("enabled")),
+            "entity_count": len(_dict(config.get("presence_gate")).get("entities") or []),
+        },
+        "zones": _zone_mapping_summary(_dict(config.get("zones"))),
+        "air_quality": _lane_output_summary(config.get("aq")),
+        "humidifiers": _lane_output_summary(config.get("humidifiers")),
         "alerts": [
             {
                 "index": idx,
                 "enabled": bool(alert.get("enabled", True)),
                 "trigger_type": alert.get("trigger_type"),
-                "room": alert.get("room"),
-                "lights": list(alert.get("lights") or []),
-                "power_entity": alert.get("power_entity"),
+                "room_configured": bool(alert.get("room")),
+                "visual_light_count": len(alert.get("lights") or []),
+                "has_power_entity": bool(alert.get("power_entity")),
             }
-            for idx, alert in enumerate(_list(config.get("alerts")), start=1)
-            if isinstance(alert, dict)
+            for idx, alert in enumerate(alerts, start=1)
         ],
         "slope": {
             "mode": _dict(config.get("slope")).get("mode"),
-            "source_entities": list(_dict(config.get("slope")).get("source_entities") or []),
-            "provided_sensors": list(_dict(config.get("slope")).get("provided_sensors") or []),
+            "source_entity_count": len(_dict(config.get("slope")).get("source_entities") or []),
+            "provided_sensor_count": len(_dict(config.get("slope")).get("provided_sensors") or []),
         },
     }
 
@@ -268,16 +254,19 @@ def _runtime_summary(
         "current_state": {
             "runtime_mode": runtime_data.get("runtime_mode"),
             "runtime_mode_display": runtime_data.get("runtime_mode_display"),
-            "reason_text": runtime_data.get("runtime_reason_full") or runtime_data.get("runtime_reason"),
+            "reason_available": bool(runtime_data.get("runtime_reason_full") or runtime_data.get("runtime_reason")),
             "reason_truncated": bool(runtime_data.get("runtime_reason_truncated")),
         },
         "active_lane": runtime_data.get("runtime_mode"),
         "active_mode": runtime_data.get("runtime_mode_display"),
-        "active_alert_resolution": runtime_data.get("alert_telemetry", []),
+        "active_alert_resolution": _alert_resolution_summary(runtime_data.get("alert_telemetry", [])),
         "gate_states": _gate_states(hass, config, runtime_data),
         "output_states": _output_states(hass, config),
         "mapped_runtime_entities": _mapped_entity_states(hass, entity_map),
-        "unavailable_or_unknown_entities": _unavailable_configured_entities(hass, config, entity_map),
+        "unavailable_or_unknown_entities": diagnostics_summary.get(
+            "unavailable_or_unknown_entities",
+            _unavailable_entity_summary([]),
+        ),
         "warnings": diagnostics_summary.get("warnings", []),
         "recent_hi_warnings_errors": {
             "status": "not_available",
@@ -305,20 +294,20 @@ def _gate_states(
         },
         "presence_gate": {
             "enabled": bool(presence_gate.get("enabled")),
-            "entities": [_entity_state(hass, entity_id) for entity_id in presence_gate.get("entities") or []],
-            "present_states": list(presence_gate.get("present_states") or []),
-            "away_states": list(presence_gate.get("away_states") or []),
+            "entity_status": _entity_status_summary(hass, presence_gate.get("entities") or []),
+            "present_state_count": len(presence_gate.get("present_states") or []),
+            "away_state_count": len(presence_gate.get("away_states") or []),
         },
         "control_switches": {
             key: {
-                "entity_id": getattr(entity, "entity_id", None),
+                "entity_present": bool(getattr(entity, "entity_id", None)),
                 "is_on": bool(getattr(entity, "is_on", False)),
             }
             for key, entity in booleans.items()
         },
         "pause_timers": {
             key: {
-                "entity_id": getattr(timer, "entity_id", None),
+                "entity_present": bool(getattr(timer, "entity_id", None)),
                 "state": _timer_state(timer),
             }
             for key, timer in timers.items()
@@ -347,9 +336,9 @@ def _output_states(hass: HomeAssistant, config: dict[str, Any]) -> dict[str, Any
             visual_alert_outputs.add(alert["power_entity"])
 
     return {
-        "fan_outputs": [_entity_state(hass, entity_id) for entity_id in sorted(fan_outputs)],
-        "humidifier_outputs": [_entity_state(hass, entity_id) for entity_id in sorted(humidifier_outputs)],
-        "visual_alert_outputs": [_entity_state(hass, entity_id) for entity_id in sorted(visual_alert_outputs)],
+        "fan_outputs": _entity_status_summary(hass, sorted(fan_outputs)),
+        "humidifier_outputs": _entity_status_summary(hass, sorted(humidifier_outputs)),
+        "visual_alert_outputs": _entity_status_summary(hass, sorted(visual_alert_outputs)),
     }
 
 
@@ -358,25 +347,27 @@ def _mapped_entity_states(hass: HomeAssistant, entity_map: dict[str, Any]) -> di
     for key, entity_id in sorted((entity_map or {}).items()):
         if not entity_id:
             continue
-        rows[str(key)] = _entity_state(hass, str(entity_id))
+        rows[str(key)] = _entity_status(hass, str(entity_id))
     return rows
 
 
-def _entity_state(hass: HomeAssistant, entity_id: str) -> dict[str, Any]:
+def _entity_status(hass: HomeAssistant, entity_id: str) -> dict[str, Any]:
     state = hass.states.get(entity_id)
     if state is None:
-        return {"entity_id": entity_id, "status": "missing"}
-    attrs = {
-        key: value
-        for key, value in dict(getattr(state, "attributes", {}) or {}).items()
-        if key in _SAFE_STATE_ATTRIBUTES
-    }
+        return {"configured": True, "status": "missing"}
     return {
-        "entity_id": entity_id,
-        "status": str(getattr(state, "state", "unknown")).lower(),
-        "state": getattr(state, "state", None),
-        "attributes": attrs,
+        "configured": True,
+        "status": _entity_status_bucket(getattr(state, "state", "unknown")),
     }
+
+
+def _entity_status_bucket(state: Any) -> str:
+    state_text = str(state or "").strip().lower()
+    if state_text in {"unknown", "unavailable"}:
+        return state_text
+    if not state_text:
+        return "unknown"
+    return "available"
 
 
 def _generated_ui_summary(config: dict[str, Any], runtime_data: dict[str, Any]) -> dict[str, Any]:
@@ -388,7 +379,6 @@ def _generated_ui_summary(config: dict[str, Any], runtime_data: dict[str, Any]) 
         "cached_layouts": sorted(cards.keys()),
         "cached_layout_sizes": {str(name): len(str(card)) for name, card in cards.items()},
         "unresolved_placeholders_count": len(unresolved),
-        "unresolved_placeholders_sample": list(unresolved)[:20],
         "unresolved_placeholders_by_card_count": len(unresolved_by_card),
         "show_output_entity_details": bool(
             config.get(CONF_SHOW_OUTPUT_ENTITY_DETAILS, DEFAULT_SHOW_OUTPUT_ENTITY_DETAILS)
@@ -411,10 +401,11 @@ def _diagnostics_summary(
     target_profile = resolve_target_profile(config)
     comfort_profile = resolve_temperature_comfort_profile(config)
     duplicates = detect_zone_mapping_duplicates(telemetry, zones)
-    duplicate_summary = summarize_zone_mapping_duplicates(duplicates)
+    duplicate_summary = summarize_zone_mapping_duplicate_count_warning(duplicates)
     unavailable = _unavailable_configured_entities(hass, config, entity_map)
     drift_dependency = humidity_drift_dependency_status(hass)
     drift_dependency_warning = humidity_drift_warning(drift_dependency)
+    setup_assist = diagnostics_setup_assist_summary(hass, telemetry)
     warnings = []
     if duplicate_summary:
         warnings.append(duplicate_summary)
@@ -422,8 +413,9 @@ def _diagnostics_summary(
         warnings.append(f"{len(unavailable)} configured/mapped entity references are missing, unknown, or unavailable.")
     if drift_dependency_warning:
         warnings.append(drift_dependency_warning)
+    warnings.extend(diagnostics_setup_assist_warnings(setup_assist))
     pm25_normalization = _pm25_normalization_status(runtime_data)
-    if pm25_normalization.get("blocked"):
+    if pm25_normalization.get("blocked_count"):
         warnings.append("PM25 aggregate entity ID normalization is blocked by an existing target entity.")
     if not telemetry:
         warnings.append("No telemetry sensors are configured.")
@@ -454,15 +446,16 @@ def _diagnostics_summary(
         },
         "level_labels": resolve_level_label_details(config),
         "zone_mappings": _zone_mapping_summary(zones),
-        "zone_mapping_duplicates": duplicates,
+        "zone_mapping_duplicates": summarize_zone_mapping_duplicate_counts(duplicates),
         "alert_mappings": _alert_mapping_summary(alerts),
-        "active_alert_resolution": runtime_data.get("alert_telemetry", []),
+        "active_alert_resolution": _alert_resolution_summary(runtime_data.get("alert_telemetry", [])),
         "visual_alerts": _visual_alert_summary(alerts),
         "humidity_drift_7d": drift_dependency,
+        "setup_assist": setup_assist,
         "pm25_entity_id_normalization": pm25_normalization,
         "frontend_dependency_resources": frontend_dependencies,
         "local_version_preservation": local_version_status or cached_local_version_status(hass),
-        "unavailable_or_unknown_entities": unavailable,
+        "unavailable_or_unknown_entities": _unavailable_entity_summary(unavailable),
         "warnings": warnings,
     }
 
@@ -470,7 +463,7 @@ def _diagnostics_summary(
 def _pm25_normalization_status(runtime_data: dict[str, Any]) -> dict[str, Any]:
     details = runtime_data.get("pm25_entity_id_normalization")
     if not isinstance(details, dict):
-        return {"status": "not_run", "changed": {}, "blocked": []}
+        return {"status": "not_run", "changed_count": 0, "blocked_count": 0, "blocked_reasons": []}
     changed = details.get("changed") if isinstance(details.get("changed"), dict) else {}
     blocked = details.get("blocked") if isinstance(details.get("blocked"), list) else []
     if blocked:
@@ -481,8 +474,11 @@ def _pm25_normalization_status(runtime_data: dict[str, Any]) -> dict[str, Any]:
         status = "ok"
     return {
         "status": status,
-        "changed": changed,
-        "blocked": blocked,
+        "changed_count": len(changed),
+        "blocked_count": len(blocked),
+        "blocked_reasons": sorted(
+            {str(item.get("reason")) for item in blocked if isinstance(item, dict) and item.get("reason")}
+        ),
     }
 
 
@@ -494,12 +490,12 @@ def _zone_mapping_summary(zones: dict[str, Any]) -> dict[str, Any]:
         summary[str(key)] = {
             "enabled": bool(zone.get("enabled")),
             "level": zone.get("level"),
-            "rooms": list(zone.get("rooms") or []),
-            "outputs": list(zone.get("outputs") or []),
+            "room_count": len(zone.get("rooms") or []),
+            "output_count": len(zone.get("outputs") or []),
             "output_level": zone.get("output_level"),
             "boost_output_level": zone.get("boost_output_level"),
-            "triggers": list(zone.get("triggers") or []),
-            "thresholds": dict(zone.get("thresholds") or {}),
+            "trigger_count": len(zone.get("triggers") or []),
+            "threshold_count": len(_dict(zone.get("thresholds"))),
         }
     return summary
 
@@ -514,10 +510,10 @@ def _alert_mapping_summary(alerts: list[Any]) -> list[dict[str, Any]]:
                 "index": idx,
                 "enabled": bool(alert.get("enabled", True)),
                 "trigger_type": alert.get("trigger_type"),
-                "room": alert.get("room"),
+                "room_configured": bool(alert.get("room")),
                 "threshold": alert.get("threshold"),
-                "visual_lights": list(alert.get("lights") or []),
-                "power_entity": alert.get("power_entity"),
+                "visual_light_count": len(alert.get("lights") or []),
+                "has_power_entity": bool(alert.get("power_entity")),
                 "flash_mode": alert.get("flash_mode", "red"),
                 "duration": alert.get("duration", 10),
             }
@@ -528,15 +524,15 @@ def _alert_mapping_summary(alerts: list[Any]) -> list[dict[str, Any]]:
 def _visual_alert_summary(alerts: list[Any]) -> list[dict[str, Any]]:
     rows = []
     for alert in _alert_mapping_summary(alerts):
-        if not alert.get("visual_lights"):
+        if not alert.get("visual_light_count"):
             continue
         rows.append(
             {
                 "index": alert["index"],
                 "trigger_type": alert["trigger_type"],
-                "room": alert["room"],
-                "lights": alert["visual_lights"],
-                "power_entity": alert["power_entity"],
+                "room_configured": alert["room_configured"],
+                "visual_light_count": alert["visual_light_count"],
+                "has_power_entity": alert["has_power_entity"],
                 "flash_mode": alert["flash_mode"],
                 "flash_count": 10,
                 "repeat_minutes": 30,
@@ -585,6 +581,59 @@ def _lane_outputs(value: Any) -> dict[str, list[str]]:
         if isinstance(row, dict):
             rows[str(key)] = list(row.get("outputs") or [])
     return rows
+
+
+def _lane_output_summary(value: Any) -> dict[str, dict[str, Any]]:
+    rows = {}
+    for key, row in _dict(value).items():
+        if isinstance(row, dict):
+            rows[str(key)] = {
+                "enabled": bool(row.get("enabled", True)),
+                "output_count": len(row.get("outputs") or []),
+            }
+    return rows
+
+
+def _entity_status_summary(hass: HomeAssistant, entity_ids: list[Any]) -> dict[str, Any]:
+    counts = {"available": 0, "missing": 0, "unknown": 0, "unavailable": 0}
+    for entity_id in entity_ids:
+        state = hass.states.get(str(entity_id))
+        if state is None:
+            counts["missing"] += 1
+            continue
+        state_text = str(getattr(state, "state", "unknown")).lower()
+        if state_text in {"unknown", "unavailable"}:
+            counts[state_text] += 1
+        else:
+            counts["available"] += 1
+    return {"count": len(entity_ids), "by_status": counts}
+
+
+def _unavailable_entity_summary(unavailable: list[dict[str, Any]]) -> dict[str, Any]:
+    counts = {"missing": 0, "unknown": 0, "unavailable": 0}
+    for item in unavailable:
+        status = str(item.get("status", "unknown"))
+        counts[status] = counts.get(status, 0) + 1
+    return {"count": len(unavailable), "by_status": counts}
+
+
+def _alert_resolution_summary(value: Any) -> dict[str, Any]:
+    rows = [item for item in _list(value) if isinstance(item, dict)]
+    return {
+        "count": len(rows),
+        "degraded_count": len([item for item in rows if item.get("degraded") is True]),
+        "trigger_types": sorted(
+            {str(item.get("trigger_type")) for item in rows if item.get("trigger_type")}
+        ),
+    }
+
+
+def _count_by(rows: list[dict[str, Any]], key: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        value = str(row.get(key) or "unknown")
+        counts[value] = counts.get(value, 0) + 1
+    return counts
 
 
 def _timer_state(timer: Any) -> Any:
