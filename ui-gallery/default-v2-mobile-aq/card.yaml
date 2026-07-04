@@ -1741,7 +1741,8 @@ card:
                   score.display_score ??
                   stability.display_score ??
                   entity?.attributes?.stability_score_display_score;
-                const value = Number(rawValue);
+                const hasRawValue = rawValue !== null && rawValue !== undefined && rawValue !== '';
+                const value = hasRawValue ? Number(rawValue) : NaN;
                 const classification = String(
                   score.display_classification ||
                   stability.display_classification ||
@@ -1759,7 +1760,7 @@ card:
                   entity?.attributes?.stability_score_suppression_reason ||
                   ''
                 );
-                const hasValue = Number.isFinite(value);
+                const hasValue = hasRawValue && Number.isFinite(value);
                 const completeWhite = !hasValue || value >= 99 || classification === 'excellent';
                 const color =
                   suppression === 'current_telemetry_unavailable' ? '#94a3b8' :

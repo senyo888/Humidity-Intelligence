@@ -357,6 +357,12 @@ def test_native_diagnostics_uses_sanitized_counts_status_not_raw_private_ids():
     assert unavailable["by_status"]["unknown"] == 1
     assert unavailable["by_status"]["unavailable"] == 1
 
+    mapped = payload["runtime"]["mapped_runtime_entities"]
+    assert mapped["air_control_mode"]["status"] == "available"
+    assert mapped["air_control_reason"]["status"] == "available"
+    assert mapped["zone_output"]["status"] == "unavailable"
+    assert "humidity danger in kitchen" not in json.dumps(mapped, sort_keys=True).lower()
+
 
 def test_native_diagnostics_sanitizes_duplicate_zone_mapping_evidence():
     diagnostics = _load_diagnostics_module()

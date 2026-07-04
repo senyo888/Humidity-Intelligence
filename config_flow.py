@@ -93,6 +93,7 @@ ADVANCED_DEFAULTS_NOTE = (
     "Humidity Intelligence applies recommended defaults unless you customise these settings."
 )
 FORM_ACTION_SAVE = "save"
+FORM_ACTION_PREVIEW = "preview"
 FORM_ACTION_CANCEL = "cancel"
 FORM_ACTION_RETURN = "return"
 FORM_ACTION_CLOSE = "close"
@@ -158,6 +159,14 @@ def _value_label_options(items: List[Dict[str, Any]]) -> List[SelectOptionDict]:
 def _save_cancel_options(save_label: str) -> List[SelectOptionDict]:
     return [
         SelectOptionDict(value=FORM_ACTION_SAVE, label=save_label),
+        SelectOptionDict(value=FORM_ACTION_CANCEL, label="Cancel"),
+    ]
+
+
+def _save_preview_cancel_options(save_label: str) -> List[SelectOptionDict]:
+    return [
+        SelectOptionDict(value=FORM_ACTION_SAVE, label=save_label),
+        SelectOptionDict(value=FORM_ACTION_PREVIEW, label="Preview HA suggestion"),
         SelectOptionDict(value=FORM_ACTION_CANCEL, label="Cancel"),
     ]
 
@@ -534,7 +543,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         schema = vol.Schema({
             vol.Optional("action", default=FORM_ACTION_SAVE): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=_save_cancel_options("Save sensor"),
+                    options=_save_preview_cancel_options("Save sensor"),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
@@ -2081,7 +2090,7 @@ class HumidityIntelligenceOptionsFlow(config_entries.OptionsFlow):
         schema = vol.Schema({
             vol.Optional("action", default=FORM_ACTION_SAVE): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=_save_cancel_options("Save sensor"),
+                    options=_save_preview_cancel_options("Save sensor"),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
@@ -3644,7 +3653,7 @@ def _render_existing_telemetry(
     for item in telemetry:
         ent = item.get("entity_id") or "unknown"
         room = item.get("room") or ent
-        display = room or item.get("friendly_name") or ent
+        display = room
         level = _level_choice_label(item.get("level"), config or {})
         stype = item.get("sensor_type")
         lines.append(f"- {display} ({level}): {stype} ({ent})")
@@ -3661,7 +3670,7 @@ def _telemetry_options(telemetry: List[Dict[str, Any]]) -> List[SelectOptionDict
 def _telemetry_label(item: Dict[str, Any]) -> str:
     ent = item.get("entity_id") or "unknown"
     room = item.get("room") or ent
-    display = room or item.get("friendly_name") or ent
+    display = room
     stype = str(item.get("sensor_type") or "sensor").replace("_", " ").title()
     return f"{display} ({stype}) - {ent}"
 
@@ -3734,6 +3743,8 @@ def _is_setup_assist_preview_input(user_input: Optional[Dict[str, Any]]) -> bool
         return False
     if not _sanitize_optional_entity_id(user_input.get("entity_id")):
         return False
+    if user_input.get("action") == FORM_ACTION_PREVIEW:
+        return True
     explicit_fields = {
         "sensor_type",
         "friendly_name",

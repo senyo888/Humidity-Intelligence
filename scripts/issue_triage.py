@@ -119,6 +119,8 @@ MAINTENANCE_QUEUE_REQUIRED_FIELDS = {
 }
 MAINTENANCE_QUEUE_PUBLIC_SAFETY_PATTERNS = (
     re.compile(r"/Users/[^,\s]+"),
+    re.compile(r"/home/[^,\s]+"),
+    re.compile(r"\b[A-Za-z]:\\Users\\[^,\s]+", re.I),
     re.compile(r"\b(?:GITHUB_TOKEN|HA_TOKEN|SUPERVISOR_TOKEN|api[_-]?key|secret|password)\b", re.I),
     re.compile(r"\bBearer\s+[A-Za-z0-9._~-]+", re.I),
     re.compile(r"\b(?:homeassistant|home-assistant)\.local\b", re.I),
@@ -336,7 +338,7 @@ def _parse_simple_action_yaml(text: str) -> dict[str, Any]:
                 raise ValueError(f"line {line_number}: empty key")
             value = value.strip()
             if not value:
-                data[key] = {} if key in {"source", "public_safety"} else []
+                data[key] = {} if key == "source" else []
                 active_key = key
             else:
                 data[key] = _parse_yaml_scalar(value)

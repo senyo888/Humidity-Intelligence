@@ -40,17 +40,6 @@ from .helpers.zone_validation import (
     summarize_zone_mapping_duplicate_count_warning,
     summarize_zone_mapping_duplicate_counts,
 )
-_SAFE_STATE_ATTRIBUTES = {
-    "device_class",
-    "display",
-    "friendly_name",
-    "humidity",
-    "mode",
-    "percentage",
-    "preset_mode",
-    "target_humidity",
-    "unit_of_measurement",
-}
 
 
 async def async_get_config_entry_diagnostics(
@@ -274,8 +263,9 @@ def _runtime_summary(
         "gate_states": _gate_states(hass, config, runtime_data),
         "output_states": _output_states(hass, config),
         "mapped_runtime_entities": _mapped_entity_states(hass, entity_map),
-        "unavailable_or_unknown_entities": _unavailable_entity_summary(
-            _unavailable_configured_entities(hass, config, entity_map)
+        "unavailable_or_unknown_entities": diagnostics_summary.get(
+            "unavailable_or_unknown_entities",
+            _unavailable_entity_summary([]),
         ),
         "warnings": diagnostics_summary.get("warnings", []),
         "recent_hi_warnings_errors": {
@@ -361,28 +351,23 @@ def _mapped_entity_states(hass: HomeAssistant, entity_map: dict[str, Any]) -> di
     return rows
 
 
-def _entity_state(hass: HomeAssistant, entity_id: str) -> dict[str, Any]:
-    status = _entity_status(hass, entity_id)
-    state = hass.states.get(entity_id)
-    if state is None:
-        return status
-    attrs = {
-        key: value
-        for key, value in dict(getattr(state, "attributes", {}) or {}).items()
-        if key in _SAFE_STATE_ATTRIBUTES
-    }
-    status["attributes"] = attrs
-    return status
-
-
 def _entity_status(hass: HomeAssistant, entity_id: str) -> dict[str, Any]:
     state = hass.states.get(entity_id)
     if state is None:
         return {"configured": True, "status": "missing"}
     return {
         "configured": True,
-        "status": str(getattr(state, "state", "unknown")).lower(),
+        "status": _entity_status_bucket(getattr(state, "state", "unknown")),
     }
+
+
+def _entity_status_bucket(state: Any) -> str:
+    state_text = str(state or "").strip().lower()
+    if state_text in {"unknown", "unavailable"}:
+        return state_text
+    if not state_text:
+        return "unknown"
+    return "available"
 
 
 def _generated_ui_summary(config: dict[str, Any], runtime_data: dict[str, Any]) -> dict[str, Any]:

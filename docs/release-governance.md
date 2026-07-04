@@ -32,6 +32,33 @@ review, Aetherwing review, AetherCore governance review, Aetherbite security/pri
 review, maintainer stable-instance confirmation, and maintainer promotion approval are
 complete.
 
+## v2.0.8 Develop-Review PR Completion
+
+The current v2.0.8 develop-review PR may be completed only as a develop-review merge,
+not as a release publication step.
+
+Before merging the PR to `develop`:
+
+1. Push the final `senyo888-patch-1` review-fix commit and confirm GitHub CI is green.
+2. Confirm CodeRabbit or human review comments have either been fixed or explicitly
+   marked not applicable with a short reason.
+3. Record sanitized HA Lab evidence in the PR body or a PR comment. Stage A package
+   deploy evidence may prove full-package transport, backup creation, and source/remote
+   hash agreement. Read-only Stage B evidence may prove current HA Lab reachability,
+   runtime readiness, diagnostics/card counts, and scenario baseline. Without a
+   separately approved Home Assistant restart or reload, Stage B does not prove that
+   the just-copied package has been activated by Home Assistant.
+4. Keep the generated-dashboard checkbox honest: if `refresh_ui`, dashboard paste,
+   or browser refresh was not performed, leave that item unchecked and explain that
+   users should re-export or refresh generated cards after install.
+5. Obtain the required approving review from a reviewer with write access.
+
+After the PR merges to `develop`, do not tag, publish a GitHub Release, or promote to
+`main` until the hard release gates below pass. Final release promotion still requires
+maintainer approval, Bella coherence review, Aetherwing runtime/release validation,
+AetherCore governance consistency review, README/release approval, and the normal
+release sanity checks for the exact branch being promoted.
+
 ## Branch Responsibilities
 
 - `senyo888-patch-1`: staging lane for all manifest labels. It may carry beta, rc,

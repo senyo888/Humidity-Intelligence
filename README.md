@@ -940,13 +940,20 @@ CO emergency pressure. Details are in
   live in explicit service/admin paths
 - replaced the generated V2 Pause LIVE tile with a passive Stability preview badge
   that reads future diagnostics when present and stays display-only
+- kept missing/null future Stability scores in the future/default badge state instead
+  of rendering them as score `0`, and aligned tablet/gallery System and Manual card
+  glow with the mobile layout
 - paced current/complete Stability shimmer at 10 BPM with a 6-second animation cycle
+- made Home Assistant setup-assist suggestions reachable through an explicit
+  telemetry preview action before saving advisory Area/Label-derived defaults
 - admin-gated global all-entry `pause_control` / `resume_control`; scoped `entry_id`
   calls remain available
 - tightened diagnostics/support export sanitization and confined issue-triage private
   report writing; `self_check` and release-validation reports remain local/private
   validation exports until reviewed or sanitized because they may include entity IDs
   needed for mapping diagnostics
+- bucketed mapped diagnostics entity state into privacy-safe availability categories
+  and expanded issue-triage local-path rejection across macOS, Linux, and Windows
 - hardened the tracked secret scan so an empty tracked-file selection fails closed
 - extended `v205_release_check` to accept the v2.0.8 beta/rc/stable line while
   preserving the backward-compatible service name

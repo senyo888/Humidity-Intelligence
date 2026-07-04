@@ -359,11 +359,20 @@ def test_setup_add_sensor_uses_advisory_area_default_without_saving_provenance()
     flow.hass = _hass_with_setup_assist_metadata()
 
     form = asyncio.run(
-        flow.async_step_telemetry_add({"entity_id": "sensor.example_humidity"})
+        flow.async_step_telemetry_add(
+            {
+                "action": "preview",
+                "entity_id": "sensor.example_humidity",
+                "sensor_type": "humidity",
+                "level": "level1",
+                "room": "",
+            }
+        )
     )
 
     assert form["type"] == "form"
     assert form["step_id"] == "telemetry_add"
+    assert "preview" in _schema_select_values(form, "action")
     assert _schema_default(form, "entity_id") == "sensor.example_humidity"
     assert _schema_default(form, "room") == "Upstairs bathroom"
     assert _schema_default(form, "level") == "level2"
@@ -524,11 +533,20 @@ def test_options_add_sensor_uses_advisory_area_default_without_saving_provenance
     flow.hass = _hass_with_setup_assist_metadata()
 
     form = asyncio.run(
-        flow.async_step_options_telemetry_add({"entity_id": "sensor.example_humidity"})
+        flow.async_step_options_telemetry_add(
+            {
+                "action": "preview",
+                "entity_id": "sensor.example_humidity",
+                "sensor_type": "humidity",
+                "level": "level1",
+                "room": "",
+            }
+        )
     )
 
     assert form["type"] == "form"
     assert form["step_id"] == "options_telemetry_add"
+    assert "preview" in _schema_select_values(form, "action")
     assert _schema_default(form, "entity_id") == "sensor.example_humidity"
     assert _schema_default(form, "room") == "Upstairs bathroom"
     assert _schema_default(form, "level") == "level2"

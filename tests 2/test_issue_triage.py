@@ -247,6 +247,16 @@ forbidden_actions:
         self.assertIn("Queue parse warnings: 3", report)
         self.assertIn("No open maintenance review queue actions found.", report)
 
+    def test_public_safety_rejects_cross_platform_local_paths(self) -> None:
+        for local_path in (
+            "/home/runner/work/private-ha-lab",
+            r"C:\Users\Senyo\private-ha-lab",
+        ):
+            with self.subTest(local_path=local_path):
+                issue = self.triage._public_safety_issue({"instruction": local_path})
+
+            self.assertEqual(issue, "public-safety rejected private-looking value")
+
     def test_write_report_rejects_paths_outside_repository(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             outside_path = pathlib.Path(tmpdir) / "outside.md"

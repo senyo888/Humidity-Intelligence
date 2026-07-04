@@ -3118,11 +3118,23 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
             "box-shadow: 0 0 9px 3px var(--hi-stability-color);",
             "display_score",
             "display_classification",
+            "const hasRawValue = rawValue !== null && rawValue !== undefined && rawValue !== '';",
+            "const value = hasRawValue ? Number(rawValue) : NaN;",
+            "const hasValue = hasRawValue && Number.isFinite(value);",
             "const normalized = hasValue ? Math.max(-1, Math.min(1, (value - 50) / 50)) : 0;",
             "direction === 'left'",
         ):
             if marker not in source:
                 missing_stability_markers.append(f"{path.relative_to(ROOT)}: {marker}")
+        for entity_id in (
+            "input_boolean.air_control_enabled",
+            "input_boolean.air_control_manual_override",
+        ):
+            block = _button_card_block(source, entity_id)
+            if "- box-shadow: 0 0 18px rgba(148,163,184,0.12)" not in block:
+                missing_stability_markers.append(
+                    f"{path.relative_to(ROOT)}: missing v2 control glow for {entity_id}"
+                )
         if source.count("min-height: 132px") < 3:
             missing_stability_markers.append(
                 f"{path.relative_to(ROOT)}: System/Stability/Manual row height mismatch"

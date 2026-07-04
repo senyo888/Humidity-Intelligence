@@ -1545,6 +1545,7 @@ card:
               - min-height: 132px
               - background: rgba(2,6,23,0.35)
               - border: 1px solid rgba(148,163,184,0.22)
+              - box-shadow: 0 0 18px rgba(148,163,184,0.12)
               - backdrop-filter: blur(12px)
               - "-webkit-backdrop-filter": blur(12px)
         - type: custom:button-card
@@ -1563,7 +1564,8 @@ card:
                   score.display_score ??
                   stability.display_score ??
                   entity?.attributes?.stability_score_display_score;
-                const value = Number(rawValue);
+                const hasRawValue = rawValue !== null && rawValue !== undefined && rawValue !== '';
+                const value = hasRawValue ? Number(rawValue) : NaN;
                 const classification = String(
                   score.display_classification ||
                   stability.display_classification ||
@@ -1581,7 +1583,7 @@ card:
                   entity?.attributes?.stability_score_suppression_reason ||
                   ''
                 );
-                const hasValue = Number.isFinite(value);
+                const hasValue = hasRawValue && Number.isFinite(value);
                 const completeWhite = !hasValue || value >= 99 || classification === 'excellent';
                 const color =
                   suppression === 'current_telemetry_unavailable' ? '#94a3b8' :
@@ -1751,6 +1753,7 @@ card:
               - min-height: 132px
               - background: rgba(2,6,23,0.35)
               - border: 1px solid rgba(148,163,184,0.22)
+              - box-shadow: 0 0 18px rgba(148,163,184,0.12)
               - backdrop-filter: blur(12px)
               - "-webkit-backdrop-filter": blur(12px)
             label:

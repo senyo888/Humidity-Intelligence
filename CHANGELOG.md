@@ -36,6 +36,12 @@ This project follows a practical changelog format for Home Assistant and HACS us
   otherwise it degrades without calculating scores, requiring a new sensor, or
   creating a control path. Current/complete Stability shimmer is paced at 10 beats
   per minute with a 6 second animation cycle.
+- Hardened the Stability preview fallback so null or empty future score values stay
+  in the default future/preview state instead of rendering as a real score of zero,
+  and aligned the tablet/gallery System and Manual card glow with the mobile layout.
+- Made Home Assistant setup-assist suggestions an explicit telemetry form preview
+  action so advisory Area/Label-derived defaults are reachable without changing the
+  normal save path.
 - Kept global pause/resume support, but global all-entry pause/resume calls now
   require an admin user context. Per-entry calls remain scoped to the supplied
   config entry.
@@ -46,6 +52,10 @@ This project follows a practical changelog format for Home Assistant and HACS us
   release-validation reports may still include configured/generated entity IDs needed
   to debug missing mappings, so treat those exports as local/private until reviewed or
   sanitized before public sharing.
+- Expanded issue-triage public-safety checks to reject macOS, Linux, and Windows
+  local absolute paths, and bucketed mapped runtime entity state in native diagnostics
+  into privacy-safe availability categories instead of exposing raw Home Assistant
+  state text.
 - Extended the existing `v205_release_check` manifest-version contract to accept
   the v2.0.8 beta/rc/stable line while preserving the backward-compatible service
   name.

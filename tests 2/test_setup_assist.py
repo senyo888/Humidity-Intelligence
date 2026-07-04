@@ -7,6 +7,7 @@ import pathlib
 import sys
 import types
 from types import SimpleNamespace
+from unittest import mock
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -162,6 +163,23 @@ def test_setup_assist_degrades_when_metadata_is_missing_or_unsupported():
     assert missing.labels == ()
     assert unsupported.status == "unsupported"
     assert unsupported.warnings == ("label_registry_unavailable",)
+
+
+def test_setup_assist_logs_registry_failures_without_changing_fallback():
+    setup_assist = _load_setup_assist_module()
+
+    with (
+        mock.patch.object(setup_assist.er, "async_get", side_effect=RuntimeError("registry exploded")),
+        mock.patch.object(setup_assist._LOGGER, "debug") as debug,
+    ):
+        suggestion = setup_assist.setup_assist_suggestion(
+            SimpleNamespace(),
+            "sensor.example_humidity",
+        )
+
+    assert suggestion.status == "unsupported"
+    assert suggestion.warnings == ("registry_lookup_failed",)
+    debug.assert_called()
 
 
 if __name__ == "__main__":

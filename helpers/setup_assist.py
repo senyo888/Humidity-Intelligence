@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 from typing import Any
 
 try:
@@ -35,6 +36,8 @@ LEVEL2_HINTS = (
     "level 2",
     "level2",
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -87,12 +90,22 @@ def setup_assist_suggestion(
         area_reg = ar.async_get(hass)
         device_reg = dr.async_get(hass) if dr is not None else None
         label_reg = lr.async_get(hass) if lr is not None else None
-    except Exception:
+    except Exception as err:
+        _LOGGER.debug(
+            "Setup assist registry lookup failed for %s: %s",
+            clean_entity_id,
+            err,
+        )
         return unsupported_setup_assist_suggestion("registry_lookup_failed", clean_entity_id)
 
     try:
         entity_entry = entity_reg.async_get(clean_entity_id) if entity_reg is not None else None
-    except Exception:
+    except Exception as err:
+        _LOGGER.debug(
+            "Setup assist entity lookup failed for %s: %s",
+            clean_entity_id,
+            err,
+        )
         entity_entry = None
     if entity_entry is None:
         return SetupAssistSuggestion(entity_id=clean_entity_id, status="not_found")
@@ -239,7 +252,8 @@ def _registry_get(registry: Any, key: str) -> Any:
         return None
     try:
         return registry.async_get(key)
-    except Exception:
+    except Exception as err:
+        _LOGGER.debug("Setup assist registry get failed for %s: %s", key, err)
         return None
 
 
