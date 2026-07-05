@@ -11,6 +11,7 @@ import sys
 import tempfile
 import types
 from datetime import datetime, timedelta
+from enum import StrEnum
 from types import MethodType, SimpleNamespace
 
 
@@ -101,7 +102,7 @@ def _strip_allowed_v207_control_toggles(source: str) -> str:
     return source
 
 
-def _install_homeassistant_stubs() -> None:
+def _install_homeassistant_stubs(*, include_unit_ratio: bool = True) -> None:
     """Install lightweight Home Assistant stubs into sys.modules."""
     ha = types.ModuleType("homeassistant")
     core = types.ModuleType("homeassistant.core")
@@ -160,6 +161,9 @@ def _install_homeassistant_stubs() -> None:
     class UnitOfTemperature:
         CELSIUS = "°C"
         FAHRENHEIT = "°F"
+
+    class UnitOfRatio(StrEnum):
+        PERCENTAGE = "%"
 
     class Invalid(Exception):
         pass
@@ -253,6 +257,8 @@ def _install_homeassistant_stubs() -> None:
     exceptions.HomeAssistantError = HomeAssistantError
     const.UnitOfTemperature = UnitOfTemperature
     const.PERCENTAGE = "%"
+    if include_unit_ratio:
+        const.UnitOfRatio = UnitOfRatio
     sensor_mod.SensorEntity = SensorEntity
     sensor_mod.SensorDeviceClass = SensorDeviceClass
     sensor_mod.SensorStateClass = SensorStateClass
@@ -350,6 +356,13 @@ def _load_services_module():
 
 def _load_core_module():
     _install_homeassistant_stubs()
+    _install_package_scaffold()
+    _load_module(f"{PKG}.const", ROOT / "const.py")
+    return _load_module(f"{PKG}.sensors.core", ROOT / "sensors" / "core.py")
+
+
+def _load_core_module_without_unit_ratio():
+    _install_homeassistant_stubs(include_unit_ratio=False)
     _install_package_scaffold()
     _load_module(f"{PKG}.const", ROOT / "const.py")
     return _load_module(f"{PKG}.sensors.core", ROOT / "sensors" / "core.py")
@@ -720,6 +733,58 @@ def _find_sensor(sensors, unique_suffix):
         if getattr(sensor, "_attr_unique_id", "").endswith(unique_suffix):
             return sensor
     raise AssertionError(f"sensor ending {unique_suffix!r} was not built")
+
+
+def test_percentage_computed_sensors_use_home_assistant_unit_ratio_enumerator():
+    core_mod = _load_core_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(55),
+            "sensor.hall_h": _FakeState(51),
+            "sensor.bed_h": _FakeState(49),
+            "sensor.kitchen_t": _FakeState(21),
+            "sensor.hall_t": _FakeState(20),
+            "sensor.bed_t": _FakeState(19),
+        },
+    )
+
+    sensors, _binary_sensors, _sources = core_mod.build_entities(hass, entry)
+    percentage_suffixes = (
+        "house_avg_humidity",
+        "house_target_low",
+        "house_target_high",
+        "house_drift_7d",
+        "air_control_kitchen_humidity_delta",
+        "air_control_bathroom_humidity_delta",
+        "room_bedroom_humidity_delta",
+        "room_hallway_humidity_delta",
+        "room_kitchen_humidity_delta",
+        "level1_avg_humidity",
+        "level1_target_low",
+        "level1_target_high",
+        "level2_avg_humidity",
+        "level2_target_low",
+        "level2_target_high",
+    )
+
+    for suffix in percentage_suffixes:
+        assert (
+            _find_sensor(sensors, suffix)._attr_native_unit_of_measurement
+            is core_mod.UnitOfRatio.PERCENTAGE
+        )
+
+
+def test_percentage_computed_sensors_keep_legacy_unit_fallback_before_ha_20267():
+    core_mod = _load_core_module_without_unit_ratio()
+    entry = _minimal_humidity_entry()
+    hass = _FakeHass(entry, {"sensor.kitchen_h": _FakeState(55)})
+
+    sensors, _binary_sensors, _sources = core_mod.build_entities(hass, entry)
+
+    assert core_mod.UnitOfRatio.PERCENTAGE == "%"
+    assert _find_sensor(sensors, "house_avg_humidity")._attr_native_unit_of_measurement == "%"
 
 
 def test_house_humidity_drift_7d_reports_missing_statistics_dependency():

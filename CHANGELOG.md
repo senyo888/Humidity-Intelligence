@@ -10,6 +10,12 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 - Declared Home Assistant `2026.5.1` as the minimum HACS install/update
   compatibility floor and surfaced the requirement in installation guidance.
+- Migrated computed humidity, target, drift, and delta sensor percentage units from
+  the deprecated Home Assistant `PERCENTAGE` unit constant to
+  `UnitOfRatio.PERCENTAGE` for Home Assistant Core `2026.7` compatibility, with a
+  legacy `%` fallback for older supported Core versions. Entity IDs, values, lane
+  ordering, services, diagnostics semantics, and generated-card display behavior are
+  unchanged.
 
 ## 2.0.8
 

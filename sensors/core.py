@@ -4,11 +4,20 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE, UnitOfTemperature
+from homeassistant.const import UnitOfTemperature
+try:
+    from homeassistant.const import UnitOfRatio
+except ImportError:
+    from homeassistant.const import PERCENTAGE as _LEGACY_PERCENTAGE
+
+    # UnitOfRatio was added in Home Assistant 2026.7; keep the 2026.5 floor importable.
+    class UnitOfRatio(StrEnum):
+        PERCENTAGE = _LEGACY_PERCENTAGE
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
@@ -178,7 +187,7 @@ class _CoreComputations:
             "HI House Average Humidity",
             "house_avg_humidity",
             self._compute_house_avg_humidity,
-            unit=PERCENTAGE,
+            unit=UnitOfRatio.PERCENTAGE,
             state_class=SensorStateClass.MEASUREMENT,
             icon="mdi:water-percent",
         ))
@@ -195,14 +204,14 @@ class _CoreComputations:
             "HI House Humidity Target Low",
             "house_target_low",
             self._compute_target_low,
-            unit=PERCENTAGE,
+            unit=UnitOfRatio.PERCENTAGE,
             icon="mdi:target",
         ))
         sensors.append(make(
             "HI House Humidity Target High",
             "house_target_high",
             self._compute_target_high,
-            unit=PERCENTAGE,
+            unit=UnitOfRatio.PERCENTAGE,
             icon="mdi:target",
         ))
         sensors.append(make(
@@ -279,7 +288,7 @@ class _CoreComputations:
             "HI House Humidity Drift 7d",
             "house_drift_7d",
             self._compute_house_drift_7d,
-            unit=PERCENTAGE,
+            unit=UnitOfRatio.PERCENTAGE,
             icon="mdi:chart-line",
         ))
         sensors.append(make(
@@ -304,13 +313,13 @@ class _CoreComputations:
             "HI Air Control Kitchen Humidity Delta",
             "air_control_kitchen_humidity_delta",
             self._compute_kitchen_humidity_delta,
-            unit=PERCENTAGE,
+            unit=UnitOfRatio.PERCENTAGE,
         ))
         sensors.append(make(
             "HI Air Control Bathroom Humidity Delta",
             "air_control_bathroom_humidity_delta",
             self._compute_bathroom_humidity_delta,
-            unit=PERCENTAGE,
+            unit=UnitOfRatio.PERCENTAGE,
         ))
         sensors.append(make(
             "HI Air Control Kitchen Slope Delta",
@@ -346,7 +355,7 @@ class _CoreComputations:
                 f"HI {display_name} Humidity Delta",
                 f"room_{room_key}_humidity_delta",
                 lambda r=room: self._compute_room_humidity_delta(r),
-                unit=PERCENTAGE,
+                unit=UnitOfRatio.PERCENTAGE,
                 state_class=SensorStateClass.MEASUREMENT,
                 icon="mdi:water-percent",
             ))
@@ -356,7 +365,7 @@ class _CoreComputations:
                 f"HI {level.capitalize()} Average Humidity",
                 f"{level}_avg_humidity",
                 lambda lvl=level: self._compute_level_avg_humidity(lvl),
-                unit=PERCENTAGE,
+                unit=UnitOfRatio.PERCENTAGE,
                 state_class=SensorStateClass.MEASUREMENT,
                 icon="mdi:water-percent",
             ))
@@ -373,14 +382,14 @@ class _CoreComputations:
                 f"HI {level.capitalize()} Humidity Target Low",
                 f"{level}_target_low",
                 self._compute_target_low,
-                unit=PERCENTAGE,
+                unit=UnitOfRatio.PERCENTAGE,
                 icon="mdi:target",
             ))
             sensors.append(make(
                 f"HI {level.capitalize()} Humidity Target High",
                 f"{level}_target_high",
                 self._compute_target_high,
-                unit=PERCENTAGE,
+                unit=UnitOfRatio.PERCENTAGE,
                 icon="mdi:target",
             ))
             sensors.append(make(

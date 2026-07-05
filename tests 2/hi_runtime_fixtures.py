@@ -10,6 +10,7 @@ import re
 import sys
 import types
 from dataclasses import dataclass
+from enum import StrEnum
 from types import MethodType, SimpleNamespace
 from typing import Any, Dict, List, Optional
 
@@ -166,6 +167,9 @@ def _install_homeassistant_stubs() -> None:
         CELSIUS = "°C"
         FAHRENHEIT = "°F"
 
+    class UnitOfRatio(StrEnum):
+        PERCENTAGE = "%"
+
     class DeviceInfo(dict):
         pass
 
@@ -181,6 +185,7 @@ def _install_homeassistant_stubs() -> None:
     core.HomeAssistant = HomeAssistant
     config_entries.ConfigEntry = ConfigEntry
     const.PERCENTAGE = "%"
+    const.UnitOfRatio = UnitOfRatio
     const.UnitOfTemperature = UnitOfTemperature
     sensor_mod.SensorEntity = SensorEntity
     sensor_mod.SensorDeviceClass = SensorDeviceClass
