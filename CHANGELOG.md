@@ -8,6 +8,10 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+- No unreleased changes.
+
+## 2.0.8 - 2026-07-05
+
 - Declared Home Assistant `2026.5.1` as the minimum HACS install/update
   compatibility floor and surfaced the requirement in installation guidance.
 - Migrated computed humidity, target, drift, and delta sensor percentage units from
@@ -16,8 +20,6 @@ This project follows a practical changelog format for Home Assistant and HACS us
   legacy `%` fallback for older supported Core versions. Entity IDs, values, lane
   ordering, services, diagnostics semantics, and generated-card display behavior are
   unchanged.
-
-## 2.0.8
 
 - Added a first-run welcome page before Frontend Dependencies that explains the
   staged setup method, with README guidance and telemetry copy updated so users

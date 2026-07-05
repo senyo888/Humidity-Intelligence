@@ -7,19 +7,21 @@ testing and validation branches.
 
 - `2.0.8-beta.1`: testing build.
 - `2.0.8-rc.1`: release-candidate build.
-- `2.0.8`: stable version label. On `senyo888-patch-1` or `develop`, stable
-  metadata may be staged for promotion review. Published release status comes from
-  `main`, release tags, GitHub release publication, and maintainer approval.
+- `2.0.8`: stable version label. On `senyo888-patch-1`, `develop`, or `main`,
+  stable metadata may be staged or promoted through the governed release path.
+  Published release status comes from release tags, GitHub release publication, and
+  maintainer approval.
 
 The integration version in `manifest.json` is the release-state source of truth for
 Home Assistant and HACS metadata checks.
 
 v2.0.7 remains the latest published stable release line until a v2.0.8 stable tag and
-GitHub release are explicitly approved. Stable `2.0.7` metadata is present on `main`.
+GitHub release are explicitly approved. Branch metadata may carry `2.0.8` before that
+publication gate when the promotion checks have passed.
 
-The v2.0.8 candidate is now staged as stable manifest metadata `2.0.8` on
-`develop` after develop-review merge. GitHub release publication, tagging, `main`
-promotion, and the user-facing package record remain explicit maintainer actions.
+The v2.0.8 candidate is staged as stable manifest metadata `2.0.8` for branch
+promotion review. GitHub release publication, tagging, and the user-facing package
+record remain explicit maintainer actions.
 Senyo has maintainer-confirmed stable-instance testing for v2.0.8; that evidence is
 recorded as maintainer confirmation unless independently verified in the same
 validation packet. Stable-instance access or mutation requires explicit approval for
