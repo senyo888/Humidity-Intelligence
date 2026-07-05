@@ -63,9 +63,10 @@ For publication status, installed packages, and release tags, use
 [GitHub Releases](https://github.com/senyo888/Humidity-Intelligence/releases) and
 HACS as the user-facing record.
 
-v2.0.8 focuses on a calmer first-run setup, safer generated dashboards, a passive
-Stability preview badge, tighter global pause/resume admin boundaries, and cleaner
-support exports.
+v2.0.8 focuses on a calmer first-run setup, Home Assistant Core `2026.7`
+percentage-unit compatibility, safer generated dashboards, a passive Stability
+preview badge, tighter global pause/resume admin boundaries, and cleaner support
+exports.
 
 The deterministic runtime contract stays intact: one selected control lane per cycle,
 the same public entity meanings, the same migration shape, and output writing only
@@ -383,9 +384,13 @@ must be reviewable from tracked repository files.
 
 - integration metadata is stable `2.0.8`; GitHub Releases and HACS remain the
   user-facing publication record
-- first-run setup now starts with a welcome/setup-strategy page before Frontend
-  Dependencies, so users can save a small initial sensor set and return through
-  Options for deeper tuning
+- first-run setup now starts with a welcome page before Frontend Dependencies; it
+  explains the staged setup method so users can safely save a small initial sensor
+  set and return through Options for deeper tuning
+- computed humidity, target, drift, and delta sensors now use Home Assistant's
+  `UnitOfRatio.PERCENTAGE` unit enumerator on Core `2026.7`, with a legacy `%`
+  fallback for older supported Core versions; entity IDs, values, lane ordering,
+  services, diagnostics semantics, and generated-card display behavior are unchanged
 - Temperature Slope setup/options now handles collapsed Advanced source lists safely:
   empty submitted source lists fall back to the configured temperature sensors or
   saved source defaults instead of hiding a required-source validation loop
@@ -932,9 +937,15 @@ CO emergency pressure. Details are in
 
 - set integration metadata to stable `2.0.8`; GitHub Releases and HACS remain the
   user-facing publication record
-- added first-run welcome/setup guidance before Frontend Dependencies, keeping setup
-  staged and making it safer to save a small initial telemetry set before later
-  Options tuning
+- added a first-run welcome page before Frontend Dependencies that explains the
+  staged setup method, with README guidance and telemetry copy updated so users can
+  safely save a small initial sensor set and return through Options later
+- migrated computed humidity, target, drift, and delta sensor percentage units from
+  the deprecated Home Assistant `PERCENTAGE` unit constant to
+  `UnitOfRatio.PERCENTAGE` for Home Assistant Core `2026.7` compatibility, with a
+  legacy `%` fallback for older supported Core versions; entity IDs, values, lane
+  ordering, services, diagnostics semantics, and generated-card display behavior are
+  unchanged
 - fixed Temperature Slope setup/options fallback when collapsed Advanced source lists
   submit empty values
 - made default generated V2 dashboards status-safe where appropriate: default card
