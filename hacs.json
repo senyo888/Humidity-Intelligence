@@ -2,6 +2,5 @@
   "name": "Humidity Intelligence",
   "render_readme": true,
   "content_in_root": true,
-  "homeassistant": "2026.5.1",
-  "country": "GB"
+  "homeassistant": "2026.5.1"
 }

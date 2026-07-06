@@ -8,7 +8,8 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
-- No unreleased changes.
+- Removed the HACS `country` metadata so Humidity Intelligence can be listed
+  globally instead of being limited to the GB store scope.
 
 ## 2.0.8 - 2026-07-05
 
