@@ -15,32 +15,31 @@ testing and validation branches.
 The integration version in `manifest.json` is the release-state source of truth for
 Home Assistant and HACS metadata checks.
 
-v2.0.7 remains the latest published stable release line until a v2.0.8 stable tag and
-GitHub release are explicitly approved. Branch metadata may carry `2.0.8` before that
-publication gate when the promotion checks have passed.
+v2.0.8 is the latest published stable release line. Tag and GitHub Release `v2.0.8`
+were published from `main` on 2026-07-06.
 
-The v2.0.8 candidate is staged as stable manifest metadata `2.0.8` for branch
-promotion review. GitHub release publication, tagging, and the user-facing package
-record remain explicit maintainer actions.
+The former v2.0.8 candidate moved through `senyo888-patch-1`, `develop`, and `main`
+before publication. Stable metadata on a staging or review branch was not release
+authority; the published tag and GitHub Release now provide the public release fact.
 Senyo has maintainer-confirmed stable-instance testing for v2.0.8; that evidence is
 recorded as maintainer confirmation unless independently verified in the same
 validation packet. Stable-instance access or mutation requires explicit approval for
 this lane.
 
-For a `2.0.8` promotion candidate, release readiness needs more than Stage A HA Lab
-package deploy evidence. The release-readiness record must separately state whether
+For future promotion candidates, release readiness needs more than Stage A HA Lab
+package deploy evidence. Each release-readiness record must separately state whether
 restart/reload approval, post-restart read-only checks, generated-card evidence, Bella
 review, Aetherwing review, AetherCore governance review, Aetherbite security/privacy
 review, maintainer stable-instance confirmation, and maintainer promotion approval are
 complete.
 
-## v2.0.8 Develop Source Boundary
+## v2.0.8 Release Path Record
 
-The v2.0.8 develop-review merge makes `develop` the release-review source only. It
-does not publish a release, create a tag, publish a GitHub Release, or authorize
-promotion to `main`.
+The v2.0.8 develop-review merge made `develop` the release-review source only. The
+later `main` promotion, tag, and GitHub Release completed the publication path on
+2026-07-06. The `develop` merge by itself did not publish or authorize the release.
 
-Before using `develop` for a `main` promotion PR:
+The recorded develop-to-main promotion checklist was:
 
 1. Confirm the develop-review PR merged to `develop` and GitHub CI is green.
 2. Confirm CodeRabbit or human review comments have either been fixed or explicitly
@@ -57,11 +56,11 @@ Before using `develop` for a `main` promotion PR:
 5. Preserve the hard release gates below as separate `main`, tag, and GitHub Release
    approval requirements.
 
-After the PR merges to `develop`, do not tag, publish a GitHub Release, or promote to
-`main` until the hard release gates below pass. Final release promotion still requires
-maintainer approval, Bella coherence review, Aetherwing runtime/release validation,
-AetherCore governance consistency review, README/release approval, and the normal
-release sanity checks for the exact branch being promoted.
+For future releases, a `develop` merge must not be treated as tag, GitHub Release, or
+`main` authority. Final promotion still requires maintainer approval, Bella coherence
+review, Aetherwing runtime/release validation, AetherCore governance consistency
+review, README/release approval, and the normal release sanity checks for the exact
+branch being promoted.
 
 ## Branch Responsibilities
 
