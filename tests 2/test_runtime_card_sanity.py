@@ -184,7 +184,22 @@ def _install_homeassistant_stubs(*, include_unit_ratio: bool = True) -> None:
             self.schema = schema
 
         def __call__(self, value):
-            return value
+            if not isinstance(self.schema, dict):
+                return value
+            if not isinstance(value, dict):
+                raise Invalid("schema value must be a mapping")
+
+            validated = dict(value)
+            for key_spec, validator in self.schema.items():
+                key = key_spec.key if isinstance(key_spec, _SchemaKey) else key_spec
+                if key in value:
+                    item = value[key]
+                elif isinstance(key_spec, _SchemaKey) and key_spec.default is not None:
+                    item = key_spec.default
+                else:
+                    continue
+                validated[key] = validator(item) if callable(validator) else item
+            return validated
 
     def _ensure_list(value):
         if value is None:
@@ -442,16 +457,28 @@ class _FlashServiceRegistry:
     def __init__(self, states):
         self.states = states
         self.calls = []
+        self.handler_calls = []
         self.handlers = {}
+        self.schemas = {}
 
     def has_service(self, domain, service):
         return True
 
     def async_register(self, domain, service, handler, schema=None):
         self.handlers[(domain, service)] = handler
+        self.schemas[(domain, service)] = schema
 
     async def async_call(self, domain, service, data=None, blocking=False):
         payload = dict(data or {})
+        handler = self.handlers.get((domain, service))
+        if handler is not None:
+            schema = self.schemas.get((domain, service))
+            if schema is not None:
+                payload = schema(payload)
+            self.handler_calls.append((domain, service, payload))
+            await handler(SimpleNamespace(data=payload, context=None))
+            return
+
         self.calls.append((domain, service, payload, bool(blocking)))
         if domain == "light":
             entity_id = payload.get("entity_id")
@@ -3864,6 +3891,82 @@ def test_flash_lights_power_entity_rejects_non_switch_light_domains():
         assert "switch or light" in str(err)
     else:
         raise AssertionError("fan power_entity should be rejected")
+
+
+def test_report_service_schemas_reject_non_owned_root_filenames_before_write():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    executor_calls = 0
+
+    async def counting_executor_job(func, *args):
+        nonlocal executor_calls
+        executor_calls += 1
+        return func(*args)
+
+    hass.async_add_executor_job = counting_executor_job
+    asyncio.run(services_mod.async_register_services(hass))
+
+    services = (
+        (
+            services_mod.SERVICE_DUMP_DIAGNOSTICS,
+            "humidity_intelligence_diagnostics.json",
+        ),
+        (
+            services_mod.SERVICE_V205_RELEASE_CHECK,
+            "humidity_intelligence_v205_release_check.json",
+        ),
+    )
+    rejected = (
+        "configuration.yaml",
+        "secrets.yaml",
+        "automations.yaml",
+        "scripts.yaml",
+        "scenes.yaml",
+        ".HA_VERSION",
+        "my_report.json",
+        "Humidity_intelligence_report.json",
+        "humidity_intelligence_report.JSON",
+        "humidity_intelligence_report.txt",
+        " humidity_intelligence_report.json ",
+        "humidity_intelligence_../secrets.json",
+        "humidity_intelligence_reports/report.json",
+        "humidity_intelligence_reports\\report.json",
+    )
+
+    for service, default_filename in services:
+        schema = hass.services.schemas[(services_mod.DOMAIN, service)]
+        assert schema is not None
+        assert schema({})["filename"] == default_filename
+        assert (
+            schema({"filename": "humidity_intelligence_release_2026.json"})["filename"]
+            == "humidity_intelligence_release_2026.json"
+        )
+
+        for filename in rejected:
+            calls_before = executor_calls
+            dispatches_before = len(hass.services.handler_calls)
+            try:
+                asyncio.run(
+                    hass.services.async_call(
+                        services_mod.DOMAIN,
+                        service,
+                        {"filename": filename},
+                        blocking=True,
+                    )
+                )
+            except Exception as err:
+                assert "humidity_intelligence_*.json" in str(err)
+            else:
+                raise AssertionError(f"{service} should reject non-owned report filename {filename!r}")
+            assert executor_calls == calls_before
+            assert len(hass.services.handler_calls) == dispatches_before
+
+    card_schema = hass.services.schemas[(services_mod.DOMAIN, services_mod.SERVICE_DUMP_CARDS)]
+    assert card_schema({"filename": "custom_cards"})["filename"] == "custom_cards"
+    view_schema = hass.services.schemas[(services_mod.DOMAIN, services_mod.SERVICE_VIEW_CARDS)]
+    assert view_schema({"filename": "custom_cards"})["filename"] == "custom_cards"
 
 
 def test_dump_diagnostics_legacy_export_redacts_sensitive_payload_before_write():

@@ -10,6 +10,12 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 - Removed the HACS `country` metadata so Humidity Intelligence can be listed
   globally instead of being limited to the GB store scope.
+- Restricted custom filenames for `dump_diagnostics` and `v205_release_check` to
+  the exact lowercase `humidity_intelligence_*.json` namespace so those report
+  writers cannot overwrite unrelated basename files in the Home Assistant config
+  folder. Defaults are unchanged. Automations or scripts using another custom
+  report filename must be updated, and Home Assistant must be fully restarted after
+  installing the package update; a config-entry reload alone is insufficient.
 
 ## 2.0.8 - 2026-07-05
 

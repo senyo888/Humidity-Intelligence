@@ -793,6 +793,11 @@ Notes:
   `self_check` / `v205_release_check` validation reports may include entity IDs
   needed for mapping support. Treat those validation reports as local/private until
   reviewed or sanitized before public sharing.
+- Custom filenames for `dump_diagnostics` and `v205_release_check` must use the
+  exact lowercase `humidity_intelligence_*.json` pattern. The defaults are
+  unchanged. Update any existing automations or scripts that supply another custom
+  report filename, then fully restart Home Assistant after installing this package
+  update; a config-entry reload alone does not load the changed service schema.
 
 Common service groups:
 

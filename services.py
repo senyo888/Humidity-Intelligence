@@ -105,6 +105,8 @@ _GENERATED_CARD_ENTITY_RE = re.compile(
     + r")\.[A-Za-z0-9_]+\b"
 )
 _SAFE_FILENAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+_OWNED_REPORT_FILENAME_PREFIX = "humidity_intelligence_"
+_OWNED_REPORT_FILENAME_SUFFIX = ".json"
 _SAFE_DASHBOARD_PATH_RE = re.compile(r"^[a-z0-9_-]{1,64}$")
 _RELEASE_CHECK_MANIFEST_VERSION_RE = re.compile(
     r"^2\.0\.(?:5|[6-8](?:-(?:beta|rc)\.[1-9]\d*)?)$"
@@ -173,6 +175,23 @@ def _validate_safe_filename(value: str) -> str:
         raise vol.Invalid("Filename must not include directory traversal or separators")
     if not _SAFE_FILENAME_RE.fullmatch(text):
         raise vol.Invalid("Filename contains invalid characters")
+    return text
+
+
+def _validate_owned_report_filename(value: str) -> str:
+    try:
+        text = _validate_safe_filename(value)
+    except vol.Invalid as err:
+        raise vol.Invalid(
+            "Report filename must use humidity_intelligence_*.json"
+        ) from err
+    if not (
+        isinstance(value, str)
+        and text == value
+        and text.startswith(_OWNED_REPORT_FILENAME_PREFIX)
+        and text.endswith(_OWNED_REPORT_FILENAME_SUFFIX)
+    ):
+        raise vol.Invalid("Report filename must use humidity_intelligence_*.json")
     return text
 
 
@@ -247,14 +266,14 @@ SERVICE_REFRESH_SCHEMA = vol.Schema({
 })
 SERVICE_DUMP_SCHEMA = vol.Schema({
     vol.Optional("entry_id"): cv.string,
-    vol.Optional("filename", default="humidity_intelligence_diagnostics.json"): _validate_safe_filename,
+    vol.Optional("filename", default="humidity_intelligence_diagnostics.json"): _validate_owned_report_filename,
 })
 SERVICE_SELF_CHECK_SCHEMA = vol.Schema({
     vol.Optional("entry_id"): cv.string,
 })
 SERVICE_V205_RELEASE_CHECK_SCHEMA = vol.Schema({
     vol.Optional("entry_id"): cv.string,
-    vol.Optional("filename", default="humidity_intelligence_v205_release_check.json"): _validate_safe_filename,
+    vol.Optional("filename", default="humidity_intelligence_v205_release_check.json"): _validate_owned_report_filename,
     vol.Optional("write_test_exports", default=False): _validate_bool,
     vol.Optional("require_local_hi_snapshot", default=False): _validate_bool,
     vol.Optional("max_snapshot_age_minutes", default=60): vol.All(vol.Coerce(int), vol.Range(min=1, max=10080)),
