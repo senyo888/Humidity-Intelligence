@@ -109,7 +109,7 @@ _OWNED_REPORT_FILENAME_PREFIX = "humidity_intelligence_"
 _OWNED_REPORT_FILENAME_SUFFIX = ".json"
 _SAFE_DASHBOARD_PATH_RE = re.compile(r"^[a-z0-9_-]{1,64}$")
 _RELEASE_CHECK_MANIFEST_VERSION_RE = re.compile(
-    r"^2\.0\.(?:5|[6-8](?:-(?:beta|rc)\.[1-9]\d*)?)$"
+    r"^2\.0\.(?:5|[6-9](?:-(?:beta|rc)\.[1-9]\d*)?)$"
 )
 _SENSITIVE_ATTR_EXACT = {
     "access_token",
@@ -1293,11 +1293,11 @@ def _release_check_manifest_status(manifest_version: Optional[str]) -> Tuple[str
     if manifest_version and _RELEASE_CHECK_MANIFEST_VERSION_RE.fullmatch(manifest_version):
         return (
             "pass",
-            f"Manifest version is {version}; release-check contract is valid for the v2.0.5-v2.0.8 line.",
+            f"Manifest version is {version}; release-check contract is valid for the v2.0.5-v2.0.9 line.",
         )
     return (
         "fail",
-        f"Manifest version is {version}; expected v2.0.5 or a v2.0.6-v2.0.8 beta/rc/stable version.",
+        f"Manifest version is {version}; expected v2.0.5 or a v2.0.6-v2.0.9 beta/rc/stable version.",
     )
 
 

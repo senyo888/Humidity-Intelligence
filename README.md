@@ -57,15 +57,14 @@ It gives you:
 - native Home Assistant diagnostics for support and triage
 - services for dashboard export, self-check, diagnostics, pause/resume, and release validation
 
-Current manifest version: **v2.0.8**.
+Current manifest version: **v2.0.9-beta.1**.
 
 For publication status, installed packages, and release tags, use
 [GitHub Releases](https://github.com/senyo888/Humidity-Intelligence/releases) and
 HACS as the user-facing record.
 
-v2.0.8 focuses on a calmer first-run setup, safer generated dashboards, a passive
-Stability preview badge, tighter global pause/resume admin boundaries, and cleaner
-support exports.
+v2.0.9-beta.1 starts the next maintenance line with an HI-owned report-filename
+boundary. The latest published stable release remains v2.0.8.
 
 The deterministic runtime contract stays intact: one selected control lane per cycle,
 the same public entity meanings, the same migration shape, and output writing only
@@ -381,8 +380,10 @@ must be reviewable from tracked repository files.
 
 ## Current Release Highlights
 
-- integration metadata is stable `2.0.8`; GitHub Releases and HACS remain the
-  user-facing publication record
+- working-branch integration metadata is `2.0.9-beta.1`; GitHub Releases and HACS
+  remain the user-facing record for the latest published stable release, v2.0.8
+- diagnostics and release-check report writers now accept only exact lowercase
+  `humidity_intelligence_*.json` custom filenames, preserving their existing defaults
 - first-run setup now starts with a welcome/setup-strategy page before Frontend
   Dependencies, so users can save a small initial sensor set and return through
   Options for deeper tuning
@@ -406,7 +407,7 @@ must be reviewable from tracked repository files.
 - local issue-triage private report writing is confined through the private atomic
   writer, keeping public issue/support flows separate from local report output
 - the tracked secret scan now fails closed when no tracked files are selected
-- `v205_release_check` preserves its service name while accepting the v2.0.8
+- `v205_release_check` preserves its service name while accepting the v2.0.9
   beta/rc/stable line for generated-card and release-validation support checks
 - Home Assistant Area/Label setup assistance can suggest defaults from registry
   metadata, but saved HI telemetry, zone, AQ, humidifier, and alert mappings remain
@@ -785,9 +786,9 @@ Notes:
 - Global `pause_control` / `resume_control` calls with no `entry_id` require an
   admin user context. Supplying `entry_id` scopes the call to that config entry.
 - `v205_release_check` is the backward-compatible validation service name. In v2.0.8
-  it accepts the v2.0.5-v2.0.8 beta/rc/stable line and is runtime/device read-only:
-  it writes its validation report, and `write_test_exports: true` additionally
-  writes card-export test files.
+  and v2.0.9 it accepts the v2.0.5-v2.0.9 beta/rc/stable line and is runtime/device
+  read-only: it writes its validation report, and `write_test_exports: true`
+  additionally writes card-export test files.
 - `dump_diagnostics` and native diagnostics are support surfaces; v2.0.8 support
   exports are sanitized for public/private boundary safety where possible, but
   `self_check` / `v205_release_check` validation reports may include entity IDs
@@ -810,7 +811,7 @@ Common service groups:
 | `flash_lights` | test configured visual alert behavior |
 | `pause_control` / `resume_control` | pause or resume the automation engine; global all-entry calls require admin context |
 | `self_check` | run mapping, generated-card entity, telemetry, drift-helper, and frontend-dependency checks |
-| `v205_release_check` | run runtime-safe v2.0.5-v2.0.8 generated-card and release-validation support checks |
+| `v205_release_check` | run runtime-safe v2.0.5-v2.0.9 generated-card and release-validation support checks |
 | `create_local_backup` / `list_saved_versions` | manage package-local HI snapshots for advanced validation |
 | `dump_diagnostics` | export fuller local diagnostics for maintainer/debug workflows |
 | `purge_files` | intentionally remove generated HI artifacts |
@@ -933,6 +934,20 @@ CO emergency pressure. Details are in
 
 ## Release Notes
 
+### v2.0.9-beta.1
+
+- moved working-branch integration metadata to `2.0.9-beta.1`; v2.0.8 remains the
+  latest published stable release
+- restricted `dump_diagnostics` and `v205_release_check` custom filenames to the
+  exact lowercase `humidity_intelligence_*.json` namespace, preserving both defaults
+- extended the backward-compatible `v205_release_check` manifest contract through
+  the v2.0.9 beta/rc/stable line
+- migration impact: no stored-data migration; callers using another custom report
+  filename must rename it
+- runtime/UI impact: service-schema validation only; entity semantics, deterministic
+  lane ordering, outputs, and generated dashboards are unchanged
+- restart impact: fully restart Home Assistant after installing updated package code
+
 ### v2.0.8
 
 - set integration metadata to stable `2.0.8`; GitHub Releases and HACS remain the
@@ -971,6 +986,9 @@ CO emergency pressure. Details are in
   or re-export generated cards and update pasted Manual-card YAML for the new default
   V2 card surfaces
 
+<details>
+<summary>Previous Releases</summary>
+
 ### v2.0.7
 
 - promoted integration metadata to stable `2.0.7`
@@ -992,9 +1010,6 @@ CO emergency pressure. Details are in
 - added release/PR checklist support for recording Wiki update status as `updated`, `no-op`, or `blocked` when public manual guidance is affected
 - added a Wiki Services Reference, footer navigation across public Wiki content pages, and a Wiki banner asset for a clearer support-manual experience
 - migration impact: existing PM2.5 aggregate entity IDs using `pm2_5` are normalized to `pm25` during HI setup; restart Home Assistant after updating so the new package and registry normalization run, then regenerate/re-copy generated cards if your dashboard uses PM2.5 aggregate surfaces or the Current Air Control UI change
-
-<details>
-<summary>Previous Releases</summary>
 
 ### v2.0.6
 

@@ -3446,11 +3446,11 @@ def test_readme_only_shows_two_latest_release_notes_before_previous_releases():
     release_notes = readme_source.split("## Release Notes", 1)[1]
     visible_notes, previous_releases = release_notes.split("<details>", 1)
 
+    assert "### v2.0.9-beta.1" in visible_notes
     assert "### v2.0.8" in visible_notes
-    assert "### v2.0.7" in visible_notes
-    assert "### v2.0.6" not in visible_notes
+    assert "### v2.0.7" not in visible_notes
     assert "<summary>Previous Releases</summary>" in previous_releases
-    assert "### v2.0.6" in previous_releases
+    assert "### v2.0.7" in previous_releases
 
 
 def test_dump_cards_without_layout_exports_all_cached_layouts():
@@ -3583,7 +3583,7 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
         hass,
         entry,
         runtime_data,
-        manifest_version="2.0.8-beta.1",
+        manifest_version="2.0.9-beta.1",
         frontend_dependencies={
             "status": "not_inspectable",
             "reason": "Lovelace resource collection is not available in this Home Assistant runtime context.",
@@ -3592,6 +3592,17 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
     beta_checks = {check["id"]: check for check in beta_report["checks"]}
     assert beta_report["status"] == "pass"
     assert beta_checks["manifest_version"]["status"] == "pass"
+
+    future_report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        runtime_data,
+        manifest_version="2.0.10-beta.1",
+        frontend_dependencies={"status": "not_inspectable"},
+    )
+    future_checks = {check["id"]: check for check in future_report["checks"]}
+    assert future_report["status"] == "fail"
+    assert future_checks["manifest_version"]["status"] == "fail"
 
     failed_report = services_mod._build_v205_release_check_entry_report(
         hass,
@@ -4493,17 +4504,19 @@ def test_v205_release_check_service_is_documented_and_registered():
     services_source = (ROOT / "services.py").read_text()
     services_yaml = (ROOT / "services.yaml").read_text()
     readme_source = (ROOT / "README.md").read_text()
+    manifest = json.loads((ROOT / "manifest.json").read_text())
 
     assert 'SERVICE_V205_RELEASE_CHECK = "v205_release_check"' in services_source
     assert "SERVICE_V205_RELEASE_CHECK_SCHEMA" in services_source
     assert "handle_v205_release_check" in services_source
     assert "SERVICE_V205_RELEASE_CHECK" in services_source.split("async_unregister_services", 1)[1]
     assert "v205_release_check:" in services_yaml
-    assert "v2.0.5-v2.0.8" in services_yaml
-    assert "v2.0.5-v2.0.8" in readme_source
+    assert "v2.0.5-v2.0.9" in services_yaml
+    assert "v2.0.5-v2.0.9" in readme_source
     assert "write_test_exports" in services_yaml
     assert "humidity_intelligence.v205_release_check" in readme_source
     assert "humidity_intelligence_v205_release_check.json" in readme_source
+    assert manifest["version"] == "2.0.9-beta.1"
 
 
 def test_v205_release_check_only_fails_local_snapshot_when_required():
