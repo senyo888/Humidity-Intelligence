@@ -27,6 +27,26 @@ This project follows a practical changelog format for Home Assistant and HACS us
   the last atomic replacement wins. Entry-scoped purge does not delete export reports;
   only unscoped all-entry purge may remove the exact default diagnostics export,
   while release-check and custom reports remain retained.
+- Completed the runtime-owned artifact namespace: the fixed entity-bearing
+  `self_check` report now uses the secure report writer at
+  `<config>/humidity_intelligence/exports/humidity_intelligence_self_check.json`,
+  while generated `dump_cards`, `view_cards`, setup/options, and release-test card
+  YAML now writes under `<config>/humidity_intelligence/ui/`. Startup refresh remains
+  cache-only. Existing root
+  JSON/YAML is retained without copy, dual-write, symlink, move, or automatic
+  deletion; consumers must update paths after verifying fresh owned-directory output.
+- Added descriptor-relative, no-follow, same-directory atomic YAML replacement with
+  directory/file identity revalidation and no config-root fallback. External
+  `self_check`, `dump_cards`, and `view_cards` calls now require authenticated admin
+  context before work begins; trusted integration-owned UI regeneration calls the
+  internal exporter directly. Adding a second entry re-exports all loaded entries
+  with qualified card names; removing back to one re-exports the remaining entry
+  with unqualified names while retaining superseded owned-UI files for exact purge.
+- Narrowed automatic cleanup to exact owned artifacts. Entry-scoped purge/removal can
+  remove the selected entry's default and release-test card exports plus its
+  registered dashboard, but no reports. Unscoped all-entry purge may also remove the
+  fixed default diagnostics and self-check reports. Custom card/report names,
+  release-check reports, and legacy root artifacts remain retained.
 - Required authenticated admin user context for every `dump_diagnostics` and
   `v205_release_check` call. Non-admin, unknown-user, and contextless background
   callers are rejected before report lookup, cache work, path resolution, writes, or

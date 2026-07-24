@@ -83,19 +83,24 @@ Optional frontend cards and UI dependencies must never block backend functionali
 ## Mutation Service Authority
 
 External Home Assistant calls to `pause_control`, `resume_control`,
-`create_dashboard`, `purge_files`, `dump_diagnostics`, and `v205_release_check`
-require an admin user context whether they target one config entry or all entries. An
-`entry_id` narrows the target only; it is not an authorization bypass.
+`create_dashboard`, `purge_files`, `dump_diagnostics`, `self_check`,
+`v205_release_check`, `dump_cards`, and `view_cards` require an admin user context
+whether they target one config entry or all entries. An `entry_id` narrows the target
+only; it is not an authorization bypass.
 
 Contextless background automation/script calls are intentionally rejected. Supported
 external use originates from an authenticated admin UI or API session; any future
 automated trusted route requires separate design approval.
 
 First-run dashboard creation may use a trusted internal setup helper only after the
-user explicitly selects dashboard creation in config flow. That helper must not be
-exposed as a contextless service bypass, and the config entry must record a dashboard
-identifier only after registration succeeds. Dashboard creation authorization is
-separate from later dashboard visibility.
+user explicitly selects dashboard creation in config flow. First-run card export,
+option-triggered regeneration, and release-check test exports use a separate trusted
+internal card exporter so admin-gating the public `dump_cards` and `view_cards`
+handlers does not break integration-owned continuity. Startup refresh remains
+cache-only and does not claim a filesystem export. Neither helper is exposed as a
+contextless service bypass. The config entry records a dashboard identifier only
+after registration succeeds. Dashboard creation authorization is separate from later
+dashboard visibility.
 
 Generated-artifact purge must validate its full fixed target set before mutation,
 show the exact existing file and configured dashboard targets in a completed blocking
@@ -109,9 +114,25 @@ creation, temporary writes, atomic replacement, cleanup, and report purge stay
 descriptor-relative, reject symlink/non-regular targets, and fail closed without a
 config-root fallback. In-process writes are serialized; concurrent same-name calls
 produce complete JSON and the last atomic replacement wins without promising caller
-invocation order. Entry-scoped purge owns no export report. Only an unscoped all-entry
-purge may remove the exact default diagnostics export; release-check, custom, and
-legacy config-root reports remain retained.
+invocation order. The fixed self-check report uses the same writer and exact
+`<config>/humidity_intelligence/exports/humidity_intelligence_self_check.json`
+destination. Entry-scoped purge owns no export report. Only an unscoped all-entry
+purge may remove the exact default diagnostics and fixed self-check exports;
+release-check, custom, and legacy config-root reports remain retained.
+
+Generated card YAML is written only inside
+`<config>/humidity_intelligence/ui/`. Directory verification, creation, temporary
+writes, atomic replacement, and cleanup are descriptor-relative and no-follow,
+reject symlink and non-regular targets, revalidate directory/file identity, and fail
+closed without a config-root fallback. Same-name writes are serialized. Multi-entry
+installations use entry-qualified filenames; single-entry installations retain the
+unqualified default names. Exact default/per-entry card and release-check test-card
+exports are purge-owned. Custom card names and legacy root YAML are retained.
+Adding a second entry re-exports every loaded entry with qualified names; removing
+back to one entry re-exports the remaining entry with unqualified names. Superseded
+owned-UI names are retained non-destructively but remain exact purge targets.
+Registered Lovelace dashboard YAML remains separately owned at
+`<config>/dashboards/<url_path>.yaml`.
 
 Dynamic state or attribute text rendered through generated-card HTML must be escaped
 at the HTML sink. The V1 Mobile presentation remains available but deprecated through

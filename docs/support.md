@@ -111,13 +111,37 @@ Review any full `dump_diagnostics` export before sharing it publicly because it
 intentionally contains more local troubleshooting context than the native issue
 bundle.
 
-The v2.0.9 path change is non-destructive. Existing report files in the config root
-are not moved, copied, or deleted. Update file sensors, shell commands, support tools,
-or other consumers from `<config>/<filename>` to
-`<config>/humidity_intelligence/exports/<filename>` after verifying a new report.
-Keep a backup of any external consumer definition before changing it. A full Home
-Assistant restart is required after installing or rolling back the package.
-Rollback restores the complete prior integration package and the backed-up consumer
-paths, then requires another full restart. Files already written in the owned export
-directory are retained; they are not moved back to the config root. Rolling back also
-restores the older root-writer and caller-authority behavior.
+The v2.0.9 path change is non-destructive. Existing report and card files in the
+config root are not moved, copied, symlinked, dual-written, or deleted. The fixed
+self-check report now lives at
+`<config>/humidity_intelligence/exports/humidity_intelligence_self_check.json`;
+generated card YAML lives under `<config>/humidity_intelligence/ui/`. Registered
+dashboard YAML remains at `<config>/dashboards/<url_path>.yaml`.
+
+Update file sensors, shell commands, support tools, or other consumers from
+`<config>/<report filename>` to
+`<config>/humidity_intelligence/exports/<report filename>` and from
+`<config>/<card filename>` to
+`<config>/humidity_intelligence/ui/<card filename>` only after verifying a newly
+generated owned-directory artifact. Then disable or remove the stale root consumer
+explicitly so old JSON/YAML cannot silently remain authoritative. Multi-entry
+installations must use the entry-qualified card filename reported by the service
+notification. Adding a second entry re-exports every loaded entry with qualified
+names; removing back to one re-exports the remaining entry with unqualified names.
+Superseded owned-UI files are retained, so do not treat an older inferred filename as
+current truth; follow the newest notification and remove stale defaults through an
+explicit previewed purge when desired.
+
+External `self_check`, `dump_cards`, and `view_cards` calls now require an
+authenticated admin user context, matching the existing report-writer authority
+boundary. Contextless automations/scripts are rejected. HI-owned first-run, options,
+and release-check test-card regeneration continues through its trusted internal path.
+Startup refresh remains cache-only and does not claim that files were written.
+
+Keep a backup of every external consumer definition before changing it. A full Home
+Assistant restart is required after installing or rolling back the package; a
+config-entry reload is suitable only for exercising already-loaded updated code.
+Rollback restores the complete prior integration package and backed-up consumer
+paths, then requires another full restart. Files already written in either owned
+directory are retained and are not moved back to the config root. Rolling back also
+restores the older root-writer and external caller-authority behavior.

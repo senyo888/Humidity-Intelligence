@@ -62,6 +62,25 @@ review, Aetherwing runtime/release validation, AetherCore governance consistency
 review, README/release approval, and the normal release sanity checks for the exact
 branch being promoted.
 
+For v2.0.9 owned-artifact namespace validation, the release packet must separately
+record:
+
+- exact diagnostics, self-check, release-check, generated-card, and registered
+  dashboard paths;
+- admin rejection before work for external `self_check`, `dump_cards`, and
+  `view_cards`, continuity of trusted setup/options/release-test exports, and truthful
+  cache-only startup refresh;
+- single-entry and entry-qualified multi-entry filenames, exact purge preview/removal
+  ownership, and retention of custom and legacy root artifacts;
+- descriptor-relative no-follow atomic writer tests, including concurrent writes,
+  directory creation/permissions, symlink, non-regular target, and directory
+  substitution rejection;
+- consumer migration and rollback evidence that does not treat stale root JSON/YAML
+  as current output;
+- a full Home Assistant restart after package installation before HA Lab runtime
+  evidence. A config-entry reload may validate already-loaded options/regeneration
+  behavior, but does not prove that newly installed Python or service schemas loaded.
+
 ## Branch Responsibilities
 
 - `senyo888-patch-1`: staging lane for all manifest labels. It may carry beta, rc,

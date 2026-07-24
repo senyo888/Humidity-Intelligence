@@ -2,104 +2,123 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
-import stat
-from pathlib import Path
 from typing import Iterable, List
 
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
-_GENERATED_FILENAME_RE = re.compile(
-    r"^humidity_intelligence_[A-Za-z0-9._-]+\.(?:json|yaml)$"
+_GENERATED_UI_LAYOUTS = (
+    "v1_mobile",
+    "v2_mobile",
+    "v2_tablet",
+    "view_cards_button",
 )
 
 
-def _generated_file_path(hass: HomeAssistant, filename: str) -> Path:
-    """Return a confined direct child path for one HI-owned generated file."""
-    if (
-        not isinstance(filename, str)
-        or Path(filename).name != filename
-        or not _GENERATED_FILENAME_RE.fullmatch(filename)
-    ):
-        raise ValueError(f"Invalid Humidity Intelligence cleanup target: {filename!r}")
+def safe_artifact_entry_slug(value: str) -> str:
+    """Return a deterministic collision-resistant filename token for an entry."""
+    text = str(value or "entry")
+    safe = re.sub(r"[^A-Za-z0-9_-]+", "_", text)[:48] or "entry"
+    if safe == text and len(text) <= 48:
+        return safe
 
-    config_root = Path(hass.config.path()).resolve()
-    path = Path(hass.config.path(filename))
-    if path.parent.resolve() != config_root:
-        raise ValueError(f"Cleanup target is outside the Home Assistant config root: {filename}")
-    return path
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
+    return f"{safe}_{digest}"
 
 
-def list_generated_files(entry: ConfigEntry) -> List[str]:
-    """Return generated filenames (relative to /config) for an entry."""
-    layouts = entry.data.get("ui_layouts") or []
-    if not layouts:
-        layouts = ["v2_mobile", "v2_tablet", "v1_mobile", "view_cards_button"]
-
-    filenames = set()
-    base = "humidity_intelligence_cards"
-    for layout in layouts:
-        filenames.add(f"{base}_{layout}.yaml")
-        filenames.add(f"{base}_{entry.entry_id}_{layout}.yaml")
-    # Legacy or single-file outputs
-    filenames.add("humidity_intelligence_cards.json")
-    filenames.add("humidity_intelligence_cards.yaml")
-    # The root self-check remains entry-owned. Caller-selectable report exports use
-    # the separately confined export-directory cleanup contract.
-    filenames.add("humidity_intelligence_self_check.json")
-    return sorted(filenames)
+def build_generated_card_filename(
+    base: str | None,
+    layout: str,
+    entry_id: str,
+    multiple: bool,
+) -> str:
+    """Build one stable generated-card basename."""
+    prefix = base or "humidity_intelligence_cards"
+    if prefix.endswith(".yaml"):
+        prefix = prefix[:-5]
+    if prefix.endswith(".yml"):
+        prefix = prefix[:-4]
+    if multiple:
+        return f"{prefix}_{safe_artifact_entry_slug(entry_id)}_{layout}.yaml"
+    return f"{prefix}_{layout}.yaml"
 
 
-def list_all_generated_files(entries: Iterable[ConfigEntry]) -> List[str]:
-    files = set()
-    for entry in entries:
-        for name in list_generated_files(entry):
-            files.add(name)
-    return sorted(files)
-
-
-def plan_generated_file_removal(
-    hass: HomeAssistant,
-    filenames: Iterable[str],
+def list_owned_ui_filenames(
+    entries: Iterable[ConfigEntry],
+    *,
+    multiple_installation: bool,
+    include_unqualified_defaults: bool,
 ) -> List[str]:
-    """Validate all candidates and return existing regular files only."""
-    candidates = list(dict.fromkeys(filenames))
-    paths = [(name, _generated_file_path(hass, name)) for name in candidates]
-    planned: List[str] = []
-    for name, path in paths:
-        try:
-            metadata = path.lstat()
-        except FileNotFoundError:
-            continue
-        except OSError as err:
-            raise ValueError(f"Unable to inspect cleanup target {name}: {err}") from err
-        if path.is_symlink() or not stat.S_ISREG(metadata.st_mode):
-            raise ValueError(
-                f"Cleanup target must be a regular non-symlink file: {name}"
+    """Return the exact default and release-test UI basenames owned by entries."""
+    entries = list(entries)
+    filenames = set()
+    if include_unqualified_defaults:
+        for layout in _GENERATED_UI_LAYOUTS:
+            filenames.add(
+                build_generated_card_filename(
+                    None,
+                    layout,
+                    "",
+                    False,
+                )
             )
-        planned.append(name)
-    return planned
+        release_base = "humidity_intelligence_v205_release_check_cards"
+        for layout in _GENERATED_UI_LAYOUTS:
+            filenames.add(
+                build_generated_card_filename(
+                    release_base,
+                    layout,
+                    "",
+                    False,
+                )
+            )
+        filenames.add(
+            build_generated_card_filename(
+                f"{release_base}_scoped",
+                "v2_tablet",
+                "",
+                False,
+            )
+        )
+    for entry in entries:
+        entry_id = str(entry.entry_id)
+        naming_modes = {multiple_installation}
+        if not multiple_installation:
+            naming_modes.add(True)
+        for naming_mode in naming_modes:
+            for layout in _GENERATED_UI_LAYOUTS:
+                filenames.add(
+                    build_generated_card_filename(
+                        None,
+                        layout,
+                        entry_id,
+                        naming_mode,
+                    )
+                )
 
-
-def remove_files(hass: HomeAssistant, filenames: Iterable[str]) -> List[str]:
-    """Remove planned generated files and return any names that failed."""
-    failed: List[str] = []
-    for name in filenames:
-        try:
-            path = _generated_file_path(hass, name)
-            metadata = path.lstat()
-            if path.is_symlink() or not stat.S_ISREG(metadata.st_mode):
-                raise OSError("target is not a regular non-symlink file")
-            path.unlink()
-        except FileNotFoundError:
-            continue
-        except (OSError, ValueError) as err:
-            _LOGGER.warning("Unable to remove generated file %s: %s", name, err)
-            failed.append(name)
-    return failed
+            release_base = "humidity_intelligence_v205_release_check_cards"
+            for layout in _GENERATED_UI_LAYOUTS:
+                filenames.add(
+                    build_generated_card_filename(
+                        release_base,
+                        layout,
+                        entry_id,
+                        naming_mode,
+                    )
+                )
+            filenames.add(
+                build_generated_card_filename(
+                    f"{release_base}_scoped",
+                    "v2_tablet",
+                    entry_id,
+                    naming_mode,
+                )
+            )
+    return sorted(filenames)
 
 
 async def remove_dashboard(hass: HomeAssistant, dashboard_id: str | None) -> bool:

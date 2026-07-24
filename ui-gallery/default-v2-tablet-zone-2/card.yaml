@@ -8,7 +8,7 @@
 #
 # How to use after an upgrade or UI-changing option update:
 # 1. Export refreshed Humidity Intelligence card YAML from Home Assistant.
-# 2. Open /config/humidity_intelligence_cards_v2_tablet.yaml.
+# 2. Open /config/humidity_intelligence/ui/humidity_intelligence_cards_v2_tablet.yaml.
 # 3. Replace the old Manual card YAML with the full contents of that file.
 # 4. Save the dashboard and hard-refresh the browser/app if the old UI remains cached.
 #

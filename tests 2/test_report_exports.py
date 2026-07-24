@@ -599,6 +599,254 @@ class ReportExportTests(unittest.TestCase):
                 {"version": 2},
             )
 
+    def test_owned_ui_filename_contract(self):
+        validate = self.exports.validate_owned_ui_filename
+        self.assertEqual(
+            validate("humidity_intelligence_cards_v2_mobile.yaml"),
+            "humidity_intelligence_cards_v2_mobile.yaml",
+        )
+        filesystem_boundary = ("x" * 250) + ".yaml"
+        self.assertEqual(validate(filesystem_boundary), filesystem_boundary)
+        for candidate in (
+            "humidity_intelligence_cards_v2_mobile.yml",
+            "humidity_intelligence_cards_v2_mobile.json",
+            " humidity_intelligence_cards_v2_mobile.yaml ",
+            "humidity_intelligence_..cards.yaml",
+            "../humidity_intelligence_cards.yaml",
+            "nested/humidity_intelligence_cards.yaml",
+            "nested\\humidity_intelligence_cards.yaml",
+            ("x" * 251) + ".yaml",
+        ):
+            with self.subTest(candidate=candidate):
+                with self.assertRaises(self.exports.ReportExportError):
+                    validate(candidate)
+
+    def test_ui_write_creates_owned_directory_and_retains_legacy_root(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            filename = "humidity_intelligence_cards_v2_mobile.yaml"
+            legacy = root / filename
+            legacy.write_text("legacy: true\n", encoding="utf-8")
+
+            relative = self.exports.write_owned_ui_export(
+                root,
+                filename,
+                "type: markdown\ncontent: First\n",
+            )
+
+            self.assertEqual(
+                relative,
+                "humidity_intelligence/ui/" + filename,
+            )
+            self.assertEqual(
+                (root / relative).read_text(encoding="utf-8"),
+                "type: markdown\ncontent: First\n",
+            )
+            self.assertEqual(legacy.read_text(encoding="utf-8"), "legacy: true\n")
+
+    def test_ui_directory_permissions_are_not_rewritten(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            ui_dir = root / "humidity_intelligence" / "ui"
+            ui_dir.mkdir(parents=True)
+            os.chmod(ui_dir, 0o750)
+            before_mode = stat.S_IMODE(ui_dir.stat().st_mode)
+
+            with mock.patch.object(
+                self.exports.os,
+                "chmod",
+                side_effect=AssertionError("chmod must not be called"),
+            ), mock.patch.object(
+                self.exports.os,
+                "chown",
+                side_effect=AssertionError("chown must not be called"),
+                create=True,
+            ):
+                self.exports.write_owned_ui_export(
+                    root,
+                    "humidity_intelligence_cards_v2_mobile.yaml",
+                    "type: markdown\ncontent: Ready\n",
+                )
+
+            self.assertEqual(stat.S_IMODE(ui_dir.stat().st_mode), before_mode)
+
+    def test_ui_write_rejects_symlinks_non_regular_targets_and_directory_substitution(self):
+        if not hasattr(os, "symlink"):
+            self.skipTest("symlink support is required")
+
+        with tempfile.TemporaryDirectory() as tmpdir, tempfile.TemporaryDirectory() as outside:
+            root = Path(tmpdir)
+            outside_root = Path(outside)
+            owned = root / "humidity_intelligence"
+            owned.mkdir()
+            (owned / "ui").symlink_to(outside_root, target_is_directory=True)
+            with self.assertRaises(self.exports.ReportExportError):
+                self.exports.write_owned_ui_export(
+                    root,
+                    "humidity_intelligence_cards_v2_mobile.yaml",
+                    "unsafe: true\n",
+                )
+            self.assertEqual(list(outside_root.iterdir()), [])
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            ui_dir = root / "humidity_intelligence" / "ui"
+            ui_dir.mkdir(parents=True)
+            victim = root / "victim.yaml"
+            victim.write_text("safe: true\n", encoding="utf-8")
+            symlink = ui_dir / "humidity_intelligence_cards_v2_mobile.yaml"
+            symlink.symlink_to(victim)
+            with self.assertRaises(self.exports.ReportExportError):
+                self.exports.write_owned_ui_export(
+                    root,
+                    symlink.name,
+                    "unsafe: true\n",
+                )
+            self.assertEqual(victim.read_text(encoding="utf-8"), "safe: true\n")
+
+            directory = ui_dir / "humidity_intelligence_cards_v2_tablet.yaml"
+            directory.mkdir()
+            with self.assertRaises(self.exports.ReportExportError):
+                self.exports.write_owned_ui_export(
+                    root,
+                    directory.name,
+                    "unsafe: true\n",
+                )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            owned = root / "humidity_intelligence"
+            ui_dir = owned / "ui"
+            moved_dir = owned / "ui_moved"
+            filename = "humidity_intelligence_cards_v2_mobile.yaml"
+
+            def substitute_directory(stream):
+                stream.write("type: markdown\ncontent: Moved\n")
+                ui_dir.rename(moved_dir)
+                ui_dir.mkdir()
+
+            original_write = self.exports._write_owned_artifact_locked
+
+            def raced_write(*args, **kwargs):
+                kwargs["serialize"] = substitute_directory
+                return original_write(*args, **kwargs)
+
+            with mock.patch.object(
+                self.exports,
+                "_write_owned_artifact_locked",
+                side_effect=raced_write,
+            ):
+                with self.assertRaises(self.exports.ReportExportError):
+                    self.exports.write_owned_ui_export(
+                        root,
+                        filename,
+                        "unused\n",
+                    )
+            self.assertFalse((ui_dir / filename).exists())
+            self.assertEqual(
+                (moved_dir / filename).read_text(encoding="utf-8"),
+                "type: markdown\ncontent: Moved\n",
+            )
+
+    def test_ui_write_is_atomic_concurrent_and_uses_non_executable_file_mode(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            filename = "humidity_intelligence_cards_v2_tablet.yaml"
+            payloads = [
+                f"type: markdown\ncontent: Writer {writer} {'x' * 2000}\n"
+                for writer in range(12)
+            ]
+            with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+                results = list(
+                    executor.map(
+                        lambda payload: self.exports.write_owned_ui_export(
+                            root,
+                            filename,
+                            payload,
+                        ),
+                        payloads,
+                    )
+                )
+
+            self.assertEqual(
+                set(results),
+                {"humidity_intelligence/ui/" + filename},
+            )
+            destination = root / results[0]
+            self.assertIn(destination.read_text(encoding="utf-8"), payloads)
+            self.assertEqual(
+                stat.S_IMODE(destination.stat().st_mode) & 0o111,
+                0,
+            )
+            self.assertEqual(
+                list(destination.parent.glob(".hi_ui_*.tmp")),
+                [],
+            )
+
+    def test_ui_atomic_replace_failure_has_no_config_root_fallback(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            filename = "humidity_intelligence_cards_v2_mobile.yaml"
+            with mock.patch.object(
+                self.exports.os,
+                "replace",
+                side_effect=NotImplementedError("dir_fd replace unavailable"),
+            ):
+                with self.assertRaises(self.exports.ReportExportError):
+                    self.exports.write_owned_ui_export(
+                        root,
+                        filename,
+                        "type: markdown\ncontent: Unsafe\n",
+                    )
+
+            self.assertFalse((root / filename).exists())
+            ui_dir = root / "humidity_intelligence" / "ui"
+            self.assertTrue(ui_dir.is_dir())
+            self.assertEqual(list(ui_dir.iterdir()), [])
+
+    def test_ui_cleanup_is_exact_identity_bound_and_retains_custom_files(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            default_name = "humidity_intelligence_cards_v2_mobile.yaml"
+            custom_name = "humidity_intelligence_my_custom_v2_mobile.yaml"
+            self.exports.write_owned_ui_export(root, default_name, "default: true\n")
+            self.exports.write_owned_ui_export(root, custom_name, "custom: true\n")
+
+            plans = self.exports.plan_owned_ui_export_removal(
+                root,
+                [default_name],
+            )
+            self.assertEqual(
+                [plan.relative_path for plan in plans],
+                ["humidity_intelligence/ui/" + default_name],
+            )
+            default_path = root / plans[0].relative_path
+            default_path.unlink()
+            default_path.write_text("replacement: true\n", encoding="utf-8")
+            with self.assertRaises(self.exports.ReportExportError):
+                self.exports.remove_owned_ui_export(root, plans[0])
+            self.assertTrue(
+                root.joinpath("humidity_intelligence", "ui", custom_name).is_file()
+            )
+
+    def test_self_check_cleanup_owns_only_fixed_export(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            filename = self.exports.DEFAULT_SELF_CHECK_REPORT_FILENAME
+            legacy = root / filename
+            legacy.write_text('{"legacy": true}\n', encoding="utf-8")
+            self.exports.write_owned_report(root, filename, {"status": "current"})
+
+            plans = self.exports.plan_default_self_check_report_removal(root)
+            self.assertEqual(
+                [plan.relative_path for plan in plans],
+                [self.exports.DEFAULT_SELF_CHECK_REPORT_RELATIVE_PATH],
+            )
+            self.assertTrue(
+                self.exports.remove_default_self_check_report(root, plans[0])
+            )
+            self.assertEqual(legacy.read_text(encoding="utf-8"), '{"legacy": true}\n')
+
 
 if __name__ == "__main__":
     unittest.main()

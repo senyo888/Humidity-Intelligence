@@ -86,8 +86,16 @@ Use:
 - `humidity_intelligence.view_cards`
 - `humidity_intelligence.dump_cards`
 
-`create_dashboard` is an admin-only mutation service. The trusted first-run setup
-path remains available when dashboard creation was explicitly selected.
+These external services require an authenticated admin user context.
+`dump_cards` and `view_cards` write generated YAML under
+`/config/humidity_intelligence/ui/`; multi-entry installations add an entry-qualified
+token to each filename. Adding a second entry re-exports all loaded entries with
+qualified names; removing back to one re-exports the remaining entry with unqualified
+names. Superseded owned-UI names remain exact purge targets. Trusted first-run,
+options, and release-check regeneration uses the same internal exporter without
+routing through the public service handler. Startup refresh remains cache-only.
+Registered dashboard YAML remains under
+`/config/dashboards/<url_path>.yaml`.
 
 Avoid manual YAML drift.
 
@@ -208,6 +216,8 @@ If mismatch occurs:
 - New generated V2 cards default to the cleaner output display unless output details are enabled.
 - `v2_tablet` is the default first-install UI export layout.
 - `humidity_intelligence.dump_cards` remains the supported export path after UI visibility, template, or mapping changes.
+- Generated-card consumers must use `/config/humidity_intelligence/ui/`; legacy
+  config-root YAML is retained and is not refreshed, migrated, or purged.
 - Already-pasted Manual cards are static; refresh/export updates HI output files, not the pasted card content.
 
 ### Historical v2.0.2 UI Contract Updates

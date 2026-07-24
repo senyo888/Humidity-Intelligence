@@ -118,6 +118,7 @@ def _install_homeassistant_stubs(*, include_unit_ratio: bool = True) -> None:
     helpers = types.ModuleType("homeassistant.helpers")
     config_validation = types.ModuleType("homeassistant.helpers.config_validation")
     event = types.ModuleType("homeassistant.helpers.event")
+    issue_registry = types.ModuleType("homeassistant.helpers.issue_registry")
     device_registry = types.ModuleType("homeassistant.helpers.device_registry")
     entity_helper = types.ModuleType("homeassistant.helpers.entity")
     entity_registry = types.ModuleType("homeassistant.helpers.entity_registry")
@@ -292,6 +293,10 @@ def _install_homeassistant_stubs(*, include_unit_ratio: bool = True) -> None:
     entity_helper.Entity = Entity
     entity_helper.async_generate_entity_id = async_generate_entity_id
     entity_registry.async_get = lambda hass: None
+    issue_registry.IssueSeverity = SimpleNamespace(WARNING="warning")
+    issue_registry.async_create_issue = lambda *_args, **_kwargs: None
+    issue_registry.async_delete_issue = lambda *_args, **_kwargs: None
+    helpers.issue_registry = issue_registry
     util.slugify = lambda value: str(value).lower().replace(" ", "_")
     voluptuous.Schema = Schema
     voluptuous.Optional = _SchemaKey
@@ -316,6 +321,7 @@ def _install_homeassistant_stubs(*, include_unit_ratio: bool = True) -> None:
     sys.modules["homeassistant.helpers"] = helpers
     sys.modules["homeassistant.helpers.config_validation"] = config_validation
     sys.modules["homeassistant.helpers.event"] = event
+    sys.modules["homeassistant.helpers.issue_registry"] = issue_registry
     sys.modules["homeassistant.helpers.device_registry"] = device_registry
     sys.modules["homeassistant.helpers.entity"] = entity_helper
     sys.modules["homeassistant.helpers.entity_registry"] = entity_registry
@@ -366,6 +372,10 @@ def _load_services_module():
     _install_package_scaffold()
     _load_module(f"{PKG}.const", ROOT / "const.py")
     _load_module(f"{PKG}.helpers.cleanup", ROOT / "helpers" / "cleanup.py")
+    _load_module(
+        f"{PKG}.helpers.report_exports",
+        ROOT / "helpers" / "report_exports.py",
+    )
     level_labels_path = ROOT / "helpers" / "level_labels.py"
     if level_labels_path.exists():
         _load_module(f"{PKG}.helpers.level_labels", level_labels_path)
@@ -390,29 +400,40 @@ def _load_integration_init_module():
     services_mod = sys.modules[f"{PKG}.services"]
     services_mod.SERVICE_REFRESH_UI = "refresh_ui"
     services_mod.async_create_dashboard_for_entry = async_noop
+    services_mod.async_export_cards_to_owned_ui = async_noop
     services_mod.async_register_services = async_noop
     services_mod.async_unregister_services = async_noop
 
     cleanup_mod = types.ModuleType(f"{PKG}.helpers.cleanup")
-    cleanup_mod.list_generated_files = lambda _entry: []
-    cleanup_mod.remove_files = lambda _hass, _files: []
+    cleanup_mod.list_owned_ui_filenames = lambda *_args, **_kwargs: []
     cleanup_mod.remove_dashboard = async_noop
     sys.modules[f"{PKG}.helpers.cleanup"] = cleanup_mod
+    sys.modules[f"{PKG}.helpers"].cleanup = cleanup_mod
+
+    report_exports_mod = types.ModuleType(f"{PKG}.helpers.report_exports")
+    report_exports_mod.ReportExportError = RuntimeError
+    report_exports_mod.plan_owned_ui_export_removal = lambda *_args: []
+    report_exports_mod.remove_owned_ui_export = lambda *_args: True
+    sys.modules[f"{PKG}.helpers.report_exports"] = report_exports_mod
+    sys.modules[f"{PKG}.helpers"].report_exports = report_exports_mod
 
     drift_mod = types.ModuleType(f"{PKG}.helpers.drift_repairs")
     drift_mod.async_update_humidity_drift_repair_issue = async_noop
     sys.modules[f"{PKG}.helpers.drift_repairs"] = drift_mod
+    sys.modules[f"{PKG}.helpers"].drift_repairs = drift_mod
 
     entity_registry_mod = types.ModuleType(f"{PKG}.helpers.entity_registry")
     entity_registry_mod.normalize_pm25_aggregate_entity_ids = (
         lambda _hass, _entry_id: {"changed": {}, "blocked": []}
     )
     sys.modules[f"{PKG}.helpers.entity_registry"] = entity_registry_mod
+    sys.modules[f"{PKG}.helpers"].entity_registry = entity_registry_mod
 
     register_mod = types.ModuleType(f"{PKG}.ui.register")
     register_mod.async_register_cards = async_noop
     register_mod.async_build_entity_mapping = async_noop
     sys.modules[f"{PKG}.ui.register"] = register_mod
+    sys.modules[f"{PKG}.ui"].register = register_mod
 
     automations_mod = sys.modules[f"{PKG}.automations"]
     automations_mod.async_setup_entry = async_noop
@@ -3438,6 +3459,7 @@ def test_startup_ui_refresh_contract_is_wired():
     assert ".add_done_callback(" not in init_source
     assert "startup_ui_refresh_scheduled" in init_source
     assert "SERVICE_REFRESH_UI" in init_source
+    assert '"dump_cards",' not in init_source
     assert "STARTUP_UI_REFRESH_DELAY_SECONDS" in init_source
     assert "blocking=True" in init_source
     assert "auto_refresh_ui_on_startup" in const_source
@@ -3462,6 +3484,165 @@ def test_startup_ui_refresh_contract_is_wired():
     assert "_entry_show_output_entity_details" in init_source
     assert "generated-card output details" in init_source
     assert "UI visibility changes" in init_source
+    startup_method = init_source.split(
+        "async def _async_delayed_startup_ui_refresh",
+        1,
+    )[1].split("def _entry_auto_refresh_ui_on_startup", 1)[0]
+    assert "SERVICE_REFRESH_UI" in startup_method
+    assert "async_export_cards_to_owned_ui" not in startup_method
+
+
+def test_options_refresh_uses_trusted_card_export_after_mapping_refresh():
+    integration_mod = _load_integration_init_module()
+    events = []
+
+    async def async_call(domain, service, data=None, blocking=False):
+        events.append(("service", domain, service, data or {}, blocking))
+
+    async def export_cards(_hass, entry_id, filename, layout=None):
+        events.append(("export", entry_id, filename, layout))
+        return [
+            "/config/humidity_intelligence/ui/"
+            "humidity_intelligence_cards_v2_mobile.yaml"
+        ]
+
+    integration_mod.async_export_cards_to_owned_ui = export_cards
+    hass = SimpleNamespace(
+        services=SimpleNamespace(async_call=async_call),
+    )
+
+    asyncio.run(integration_mod._async_refresh_and_dump_cards(hass, ENTRY_ID))
+
+    assert events == [
+        (
+            "service",
+            integration_mod.DOMAIN,
+            "refresh_ui",
+            {"entry_id": ENTRY_ID},
+            True,
+        ),
+        ("export", ENTRY_ID, None, None),
+    ]
+
+
+def test_options_update_reloads_entry_then_regenerates_owned_ui_with_loaded_code():
+    integration_mod = _load_integration_init_module()
+    events = []
+
+    async def async_reload(entry_id):
+        events.append(("reload", entry_id))
+
+    async def refresh_and_dump(_hass, entry_id):
+        events.append(("refresh_export", entry_id))
+        return [
+            "/config/humidity_intelligence/ui/"
+            "humidity_intelligence_cards_entry123_v2_mobile.yaml"
+        ]
+
+    async def async_call(domain, service, data=None, blocking=False):
+        events.append(
+            (
+                "service",
+                domain,
+                service,
+                data or {},
+                blocking,
+            )
+        )
+
+    integration_mod._async_refresh_and_dump_cards = refresh_and_dump
+    entry = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data={},
+        options={
+            "alert_only_mode": True,
+            "show_output_entity_details": False,
+        },
+    )
+    hass = SimpleNamespace(
+        data={
+            integration_mod.DOMAIN: {
+                ENTRY_ID: {
+                    "config": {
+                        "alert_only_mode": False,
+                        "show_output_entity_details": False,
+                    }
+                }
+            }
+        },
+        config_entries=SimpleNamespace(async_reload=async_reload),
+        services=SimpleNamespace(async_call=async_call),
+    )
+
+    asyncio.run(integration_mod._async_options_updated(hass, entry))
+
+    assert events[0:2] == [
+        ("reload", ENTRY_ID),
+        ("refresh_export", ENTRY_ID),
+    ]
+    notification = events[2]
+    assert notification[0:3] == (
+        "service",
+        "persistent_notification",
+        "create",
+    )
+    assert (
+        "/config/humidity_intelligence/ui/"
+        "humidity_intelligence_cards_entry123_v2_mobile.yaml"
+        in notification[3]["message"]
+    )
+
+
+def test_options_update_reports_export_failure_without_success_path():
+    integration_mod = _load_integration_init_module()
+    service_calls = []
+
+    async def async_reload(_entry_id):
+        return None
+
+    async def failed_refresh_and_dump(_hass, _entry_id):
+        raise RuntimeError("fixture writer rejected")
+
+    async def async_call(domain, service, data=None, blocking=False):
+        service_calls.append((domain, service, data or {}, blocking))
+
+    integration_mod._async_refresh_and_dump_cards = failed_refresh_and_dump
+    entry = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data={},
+        options={
+            "alert_only_mode": True,
+            "show_output_entity_details": False,
+        },
+    )
+    hass = SimpleNamespace(
+        data={
+            integration_mod.DOMAIN: {
+                ENTRY_ID: {
+                    "config": {
+                        "alert_only_mode": False,
+                        "show_output_entity_details": False,
+                    }
+                }
+            }
+        },
+        config_entries=SimpleNamespace(async_reload=async_reload),
+        services=SimpleNamespace(async_call=async_call),
+    )
+
+    asyncio.run(integration_mod._async_options_updated(hass, entry))
+
+    notifications = [
+        call
+        for call in service_calls
+        if call[0:2] == ("persistent_notification", "create")
+    ]
+    assert len(notifications) == 1
+    assert notifications[0][2]["title"] == (
+        "Humidity Intelligence UI Update Incomplete"
+    )
+    assert "fixture writer rejected" in notifications[0][2]["message"]
+    assert "files were written" not in notifications[0][2]["message"]
 
 
 def test_options_gates_keeps_custom_targets_behind_advanced():
@@ -3568,7 +3749,7 @@ def test_dump_cards_without_layout_exports_all_cached_layouts():
     with tempfile.TemporaryDirectory() as tmpdir:
         hass = _DumpCardsHass(tmpdir, [entry], {ENTRY_ID: cards})
         written = asyncio.run(
-            services_mod._dump_cards_to_file(
+            services_mod.async_export_cards_to_owned_ui(
                 hass,
                 entry_id=None,
                 filename="humidity_intelligence_cards",
@@ -3577,13 +3758,18 @@ def test_dump_cards_without_layout_exports_all_cached_layouts():
         )
 
         assert written == [
-            "/config/humidity_intelligence_cards_v2_mobile.yaml",
-            "/config/humidity_intelligence_cards_v2_tablet.yaml",
-            "/config/humidity_intelligence_cards_v1_mobile.yaml",
-            "/config/humidity_intelligence_cards_view_cards_button.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_cards_v2_mobile.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_cards_v2_tablet.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_cards_v1_mobile.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_cards_view_cards_button.yaml",
         ]
         for layout, yaml in cards.items():
-            path = pathlib.Path(tmpdir) / f"humidity_intelligence_cards_{layout}.yaml"
+            path = (
+                pathlib.Path(tmpdir)
+                / "humidity_intelligence"
+                / "ui"
+                / f"humidity_intelligence_cards_{layout}.yaml"
+            )
             assert path.read_text() == yaml
 
 
@@ -3599,7 +3785,7 @@ def test_dump_cards_with_layout_exports_only_requested_layout():
     with tempfile.TemporaryDirectory() as tmpdir:
         hass = _DumpCardsHass(tmpdir, [entry], {ENTRY_ID: cards})
         written = asyncio.run(
-            services_mod._dump_cards_to_file(
+            services_mod.async_export_cards_to_owned_ui(
                 hass,
                 entry_id=None,
                 filename="humidity_intelligence_cards",
@@ -3607,10 +3793,124 @@ def test_dump_cards_with_layout_exports_only_requested_layout():
             )
         )
 
-        assert written == ["/config/humidity_intelligence_cards_v2_tablet.yaml"]
-        assert (pathlib.Path(tmpdir) / "humidity_intelligence_cards_v2_tablet.yaml").read_text() == "tablet-card"
-        assert not (pathlib.Path(tmpdir) / "humidity_intelligence_cards_v2_mobile.yaml").exists()
-        assert not (pathlib.Path(tmpdir) / "humidity_intelligence_cards_v1_mobile.yaml").exists()
+        ui_dir = pathlib.Path(tmpdir) / "humidity_intelligence" / "ui"
+        assert written == [
+            "/config/humidity_intelligence/ui/humidity_intelligence_cards_v2_tablet.yaml"
+        ]
+        assert (
+            ui_dir / "humidity_intelligence_cards_v2_tablet.yaml"
+        ).read_text() == "tablet-card"
+        assert not (ui_dir / "humidity_intelligence_cards_v2_mobile.yaml").exists()
+        assert not (ui_dir / "humidity_intelligence_cards_v1_mobile.yaml").exists()
+
+
+def test_card_exports_are_entry_qualified_only_for_multi_entry_installations():
+    services_mod = _load_services_module()
+    first = SimpleNamespace(entry_id="entry_one")
+    second = SimpleNamespace(entry_id="entry_two")
+    cards = {"v2_mobile": "type: markdown\ncontent: Ready\n"}
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        hass = _DumpCardsHass(
+            tmpdir,
+            [first, second],
+            {
+                first.entry_id: cards,
+                second.entry_id: cards,
+            },
+        )
+        written = asyncio.run(
+            services_mod.async_export_cards_to_owned_ui(
+                hass,
+                entry_id=None,
+                filename=None,
+                layout="v2_mobile",
+            )
+        )
+        assert written == [
+            "/config/humidity_intelligence/ui/"
+            "humidity_intelligence_cards_entry_one_v2_mobile.yaml",
+            "/config/humidity_intelligence/ui/"
+            "humidity_intelligence_cards_entry_two_v2_mobile.yaml",
+        ]
+
+        custom = asyncio.run(
+            services_mod.async_export_cards_to_owned_ui(
+                hass,
+                entry_id=first.entry_id,
+                filename="humidity_intelligence_custom_cards",
+                layout="v2_mobile",
+            )
+        )
+        assert custom == [
+            "/config/humidity_intelligence/ui/"
+            "humidity_intelligence_custom_cards_entry_one_v2_mobile.yaml"
+        ]
+
+        boundary_base = "x" * 128
+        assert (
+            services_mod.SERVICE_DUMP_CARDS_SCHEMA(
+                {"filename": boundary_base}
+            )["filename"]
+            == boundary_base
+        )
+        boundary = asyncio.run(
+            services_mod.async_export_cards_to_owned_ui(
+                hass,
+                entry_id=first.entry_id,
+                filename=boundary_base,
+                layout="v2_mobile",
+            )
+        )
+        boundary_name = boundary[0].removeprefix(
+            "/config/humidity_intelligence/ui/"
+        )
+        assert len(boundary_name) <= 255
+        assert (
+            pathlib.Path(tmpdir)
+            / "humidity_intelligence"
+            / "ui"
+            / boundary_name
+        ).is_file()
+
+
+def test_owned_ui_purge_names_are_exact_for_default_and_release_test_exports():
+    services_mod = _load_services_module()
+    cleanup_mod = sys.modules[f"{PKG}.helpers.cleanup"]
+    entry = SimpleNamespace(entry_id="entry_one")
+
+    single = cleanup_mod.list_owned_ui_filenames(
+        [entry],
+        multiple_installation=False,
+        include_unqualified_defaults=True,
+    )
+    assert "humidity_intelligence_cards_v2_mobile.yaml" in single
+    assert (
+        "humidity_intelligence_v205_release_check_cards_v2_mobile.yaml"
+        in single
+    )
+    assert (
+        "humidity_intelligence_v205_release_check_cards_scoped_v2_tablet.yaml"
+        in single
+    )
+    assert "humidity_intelligence_cards_entry_one_v2_mobile.yaml" in single
+    assert (
+        "humidity_intelligence_v205_release_check_cards_entry_one_v2_mobile.yaml"
+        in single
+    )
+    assert "humidity_intelligence_custom_cards_v2_mobile.yaml" not in single
+
+    multi = cleanup_mod.list_owned_ui_filenames(
+        [entry],
+        multiple_installation=True,
+        include_unqualified_defaults=False,
+    )
+    assert "humidity_intelligence_cards_entry_one_v2_mobile.yaml" in multi
+    assert (
+        "humidity_intelligence_v205_release_check_cards_entry_one_v2_mobile.yaml"
+        in multi
+    )
+    assert "humidity_intelligence_cards_v2_mobile.yaml" not in multi
 
 
 def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
@@ -3662,13 +3962,13 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
         },
         write_test_exports=True,
         unscoped_written=[
-            "/config/humidity_intelligence_v205_release_check_cards_v2_mobile.yaml",
-            "/config/humidity_intelligence_v205_release_check_cards_v2_tablet.yaml",
-            "/config/humidity_intelligence_v205_release_check_cards_v1_mobile.yaml",
-            "/config/humidity_intelligence_v205_release_check_cards_view_cards_button.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_v205_release_check_cards_v2_mobile.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_v205_release_check_cards_v2_tablet.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_v205_release_check_cards_v1_mobile.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_v205_release_check_cards_view_cards_button.yaml",
         ],
         scoped_written=[
-            "/config/humidity_intelligence_v205_release_check_cards_scoped_v2_tablet.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_v205_release_check_cards_scoped_v2_tablet.yaml",
         ],
     )
     checks = {check["id"]: check for check in report["checks"]}
@@ -3717,10 +4017,10 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
         },
         write_test_exports=True,
         unscoped_written=[
-            "/config/humidity_intelligence_v205_release_check_cards_v2_tablet.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_v205_release_check_cards_v2_tablet.yaml",
         ],
         scoped_written=[
-            "/config/humidity_intelligence_v205_release_check_cards_scoped_v2_tablet.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_v205_release_check_cards_scoped_v2_tablet.yaml",
         ],
     )
     failed_checks = {check["id"]: check for check in failed_report["checks"]}
@@ -4125,7 +4425,10 @@ def test_report_writers_require_admin_before_report_side_effects():
 
     for service in (
         services_mod.SERVICE_DUMP_DIAGNOSTICS,
+        services_mod.SERVICE_SELF_CHECK,
         services_mod.SERVICE_V205_RELEASE_CHECK,
+        services_mod.SERVICE_DUMP_CARDS,
+        services_mod.SERVICE_VIEW_CARDS,
     ):
         handler = hass.services.handlers[(services_mod.DOMAIN, service)]
         for user_id in ("viewer", None, "missing"):
@@ -4188,6 +4491,7 @@ def test_report_writer_admin_lookup_precedes_async_report_work():
 
             for service in (
                 services_mod.SERVICE_DUMP_DIAGNOSTICS,
+                services_mod.SERVICE_SELF_CHECK,
                 services_mod.SERVICE_V205_RELEASE_CHECK,
             ):
                 events.clear()
@@ -4283,6 +4587,126 @@ def test_report_writer_services_use_owned_directory_and_truthful_notification():
             + release_name
         ) in message
         assert f"/config/{release_name}" not in message
+
+
+def test_self_check_uses_fixed_owned_report_and_retains_payload_semantics():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth({"admin": SimpleNamespace(is_admin=True)})
+    hass.data[services_mod.DOMAIN][ENTRY_ID].update(
+        {
+            "entity_map": {"runtime_mode": "sensor.missing_runtime_mode"},
+            "cards": {},
+            "unresolved_placeholders": ["sensor.unresolved"],
+            "unresolved_placeholders_by_card": {
+                "v2_mobile": ["sensor.unresolved"]
+            },
+        }
+    )
+
+    async def frontend_status(_hass):
+        return {"status": "not_inspectable"}
+
+    async def local_version_status(_hass):
+        return {"status": "not_configured"}
+
+    original_frontend_status = services_mod.async_frontend_dependency_status
+    original_local_version_status = services_mod.async_local_version_status
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = pathlib.Path(tmpdir)
+        legacy = root / "humidity_intelligence_self_check.json"
+        legacy.write_text('{"legacy": true}\n', encoding="utf-8")
+        _set_fake_config_path(hass, root)
+        try:
+            services_mod.async_frontend_dependency_status = frontend_status
+            services_mod.async_local_version_status = local_version_status
+            asyncio.run(services_mod.async_register_services(hass))
+            handler = hass.services.handlers[
+                (services_mod.DOMAIN, services_mod.SERVICE_SELF_CHECK)
+            ]
+            asyncio.run(
+                handler(
+                    SimpleNamespace(
+                        data={"entry_id": ENTRY_ID},
+                        context=SimpleNamespace(user_id="admin"),
+                    )
+                )
+            )
+        finally:
+            services_mod.async_frontend_dependency_status = original_frontend_status
+            services_mod.async_local_version_status = original_local_version_status
+
+        destination = (
+            root
+            / "humidity_intelligence"
+            / "exports"
+            / "humidity_intelligence_self_check.json"
+        )
+        payload = json.loads(destination.read_text(encoding="utf-8"))
+        assert payload[ENTRY_ID]["missing_entities"] == [
+            "sensor.missing_runtime_mode"
+        ]
+        assert payload[ENTRY_ID]["telemetry_count"] == len(
+            entry.data["telemetry"]
+        )
+        assert payload[ENTRY_ID]["unresolved_placeholders"] == [
+            "sensor.unresolved"
+        ]
+        assert legacy.read_text(encoding="utf-8") == '{"legacy": true}\n'
+        notification = [
+            call
+            for call in hass.services.calls
+            if call[0:2] == ("persistent_notification", "create")
+        ][-1]
+        assert (
+            "Home Assistant config/humidity_intelligence/exports/"
+            "humidity_intelligence_self_check.json"
+        ) in notification[2]["message"]
+        assert "local/private" in notification[2]["message"]
+
+
+def test_view_cards_notification_reports_exact_owned_ui_path():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth({"admin": SimpleNamespace(is_admin=True)})
+    hass.data[services_mod.DOMAIN][ENTRY_ID]["cards"] = {
+        "v2_tablet": "type: markdown\ncontent: Tablet\n"
+    }
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = pathlib.Path(tmpdir)
+        _set_fake_config_path(hass, root)
+        asyncio.run(services_mod.async_register_services(hass))
+        handler = hass.services.handlers[
+            (services_mod.DOMAIN, services_mod.SERVICE_VIEW_CARDS)
+        ]
+        asyncio.run(
+            handler(
+                SimpleNamespace(
+                    data={
+                        "entry_id": ENTRY_ID,
+                        "layout": "v2_tablet",
+                    },
+                    context=SimpleNamespace(user_id="admin"),
+                )
+            )
+        )
+
+        expected = (
+            "/config/humidity_intelligence/ui/"
+            "humidity_intelligence_cards_v2_tablet.yaml"
+        )
+        assert root.joinpath(expected.removeprefix("/config/")).is_file()
+        notification = [
+            call
+            for call in hass.services.calls
+            if call[0:2] == ("persistent_notification", "create")
+        ][-1]
+        assert expected in notification[2]["message"]
 
 
 def test_report_writers_surface_owned_export_failure_as_service_error():
@@ -4711,13 +5135,13 @@ def test_frontend_dependency_status_is_non_blocking_for_release_contract_checks(
         },
         write_test_exports=True,
         unscoped_written=[
-            "/config/humidity_intelligence_v205_release_check_cards_v2_mobile.yaml",
-            "/config/humidity_intelligence_v205_release_check_cards_v2_tablet.yaml",
-            "/config/humidity_intelligence_v205_release_check_cards_v1_mobile.yaml",
-            "/config/humidity_intelligence_v205_release_check_cards_view_cards_button.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_v205_release_check_cards_v2_mobile.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_v205_release_check_cards_v2_tablet.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_v205_release_check_cards_v1_mobile.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_v205_release_check_cards_view_cards_button.yaml",
         ],
         scoped_written=[
-            "/config/humidity_intelligence_v205_release_check_cards_scoped_v2_tablet.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_v205_release_check_cards_scoped_v2_tablet.yaml",
         ],
     )
     checks = {check["id"]: check for check in report["checks"]}
@@ -5415,6 +5839,7 @@ def test_first_run_dashboard_creation_uses_trusted_helper():
     service_calls = []
     updates = []
     helper_calls = []
+    card_export_calls = []
 
     async def async_call(domain, service, data=None, blocking=False):
         service_calls.append((domain, service, data or {}, blocking))
@@ -5423,10 +5848,19 @@ def test_first_run_dashboard_creation_uses_trusted_helper():
         helper_calls.append((entry.entry_id, kwargs))
         return True
 
+    async def export_cards(_hass, entry_id, filename, layout=None):
+        card_export_calls.append((entry_id, filename, layout))
+        return [
+            "/config/humidity_intelligence/ui/"
+            "humidity_intelligence_cards_v2_mobile.yaml"
+        ]
+
     integration_mod.async_create_dashboard_for_entry = create_dashboard
+    integration_mod.async_export_cards_to_owned_ui = export_cards
     hass = SimpleNamespace(
         services=SimpleNamespace(async_call=async_call),
         config_entries=SimpleNamespace(
+            async_entries=lambda _domain: [entry],
             async_update_entry=lambda entry, *, data: updates.append(
                 (entry.entry_id, data)
             )
@@ -5449,7 +5883,11 @@ def test_first_run_dashboard_creation_uses_trusted_helper():
             },
         )
     ]
-    assert service_calls[0][0:2] == (integration_mod.DOMAIN, "dump_cards")
+    assert card_export_calls == [(ENTRY_ID, None, None)]
+    assert all(
+        call[0:2] != (integration_mod.DOMAIN, "dump_cards")
+        for call in service_calls
+    )
     assert [
         call[2]["title"]
         for call in service_calls
@@ -5467,6 +5905,60 @@ def test_first_run_dashboard_creation_uses_trusted_helper():
     ]
 
 
+def test_second_entry_first_run_reexports_all_entries_with_qualified_paths():
+    integration_mod = _load_integration_init_module()
+    service_calls = []
+    export_calls = []
+    updates = []
+    first = SimpleNamespace(
+        entry_id="entry_one",
+        data={"ui_layouts": ["v2_mobile"], "ui_install_done": True},
+    )
+    second = SimpleNamespace(
+        entry_id="entry_two",
+        data={"ui_layouts": ["v2_mobile"]},
+    )
+
+    async def async_call(domain, service, data=None, blocking=False):
+        service_calls.append((domain, service, data or {}, blocking))
+
+    async def export_cards(_hass, entry_id, filename, layout=None):
+        export_calls.append((entry_id, filename, layout))
+        return [
+            "/config/humidity_intelligence/ui/"
+            "humidity_intelligence_cards_entry_one_v2_mobile.yaml",
+            "/config/humidity_intelligence/ui/"
+            "humidity_intelligence_cards_entry_two_v2_mobile.yaml",
+        ]
+
+    integration_mod.async_export_cards_to_owned_ui = export_cards
+    hass = SimpleNamespace(
+        services=SimpleNamespace(async_call=async_call),
+        config_entries=SimpleNamespace(
+            async_entries=lambda _domain: [first, second],
+            async_update_entry=lambda entry, *, data: updates.append(
+                (entry.entry_id, data)
+            ),
+        ),
+    )
+
+    asyncio.run(integration_mod._async_install_selected_ui(hass, second))
+
+    assert export_calls == [(None, None, None)]
+    notification = [
+        call
+        for call in service_calls
+        if call[0:2] == ("persistent_notification", "create")
+    ][0]
+    assert "humidity_intelligence_cards_entry_one_v2_mobile.yaml" in (
+        notification[2]["message"]
+    )
+    assert "humidity_intelligence_cards_entry_two_v2_mobile.yaml" in (
+        notification[2]["message"]
+    )
+    assert updates[0][0] == "entry_two"
+
+
 def test_first_run_dashboard_failure_is_visible_and_retryable():
     integration_mod = _load_integration_init_module()
     service_calls = []
@@ -5478,10 +5970,18 @@ def test_first_run_dashboard_failure_is_visible_and_retryable():
     async def create_dashboard(_hass, _entry, **_kwargs):
         raise RuntimeError("registration failed")
 
+    async def export_cards(_hass, _entry_id, _filename, layout=None):
+        return [
+            "/config/humidity_intelligence/ui/"
+            "humidity_intelligence_cards_v2_tablet.yaml"
+        ]
+
     integration_mod.async_create_dashboard_for_entry = create_dashboard
+    integration_mod.async_export_cards_to_owned_ui = export_cards
     hass = SimpleNamespace(
         services=SimpleNamespace(async_call=async_call),
         config_entries=SimpleNamespace(
+            async_entries=lambda _domain: [entry],
             async_update_entry=lambda entry, *, data: updates.append(
                 (entry.entry_id, data)
             )
@@ -5516,6 +6016,168 @@ def test_first_run_dashboard_failure_is_visible_and_retryable():
             },
         )
     ]
+
+
+def test_config_entry_removal_uses_owned_ui_plans_without_report_or_legacy_cleanup():
+    integration_mod = _load_integration_init_module()
+    planned_names = []
+    removed_paths = []
+    service_calls = []
+    dashboard_calls = []
+    plan = SimpleNamespace(
+        relative_path=(
+            "humidity_intelligence/ui/"
+            "humidity_intelligence_cards_v2_mobile.yaml"
+        )
+    )
+
+    def list_names(entries, **kwargs):
+        assert [item.entry_id for item in entries] == [ENTRY_ID]
+        assert kwargs == {
+            "multiple_installation": False,
+            "include_unqualified_defaults": True,
+        }
+        return ["humidity_intelligence_cards_v2_mobile.yaml"]
+
+    def plan_removal(config_root, filenames):
+        planned_names.append((config_root, list(filenames)))
+        return [plan]
+
+    def remove_export(config_root, removal_plan):
+        removed_paths.append((config_root, removal_plan.relative_path))
+        return True
+
+    async def remove_dashboard(_hass, dashboard_id):
+        dashboard_calls.append(dashboard_id)
+        return True
+
+    async def async_call(domain, service, data=None, blocking=False):
+        service_calls.append((domain, service, data or {}, blocking))
+
+    async def executor_job(func, *args):
+        return func(*args)
+
+    integration_mod.list_owned_ui_filenames = list_names
+    integration_mod.plan_owned_ui_export_removal = plan_removal
+    integration_mod.remove_owned_ui_export = remove_export
+    integration_mod.remove_dashboard = remove_dashboard
+    entry = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data={"ui_dashboard_id": "humidity-intelligence"},
+    )
+    hass = SimpleNamespace(
+        config=SimpleNamespace(path=lambda *_parts: "/config"),
+        config_entries=SimpleNamespace(
+            async_entries=lambda _domain: [entry],
+        ),
+        services=SimpleNamespace(async_call=async_call),
+        async_add_executor_job=executor_job,
+    )
+
+    asyncio.run(integration_mod.async_remove_entry(hass, entry))
+
+    assert planned_names == [
+        ("/config", ["humidity_intelligence_cards_v2_mobile.yaml"])
+    ]
+    assert removed_paths == [
+        (
+            "/config",
+            "humidity_intelligence/ui/"
+            "humidity_intelligence_cards_v2_mobile.yaml",
+        )
+    ]
+    assert dashboard_calls == ["humidity-intelligence"]
+    message = service_calls[0][2]["message"]
+    assert "/config/humidity_intelligence/ui/" in message
+    assert "exports/" not in message
+    assert "/config/humidity_intelligence_cards_" not in message
+
+
+def test_two_to_one_entry_removal_reexports_remaining_entry_and_owns_qualified_remnants():
+    integration_mod = _load_integration_init_module()
+    listed = []
+    export_calls = []
+    service_calls = []
+    removed = SimpleNamespace(
+        entry_id="entry_two",
+        data={},
+    )
+    remaining = SimpleNamespace(
+        entry_id="entry_one",
+        data={},
+    )
+
+    def list_names(entries, **kwargs):
+        listed.append(([item.entry_id for item in entries], kwargs))
+        return [
+            "humidity_intelligence_cards_entry_two_v2_mobile.yaml",
+        ]
+
+    async def export_cards(
+        _hass,
+        entry_id,
+        filename,
+        layout=None,
+        *,
+        multiple_installation=None,
+    ):
+        export_calls.append(
+            (
+                entry_id,
+                filename,
+                layout,
+                multiple_installation,
+            )
+        )
+        return [
+            "/config/humidity_intelligence/ui/"
+            "humidity_intelligence_cards_v2_mobile.yaml"
+        ]
+
+    async def async_call(domain, service, data=None, blocking=False):
+        service_calls.append((domain, service, data or {}, blocking))
+
+    async def executor_job(func, *args):
+        return func(*args)
+
+    integration_mod.list_owned_ui_filenames = list_names
+    integration_mod.plan_owned_ui_export_removal = lambda *_args: []
+    integration_mod.async_export_cards_to_owned_ui = export_cards
+    integration_mod.remove_dashboard = lambda *_args: _async_true()
+
+    async def _async_true():
+        return True
+
+    hass = SimpleNamespace(
+        config=SimpleNamespace(path=lambda *_parts: "/config"),
+        config_entries=SimpleNamespace(
+            async_entries=lambda _domain: [removed, remaining],
+        ),
+        services=SimpleNamespace(async_call=async_call),
+        async_add_executor_job=executor_job,
+    )
+
+    asyncio.run(integration_mod.async_remove_entry(hass, removed))
+
+    assert listed == [
+        (
+            ["entry_two"],
+            {
+                "multiple_installation": True,
+                "include_unqualified_defaults": False,
+            },
+        )
+    ]
+    assert export_calls == [
+        ("entry_one", None, None, False),
+    ]
+    updated = [
+        call
+        for call in service_calls
+        if call[2].get("title") == "Humidity Intelligence UI Cards Updated"
+    ]
+    assert len(updated) == 1
+    assert "humidity_intelligence_cards_v2_mobile.yaml" in updated[0][2]["message"]
 
 
 def test_create_dashboard_reports_partial_registration_failure():
@@ -5562,54 +6224,9 @@ def test_create_dashboard_reports_partial_registration_failure():
         ).exists()
 
 
-def test_cleanup_planner_rejects_unsafe_or_non_regular_targets():
-    _load_services_module()
-    cleanup_mod = sys.modules[f"{PKG}.helpers.cleanup"]
-    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
-    hass = _FakeHass(entry, {})
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        _set_fake_config_path(hass, tmpdir)
-        safe_name = "humidity_intelligence_cards.yaml"
-        safe_path = pathlib.Path(tmpdir) / safe_name
-        safe_path.write_text("safe", encoding="utf-8")
-
-        assert cleanup_mod.plan_generated_file_removal(
-            hass,
-            [safe_name, "humidity_intelligence_missing.yaml"],
-        ) == [safe_name]
-
-        for candidate in (
-            "../victim.yaml",
-            "/tmp/victim.yaml",
-            "humidity_intelligence_nested/victim.yaml",
-            "unowned_file.yaml",
-        ):
-            try:
-                cleanup_mod.plan_generated_file_removal(hass, [safe_name, candidate])
-            except ValueError:
-                pass
-            else:
-                raise AssertionError(f"unsafe cleanup candidate accepted: {candidate}")
-            assert safe_path.read_text(encoding="utf-8") == "safe"
-
-        symlink_name = "humidity_intelligence_symlink.yaml"
-        (pathlib.Path(tmpdir) / symlink_name).symlink_to(safe_path)
-        try:
-            cleanup_mod.plan_generated_file_removal(
-                hass,
-                [safe_name, symlink_name],
-            )
-        except ValueError:
-            pass
-        else:
-            raise AssertionError("symlink cleanup candidate should fail closed")
-
-
 def test_purge_validates_all_candidates_before_any_side_effect():
     services_mod = _load_services_module()
     entry_data = _base_entry_data()
-    entry_data["ui_layouts"] = ["../victim"]
     entry_data["ui_dashboard_id"] = "humidity-intelligence"
     entry = SimpleNamespace(entry_id=ENTRY_ID, data=entry_data, options={})
     hass = _FakeHass(entry, {})
@@ -5620,8 +6237,12 @@ def test_purge_validates_all_candidates_before_any_side_effect():
 
     with tempfile.TemporaryDirectory() as tmpdir:
         _set_fake_config_path(hass, tmpdir)
-        safe_path = pathlib.Path(tmpdir) / "humidity_intelligence_cards.yaml"
+        ui_dir = pathlib.Path(tmpdir) / "humidity_intelligence" / "ui"
+        ui_dir.mkdir(parents=True)
+        safe_path = ui_dir / "humidity_intelligence_cards_v2_mobile.yaml"
         safe_path.write_text("safe", encoding="utf-8")
+        unsafe_path = ui_dir / "humidity_intelligence_cards_v2_tablet.yaml"
+        unsafe_path.symlink_to(safe_path)
         asyncio.run(services_mod.async_register_services(hass))
         handler = hass.services.handlers[
             (services_mod.DOMAIN, services_mod.SERVICE_PURGE_FILES)
@@ -5666,8 +6287,12 @@ def test_purge_requires_admin_and_uses_exact_blocking_preview():
 
     with tempfile.TemporaryDirectory() as tmpdir:
         _set_fake_config_path(hass, tmpdir)
-        generated = pathlib.Path(tmpdir) / "humidity_intelligence_cards.yaml"
+        ui_dir = pathlib.Path(tmpdir) / "humidity_intelligence" / "ui"
+        ui_dir.mkdir(parents=True)
+        generated = ui_dir / "humidity_intelligence_cards_v2_mobile.yaml"
         generated.write_text("generated", encoding="utf-8")
+        legacy_root = pathlib.Path(tmpdir) / "humidity_intelligence_cards.yaml"
+        legacy_root.write_text("legacy", encoding="utf-8")
         owned_diagnostics = report_exports_mod.write_owned_report(
             tmpdir,
             report_exports_mod.DEFAULT_DIAGNOSTICS_REPORT_FILENAME,
@@ -5733,18 +6358,23 @@ def test_purge_requires_admin_and_uses_exact_blocking_preview():
         assert len(preview_calls) == 1
         preview = preview_calls[0]
         assert preview[3] is True
-        assert "/config/humidity_intelligence_cards.yaml" in preview[2]["message"]
+        assert (
+            "/config/humidity_intelligence/ui/"
+            "humidity_intelligence_cards_v2_mobile.yaml"
+        ) in preview[2]["message"]
+        assert "/config/humidity_intelligence_cards.yaml" not in preview[2]["message"]
         assert "Dashboard: humidity-intelligence" in preview[2]["message"]
         assert "humidity_intelligence_diagnostics.json" not in preview[2]["message"]
         assert sequence.index(("notification", True)) < sequence.index(
-            ("remove_files", None)
+            ("remove_owned_ui_export", None)
         )
         assert not generated.exists()
+        assert legacy_root.read_text(encoding="utf-8") == "legacy"
         assert (pathlib.Path(tmpdir) / owned_diagnostics).is_file()
         assert ("delete_dashboard", "humidity-intelligence") in events
 
 
-def test_unscoped_purge_removes_only_default_owned_diagnostics_report():
+def test_unscoped_purge_removes_only_fixed_owned_reports():
     services_mod = _load_services_module()
     report_exports_mod = sys.modules[f"{PKG}.helpers.report_exports"]
     entry_data = _base_entry_data()
@@ -5758,11 +6388,19 @@ def test_unscoped_purge_removes_only_default_owned_diagnostics_report():
         root = pathlib.Path(tmpdir)
         _set_fake_config_path(hass, root)
         default_name = report_exports_mod.DEFAULT_DIAGNOSTICS_REPORT_FILENAME
+        self_check_name = report_exports_mod.DEFAULT_SELF_CHECK_REPORT_FILENAME
         release_name = "humidity_intelligence_v205_release_check.json"
         custom_name = "humidity_intelligence_custom.json"
         legacy_root = root / default_name
         legacy_root.write_text('{"legacy": true}\n', encoding="utf-8")
-        for filename in (default_name, release_name, custom_name):
+        legacy_self_check = root / self_check_name
+        legacy_self_check.write_text('{"legacy_self_check": true}\n', encoding="utf-8")
+        for filename in (
+            default_name,
+            self_check_name,
+            release_name,
+            custom_name,
+        ):
             report_exports_mod.write_owned_report(
                 root,
                 filename,
@@ -5784,9 +6422,14 @@ def test_unscoped_purge_removes_only_default_owned_diagnostics_report():
 
         exports_dir = root / "humidity_intelligence" / "exports"
         assert not (exports_dir / default_name).exists()
+        assert not (exports_dir / self_check_name).exists()
         assert (exports_dir / release_name).is_file()
         assert (exports_dir / custom_name).is_file()
         assert legacy_root.read_text(encoding="utf-8") == '{"legacy": true}\n'
+        assert (
+            legacy_self_check.read_text(encoding="utf-8")
+            == '{"legacy_self_check": true}\n'
+        )
 
         preview_calls = [
             call
@@ -5798,6 +6441,10 @@ def test_unscoped_purge_removes_only_default_owned_diagnostics_report():
         preview_message = preview_calls[0][2]["message"]
         assert (
             "Home Assistant config/humidity_intelligence/exports/" + default_name
+        ) in preview_message
+        assert (
+            "Home Assistant config/humidity_intelligence/exports/"
+            + self_check_name
         ) in preview_message
         assert release_name not in preview_message
         assert custom_name not in preview_message
@@ -5889,8 +6536,13 @@ def test_purge_reports_file_and_dashboard_failures():
 
     with tempfile.TemporaryDirectory() as tmpdir:
         _set_fake_config_path(hass, tmpdir)
-        generated_name = "humidity_intelligence_cards.yaml"
-        (pathlib.Path(tmpdir) / generated_name).write_text(
+        generated_name = "humidity_intelligence_cards_v2_mobile.yaml"
+        generated_relative = f"humidity_intelligence/ui/{generated_name}"
+        generated_path = (
+            pathlib.Path(tmpdir) / "humidity_intelligence" / "ui" / generated_name
+        )
+        generated_path.parent.mkdir(parents=True)
+        generated_path.write_text(
             "generated",
             encoding="utf-8",
         )
@@ -5898,8 +6550,12 @@ def test_purge_reports_file_and_dashboard_failures():
         handler = hass.services.handlers[
             (services_mod.DOMAIN, services_mod.SERVICE_PURGE_FILES)
         ]
-        original_remove_files = services_mod.remove_files
-        services_mod.remove_files = lambda _hass, _files: [generated_name]
+        original_remove_export = services_mod.remove_owned_ui_export
+
+        def fail_remove_export(*_args):
+            raise services_mod.ReportExportError("fixture removal failed")
+
+        services_mod.remove_owned_ui_export = fail_remove_export
         try:
             try:
                 asyncio.run(
@@ -5913,12 +6569,12 @@ def test_purge_reports_file_and_dashboard_failures():
             except Exception as err:
                 message = str(err)
                 assert "Purge incomplete" in message
-                assert generated_name in message
+                assert generated_relative in message
                 assert "humidity-intelligence" in message
             else:
                 raise AssertionError("partial purge failure should be reported")
         finally:
-            services_mod.remove_files = original_remove_files
+            services_mod.remove_owned_ui_export = original_remove_export
 
 
 def test_generated_v1_cards_escape_dynamic_html_text():

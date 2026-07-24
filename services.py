@@ -7,7 +7,6 @@ import json
 import logging
 import os
 import re
-import tempfile
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -18,11 +17,9 @@ from homeassistant.helpers import config_validation as cv
 
 from .const import CONF_SHOW_OUTPUT_ENTITY_DETAILS, DEFAULT_SHOW_OUTPUT_ENTITY_DETAILS, DOMAIN
 from .helpers.cleanup import (
-    list_all_generated_files,
-    list_generated_files,
-    plan_generated_file_removal,
+    build_generated_card_filename,
+    list_owned_ui_filenames,
     remove_dashboard,
-    remove_files,
 )
 from .helpers.drift import humidity_drift_dependency_status, humidity_drift_warning
 from .helpers.diagnostics_redaction import redact_diagnostics_payload
@@ -44,10 +41,16 @@ from .helpers.local_versions import (
     cached_local_version_status,
 )
 from .helpers.report_exports import (
+    DEFAULT_SELF_CHECK_REPORT_FILENAME,
     ReportExportError,
     plan_default_diagnostics_report_removal,
+    plan_default_self_check_report_removal,
+    plan_owned_ui_export_removal,
     remove_default_diagnostics_report,
+    remove_default_self_check_report,
+    remove_owned_ui_export,
     write_owned_report,
+    write_owned_ui_export,
 )
 from .helpers.seasonal import resolve_target_profile, resolve_temperature_comfort_profile
 from .helpers.zone_validation import (
@@ -557,6 +560,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
     )
 
     async def handle_self_check(call: ServiceCall) -> None:
+        await _async_require_admin_user(hass, call, SERVICE_SELF_CHECK)
         entry_id = call.data.get("entry_id")
         entries = []
         if entry_id:
@@ -594,8 +598,31 @@ async def async_register_services(hass: HomeAssistant) -> None:
                 "unresolved_placeholders_by_card": data.get("unresolved_placeholders_by_card", {}),
             }
 
-        path = hass.config.path("humidity_intelligence_self_check.json")
-        await hass.async_add_executor_job(_write_json, path, report)
+        try:
+            report_path = await hass.async_add_executor_job(
+                write_owned_report,
+                hass.config.path(),
+                DEFAULT_SELF_CHECK_REPORT_FILENAME,
+                report,
+            )
+        except Exception as err:
+            _LOGGER.exception("Self-check report operation did not complete")
+            raise HomeAssistantError(
+                f"Self-check report operation incomplete: {err}"
+            ) from err
+        await hass.services.async_call(
+            "persistent_notification",
+            "create",
+            {
+                "title": "Humidity Intelligence Self Check",
+                "message": (
+                    "Self-check report written to "
+                    f"Home Assistant config/{report_path}. "
+                    "Treat this entity-bearing validation report as local/private."
+                ),
+            },
+            blocking=False,
+        )
 
     hass.services.async_register(DOMAIN, SERVICE_SELF_CHECK, handle_self_check, schema=SERVICE_SELF_CHECK_SCHEMA)
 
@@ -647,11 +674,20 @@ async def async_register_services(hass: HomeAssistant) -> None:
                 unscoped_written: List[str] = []
                 scoped_written: List[str] = []
                 if write_test_exports:
-                    slug = _safe_report_slug(entry.entry_id)
-                    base = f"humidity_intelligence_v205_release_check_cards_{slug}" if len(entries) > 1 else "humidity_intelligence_v205_release_check_cards"
+                    base = "humidity_intelligence_v205_release_check_cards"
                     scoped_base = f"{base}_scoped"
-                    unscoped_written = await _dump_cards_to_file(hass, entry.entry_id, base, layout=None)
-                    scoped_written = await _dump_cards_to_file(hass, entry.entry_id, scoped_base, layout="v2_tablet")
+                    unscoped_written = await async_export_cards_to_owned_ui(
+                        hass,
+                        entry.entry_id,
+                        base,
+                        layout=None,
+                    )
+                    scoped_written = await async_export_cards_to_owned_ui(
+                        hass,
+                        entry.entry_id,
+                        scoped_base,
+                        layout="v2_tablet",
+                    )
 
                 entry_report = _build_v205_release_check_entry_report(
                     hass,
@@ -704,10 +740,16 @@ async def async_register_services(hass: HomeAssistant) -> None:
     )
 
     async def handle_dump_cards(call: ServiceCall) -> None:
+        await _async_require_admin_user(hass, call, SERVICE_DUMP_CARDS)
         entry_id = call.data.get("entry_id")
         filename = call.data.get("filename")
         layout = call.data.get("layout")
-        await _dump_cards_to_file(hass, entry_id, filename, layout=layout)
+        await async_export_cards_to_owned_ui(
+            hass,
+            entry_id,
+            filename,
+            layout=layout,
+        )
 
     hass.services.async_register(DOMAIN, SERVICE_DUMP_CARDS, handle_dump_cards, schema=SERVICE_DUMP_CARDS_SCHEMA)
 
@@ -743,9 +785,15 @@ async def async_register_services(hass: HomeAssistant) -> None:
     )
 
     async def handle_view_cards(call: ServiceCall) -> None:
+        await _async_require_admin_user(hass, call, SERVICE_VIEW_CARDS)
         filename = call.data.get("filename")
         layout = call.data.get("layout")
-        written = await _dump_cards_to_file(hass, call.data.get("entry_id"), filename, layout=layout)
+        written = await async_export_cards_to_owned_ui(
+            hass,
+            call.data.get("entry_id"),
+            filename,
+            layout=layout,
+        )
         await hass.services.async_call(
             "persistent_notification",
             "create",
@@ -772,25 +820,44 @@ async def async_register_services(hass: HomeAssistant) -> None:
         if not entries:
             raise HomeAssistantError("No Humidity Intelligence config entry found")
 
+        all_entries = hass.config_entries.async_entries(DOMAIN)
+        multiple_installation = len(all_entries) > 1
         try:
-            files = await hass.async_add_executor_job(
-                plan_generated_file_removal,
-                hass,
-                list_all_generated_files(entries),
+            ui_filenames = list_owned_ui_filenames(
+                entries,
+                multiple_installation=multiple_installation,
+                include_unqualified_defaults=not entry_id,
             )
-        except ValueError as err:
+            ui_plans = await hass.async_add_executor_job(
+                plan_owned_ui_export_removal,
+                hass.config.path(),
+                ui_filenames,
+            )
+        except ReportExportError as err:
             raise HomeAssistantError(f"Cleanup plan rejected: {err}") from err
+        files = [plan.relative_path for plan in ui_plans]
 
         report_plans = []
         if not entry_id:
             try:
-                report_plans = await hass.async_add_executor_job(
-                    plan_default_diagnostics_report_removal,
-                    hass.config.path(),
-                )
+                for planner, remover in (
+                    (
+                        plan_default_diagnostics_report_removal,
+                        remove_default_diagnostics_report,
+                    ),
+                    (
+                        plan_default_self_check_report_removal,
+                        remove_default_self_check_report,
+                    ),
+                ):
+                    plans = await hass.async_add_executor_job(
+                        planner,
+                        hass.config.path(),
+                    )
+                    report_plans.extend((plan, remover) for plan in plans)
             except ReportExportError as err:
                 raise HomeAssistantError(f"Cleanup plan rejected: {err}") from err
-        report_files = [plan.relative_path for plan in report_plans]
+        report_files = [plan.relative_path for plan, _remover in report_plans]
 
         dashboards = []
         for entry in entries:
@@ -834,21 +901,36 @@ async def async_register_services(hass: HomeAssistant) -> None:
             blocking=True,
         )
 
-        failed_files = await hass.async_add_executor_job(remove_files, hass, files)
-        failed_report_files = []
-        if report_plans:
+        failed_files = []
+        for ui_plan in ui_plans:
             try:
                 await hass.async_add_executor_job(
-                    remove_default_diagnostics_report,
+                    remove_owned_ui_export,
                     hass.config.path(),
-                    report_plans[0],
+                    ui_plan,
                 )
             except ReportExportError as err:
                 _LOGGER.warning(
-                    "Unable to remove owned diagnostics export: %s",
+                    "Unable to remove owned UI export %s: %s",
+                    ui_plan.relative_path,
                     err,
                 )
-                failed_report_files.extend(report_files)
+                failed_files.append(ui_plan.relative_path)
+        failed_report_files = []
+        for report_plan, remover in report_plans:
+            try:
+                await hass.async_add_executor_job(
+                    remover,
+                    hass.config.path(),
+                    report_plan,
+                )
+            except ReportExportError as err:
+                _LOGGER.warning(
+                    "Unable to remove owned report export %s: %s",
+                    report_plan.relative_path,
+                    err,
+                )
+                failed_report_files.append(report_plan.relative_path)
         failed_dashboards = []
         for dashboard_id in dashboards:
             if not await remove_dashboard(hass, dashboard_id):
@@ -979,24 +1061,6 @@ async def async_unregister_services(hass: HomeAssistant) -> None:
         hass.services.async_remove(DOMAIN, SERVICE_CREATE_LOCAL_BACKUP)
     if hass.services.has_service(DOMAIN, SERVICE_LIST_SAVED_VERSIONS):
         hass.services.async_remove(DOMAIN, SERVICE_LIST_SAVED_VERSIONS)
-
-
-def _write_json(path: str, payload: dict) -> None:
-    import json
-
-    tmp_dir = os.path.dirname(path) or "."
-    os.makedirs(tmp_dir, exist_ok=True)
-    fd, tmp_path = tempfile.mkstemp(prefix=".hi_diag_", suffix=".json", dir=tmp_dir)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=2, sort_keys=True)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp_path, path)
-    finally:
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
-
 
 def _write_text(path: str, payload: str) -> None:
     from pathlib import Path
@@ -1696,10 +1760,6 @@ _async_frontend_dependency_status = async_frontend_dependency_status
 _frontend_dependency_not_inspectable = frontend_dependency_not_inspectable
 
 
-def _safe_report_slug(value: str) -> str:
-    return re.sub(r"[^A-Za-z0-9_-]+", "_", str(value or "entry"))[:48] or "entry"
-
-
 def _zone_mapping_summary(zones: dict) -> dict:
     summary = {}
     if not isinstance(zones, dict):
@@ -1794,48 +1854,57 @@ def _unavailable_configured_entities(hass: HomeAssistant, config: dict, entity_m
     return missing
 
 
-async def _dump_cards_to_file(
+async def async_export_cards_to_owned_ui(
     hass: HomeAssistant,
     entry_id: str | None,
     filename: str | None,
     layout: str | None = None,
+    *,
+    multiple_installation: bool | None = None,
 ) -> List[str]:
+    """Write generated cards through the trusted confined UI export path."""
+    all_entries = hass.config_entries.async_entries(DOMAIN)
     entries = []
     if entry_id:
         entry = hass.config_entries.async_get_entry(entry_id)
         if entry:
             entries = [entry]
     else:
-        entries = hass.config_entries.async_entries(DOMAIN)
+        entries = all_entries
 
     written: List[str] = []
+    if multiple_installation is None:
+        multiple_installation = len(all_entries) > 1
     for entry in entries:
         data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
         cards = data.get("cards", {}) or {}
         for name, card_yaml in cards.items():
             if layout and name != layout:
                 continue
-            target = _build_cards_filename(filename, name, entry.entry_id, len(entries) > 1)
-            path = hass.config.path(target)
-            await hass.async_add_executor_job(_write_text, path, card_yaml)
-            written.append(f"/config/{target}")
+            target = build_generated_card_filename(
+                filename,
+                name,
+                entry.entry_id,
+                multiple_installation,
+            )
+            try:
+                relative_path = await hass.async_add_executor_job(
+                    write_owned_ui_export,
+                    hass.config.path(),
+                    target,
+                    card_yaml,
+                )
+            except Exception as err:
+                completed = (
+                    " No files were written."
+                    if not written
+                    else " Files already written: " + ", ".join(written)
+                )
+                raise HomeAssistantError(
+                    f"Generated UI export incomplete for {target}: {err}.{completed}"
+                ) from err
+            written.append(f"/config/{relative_path}")
     return written
-
-
-def _build_cards_filename(
-    base: str | None,
-    layout: str,
-    entry_id: str,
-    multiple: bool,
-) -> str:
-    prefix = base or "humidity_intelligence_cards"
-    if prefix.endswith(".yaml"):
-        prefix = prefix[:-5]
-    if prefix.endswith(".yml"):
-        prefix = prefix[:-4]
-    if multiple:
-        return f"{prefix}_{entry_id}_{layout}.yaml"
-    return f"{prefix}_{layout}.yaml"
 
 
 def _format_cards_message(paths: List[str]) -> str:

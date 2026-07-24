@@ -20,10 +20,16 @@ from .const import (
 from .services import (
     SERVICE_REFRESH_UI,
     async_create_dashboard_for_entry,
+    async_export_cards_to_owned_ui,
     async_register_services,
     async_unregister_services,
 )
-from .helpers.cleanup import list_generated_files, remove_files, remove_dashboard
+from .helpers.cleanup import list_owned_ui_filenames, remove_dashboard
+from .helpers.report_exports import (
+    ReportExportError,
+    plan_owned_ui_export_removal,
+    remove_owned_ui_export,
+)
 from .helpers.drift_repairs import async_update_humidity_drift_repair_issue
 from .helpers.entity_registry import normalize_pm25_aggregate_entity_ids
 from .ui.register import async_register_cards, async_build_entity_mapping
@@ -121,12 +127,25 @@ async def _async_install_selected_ui(
         return
 
     dashboard_created = False
-    await hass.services.async_call(
-        DOMAIN,
-        "dump_cards",
-        {"entry_id": entry.entry_id},
-        blocking=False,
-    )
+    written_cards = []
+    card_export_error = None
+    multi_entry_export = False
+    try:
+        all_entries = hass.config_entries.async_entries(DOMAIN)
+        multi_entry_export = len(all_entries) > 1
+        export_entry_id = None if multi_entry_export else entry.entry_id
+        written_cards = await async_export_cards_to_owned_ui(
+            hass,
+            export_entry_id,
+            None,
+            layout=None,
+        )
+    except Exception as err:
+        card_export_error = err
+        _LOGGER.exception(
+            "First-run generated card export failed for HI entry %s",
+            entry.entry_id,
+        )
     dashboard_id = "humidity-intelligence"
     if "create_dashboard" in ui_layouts:
         try:
@@ -160,15 +179,37 @@ async def _async_install_selected_ui(
                 },
                 blocking=False,
             )
+    if card_export_error is not None:
+        card_title = "Humidity Intelligence UI Card Export Incomplete"
+        card_message = (
+            "Generated cards could not be written to "
+            "/config/humidity_intelligence/ui/. HI backend setup remains available. "
+            "Retry humidity_intelligence.dump_cards from an authenticated admin UI "
+            "or API session and check the Home Assistant log."
+        )
+    elif written_cards:
+        card_title = "Humidity Intelligence UI Cards"
+        card_message = (
+            "Cards written:\n"
+            + "\n".join(written_cards)
+            + "\n\nOpen a file in File Editor, copy the YAML, and paste it into a "
+            "Manual card."
+        )
+        if multi_entry_export:
+            card_message += (
+                "\n\nThis is a multi-entry installation. Use only the exact "
+                "entry-qualified paths above. Any earlier unqualified owned UI "
+                "exports are retained but are no longer refreshed."
+            )
+    else:
+        card_title = "Humidity Intelligence UI Cards"
+        card_message = "No generated cards were available to export."
     await hass.services.async_call(
         "persistent_notification",
         "create",
         {
-            "title": "Humidity Intelligence UI Cards",
-            "message": (
-                "Cards written to /config/humidity_intelligence_cards_<layout>.yaml. "
-                "Open File Editor, copy the YAML for your chosen layout(s), and paste into a Manual card."
-            ),
+            "title": card_title,
+            "message": card_message,
         },
         blocking=False,
     )
@@ -201,44 +242,129 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Remove config entry data and generated files."""
-    files = list_generated_files(entry)
+    cleanup_failures = []
+    current_entries = hass.config_entries.async_entries(DOMAIN)
+    remaining_entries = [
+        item for item in current_entries if item.entry_id != entry.entry_id
+    ]
+    known_entry_ids = {item.entry_id for item in current_entries}
+    known_entry_ids.add(entry.entry_id)
+    multiple_installation = len(known_entry_ids) > 1
+    filenames = list_owned_ui_filenames(
+        [entry],
+        multiple_installation=multiple_installation,
+        include_unqualified_defaults=not multiple_installation,
+    )
+    try:
+        ui_plans = await hass.async_add_executor_job(
+            plan_owned_ui_export_removal,
+            hass.config.path(),
+            filenames,
+        )
+    except ReportExportError as err:
+        ui_plans = []
+        cleanup_failures.append(f"UI cleanup plan: {err}")
+        _LOGGER.warning(
+            "Unable to plan generated UI cleanup for HI entry %s: %s",
+            entry.entry_id,
+            err,
+        )
     dashboard_id = entry.data.get("ui_dashboard_id")
-    message_lines = [f"/config/{f}" for f in files]
+    message_lines = [f"/config/{plan.relative_path}" for plan in ui_plans]
     if dashboard_id:
         message_lines.append(f"Dashboard: {dashboard_id}")
+    cleanup_message = (
+        "Removing generated artifacts:\n" + "\n".join(message_lines)
+        if message_lines
+        else "No existing generated UI files or registered dashboard were found."
+    )
     await hass.services.async_call(
         "persistent_notification",
         "create",
         {
             "title": "Humidity Intelligence Cleanup",
-            "message": "Removing generated files:\n" + "\n".join(message_lines),
+            "message": cleanup_message,
         },
         blocking=False,
     )
-    await hass.async_add_executor_job(remove_files, hass, files)
-    await remove_dashboard(hass, dashboard_id)
+    for plan in ui_plans:
+        try:
+            await hass.async_add_executor_job(
+                remove_owned_ui_export,
+                hass.config.path(),
+                plan,
+            )
+        except ReportExportError as err:
+            cleanup_failures.append(f"/config/{plan.relative_path}: {err}")
+            _LOGGER.exception(
+                "Unable to remove generated UI export %s during entry removal",
+                plan.relative_path,
+            )
+    if not await remove_dashboard(hass, dashboard_id):
+        cleanup_failures.append(f"Dashboard: {dashboard_id}")
+    remaining_written = []
+    if len(remaining_entries) == 1:
+        try:
+            remaining_written = await async_export_cards_to_owned_ui(
+                hass,
+                remaining_entries[0].entry_id,
+                None,
+                layout=None,
+                multiple_installation=False,
+            )
+        except Exception as err:
+            cleanup_failures.append(
+                "Remaining single-entry card export: " + str(err)
+            )
+            _LOGGER.exception(
+                "Unable to export unqualified generated UI after removing HI entry %s",
+                entry.entry_id,
+            )
+    if remaining_written:
+        await hass.services.async_call(
+            "persistent_notification",
+            "create",
+            {
+                "title": "Humidity Intelligence UI Cards Updated",
+                "message": (
+                    "The remaining single entry now uses these generated card paths:\n"
+                    + "\n".join(remaining_written)
+                ),
+            },
+            blocking=False,
+        )
+    if cleanup_failures:
+        await hass.services.async_call(
+            "persistent_notification",
+            "create",
+            {
+                "title": "Humidity Intelligence Cleanup Incomplete",
+                "message": (
+                    "Some generated artifacts could not be removed:\n"
+                    + "\n".join(cleanup_failures)
+                ),
+            },
+            blocking=False,
+        )
 
 
-async def _async_refresh_and_dump_cards(hass: HomeAssistant, entry_id: str) -> None:
+async def _async_refresh_and_dump_cards(
+    hass: HomeAssistant,
+    entry_id: str,
+) -> list[str]:
     """Rebuild mapping and rewrite card files for explicit UI export refreshes."""
-    try:
-        await hass.services.async_call(
-            DOMAIN,
-            "refresh_ui",
-            {"entry_id": entry_id},
-            blocking=True,
-        )
-        await hass.services.async_call(
-            DOMAIN,
-            "dump_cards",
-            {"entry_id": entry_id},
-            blocking=True,
-        )
-    except Exception:
-        _LOGGER.exception(
-            "Failed UI refresh/dump for Humidity Intelligence entry %s",
-            entry_id,
-        )
+    await hass.services.async_call(
+        DOMAIN,
+        "refresh_ui",
+        {"entry_id": entry_id},
+        blocking=True,
+    )
+    return await async_export_cards_to_owned_ui(
+        hass,
+        entry_id,
+        None,
+        layout=None,
+    )
 
 
 def _async_register_startup_ui_refresh(hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -377,20 +503,41 @@ async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> Non
         "HI entry %s UI visibility changed; regenerating UI card exports.",
         entry.entry_id,
     )
-    await _async_refresh_and_dump_cards(hass, entry.entry_id)
     changed = []
     if prev_alert_only != next_alert_only:
         changed.append("alert-only mode")
     if prev_output_details != next_output_details:
         changed.append("generated-card output details")
+    try:
+        written = await _async_refresh_and_dump_cards(hass, entry.entry_id)
+    except Exception as err:
+        _LOGGER.exception(
+            "Failed UI refresh/export after options update for HI entry %s",
+            entry.entry_id,
+        )
+        await hass.services.async_call(
+            "persistent_notification",
+            "create",
+            {
+                "title": "Humidity Intelligence UI Update Incomplete",
+                "message": (
+                    f"{', '.join(changed).title()} changed, but generated card "
+                    "export did not complete. No success path is being reported. "
+                    f"Check the Home Assistant log and retry dump_cards: {err}"
+                ),
+            },
+            blocking=False,
+        )
+        return
     await hass.services.async_call(
         "persistent_notification",
         "create",
         {
             "title": "Humidity Intelligence UI Updated",
             "message": (
-                f"{', '.join(changed).title()} changed. Updated card files were written to "
-                "/config/humidity_intelligence_cards_<layout>.yaml. "
+                f"{', '.join(changed).title()} changed. Updated card files:\n"
+                + ("\n".join(written) if written else "No card files were generated.")
+                + "\n\n"
                 "Re-copy/paste the layout YAML into your Manual card to apply UI visibility changes."
             ),
         },

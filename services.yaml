@@ -65,7 +65,7 @@ dump_diagnostics:
         text: {}
 self_check:
   name: Self Check
-  description: Validate entity mapping, generated-card entity references, frontend dependencies, house humidity drift dependency, PM2.5 aggregate normalization status, local HI-only snapshot status, and telemetry setup
+  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Validate entity mapping, generated-card entity references, frontend dependencies, house humidity drift dependency, PM2.5 aggregate normalization status, local HI-only snapshot status, and telemetry setup, then write the fixed entity-bearing report to Home Assistant config/humidity_intelligence/exports/humidity_intelligence_self_check.json. Treat the report as local/private.
   fields:
     entry_id:
       name: Entry ID
@@ -88,7 +88,7 @@ v205_release_check:
         text: {}
     write_test_exports:
       name: Write test card exports
-      description: When enabled, writes test card export files to verify unscoped dump_cards exports all layouts and scoped layout exports only v2_tablet. No devices or runtime outputs are changed.
+      description: When enabled, writes test card export files under Home Assistant config/humidity_intelligence/ui to verify unscoped dump_cards exports all layouts and scoped layout exports only v2_tablet. No devices or runtime outputs are changed.
       selector:
         boolean: {}
     require_local_hi_snapshot:
@@ -135,7 +135,7 @@ list_saved_versions:
   fields: {}
 dump_cards:
   name: Dump Cards
-  description: Write rendered card YAML to the Home Assistant config folder for static Manual dashboards. Without layout, all cached layouts are exported; with layout, only that layout is exported.
+  description: Admin-only external action from an authenticated UI/API session; background calls without a user ID are rejected. Write rendered card YAML under Home Assistant config/humidity_intelligence/ui for static Manual dashboards. Without layout, all cached layouts are exported; with layout, only that layout is exported. Trusted first-run setup, options, and release-check paths call the internal exporter directly. Startup refresh remains cache-only.
   fields:
     entry_id:
       name: Entry ID
@@ -144,7 +144,7 @@ dump_cards:
         text: {}
     filename:
       name: Filename
-      description: Optional base filename (defaults to humidity_intelligence_cards; basename only)
+      description: Optional custom base filename under Home Assistant config/humidity_intelligence/ui (defaults to humidity_intelligence_cards; basename only). Multi-entry installations add an entry-qualified token before the layout.
       selector:
         text: {}
     layout:
@@ -181,7 +181,7 @@ create_dashboard:
         text: {}
 view_cards:
   name: View Cards
-  description: Dump cards to file and post a notification with the file path
+  description: Admin-only external action from an authenticated UI/API session; background calls without a user ID are rejected. Export cards under Home Assistant config/humidity_intelligence/ui and post a notification with each exact file path.
   fields:
     entry_id:
       name: Entry ID
@@ -190,7 +190,7 @@ view_cards:
         text: {}
     filename:
       name: Filename
-      description: Optional base filename (defaults to humidity_intelligence_cards; basename only)
+      description: Optional custom base filename under Home Assistant config/humidity_intelligence/ui (defaults to humidity_intelligence_cards; basename only). Multi-entry installations add an entry-qualified token before the layout.
       selector:
         text: {}
     layout:
@@ -200,7 +200,7 @@ view_cards:
         text: {}
 purge_files:
   name: Purge Files
-  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Show the exact existing HI-generated files and configured dashboard targets in a blocking preview, then remove them. Entry-scoped calls do not remove report exports; an all-entry call may remove only the default diagnostics export. Release-check, custom, and legacy config-root reports are retained. Partial failures are reported and fail the service call.
+  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Show the exact existing owned default/per-entry UI exports, release-check test-card exports, and registered dashboard targets in a blocking preview, then remove them. Entry-scoped calls remove no reports. An unscoped all-entry call may additionally remove only the fixed default diagnostics and self-check reports. Custom card exports, custom reports, release-check reports, and all legacy config-root artifacts are retained. Partial failures are reported and fail the service call.
   fields:
     entry_id:
       name: Entry ID

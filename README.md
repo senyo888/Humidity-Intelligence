@@ -385,9 +385,13 @@ must be reviewable from tracked repository files.
 - diagnostics and release-check report writers now accept only exact lowercase
   `humidity_intelligence_*.json` custom filenames, preserve their existing defaults,
   and write only under `<config>/humidity_intelligence/exports/`
-- every `dump_diagnostics` and `v205_release_check` call now requires an authenticated
-  admin user context; contextless background automations/scripts and non-admin callers
-  are intentionally rejected before report work begins
+- the fixed self-check report now shares that secure export directory, and generated
+  card YAML now writes under `<config>/humidity_intelligence/ui/`; registered
+  dashboard YAML remains under `<config>/dashboards/`
+- every external `dump_diagnostics`, `self_check`, `v205_release_check`, `dump_cards`,
+  and `view_cards` call now requires an authenticated admin user context; trusted
+  setup/options/release-check regeneration calls the internal exporter directly,
+  while startup refresh remains cache-only
 - first-run setup now starts with a welcome/setup-strategy page before Frontend
   Dependencies, so users can save a small initial sensor set and return through
   Options for deeper tuning
@@ -793,9 +797,17 @@ Use Home Assistant Developer Tools:
 
 Notes:
 - `entry_id` is optional for most services. If omitted, HI uses all entries or first valid entry based on service behavior.
-- Caller-selectable diagnostics and release-check reports are written under
-  `<config>/humidity_intelligence/exports/`. Card exports and the fixed self-check
-  output retain their existing paths.
+- Diagnostics, self-check, and release-check JSON is written under
+  `<config>/humidity_intelligence/exports/`. Generated card YAML is written under
+  `<config>/humidity_intelligence/ui/`. Registered dashboard YAML remains under
+  `<config>/dashboards/<url_path>.yaml`.
+- Single-entry card exports retain unqualified names such as
+  `humidity_intelligence_cards_v2_mobile.yaml`. Multi-entry installations add an
+  entry-qualified token before the layout to prevent one entry overwriting another.
+  Adding a second entry re-exports all loaded entries with qualified names; removing
+  back to one re-exports the remaining entry with unqualified names. Superseded
+  owned-UI names remain inert until an exact purge, so consumers must follow the
+  latest notification rather than infer a path.
 - Default generated V2 dashboards are read-only status surfaces. Runtime-changing
   actions such as pause/resume, dashboard creation, and file cleanup belong in
   Home Assistant service/admin workflows. System and Manual buttons keep the
@@ -813,17 +825,22 @@ Notes:
   First-run dashboard creation remains available only through the trusted setup path.
   A created dashboard is still registered with its normal non-admin viewing setting;
   the new gate controls creation, not later visibility.
-- Every `dump_diagnostics` and `v205_release_check` call also requires an admin user
-  context. Contextless background automations/scripts cannot invoke these report
-  writers; use an authenticated admin UI, REST, or WebSocket session. There is no YAML
-  option that manufactures an admin context for a background automation.
+- Every external `dump_diagnostics`, `self_check`, `v205_release_check`, `dump_cards`,
+  and `view_cards` call also requires an admin user context. Contextless background
+  automations/scripts cannot invoke these writers; use an authenticated admin UI,
+  REST, or WebSocket session. There is no YAML option that manufactures an admin
+  context for a background automation. HI-owned setup/options and release-check
+  test-card regeneration remains available through the trusted internal exporter;
+  startup refresh remains cache-only.
 - `purge_files` validates the complete fixed HI-generated target set, posts the exact
   existing-file/dashboard preview with a blocking notification, then deletes. Any
   file or dashboard deletion failure is surfaced as an incomplete purge instead of
   being silently treated as success. An `entry_id`-scoped purge does not remove
-  caller-selectable report exports. Only an unscoped all-entry purge may remove the
-  exact default diagnostics export; release-check, custom, and legacy config-root
-  reports remain retained.
+  report exports. Only an unscoped all-entry purge may remove the exact default
+  diagnostics and fixed self-check reports. Exact default/per-entry card and
+  release-test card exports plus registered dashboards are purge-owned. Custom card
+  exports, custom reports, release-check reports, and all legacy config-root JSON/YAML
+  remain retained.
 - `v205_release_check` is the backward-compatible validation service name. In v2.0.8
   and v2.0.9 it accepts the v2.0.5-v2.0.9 beta/rc/stable line and is runtime/device
   read-only: it writes its validation report, and `write_test_exports: true`
@@ -835,26 +852,37 @@ Notes:
   reviewed or sanitized before public sharing.
 - Custom filenames for `dump_diagnostics` and `v205_release_check` must use the
   exact lowercase `humidity_intelligence_*.json` pattern. The defaults are
-  unchanged. Both services now write under
+  unchanged. JSON report services now write under
   `<config>/humidity_intelligence/exports/`; existing root-level reports are not
-  moved, copied, or deleted. Update any report consumers to the owned-directory path
-  and update callers that supply another custom filename. Fully restart Home
+  moved, copied, or deleted. Generated card consumers must similarly move from the
+  config-root filename to `<config>/humidity_intelligence/ui/<filename>`. HI does not
+  dual-write, copy, symlink, move, or delete legacy root JSON/YAML, so verify a fresh
+  owned-directory artifact before updating file sensors, shell commands, scripts, or
+  support tools; then disable the stale root consumer explicitly. Update callers that
+  supply another custom report filename. Fully restart Home
   Assistant after installing this package update; a config-entry reload alone does
   not load the changed service code or schema. Concurrent writes are serialized
   inside HI and each replacement is atomic; the last atomic replacement wins, but
   callers must not rely on invocation order.
 
+- Rollback restores the complete prior integration package and any backed-up consumer
+  paths, followed by a full Home Assistant restart. Files already written under
+  `<config>/humidity_intelligence/exports/` or
+  `<config>/humidity_intelligence/ui/` remain in place and are not moved back to the
+  config root. Reverting package code alone does not refresh a legacy root artifact;
+  consumers must be deliberately pointed at the restored path.
+
 Common service groups:
 
 | Service | Use |
 | --- | --- |
-| `dump_cards` | export generated card YAML for static Manual dashboards |
+| `dump_cards` | admin-only export of generated card YAML for static Manual dashboards |
 | `refresh_ui` | rebuild placeholder mappings and refresh cached rendered UI output |
-| `view_cards` | render cards, write them to file, and send a file-path notification through an explicit service call |
+| `view_cards` | admin-only render/export plus an exact file-path notification |
 | `create_dashboard` | admin-only creation of a Lovelace dashboard from a rendered HI layout |
 | `flash_lights` | test configured visual alert behavior |
 | `pause_control` / `resume_control` | admin-only pause or resume for one supplied entry or all entries |
-| `self_check` | run mapping, generated-card entity, telemetry, drift-helper, and frontend-dependency checks |
+| `self_check` | admin-only fixed export of mapping, generated-card entity, telemetry, drift-helper, and frontend-dependency checks |
 | `v205_release_check` | admin-only runtime-safe v2.0.5-v2.0.9 generated-card and release-validation support checks |
 | `create_local_backup` / `list_saved_versions` | manage package-local HI snapshots for advanced validation |
 | `dump_diagnostics` | admin-only export of fuller local diagnostics for maintainer/debug workflows |
@@ -987,9 +1015,17 @@ CO emergency pressure. Details are in
 - moved caller-selectable diagnostics and release-check reports from the config root
   into `<config>/humidity_intelligence/exports/`, without automatically migrating or
   deleting legacy root reports
+- moved the fixed `humidity_intelligence_self_check.json` report into the same secure
+  exports directory and all generated card YAML into
+  `<config>/humidity_intelligence/ui/`; registered dashboards remain under
+  `<config>/dashboards/<url_path>.yaml`
+- added no-follow, descriptor-relative, same-directory atomic YAML writes, exact
+  purge ownership, and entry-qualified filenames for multi-entry installations
 - required an authenticated admin user context for every `dump_diagnostics` and
-  `v205_release_check` call; contextless background callers and non-admin users are
-  rejected before report lookup, cache work, path resolution, writes, or notification
+  `self_check`, `v205_release_check`, `dump_cards`, and `view_cards` call; contextless
+  background callers and non-admin users are rejected before work begins, while
+  trusted HI setup/options/release-test generation uses the internal exporter and
+  startup refresh remains cache-only
 - extended the backward-compatible `v205_release_check` manifest contract through
   the v2.0.9 beta/rc/stable line
 - privacy-filtered local issue-triage body summaries before report escaping, removing
@@ -1003,10 +1039,13 @@ CO emergency pressure. Details are in
   planned removal remains a separate v2.1 proposal
 - migration impact: no stored-data migration. Report consumers must move from
   `<config>/<filename>` to `<config>/humidity_intelligence/exports/<filename>`;
-  legacy root reports remain untouched. Callers using another custom report filename
-  must rename it. Contextless background automations/scripts can no longer invoke the
-  mutation or report-writer services; use an authenticated admin UI or API call. Any
-  future automated trusted route requires separate design approval
+  card consumers must move to `<config>/humidity_intelligence/ui/<filename>`. Legacy
+  root JSON/YAML remains untouched with no dual-write, copy, symlink, move, or
+  automatic deletion. Verify fresh owned-directory output before switching consumers.
+  Callers using another custom report filename must rename it. Contextless background
+  automations/scripts can no longer invoke the external writer services; use an
+  authenticated admin UI or API call. Any future automated trusted route requires
+  separate design approval
 - runtime/UI impact: entity semantics, deterministic lane ordering, and output
   selection are unchanged. V2 generated dashboards are unchanged; V1 users must
   re-export and re-copy their card to receive the escaped template
