@@ -101,4 +101,23 @@ Public status wording should stay expectation-safe:
 
 ## Maintainer Notes
 
-Native diagnostics are the preferred GitHub attachment. The existing `humidity_intelligence.dump_diagnostics` service remains useful for local Home Assistant validation and writes a fuller JSON export to `/config`, but users should attach the native Home Assistant diagnostics download unless asked otherwise. Review any full `dump_diagnostics` export before sharing it publicly because it intentionally contains more local troubleshooting context than the native issue bundle.
+Native diagnostics are the preferred GitHub attachment. The existing
+`humidity_intelligence.dump_diagnostics` service remains useful for local Home
+Assistant validation and writes a fuller JSON export under
+`<config>/humidity_intelligence/exports/`. The service requires an authenticated
+admin user context; non-admin and contextless background calls are rejected. Users
+should attach the native Home Assistant diagnostics download unless asked otherwise.
+Review any full `dump_diagnostics` export before sharing it publicly because it
+intentionally contains more local troubleshooting context than the native issue
+bundle.
+
+The v2.0.9 path change is non-destructive. Existing report files in the config root
+are not moved, copied, or deleted. Update file sensors, shell commands, support tools,
+or other consumers from `<config>/<filename>` to
+`<config>/humidity_intelligence/exports/<filename>` after verifying a new report.
+Keep a backup of any external consumer definition before changing it. A full Home
+Assistant restart is required after installing or rolling back the package.
+Rollback restores the complete prior integration package and the backed-up consumer
+paths, then requires another full restart. Files already written in the owned export
+directory are retained; they are not moved back to the config root. Rolling back also
+restores the older root-writer and caller-authority behavior.

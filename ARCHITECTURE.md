@@ -83,9 +83,9 @@ Optional frontend cards and UI dependencies must never block backend functionali
 ## Mutation Service Authority
 
 External Home Assistant calls to `pause_control`, `resume_control`,
-`create_dashboard`, and `purge_files` require an admin user context whether they
-target one config entry or all entries. An `entry_id` narrows the target only; it is
-not an authorization bypass.
+`create_dashboard`, `purge_files`, `dump_diagnostics`, and `v205_release_check`
+require an admin user context whether they target one config entry or all entries. An
+`entry_id` narrows the target only; it is not an authorization bypass.
 
 Contextless background automation/script calls are intentionally rejected. Supported
 external use originates from an authenticated admin UI or API session; any future
@@ -101,6 +101,17 @@ Generated-artifact purge must validate its full fixed target set before mutation
 show the exact existing file and configured dashboard targets in a completed blocking
 notification before deletion, reject paths outside the direct owned basename set and
 non-regular filesystem objects, and report partial failures truthfully.
+
+Caller-selectable diagnostics and release-check report basenames must match
+`humidity_intelligence_*.json` and are written only inside the owned
+`<config>/humidity_intelligence/exports/` directory. Directory verification,
+creation, temporary writes, atomic replacement, cleanup, and report purge stay
+descriptor-relative, reject symlink/non-regular targets, and fail closed without a
+config-root fallback. In-process writes are serialized; concurrent same-name calls
+produce complete JSON and the last atomic replacement wins without promising caller
+invocation order. Entry-scoped purge owns no export report. Only an unscoped all-entry
+purge may remove the exact default diagnostics export; release-check, custom, and
+legacy config-root reports remain retained.
 
 Dynamic state or attribute text rendered through generated-card HTML must be escaped
 at the HTML sink. The V1 Mobile presentation remains available but deprecated through

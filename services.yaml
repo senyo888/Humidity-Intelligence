@@ -51,7 +51,7 @@ refresh_ui:
         text: {}
 dump_diagnostics:
   name: Dump Diagnostics
-  description: Write sanitized diagnostics (configuration counts, active target profile, alert resolution status, visual alert counts, house humidity drift dependency, unavailable counts, cards) to a JSON file in the Home Assistant config folder
+  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Write sanitized diagnostics (configuration counts, active target profile, alert resolution status, visual alert counts, house humidity drift dependency, unavailable counts, cards) to a JSON file under the owned Home Assistant config/humidity_intelligence/exports directory.
   fields:
     entry_id:
       name: Entry ID
@@ -60,7 +60,7 @@ dump_diagnostics:
         text: {}
     filename:
       name: Filename
-      description: Output filename in the HA config folder. Custom names must use the exact lowercase humidity_intelligence_*.json pattern; update existing automations or scripts that use another custom name.
+      description: Output basename under Home Assistant config/humidity_intelligence/exports. Custom names must use the exact lowercase humidity_intelligence_*.json pattern; update existing callers that use another custom name or consume the former config-root path.
       selector:
         text: {}
 self_check:
@@ -74,7 +74,7 @@ self_check:
         text: {}
 v205_release_check:
   name: Release Check
-  description: Run a read-only v2.0.5-v2.0.9 validation report for generated-card visibility, generated-card entity availability, dump_cards scope behavior, cached layouts, unresolved placeholders, frontend dependency status, house humidity drift dependency status, PM2.5 aggregate normalization status, optional local HI-only snapshot status, and configured entity availability.
+  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Run a runtime/device-read-only v2.0.5-v2.0.9 validation check and write its report under the owned Home Assistant config/humidity_intelligence/exports directory.
   fields:
     entry_id:
       name: Entry ID
@@ -83,7 +83,7 @@ v205_release_check:
         text: {}
     filename:
       name: Filename
-      description: Output filename in the HA config folder (defaults to humidity_intelligence_v205_release_check.json). Custom names must use the exact lowercase humidity_intelligence_*.json pattern; update existing automations or scripts that use another custom name.
+      description: Output basename under Home Assistant config/humidity_intelligence/exports (defaults to humidity_intelligence_v205_release_check.json). Custom names must use the exact lowercase humidity_intelligence_*.json pattern; update existing callers that use another custom name or consume the former config-root path.
       selector:
         text: {}
     write_test_exports:
@@ -200,7 +200,7 @@ view_cards:
         text: {}
 purge_files:
   name: Purge Files
-  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Show the exact existing HI-generated files and configured dashboard targets in a blocking preview, then remove them. Partial failures are reported and fail the service call.
+  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Show the exact existing HI-generated files and configured dashboard targets in a blocking preview, then remove them. Entry-scoped calls do not remove report exports; an all-entry call may remove only the default diagnostics export. Release-check, custom, and legacy config-root reports are retained. Partial failures are reported and fail the service call.
   fields:
     entry_id:
       name: Entry ID

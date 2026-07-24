@@ -47,8 +47,8 @@ def list_generated_files(entry: ConfigEntry) -> List[str]:
     # Legacy or single-file outputs
     filenames.add("humidity_intelligence_cards.json")
     filenames.add("humidity_intelligence_cards.yaml")
-    # Diagnostics outputs
-    filenames.add("humidity_intelligence_diagnostics.json")
+    # The root self-check remains entry-owned. Caller-selectable report exports use
+    # the separately confined export-directory cleanup contract.
     filenames.add("humidity_intelligence_self_check.json")
     return sorted(filenames)
 

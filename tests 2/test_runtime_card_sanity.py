@@ -683,8 +683,8 @@ class _DumpCardsConfig:
     def __init__(self, root):
         self._root = pathlib.Path(root)
 
-    def path(self, filename):
-        return str(self._root / filename)
+    def path(self, *parts):
+        return str(self._root.joinpath(*parts))
 
 
 class _DumpCardsConfigEntries:
@@ -4082,7 +4082,277 @@ def test_report_service_schemas_reject_non_owned_root_filenames_before_write():
     assert view_schema({"filename": "custom_cards"})["filename"] == "custom_cards"
 
 
-def test_dump_diagnostics_legacy_export_redacts_sensitive_payload_before_write():
+def test_report_writers_require_admin_before_report_side_effects():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth(
+        {
+            "admin": SimpleNamespace(is_admin=True),
+            "viewer": SimpleNamespace(is_admin=False),
+        }
+    )
+    counters = {
+        "config_entries": 0,
+        "destination": 0,
+        "executor": 0,
+    }
+    original_config_entries = hass.config_entries
+
+    class CountingConfigEntries:
+        def async_get_entry(self, entry_id):
+            counters["config_entries"] += 1
+            return original_config_entries.async_get_entry(entry_id)
+
+        def async_entries(self, domain):
+            counters["config_entries"] += 1
+            return original_config_entries.async_entries(domain)
+
+    class CountingConfig:
+        def path(self, *parts):
+            counters["destination"] += 1
+            return str(pathlib.Path(tempfile.gettempdir()).joinpath(*parts))
+
+    async def counting_executor_job(func, *args):
+        counters["executor"] += 1
+        return func(*args)
+
+    hass.config_entries = CountingConfigEntries()
+    hass.config = CountingConfig()
+    hass.async_add_executor_job = counting_executor_job
+    asyncio.run(services_mod.async_register_services(hass))
+
+    for service in (
+        services_mod.SERVICE_DUMP_DIAGNOSTICS,
+        services_mod.SERVICE_V205_RELEASE_CHECK,
+    ):
+        handler = hass.services.handlers[(services_mod.DOMAIN, service)]
+        for user_id in ("viewer", None, "missing"):
+            before = dict(counters)
+            calls_before = list(hass.services.calls)
+            try:
+                asyncio.run(
+                    handler(
+                        SimpleNamespace(
+                            data={},
+                            context=SimpleNamespace(user_id=user_id),
+                        )
+                    )
+                )
+            except Exception as err:
+                assert str(err) == f"{service} requires an admin user context"
+            else:
+                raise AssertionError(f"{service} should reject user context {user_id!r}")
+            assert counters == before
+            assert hass.services.calls == calls_before
+
+
+def test_report_writer_admin_lookup_precedes_async_report_work():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    events = []
+
+    class RecordingAuth:
+        async def async_get_user(self, user_id):
+            events.append(("auth", user_id))
+            return SimpleNamespace(is_admin=True)
+
+    async def frontend_status(_hass):
+        events.append(("frontend", None))
+        return {"status": "not_inspectable"}
+
+    async def local_version_status(_hass):
+        events.append(("local_versions", None))
+        return {"status": "not_configured"}
+
+    original_frontend_status = services_mod.async_frontend_dependency_status
+    original_local_version_status = services_mod.async_local_version_status
+    original_executor = hass.async_add_executor_job
+
+    async def tracking_executor(func, *args):
+        events.append(("executor", func.__name__))
+        return await original_executor(func, *args)
+
+    hass.auth = RecordingAuth()
+    hass.async_add_executor_job = tracking_executor
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        _set_fake_config_path(hass, tmpdir)
+        try:
+            services_mod.async_frontend_dependency_status = frontend_status
+            services_mod.async_local_version_status = local_version_status
+            asyncio.run(services_mod.async_register_services(hass))
+
+            for service in (
+                services_mod.SERVICE_DUMP_DIAGNOSTICS,
+                services_mod.SERVICE_V205_RELEASE_CHECK,
+            ):
+                events.clear()
+                handler = hass.services.handlers[(services_mod.DOMAIN, service)]
+                asyncio.run(
+                    handler(
+                        SimpleNamespace(
+                            data={"entry_id": "missing"},
+                            context=SimpleNamespace(user_id="admin"),
+                        )
+                    )
+                )
+                assert events[0] == ("auth", "admin")
+                assert any(event[0] == "executor" for event in events)
+        finally:
+            services_mod.async_frontend_dependency_status = original_frontend_status
+            services_mod.async_local_version_status = original_local_version_status
+
+
+def test_report_writer_services_use_owned_directory_and_truthful_notification():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth({"admin": SimpleNamespace(is_admin=True)})
+
+    async def frontend_status(_hass):
+        return {"status": "not_inspectable"}
+
+    async def local_version_status(_hass):
+        return {"status": "not_configured"}
+
+    original_frontend_status = services_mod.async_frontend_dependency_status
+    original_local_version_status = services_mod.async_local_version_status
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = pathlib.Path(tmpdir)
+        _set_fake_config_path(hass, root)
+        try:
+            services_mod.async_frontend_dependency_status = frontend_status
+            services_mod.async_local_version_status = local_version_status
+            asyncio.run(services_mod.async_register_services(hass))
+
+            diagnostics_name = "humidity_intelligence_diagnostics_test.json"
+            release_name = "humidity_intelligence_release_test.json"
+            diagnostics_handler = hass.services.handlers[
+                (services_mod.DOMAIN, services_mod.SERVICE_DUMP_DIAGNOSTICS)
+            ]
+            release_handler = hass.services.handlers[
+                (services_mod.DOMAIN, services_mod.SERVICE_V205_RELEASE_CHECK)
+            ]
+            asyncio.run(
+                diagnostics_handler(
+                    SimpleNamespace(
+                        data={
+                            "entry_id": "missing",
+                            "filename": diagnostics_name,
+                        },
+                        context=SimpleNamespace(user_id="admin"),
+                    )
+                )
+            )
+            asyncio.run(
+                release_handler(
+                    SimpleNamespace(
+                        data={
+                            "entry_id": "missing",
+                            "filename": release_name,
+                        },
+                        context=SimpleNamespace(user_id="admin"),
+                    )
+                )
+            )
+        finally:
+            services_mod.async_frontend_dependency_status = original_frontend_status
+            services_mod.async_local_version_status = original_local_version_status
+
+        for filename in (diagnostics_name, release_name):
+            assert not (root / filename).exists()
+            report = root / "humidity_intelligence" / "exports" / filename
+            assert report.is_file()
+            json.loads(report.read_text(encoding="utf-8"))
+
+        notifications = [
+            call
+            for call in hass.services.calls
+            if call[0:2] == ("persistent_notification", "create")
+        ]
+        assert len(notifications) == 1
+        message = notifications[0][2]["message"]
+        assert (
+            "Home Assistant config/humidity_intelligence/exports/"
+            + release_name
+        ) in message
+        assert f"/config/{release_name}" not in message
+
+
+def test_report_writers_surface_owned_export_failure_as_service_error():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth({"admin": SimpleNamespace(is_admin=True)})
+
+    async def frontend_status(_hass):
+        return {"status": "not_inspectable"}
+
+    async def local_version_status(_hass):
+        return {"status": "not_configured"}
+
+    def failed_write(*_args):
+        raise services_mod.ReportExportError("fixture destination rejected")
+
+    original_frontend_status = services_mod.async_frontend_dependency_status
+    original_local_version_status = services_mod.async_local_version_status
+    original_write = services_mod.write_owned_report
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        _set_fake_config_path(hass, tmpdir)
+        try:
+            services_mod.async_frontend_dependency_status = frontend_status
+            services_mod.async_local_version_status = local_version_status
+            services_mod.write_owned_report = failed_write
+            asyncio.run(services_mod.async_register_services(hass))
+            for service, expected in (
+                (
+                    services_mod.SERVICE_DUMP_DIAGNOSTICS,
+                    "Diagnostics report operation incomplete: "
+                    "fixture destination rejected",
+                ),
+                (
+                    services_mod.SERVICE_V205_RELEASE_CHECK,
+                    "Release-check report operation incomplete: "
+                    "fixture destination rejected",
+                ),
+            ):
+                handler = hass.services.handlers[(services_mod.DOMAIN, service)]
+                try:
+                    asyncio.run(
+                        handler(
+                            SimpleNamespace(
+                                data={"entry_id": "missing"},
+                                context=SimpleNamespace(user_id="admin"),
+                            )
+                        )
+                    )
+                except Exception as err:
+                    assert str(err) == expected
+                else:
+                    raise AssertionError(
+                        f"{service} export failure should be reported"
+                    )
+        finally:
+            services_mod.async_frontend_dependency_status = original_frontend_status
+            services_mod.async_local_version_status = original_local_version_status
+            services_mod.write_owned_report = original_write
+
+    assert not [
+        call
+        for call in hass.services.calls
+        if call[0:2] == ("persistent_notification", "create")
+    ]
+
+
+def test_dump_diagnostics_owned_export_redacts_sensitive_payload_before_write():
     services_mod = _load_services_module()
     entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
     hass = _FakeHass(
@@ -4100,6 +4370,7 @@ def test_dump_diagnostics_legacy_export_redacts_sensitive_payload_before_write()
     )
     hass.config = _DumpCardsConfig(tempfile.mkdtemp())
     hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth({"admin": SimpleNamespace(is_admin=True)})
     hass.data["lovelace"] = SimpleNamespace(
         resources=_FakeLovelaceResources(
             [
@@ -4144,21 +4415,29 @@ def test_dump_diagnostics_legacy_export_redacts_sensitive_payload_before_write()
 
     captured = {}
 
-    def capture_write(path, payload):
-        captured["path"] = path
+    def capture_write(config_root, filename, payload):
+        captured["config_root"] = config_root
+        captured["filename"] = filename
         captured["payload"] = payload
 
     original_local_version_status = services_mod.async_local_version_status
-    original_write_json = services_mod._write_json
+    original_write_owned_report = services_mod.write_owned_report
     try:
         services_mod.async_local_version_status = local_version_status
-        services_mod._write_json = capture_write
+        services_mod.write_owned_report = capture_write
         asyncio.run(services_mod.async_register_services(hass))
         handler = hass.services.handlers[(services_mod.DOMAIN, services_mod.SERVICE_DUMP_DIAGNOSTICS)]
-        asyncio.run(handler(SimpleNamespace(data={"entry_id": ENTRY_ID})))
+        asyncio.run(
+            handler(
+                SimpleNamespace(
+                    data={"entry_id": ENTRY_ID},
+                    context=SimpleNamespace(user_id="admin"),
+                )
+            )
+        )
     finally:
         services_mod.async_local_version_status = original_local_version_status
-        services_mod._write_json = original_write_json
+        services_mod.write_owned_report = original_write_owned_report
 
     rendered = json.dumps(captured["payload"], sort_keys=True)
     for secret in (
@@ -4183,6 +4462,7 @@ def test_dump_diagnostics_legacy_export_redacts_sensitive_payload_before_write()
     assert "configuration_summary" in captured["payload"][ENTRY_ID]
     assert "entity_map_summary" in captured["payload"][ENTRY_ID]
     assert captured["payload"][ENTRY_ID]["entity_map_summary"]["mapped_entity_count"] == 2
+    assert captured["filename"] == "humidity_intelligence_diagnostics.json"
 
 
 def test_generated_v2_cards_escape_dynamic_html_text():
@@ -5368,6 +5648,7 @@ def test_purge_validates_all_candidates_before_any_side_effect():
 
 def test_purge_requires_admin_and_uses_exact_blocking_preview():
     services_mod = _load_services_module()
+    report_exports_mod = sys.modules[f"{PKG}.helpers.report_exports"]
     entry_data = _base_entry_data()
     entry_data["ui_layouts"] = ["v2_mobile"]
     entry_data["ui_dashboard_id"] = "humidity-intelligence"
@@ -5387,6 +5668,11 @@ def test_purge_requires_admin_and_uses_exact_blocking_preview():
         _set_fake_config_path(hass, tmpdir)
         generated = pathlib.Path(tmpdir) / "humidity_intelligence_cards.yaml"
         generated.write_text("generated", encoding="utf-8")
+        owned_diagnostics = report_exports_mod.write_owned_report(
+            tmpdir,
+            report_exports_mod.DEFAULT_DIAGNOSTICS_REPORT_FILENAME,
+            {"status": "retained"},
+        )
         asyncio.run(services_mod.async_register_services(hass))
         handler = hass.services.handlers[
             (services_mod.DOMAIN, services_mod.SERVICE_PURGE_FILES)
@@ -5454,7 +5740,137 @@ def test_purge_requires_admin_and_uses_exact_blocking_preview():
             ("remove_files", None)
         )
         assert not generated.exists()
+        assert (pathlib.Path(tmpdir) / owned_diagnostics).is_file()
         assert ("delete_dashboard", "humidity-intelligence") in events
+
+
+def test_unscoped_purge_removes_only_default_owned_diagnostics_report():
+    services_mod = _load_services_module()
+    report_exports_mod = sys.modules[f"{PKG}.helpers.report_exports"]
+    entry_data = _base_entry_data()
+    entry_data["ui_layouts"] = ["v2_mobile"]
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=entry_data, options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth({"admin": SimpleNamespace(is_admin=True)})
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = pathlib.Path(tmpdir)
+        _set_fake_config_path(hass, root)
+        default_name = report_exports_mod.DEFAULT_DIAGNOSTICS_REPORT_FILENAME
+        release_name = "humidity_intelligence_v205_release_check.json"
+        custom_name = "humidity_intelligence_custom.json"
+        legacy_root = root / default_name
+        legacy_root.write_text('{"legacy": true}\n', encoding="utf-8")
+        for filename in (default_name, release_name, custom_name):
+            report_exports_mod.write_owned_report(
+                root,
+                filename,
+                {"name": filename},
+            )
+
+        asyncio.run(services_mod.async_register_services(hass))
+        handler = hass.services.handlers[
+            (services_mod.DOMAIN, services_mod.SERVICE_PURGE_FILES)
+        ]
+        asyncio.run(
+            handler(
+                SimpleNamespace(
+                    data={},
+                    context=SimpleNamespace(user_id="admin"),
+                )
+            )
+        )
+
+        exports_dir = root / "humidity_intelligence" / "exports"
+        assert not (exports_dir / default_name).exists()
+        assert (exports_dir / release_name).is_file()
+        assert (exports_dir / custom_name).is_file()
+        assert legacy_root.read_text(encoding="utf-8") == '{"legacy": true}\n'
+
+        preview_calls = [
+            call
+            for call in hass.services.calls
+            if call[0:2] == ("persistent_notification", "create")
+            and call[2].get("title") == "Humidity Intelligence Cleanup Preview"
+        ]
+        assert len(preview_calls) == 1
+        preview_message = preview_calls[0][2]["message"]
+        assert (
+            "Home Assistant config/humidity_intelligence/exports/" + default_name
+        ) in preview_message
+        assert release_name not in preview_message
+        assert custom_name not in preview_message
+
+
+def test_unscoped_purge_reports_owned_diagnostics_changed_after_preview():
+    services_mod = _load_services_module()
+    report_exports_mod = sys.modules[f"{PKG}.helpers.report_exports"]
+    entry_data = _base_entry_data()
+    entry_data["ui_layouts"] = ["v2_mobile"]
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=entry_data, options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth({"admin": SimpleNamespace(is_admin=True)})
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = pathlib.Path(tmpdir)
+        _set_fake_config_path(hass, root)
+        default_name = report_exports_mod.DEFAULT_DIAGNOSTICS_REPORT_FILENAME
+        report_exports_mod.write_owned_report(
+            root,
+            default_name,
+            {"version": 1},
+        )
+        destination = root / report_exports_mod.DEFAULT_DIAGNOSTICS_REPORT_RELATIVE_PATH
+
+        asyncio.run(services_mod.async_register_services(hass))
+        handler = hass.services.handlers[
+            (services_mod.DOMAIN, services_mod.SERVICE_PURGE_FILES)
+        ]
+        original_async_call = hass.services.async_call
+
+        async def replace_after_preview(domain, service, data=None, blocking=False):
+            result = await original_async_call(domain, service, data, blocking)
+            if (
+                (domain, service) == ("persistent_notification", "create")
+                and (data or {}).get("title")
+                == "Humidity Intelligence Cleanup Preview"
+            ):
+                destination.unlink()
+                destination.write_text('{"version": 2}\n', encoding="utf-8")
+            return result
+
+        hass.services.async_call = replace_after_preview
+        try:
+            asyncio.run(
+                handler(
+                    SimpleNamespace(
+                        data={},
+                        context=SimpleNamespace(user_id="admin"),
+                    )
+                )
+            )
+        except Exception as err:
+            message = str(err)
+            assert "Purge incomplete" in message
+            assert "reports:" in message
+            assert report_exports_mod.DEFAULT_DIAGNOSTICS_REPORT_RELATIVE_PATH in message
+        else:
+            raise AssertionError("changed diagnostics export should fail the purge")
+
+        assert json.loads(destination.read_text(encoding="utf-8")) == {"version": 2}
+        incomplete = [
+            call
+            for call in hass.services.calls
+            if call[0:2] == ("persistent_notification", "create")
+            and call[2].get("title") == "Humidity Intelligence Cleanup Incomplete"
+        ]
+        assert len(incomplete) == 1
+        assert (
+            report_exports_mod.DEFAULT_DIAGNOSTICS_REPORT_RELATIVE_PATH
+            in incomplete[0][2]["message"]
+        )
 
 
 def test_purge_reports_file_and_dashboard_failures():

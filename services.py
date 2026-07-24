@@ -43,6 +43,12 @@ from .helpers.local_versions import (
     async_local_version_status,
     cached_local_version_status,
 )
+from .helpers.report_exports import (
+    ReportExportError,
+    plan_default_diagnostics_report_removal,
+    remove_default_diagnostics_report,
+    write_owned_report,
+)
 from .helpers.seasonal import resolve_target_profile, resolve_temperature_comfort_profile
 from .helpers.zone_validation import (
     detect_zone_mapping_duplicates,
@@ -445,6 +451,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
     hass.services.async_register(DOMAIN, SERVICE_REFRESH_UI, handle_refresh, schema=SERVICE_REFRESH_SCHEMA)
 
     async def handle_dump(call: ServiceCall) -> None:
+        await _async_require_admin_user(hass, call, SERVICE_DUMP_DIAGNOSTICS)
         try:
             entry_id = call.data.get("entry_id")
             filename = call.data.get("filename", "humidity_intelligence_diagnostics.json")
@@ -481,11 +488,17 @@ async def async_register_services(hass: HomeAssistant) -> None:
                     "state_summary": _support_state_summary(hass, entity_map.values()),
                 }
 
-            path = hass.config.path(filename)
-            await hass.async_add_executor_job(_write_json, path, redact_diagnostics_payload(payload))
+            await hass.async_add_executor_job(
+                write_owned_report,
+                hass.config.path(),
+                filename,
+                redact_diagnostics_payload(payload),
+            )
         except Exception as err:
-            _LOGGER.exception("Failed to write diagnostics JSON")
-            raise HomeAssistantError(f"Failed to write diagnostics JSON: {err}") from err
+            _LOGGER.exception("Diagnostics report operation did not complete")
+            raise HomeAssistantError(
+                f"Diagnostics report operation incomplete: {err}"
+            ) from err
 
     hass.services.async_register(DOMAIN, SERVICE_DUMP_DIAGNOSTICS, handle_dump, schema=SERVICE_DUMP_SCHEMA)
 
@@ -587,6 +600,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
     hass.services.async_register(DOMAIN, SERVICE_SELF_CHECK, handle_self_check, schema=SERVICE_SELF_CHECK_SCHEMA)
 
     async def handle_v205_release_check(call: ServiceCall) -> None:
+        await _async_require_admin_user(hass, call, SERVICE_V205_RELEASE_CHECK)
         from .ui.register import async_build_entity_mapping, async_register_cards
 
         entry_id = call.data.get("entry_id")
@@ -657,14 +671,27 @@ async def async_register_services(hass: HomeAssistant) -> None:
 
             report["status"] = _combined_check_status(entry_reports)
 
-        path = hass.config.path(filename)
-        await hass.async_add_executor_job(_write_json, path, report)
+        try:
+            report_path = await hass.async_add_executor_job(
+                write_owned_report,
+                hass.config.path(),
+                filename,
+                report,
+            )
+        except Exception as err:
+            _LOGGER.exception("Release-check report operation did not complete")
+            raise HomeAssistantError(
+                f"Release-check report operation incomplete: {err}"
+            ) from err
         await hass.services.async_call(
             "persistent_notification",
             "create",
             {
                 "title": "Humidity Intelligence Release Check",
-                "message": f"{report['status'].upper()}: report written to /config/{filename}",
+                "message": (
+                    f"{report['status'].upper()}: report written to "
+                    f"Home Assistant config/{report_path}"
+                ),
             },
             blocking=False,
         )
@@ -754,6 +781,17 @@ async def async_register_services(hass: HomeAssistant) -> None:
         except ValueError as err:
             raise HomeAssistantError(f"Cleanup plan rejected: {err}") from err
 
+        report_plans = []
+        if not entry_id:
+            try:
+                report_plans = await hass.async_add_executor_job(
+                    plan_default_diagnostics_report_removal,
+                    hass.config.path(),
+                )
+            except ReportExportError as err:
+                raise HomeAssistantError(f"Cleanup plan rejected: {err}") from err
+        report_files = [plan.relative_path for plan in report_plans]
+
         dashboards = []
         for entry in entries:
             dashboard_id = entry.data.get("ui_dashboard_id")
@@ -775,6 +813,9 @@ async def async_register_services(hass: HomeAssistant) -> None:
         dashboards.sort()
 
         message_lines = [f"/config/{f}" for f in files]
+        message_lines.extend(
+            f"Home Assistant config/{name}" for name in report_files
+        )
         for dash in dashboards:
             message_lines.append(f"Dashboard: {dash}")
         preview_message = (
@@ -794,13 +835,31 @@ async def async_register_services(hass: HomeAssistant) -> None:
         )
 
         failed_files = await hass.async_add_executor_job(remove_files, hass, files)
+        failed_report_files = []
+        if report_plans:
+            try:
+                await hass.async_add_executor_job(
+                    remove_default_diagnostics_report,
+                    hass.config.path(),
+                    report_plans[0],
+                )
+            except ReportExportError as err:
+                _LOGGER.warning(
+                    "Unable to remove owned diagnostics export: %s",
+                    err,
+                )
+                failed_report_files.extend(report_files)
         failed_dashboards = []
         for dashboard_id in dashboards:
             if not await remove_dashboard(hass, dashboard_id):
                 failed_dashboards.append(dashboard_id)
 
-        if failed_files or failed_dashboards:
+        if failed_files or failed_report_files or failed_dashboards:
             failure_lines = [f"/config/{name}" for name in failed_files]
+            failure_lines.extend(
+                f"Home Assistant config/{name}"
+                for name in failed_report_files
+            )
             failure_lines.extend(
                 f"Dashboard: {dashboard_id}"
                 for dashboard_id in failed_dashboards
@@ -820,6 +879,8 @@ async def async_register_services(hass: HomeAssistant) -> None:
             details = []
             if failed_files:
                 details.append("files: " + ", ".join(failed_files))
+            if failed_report_files:
+                details.append("reports: " + ", ".join(failed_report_files))
             if failed_dashboards:
                 details.append("dashboards: " + ", ".join(failed_dashboards))
             raise HomeAssistantError("Purge incomplete: " + "; ".join(details))

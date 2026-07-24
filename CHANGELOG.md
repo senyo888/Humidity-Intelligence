@@ -19,6 +19,18 @@ This project follows a practical changelog format for Home Assistant and HACS us
   folder. Defaults are unchanged. Automations or scripts using another custom
   report filename must be updated, and Home Assistant must be fully restarted after
   installing the package update; a config-entry reload alone is insufficient.
+- Moved caller-selectable diagnostics and release-check reports into the owned
+  `<config>/humidity_intelligence/exports/` directory with descriptor-relative
+  no-follow directory creation, same-directory atomic replacement, and no config-root
+  fallback. Existing config-root reports are retained without automatic migration.
+  Report consumers must update their full path. Concurrent writes are serialized and
+  the last atomic replacement wins. Entry-scoped purge does not delete export reports;
+  only unscoped all-entry purge may remove the exact default diagnostics export,
+  while release-check and custom reports remain retained.
+- Required authenticated admin user context for every `dump_diagnostics` and
+  `v205_release_check` call. Non-admin, unknown-user, and contextless background
+  callers are rejected before report lookup, cache work, path resolution, writes, or
+  notifications. Direct authenticated admin UI/API calls remain supported.
 - Required admin user context for targeted and all-entry `pause_control` /
   `resume_control` calls, explicit `create_dashboard`, and `purge_files`. Existing
   background automations/scripts whose action context has no `user_id` can no longer
