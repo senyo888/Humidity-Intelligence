@@ -268,10 +268,12 @@ def _install_homeassistant_stubs(*, include_unit_ratio: bool = True) -> None:
 
     core.HomeAssistant = HomeAssistant
     core.ServiceCall = ServiceCall
+    core.callback = lambda func: func
     config_entries.ConfigEntry = ConfigEntry
     exceptions.HomeAssistantError = HomeAssistantError
     const.UnitOfTemperature = UnitOfTemperature
     const.PERCENTAGE = "%"
+    const.EVENT_HOMEASSISTANT_STARTED = "homeassistant_started"
     if include_unit_ratio:
         const.UnitOfRatio = UnitOfRatio
     sensor_mod.SensorEntity = SensorEntity
@@ -363,10 +365,60 @@ def _load_services_module():
     _install_homeassistant_stubs()
     _install_package_scaffold()
     _load_module(f"{PKG}.const", ROOT / "const.py")
+    _load_module(f"{PKG}.helpers.cleanup", ROOT / "helpers" / "cleanup.py")
     level_labels_path = ROOT / "helpers" / "level_labels.py"
     if level_labels_path.exists():
         _load_module(f"{PKG}.helpers.level_labels", level_labels_path)
     return _load_module(f"{PKG}.services", ROOT / "services.py")
+
+
+def _load_integration_init_module():
+    _install_homeassistant_stubs()
+    _install_package_scaffold()
+    _load_module(f"{PKG}.const", ROOT / "const.py")
+
+    sys.modules[
+        "homeassistant.helpers.config_validation"
+    ].config_entry_only_config_schema = lambda _domain: {}
+    sys.modules["homeassistant.helpers.event"].async_call_later = (
+        lambda _hass, _delay, _callback: lambda: None
+    )
+
+    async def async_noop(*_args, **_kwargs):
+        return None
+
+    services_mod = sys.modules[f"{PKG}.services"]
+    services_mod.SERVICE_REFRESH_UI = "refresh_ui"
+    services_mod.async_create_dashboard_for_entry = async_noop
+    services_mod.async_register_services = async_noop
+    services_mod.async_unregister_services = async_noop
+
+    cleanup_mod = types.ModuleType(f"{PKG}.helpers.cleanup")
+    cleanup_mod.list_generated_files = lambda _entry: []
+    cleanup_mod.remove_files = lambda _hass, _files: []
+    cleanup_mod.remove_dashboard = async_noop
+    sys.modules[f"{PKG}.helpers.cleanup"] = cleanup_mod
+
+    drift_mod = types.ModuleType(f"{PKG}.helpers.drift_repairs")
+    drift_mod.async_update_humidity_drift_repair_issue = async_noop
+    sys.modules[f"{PKG}.helpers.drift_repairs"] = drift_mod
+
+    entity_registry_mod = types.ModuleType(f"{PKG}.helpers.entity_registry")
+    entity_registry_mod.normalize_pm25_aggregate_entity_ids = (
+        lambda _hass, _entry_id: {"changed": {}, "blocked": []}
+    )
+    sys.modules[f"{PKG}.helpers.entity_registry"] = entity_registry_mod
+
+    register_mod = types.ModuleType(f"{PKG}.ui.register")
+    register_mod.async_register_cards = async_noop
+    register_mod.async_build_entity_mapping = async_noop
+    sys.modules[f"{PKG}.ui.register"] = register_mod
+
+    automations_mod = sys.modules[f"{PKG}.automations"]
+    automations_mod.async_setup_entry = async_noop
+    automations_mod.async_unload_entry = async_noop
+
+    return _load_module(f"{PKG}.integration_init", ROOT / "__init__.py")
 
 
 def _load_core_module():
@@ -2574,10 +2626,16 @@ async def _run_card_assertions(register_mod) -> None:
     cards = await register_mod.async_register_cards(hass, ENTRY_ID, mapping)
     mobile = cards.get("v2_mobile", "")
     tablet = cards.get("v2_tablet", "")
+    legacy = cards.get("v1_mobile", "")
 
     assert hass.data["humidity_intelligence"][ENTRY_ID].get("unresolved_placeholders_by_card", {}) == {}
     assert mobile.startswith("# Humidity Intelligence V2 Mobile Dashboard YAML")
     assert tablet.startswith("# Humidity Intelligence V2 Tablet Dashboard YAML")
+    assert "const escapeHtml = " in legacy
+    assert "${escapeHtml(item.label)}" in legacy
+    assert "Target humidity (${escapeHtml(season)}):" in legacy
+    assert "Condensation: ${escapeHtml(condRisk)} in ${escapeHtml(condRoom)}" in legacy
+    assert "Mould: ${escapeHtml(mouldRisk)} in ${escapeHtml(mouldRoom)}" in legacy
     assert "Export refreshed Humidity Intelligence card YAML from Home Assistant." in mobile
     assert "Dashboard Manual card" in tablet
     assert hass.data["humidity_intelligence"][ENTRY_ID]["level_labels"] == {
@@ -3051,7 +3109,7 @@ def test_visual_alert_flash_restores_initial_light_state_and_serializes_overlap(
     asyncio.run(_run_visual_flash_restore_assertions(services_mod))
 
 
-def test_global_pause_and_resume_require_admin_user_context():
+def test_pause_and_resume_require_admin_for_targeted_and_global_calls():
     services_mod = _load_services_module()
     entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
     hass = _FakeHass(entry, {})
@@ -3068,6 +3126,50 @@ def test_global_pause_and_resume_require_admin_user_context():
     resume_handler = hass.services.handlers[(services_mod.DOMAIN, services_mod.SERVICE_RESUME_CONTROL)]
     timer = hass.data[services_mod.DOMAIN][ENTRY_ID]["hi_timers"]["air_control_pause"]
 
+    for handler, action in (
+        (pause_handler, "pause"),
+        (resume_handler, "resume"),
+    ):
+        for context in (
+            SimpleNamespace(user_id="viewer"),
+            SimpleNamespace(user_id=None),
+        ):
+            try:
+                asyncio.run(
+                    handler(
+                        SimpleNamespace(
+                            data={"entry_id": ENTRY_ID},
+                            context=context,
+                        )
+                    )
+                )
+            except Exception as err:
+                assert "requires an admin user" in str(err)
+            else:
+                raise AssertionError(f"targeted {action} should require admin context")
+
+    assert timer.start_calls == 0
+    assert timer.cancel_calls == 0
+
+    asyncio.run(
+        pause_handler(
+            SimpleNamespace(
+                data={"entry_id": ENTRY_ID},
+                context=SimpleNamespace(user_id="admin"),
+            )
+        )
+    )
+    asyncio.run(
+        resume_handler(
+            SimpleNamespace(
+                data={"entry_id": ENTRY_ID},
+                context=SimpleNamespace(user_id="admin"),
+            )
+        )
+    )
+    assert timer.start_calls == 1
+    assert timer.cancel_calls == 1
+
     try:
         asyncio.run(pause_handler(SimpleNamespace(data={}, context=SimpleNamespace(user_id="viewer"))))
     except Exception as err:
@@ -3075,10 +3177,10 @@ def test_global_pause_and_resume_require_admin_user_context():
     else:
         raise AssertionError("global pause should reject non-admin user context")
 
-    assert timer.start_calls == 0
+    assert timer.start_calls == 1
 
     asyncio.run(pause_handler(SimpleNamespace(data={}, context=SimpleNamespace(user_id="admin"))))
-    assert timer.start_calls == 1
+    assert timer.start_calls == 2
     assert timer.native_value == "active"
 
     try:
@@ -3088,10 +3190,10 @@ def test_global_pause_and_resume_require_admin_user_context():
     else:
         raise AssertionError("global resume should reject non-admin user context")
 
-    assert timer.cancel_calls == 0
+    assert timer.cancel_calls == 1
 
     asyncio.run(resume_handler(SimpleNamespace(data={}, context=SimpleNamespace(user_id="admin"))))
-    assert timer.cancel_calls == 1
+    assert timer.cancel_calls == 2
     assert timer.native_value == "idle"
 
 
@@ -4914,6 +5016,518 @@ def test_v205_release_check_warns_on_blocked_pm25_normalization():
     assert checks["pm25_entity_id_normalization"]["details"]["status"] == "blocked"
     assert summary["pm25_entity_id_normalization"]["status"] == "blocked"
     assert any("PM25 aggregate entity ID normalization is blocked" in warning for warning in summary["warnings"])
+
+
+def _install_dashboard_test_dependencies(*, events, create_error=None, delete_error=None):
+    register_mod = types.ModuleType(f"{PKG}.ui.register")
+
+    async def async_build_entity_mapping(_hass, entry_id):
+        events.append(("mapping", entry_id))
+        return {"sensor.placeholder": "sensor.actual"}
+
+    async def async_register_cards(_hass, entry_id, *, mapping):
+        events.append(("cards", entry_id, dict(mapping)))
+        return {
+            "v2_mobile": "type: markdown\ncontent: Mobile ready\n",
+            "v2_tablet": "type: markdown\ncontent: Tablet ready\n",
+        }
+
+    async def async_create_dashboard(_hass, **kwargs):
+        events.append(("create_dashboard", dict(kwargs)))
+        if create_error is not None:
+            raise create_error
+
+    async def async_delete_dashboard(_hass, *, dashboard_id):
+        events.append(("delete_dashboard", dashboard_id))
+        if delete_error is not None:
+            raise delete_error
+
+    register_mod.async_build_entity_mapping = async_build_entity_mapping
+    register_mod.async_register_cards = async_register_cards
+    sys.modules[f"{PKG}.ui.register"] = register_mod
+    sys.modules["homeassistant.components.lovelace"].dashboard = SimpleNamespace(
+        async_create_dashboard=async_create_dashboard,
+        async_delete_dashboard=async_delete_dashboard,
+    )
+
+
+def _set_fake_config_path(hass, root):
+    hass.config = SimpleNamespace(
+        path=lambda *parts: str(pathlib.Path(root).joinpath(*parts)),
+    )
+
+
+def test_create_dashboard_requires_admin_before_render_or_write():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth(
+        {
+            "admin": SimpleNamespace(is_admin=True),
+            "viewer": SimpleNamespace(is_admin=False),
+        }
+    )
+    events = []
+    _install_dashboard_test_dependencies(events=events)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        _set_fake_config_path(hass, tmpdir)
+        asyncio.run(services_mod.async_register_services(hass))
+        handler = hass.services.handlers[
+            (services_mod.DOMAIN, services_mod.SERVICE_CREATE_DASHBOARD)
+        ]
+
+        for context in (
+            SimpleNamespace(user_id="viewer"),
+            SimpleNamespace(user_id=None),
+        ):
+            try:
+                asyncio.run(
+                    handler(
+                        SimpleNamespace(
+                            data={
+                                "entry_id": ENTRY_ID,
+                                "layout": "v2_mobile",
+                                "title": "Humidity Intelligence",
+                                "url_path": "humidity-intelligence",
+                            },
+                            context=context,
+                        )
+                    )
+                )
+            except Exception as err:
+                assert "requires an admin user" in str(err)
+            else:
+                raise AssertionError("create_dashboard should require admin context")
+
+        assert events == []
+        assert not (
+            pathlib.Path(tmpdir) / "dashboards" / "humidity-intelligence.yaml"
+        ).exists()
+
+        asyncio.run(
+            handler(
+                SimpleNamespace(
+                    data={
+                        "entry_id": ENTRY_ID,
+                        "layout": "v2_mobile",
+                        "title": "Humidity Intelligence",
+                        "url_path": "humidity-intelligence",
+                    },
+                    context=SimpleNamespace(user_id="admin"),
+                )
+            )
+        )
+        assert [event[0] for event in events] == [
+            "mapping",
+            "cards",
+            "create_dashboard",
+        ]
+        assert events[-1][1]["require_admin"] is False
+        assert (
+            pathlib.Path(tmpdir) / "dashboards" / "humidity-intelligence.yaml"
+        ).read_text(encoding="utf-8") == "type: markdown\ncontent: Mobile ready\n"
+
+
+def test_first_run_dashboard_creation_uses_trusted_helper():
+    integration_mod = _load_integration_init_module()
+    service_calls = []
+    updates = []
+    helper_calls = []
+
+    async def async_call(domain, service, data=None, blocking=False):
+        service_calls.append((domain, service, data or {}, blocking))
+
+    async def create_dashboard(_hass, entry, **kwargs):
+        helper_calls.append((entry.entry_id, kwargs))
+        return True
+
+    integration_mod.async_create_dashboard_for_entry = create_dashboard
+    hass = SimpleNamespace(
+        services=SimpleNamespace(async_call=async_call),
+        config_entries=SimpleNamespace(
+            async_update_entry=lambda entry, *, data: updates.append(
+                (entry.entry_id, data)
+            )
+        ),
+    )
+    entry = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data={"ui_layouts": ["v2_mobile", "create_dashboard"]},
+    )
+
+    asyncio.run(integration_mod._async_install_selected_ui(hass, entry))
+
+    assert helper_calls == [
+        (
+            ENTRY_ID,
+            {
+                "layout": "v2_mobile",
+                "title": "Humidity Intelligence",
+                "url_path": "humidity-intelligence",
+            },
+        )
+    ]
+    assert service_calls[0][0:2] == (integration_mod.DOMAIN, "dump_cards")
+    assert [
+        call[2]["title"]
+        for call in service_calls
+        if call[0:2] == ("persistent_notification", "create")
+    ] == ["Humidity Intelligence UI Cards"]
+    assert updates == [
+        (
+            ENTRY_ID,
+            {
+                "ui_layouts": ["v2_mobile", "create_dashboard"],
+                "ui_install_done": True,
+                "ui_dashboard_id": "humidity-intelligence",
+            },
+        )
+    ]
+
+
+def test_first_run_dashboard_failure_is_visible_and_retryable():
+    integration_mod = _load_integration_init_module()
+    service_calls = []
+    updates = []
+
+    async def async_call(domain, service, data=None, blocking=False):
+        service_calls.append((domain, service, data or {}, blocking))
+
+    async def create_dashboard(_hass, _entry, **_kwargs):
+        raise RuntimeError("registration failed")
+
+    integration_mod.async_create_dashboard_for_entry = create_dashboard
+    hass = SimpleNamespace(
+        services=SimpleNamespace(async_call=async_call),
+        config_entries=SimpleNamespace(
+            async_update_entry=lambda entry, *, data: updates.append(
+                (entry.entry_id, data)
+            )
+        ),
+    )
+    entry = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data={"ui_layouts": ["v2_tablet", "create_dashboard"]},
+    )
+
+    asyncio.run(integration_mod._async_install_selected_ui(hass, entry))
+
+    notifications = [
+        call
+        for call in service_calls
+        if call[0:2] == ("persistent_notification", "create")
+    ]
+    assert [call[2]["title"] for call in notifications] == [
+        "Humidity Intelligence Dashboard Creation Incomplete",
+        "Humidity Intelligence UI Cards",
+    ]
+    failure_message = notifications[0][2]["message"]
+    assert "YAML file may remain" in failure_message
+    assert "HI backend setup and card exports remain available" in failure_message
+    assert "authenticated admin UI or API session" in failure_message
+    assert updates == [
+        (
+            ENTRY_ID,
+            {
+                "ui_layouts": ["v2_tablet", "create_dashboard"],
+                "ui_install_done": True,
+            },
+        )
+    ]
+
+
+def test_create_dashboard_reports_partial_registration_failure():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth({"admin": SimpleNamespace(is_admin=True)})
+    events = []
+    _install_dashboard_test_dependencies(
+        events=events,
+        create_error=RuntimeError("registration failed"),
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        _set_fake_config_path(hass, tmpdir)
+        asyncio.run(services_mod.async_register_services(hass))
+        handler = hass.services.handlers[
+            (services_mod.DOMAIN, services_mod.SERVICE_CREATE_DASHBOARD)
+        ]
+        try:
+            asyncio.run(
+                handler(
+                    SimpleNamespace(
+                        data={
+                            "entry_id": ENTRY_ID,
+                            "layout": "v2_mobile",
+                            "title": "Humidity Intelligence",
+                            "url_path": "humidity-intelligence",
+                        },
+                        context=SimpleNamespace(user_id="admin"),
+                    )
+                )
+            )
+        except Exception as err:
+            message = str(err).lower()
+            assert "yaml" in message
+            assert "dashboard" in message
+        else:
+            raise AssertionError("dashboard registration failure should be reported")
+
+        assert (
+            pathlib.Path(tmpdir) / "dashboards" / "humidity-intelligence.yaml"
+        ).exists()
+
+
+def test_cleanup_planner_rejects_unsafe_or_non_regular_targets():
+    _load_services_module()
+    cleanup_mod = sys.modules[f"{PKG}.helpers.cleanup"]
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        _set_fake_config_path(hass, tmpdir)
+        safe_name = "humidity_intelligence_cards.yaml"
+        safe_path = pathlib.Path(tmpdir) / safe_name
+        safe_path.write_text("safe", encoding="utf-8")
+
+        assert cleanup_mod.plan_generated_file_removal(
+            hass,
+            [safe_name, "humidity_intelligence_missing.yaml"],
+        ) == [safe_name]
+
+        for candidate in (
+            "../victim.yaml",
+            "/tmp/victim.yaml",
+            "humidity_intelligence_nested/victim.yaml",
+            "unowned_file.yaml",
+        ):
+            try:
+                cleanup_mod.plan_generated_file_removal(hass, [safe_name, candidate])
+            except ValueError:
+                pass
+            else:
+                raise AssertionError(f"unsafe cleanup candidate accepted: {candidate}")
+            assert safe_path.read_text(encoding="utf-8") == "safe"
+
+        symlink_name = "humidity_intelligence_symlink.yaml"
+        (pathlib.Path(tmpdir) / symlink_name).symlink_to(safe_path)
+        try:
+            cleanup_mod.plan_generated_file_removal(
+                hass,
+                [safe_name, symlink_name],
+            )
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("symlink cleanup candidate should fail closed")
+
+
+def test_purge_validates_all_candidates_before_any_side_effect():
+    services_mod = _load_services_module()
+    entry_data = _base_entry_data()
+    entry_data["ui_layouts"] = ["../victim"]
+    entry_data["ui_dashboard_id"] = "humidity-intelligence"
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=entry_data, options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth({"admin": SimpleNamespace(is_admin=True)})
+    events = []
+    _install_dashboard_test_dependencies(events=events)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        _set_fake_config_path(hass, tmpdir)
+        safe_path = pathlib.Path(tmpdir) / "humidity_intelligence_cards.yaml"
+        safe_path.write_text("safe", encoding="utf-8")
+        asyncio.run(services_mod.async_register_services(hass))
+        handler = hass.services.handlers[
+            (services_mod.DOMAIN, services_mod.SERVICE_PURGE_FILES)
+        ]
+
+        try:
+            asyncio.run(
+                handler(
+                    SimpleNamespace(
+                        data={"entry_id": ENTRY_ID},
+                        context=SimpleNamespace(user_id="admin"),
+                    )
+                )
+            )
+        except Exception as err:
+            assert "Cleanup plan rejected" in str(err)
+        else:
+            raise AssertionError("purge should reject an unsafe complete target plan")
+
+        assert safe_path.read_text(encoding="utf-8") == "safe"
+        assert hass.services.calls == []
+        assert events == []
+
+
+def test_purge_requires_admin_and_uses_exact_blocking_preview():
+    services_mod = _load_services_module()
+    entry_data = _base_entry_data()
+    entry_data["ui_layouts"] = ["v2_mobile"]
+    entry_data["ui_dashboard_id"] = "humidity-intelligence"
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=entry_data, options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth(
+        {
+            "admin": SimpleNamespace(is_admin=True),
+            "viewer": SimpleNamespace(is_admin=False),
+        }
+    )
+    events = []
+    _install_dashboard_test_dependencies(events=events)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        _set_fake_config_path(hass, tmpdir)
+        generated = pathlib.Path(tmpdir) / "humidity_intelligence_cards.yaml"
+        generated.write_text("generated", encoding="utf-8")
+        asyncio.run(services_mod.async_register_services(hass))
+        handler = hass.services.handlers[
+            (services_mod.DOMAIN, services_mod.SERVICE_PURGE_FILES)
+        ]
+
+        for context in (
+            SimpleNamespace(user_id="viewer"),
+            SimpleNamespace(user_id=None),
+        ):
+            try:
+                asyncio.run(
+                    handler(
+                        SimpleNamespace(
+                            data={"entry_id": ENTRY_ID},
+                            context=context,
+                        )
+                    )
+                )
+            except Exception as err:
+                assert "requires an admin user" in str(err)
+            else:
+                raise AssertionError("purge_files should require admin context")
+
+        assert generated.exists()
+        assert hass.services.calls == []
+        assert events == []
+
+        sequence = []
+        original_async_call = hass.services.async_call
+        original_executor = hass.async_add_executor_job
+
+        async def tracking_call(domain, service, data=None, blocking=False):
+            if (domain, service) == ("persistent_notification", "create"):
+                sequence.append(("notification", bool(blocking)))
+            return await original_async_call(domain, service, data, blocking)
+
+        async def tracking_executor(func, *args):
+            sequence.append((func.__name__, None))
+            return await original_executor(func, *args)
+
+        hass.services.async_call = tracking_call
+        hass.async_add_executor_job = tracking_executor
+        asyncio.run(
+            handler(
+                SimpleNamespace(
+                    data={"entry_id": ENTRY_ID},
+                    context=SimpleNamespace(user_id="admin"),
+                )
+            )
+        )
+
+        preview_calls = [
+            call
+            for call in hass.services.calls
+            if call[0:2] == ("persistent_notification", "create")
+            and call[2].get("title") == "Humidity Intelligence Cleanup Preview"
+        ]
+        assert len(preview_calls) == 1
+        preview = preview_calls[0]
+        assert preview[3] is True
+        assert "/config/humidity_intelligence_cards.yaml" in preview[2]["message"]
+        assert "Dashboard: humidity-intelligence" in preview[2]["message"]
+        assert "humidity_intelligence_diagnostics.json" not in preview[2]["message"]
+        assert sequence.index(("notification", True)) < sequence.index(
+            ("remove_files", None)
+        )
+        assert not generated.exists()
+        assert ("delete_dashboard", "humidity-intelligence") in events
+
+
+def test_purge_reports_file_and_dashboard_failures():
+    services_mod = _load_services_module()
+    entry_data = _base_entry_data()
+    entry_data["ui_dashboard_id"] = "humidity-intelligence"
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=entry_data, options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth({"admin": SimpleNamespace(is_admin=True)})
+    events = []
+    _install_dashboard_test_dependencies(
+        events=events,
+        delete_error=RuntimeError("delete failed"),
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        _set_fake_config_path(hass, tmpdir)
+        generated_name = "humidity_intelligence_cards.yaml"
+        (pathlib.Path(tmpdir) / generated_name).write_text(
+            "generated",
+            encoding="utf-8",
+        )
+        asyncio.run(services_mod.async_register_services(hass))
+        handler = hass.services.handlers[
+            (services_mod.DOMAIN, services_mod.SERVICE_PURGE_FILES)
+        ]
+        original_remove_files = services_mod.remove_files
+        services_mod.remove_files = lambda _hass, _files: [generated_name]
+        try:
+            try:
+                asyncio.run(
+                    handler(
+                        SimpleNamespace(
+                            data={"entry_id": ENTRY_ID},
+                            context=SimpleNamespace(user_id="admin"),
+                        )
+                    )
+                )
+            except Exception as err:
+                message = str(err)
+                assert "Purge incomplete" in message
+                assert generated_name in message
+                assert "humidity-intelligence" in message
+            else:
+                raise AssertionError("partial purge failure should be reported")
+        finally:
+            services_mod.remove_files = original_remove_files
+
+
+def test_generated_v1_cards_escape_dynamic_html_text():
+    sources = []
+    for path in (
+        ROOT / "ui" / "cards" / "v1_mobile.yaml",
+        ROOT / "ui-gallery" / "default-v1-mobile" / "card.yaml",
+    ):
+        source = path.read_text(encoding="utf-8")
+        sources.append(source)
+        assert source.count("const escapeHtml = ") >= 2, path
+        assert "${escapeHtml(item.label)}" in source, path
+        assert "Target humidity (${escapeHtml(season)}):" in source, path
+        assert (
+            "Condensation: ${escapeHtml(condRisk)} in ${escapeHtml(condRoom)}"
+            in source
+        ), path
+        assert (
+            "Mould: ${escapeHtml(mouldRisk)} in ${escapeHtml(mouldRoom)}"
+            in source
+        ), path
+        assert '<span class="k">${item.label}</span>' not in source, path
+        assert "Condensation: ${condRisk} in ${condRoom}" not in source, path
+        assert "Mould: ${mouldRisk} in ${mouldRoom}" not in source, path
+    assert sources[0] == sources[1]
 
 
 if __name__ == "__main__":

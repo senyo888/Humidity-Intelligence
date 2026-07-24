@@ -254,6 +254,82 @@ def _contains_any(text: str, terms: tuple[str, ...] | set[str]) -> bool:
     return any(term in text for term in terms)
 
 
+_PRIVATE_IPV4 = (
+    r"(?:127(?:\.\d{1,3}){3}|10(?:\.\d{1,3}){3}|"
+    r"192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})"
+)
+_PRIVATE_HOST = r"(?:localhost|(?:[A-Za-z0-9-]+\.)+local)"
+_PRIVATE_URL_RE = re.compile(
+    rf"\bhttps?://(?:{_PRIVATE_HOST}|{_PRIVATE_IPV4})(?![A-Za-z0-9.-])"
+    r"(?::\d+)?(?:/[^\s]*)?",
+    re.I,
+)
+_CREDENTIAL_URL_RE = re.compile(
+    r"\bhttps?://(?:[^/\s:@]+:[^@/\s]+@|[^\s]*"
+    r"(?:[?&](?:access_token|api_key|apikey|auth|key|password|secret|signature|sig|token)=))"
+    r"[^\s]*",
+    re.I,
+)
+_BEARER_TOKEN_RE = re.compile(r"\bBearer\s+[A-Za-z0-9._~+/=-]+", re.I)
+_AUTHORIZATION_TOKEN_RE = re.compile(
+    r"(?P<prefix>\bAuthorization\s*:\s*(?:Bearer|Token)\s+)[^\s,;]+",
+    re.I,
+)
+_JWT_RE = re.compile(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b")
+_SENSITIVE_ASSIGNMENT_RE = re.compile(
+    r"\b(?P<key>GITHUB_TOKEN|HA_TOKEN|SUPERVISOR_TOKEN|access_token|refresh_token|"
+    r"api[_-]?key|password|secret|token)\s*(?:=|:)\s*"
+    r"(?:\"[^\"]*\"|'[^']*'|[^\s,;]+)",
+    re.I,
+)
+_DEVICE_ID_RE = re.compile(
+    r"\b(?P<key>device[_ -]?id)\s*(?:=|:)\s*[\"']?[A-Za-z0-9_-]{8,}",
+    re.I,
+)
+_LOCAL_PATH_RE = re.compile(
+    r"(?:/Users/[^\s,;]+|/home/[^\s,;]+|[A-Za-z]:\\Users\\[^\s,;]+)",
+    re.I,
+)
+_PRIVATE_HOST_RE = re.compile(rf"\b{_PRIVATE_HOST}\b", re.I)
+_PRIVATE_IPV4_RE = re.compile(rf"\b{_PRIVATE_IPV4}\b")
+_ENTITY_ID_RE = re.compile(
+    r"\b(?:air_quality|alarm_control_panel|assist_satellite|automation|binary_sensor|"
+    r"button|calendar|camera|climate|conversation|cover|date|datetime|device_tracker|"
+    r"event|fan|humidifier|image|input_boolean|input_button|input_datetime|"
+    r"input_number|input_select|input_text|lawn_mower|light|lock|media_player|number|"
+    r"person|remote|scene|schedule|script|select|sensor|siren|stt|sun|switch|text|"
+    r"time|timer|todo|tts|update|vacuum|valve|water_heater|weather|zone)"
+    r"\.[a-z0-9_]+\b",
+    re.I,
+)
+
+
+def _redact_issue_summary_privacy(value: str) -> str:
+    """Remove private operational details before a summary becomes shareable."""
+
+    text = _CREDENTIAL_URL_RE.sub("[redacted credential URL]", value)
+    text = _PRIVATE_URL_RE.sub("[redacted private URL]", text)
+    text = _AUTHORIZATION_TOKEN_RE.sub(
+        lambda match: f"{match.group('prefix')}[redacted]",
+        text,
+    )
+    text = _BEARER_TOKEN_RE.sub("Bearer [redacted]", text)
+    text = _JWT_RE.sub("[redacted token]", text)
+    text = _SENSITIVE_ASSIGNMENT_RE.sub(
+        lambda match: f"{match.group('key')}=[redacted]",
+        text,
+    )
+    text = _DEVICE_ID_RE.sub(
+        lambda match: f"{match.group('key')}=[redacted]",
+        text,
+    )
+    text = _LOCAL_PATH_RE.sub("[redacted local path]", text)
+    text = _PRIVATE_HOST_RE.sub("[redacted private host]", text)
+    text = _PRIVATE_IPV4_RE.sub("[redacted private address]", text)
+
+    return _ENTITY_ID_RE.sub("[redacted entity ID]", text)
+
+
 def _body_summary(body: Any, *, max_chars: int = 320) -> str:
     if not isinstance(body, str) or not body.strip():
         return "No issue body was provided."
@@ -273,6 +349,7 @@ def _body_summary(body: Any, *, max_chars: int = 320) -> str:
 
     summary = " ".join(lines) if lines else body.strip()
     summary = re.sub(r"\s+", " ", summary)
+    summary = _redact_issue_summary_privacy(summary)
     if len(summary) > max_chars:
         return summary[: max_chars - 1].rstrip() + "..."
     return summary

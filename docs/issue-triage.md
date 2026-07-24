@@ -33,6 +33,17 @@ the maintainer explicitly asks to publish a sanitized summary.
 Generated triage reports are timestamped support snapshots. The current release state
 stays in `CHANGELOG.md`, `manifest.json`, and `docs/release-governance.md`.
 
+## Privacy Boundary
+
+Issue-body summaries are privacy-filtered before report escaping. The filter removes
+private Home Assistant URLs and hosts, local network addresses, bearer credentials and
+tokens, device IDs, local user paths, and Home Assistant entity IDs. Public issue links
+remain available for triage.
+
+The filter is defense in depth, not permission to publish a generated report
+automatically. Reports remain ignored/local and must be reviewed before any sanitized
+extract is shared.
+
 ## Authentication
 
 The script works without `GITHUB_TOKEN` for public, low-volume checks. Unauthenticated

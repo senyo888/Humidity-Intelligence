@@ -19,6 +19,26 @@ This project follows a practical changelog format for Home Assistant and HACS us
   folder. Defaults are unchanged. Automations or scripts using another custom
   report filename must be updated, and Home Assistant must be fully restarted after
   installing the package update; a config-entry reload alone is insufficient.
+- Required admin user context for targeted and all-entry `pause_control` /
+  `resume_control` calls, explicit `create_dashboard`, and `purge_files`. Existing
+  background automations/scripts whose action context has no `user_id` can no longer
+  invoke those mutation services, even when configured by an admin. Use an
+  authenticated admin UI or API session; any future automated trusted route requires
+  separate design approval. First-run dashboard creation remains available through
+  the trusted config-entry setup path.
+- Made `purge_files` validate its complete fixed set of direct HI-generated file and
+  configured-dashboard targets before mutation, publish the exact existing target
+  preview with a blocking notification, reject unsafe/non-regular filesystem
+  candidates, and report file or dashboard deletion failures as an incomplete purge.
+- Escaped dynamic room, target-profile, condensation, and mould text in the V1 Mobile
+  source and gallery templates. V1 Mobile remains exportable through v2.0.9 but is
+  deprecated for new dashboards in favor of V2 Mobile; removal is deferred to a
+  separate v2.1 migration proposal. Existing pasted V1 cards must be re-exported and
+  re-copied to receive the escaping fix.
+- Redacted private Home Assistant URLs and hosts, local network addresses, bearer
+  credentials and tokens, device IDs, local user paths, and Home Assistant entity IDs from
+  locally generated issue-triage body summaries before Markdown/HTML escaping.
+  Public issue links remain available for maintainer triage.
 
 ## 2.0.8 - 2026-07-05
 

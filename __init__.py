@@ -17,7 +17,12 @@ from .const import (
     DOMAIN,
     STARTUP_UI_REFRESH_DELAY_SECONDS,
 )
-from .services import SERVICE_REFRESH_UI, async_register_services, async_unregister_services
+from .services import (
+    SERVICE_REFRESH_UI,
+    async_create_dashboard_for_entry,
+    async_register_services,
+    async_unregister_services,
+)
 from .helpers.cleanup import list_generated_files, remove_files, remove_dashboard
 from .helpers.drift_repairs import async_update_humidity_drift_repair_issue
 from .helpers.entity_registry import normalize_pm25_aggregate_entity_ids
@@ -101,46 +106,77 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][entry.entry_id]["entity_map"] = mapping
     _async_register_startup_ui_refresh(hass, entry)
 
+    await _async_install_selected_ui(hass, entry)
+    _LOGGER.info("Humidity Intelligence v2 entry %s set up", entry.entry_id)
+    return True
+
+
+async def _async_install_selected_ui(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+) -> None:
+    """Complete the persisted first-run UI choice without blocking backend setup."""
     ui_layouts = entry.data.get("ui_layouts") or []
-    if ui_layouts and not entry.data.get("ui_install_done"):
-        await hass.services.async_call(
-            DOMAIN,
-            "dump_cards",
-            {"entry_id": entry.entry_id},
-            blocking=False,
-        )
-        dashboard_id = "humidity-intelligence"
-        if "create_dashboard" in ui_layouts:
+    if not ui_layouts or entry.data.get("ui_install_done"):
+        return
+
+    dashboard_created = False
+    await hass.services.async_call(
+        DOMAIN,
+        "dump_cards",
+        {"entry_id": entry.entry_id},
+        blocking=False,
+    )
+    dashboard_id = "humidity-intelligence"
+    if "create_dashboard" in ui_layouts:
+        try:
+            dashboard_created = await async_create_dashboard_for_entry(
+                hass,
+                entry,
+                layout="v2_mobile" if "v2_mobile" in ui_layouts else "v2_tablet",
+                title="Humidity Intelligence",
+                url_path=dashboard_id,
+            )
+        except Exception:
+            _LOGGER.exception(
+                "First-run dashboard creation failed for HI entry %s; "
+                "generated card export remains available",
+                entry.entry_id,
+            )
             await hass.services.async_call(
-                DOMAIN,
-                "create_dashboard",
+                "persistent_notification",
+                "create",
                 {
-                    "entry_id": entry.entry_id,
-                    "layout": "v2_mobile" if "v2_mobile" in ui_layouts else "v2_tablet",
-                    "title": "Humidity Intelligence",
-                    "url_path": dashboard_id,
+                    "title": "Humidity Intelligence Dashboard Creation Incomplete",
+                    "message": (
+                        "The dashboard could not be registered. A generated YAML file may remain at "
+                        "/config/dashboards/humidity-intelligence.yaml. HI backend setup and card "
+                        "exports remain available. Retry humidity_intelligence.create_dashboard "
+                        "from an authenticated admin UI or API session."
+                    ),
+                    "notification_id": (
+                        f"humidity_intelligence_dashboard_creation_incomplete_{entry.entry_id}"
+                    ),
                 },
                 blocking=False,
             )
-        await hass.services.async_call(
-            "persistent_notification",
-            "create",
-            {
-                "title": "Humidity Intelligence UI Cards",
-                "message": (
-                    "Cards written to /config/humidity_intelligence_cards_<layout>.yaml. "
-                    "Open File Editor, copy the YAML for your chosen layout(s), and paste into a Manual card."
-                ),
-            },
-            blocking=False,
-        )
-        data = dict(entry.data)
-        data["ui_install_done"] = True
-        if "create_dashboard" in ui_layouts:
-            data["ui_dashboard_id"] = dashboard_id
-        hass.config_entries.async_update_entry(entry, data=data)
-    _LOGGER.info("Humidity Intelligence v2 entry %s set up", entry.entry_id)
-    return True
+    await hass.services.async_call(
+        "persistent_notification",
+        "create",
+        {
+            "title": "Humidity Intelligence UI Cards",
+            "message": (
+                "Cards written to /config/humidity_intelligence_cards_<layout>.yaml. "
+                "Open File Editor, copy the YAML for your chosen layout(s), and paste into a Manual card."
+            ),
+        },
+        blocking=False,
+    )
+    data = dict(entry.data)
+    data["ui_install_done"] = True
+    if dashboard_created:
+        data["ui_dashboard_id"] = dashboard_id
+    hass.config_entries.async_update_entry(entry, data=data)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

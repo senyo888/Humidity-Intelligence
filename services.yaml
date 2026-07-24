@@ -149,12 +149,12 @@ dump_cards:
         text: {}
     layout:
       name: Layout (optional)
-      description: Optional. Omit to dump all cached layouts, or supply one layout (v2_mobile, v2_tablet, v1_mobile, view_cards_button).
+      description: Optional. Omit to dump all cached layouts, or supply one layout (v2_mobile, v2_tablet, v1_mobile, view_cards_button). v1_mobile is deprecated in v2.0.9; use v2_mobile for new dashboards.
       selector:
         text: {}
 create_dashboard:
   name: Create Dashboard
-  description: Create a new Lovelace dashboard from the rendered card YAML
+  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Render YAML and register a new Lovelace dashboard. Dashboard visibility still follows the registered dashboard settings after creation.
   fields:
     entry_id:
       name: Entry ID
@@ -195,12 +195,12 @@ view_cards:
         text: {}
     layout:
       name: Layout (optional)
-      description: Dump a single layout (v2_mobile, v2_tablet, v1_mobile, view_cards_button)
+      description: Dump a single layout (v2_mobile, v2_tablet, v1_mobile, view_cards_button). v1_mobile is deprecated in v2.0.9; use v2_mobile for new dashboards.
       selector:
         text: {}
 purge_files:
   name: Purge Files
-  description: Delete all generated Humidity Intelligence files (cards, diagnostics, self-check) and attempt dashboard cleanup
+  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Show the exact existing HI-generated files and configured dashboard targets in a blocking preview, then remove them. Partial failures are reported and fail the service call.
   fields:
     entry_id:
       name: Entry ID
@@ -209,11 +209,11 @@ purge_files:
         text: {}
 pause_control:
   name: Pause Control
-  description: Pause the automation engine for a number of minutes (default 60). Omitting entry_id pauses all entries and requires an admin user context.
+  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Pause the automation engine for a number of minutes (default 60), either for one supplied entry or all entries.
   fields:
     entry_id:
       name: Entry ID
-      description: Optional config entry ID to pause; omit to pause all entries with admin context
+      description: Optional config entry ID to pause; omit to pause all entries. Every call requires admin context.
       selector:
         text: {}
     minutes:
@@ -227,10 +227,10 @@ pause_control:
           mode: box
 resume_control:
   name: Resume Control
-  description: Resume the automation engine immediately by clearing the pause timer. Omitting entry_id resumes all entries and requires an admin user context.
+  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Resume the automation engine immediately by clearing the pause timer for one supplied entry or all entries.
   fields:
     entry_id:
       name: Entry ID
-      description: Optional config entry ID to resume; omit to resume all entries with admin context
+      description: Optional config entry ID to resume; omit to resume all entries. Every call requires admin context.
       selector:
         text: {}

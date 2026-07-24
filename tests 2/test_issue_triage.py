@@ -403,6 +403,53 @@ forbidden_actions:
         self.assertIn("&lt;img", report)
         self.assertIn("\\[trusted\\]\\(https://evil.example\\)", report)
 
+    def test_issue_summary_privacy_redacts_sensitive_operational_details(self) -> None:
+        summary = self.triage._body_summary(
+            "Failure at http://192.168.1.25:8123/api/states and "
+            "http://my-ha.local:8123/api/config with "
+            "sensor.private_bedroom_humidity and sensor.hi_private_bedroom. "
+            "update.private_router event.private_doorbell text.private_label "
+            'password="REDACTION FIXTURE PASSWORD" '
+            "HA_TOKEN=REDACTION_FIXTURE_TOKEN "
+            "token=REDACTION_FIXTURE_GENERIC_TOKEN "
+            "Bearer abc+def/ghi== "
+            "Authorization: Token REDACTION_FIXTURE_AUTH_TOKEN "
+            "eyJhbGciOiJIUzI1NiJ9.REDACTION_FIXTURE_JWT.signature "
+            "device_id=0123456789abcdef "
+            "from /Users/example/private-ha. Public reference "
+            "https://github.com/senyo888/humidity-intelligence and canonical "
+            "sensor.humidity_intelligence_hi_house_average_humidity.",
+            max_chars=1000,
+        )
+
+        self.assertNotIn("192.168.1.25", summary)
+        self.assertNotIn("my-ha.local", summary)
+        self.assertNotIn("sensor.private_bedroom_humidity", summary)
+        self.assertNotIn("sensor.hi_private_bedroom", summary)
+        self.assertNotIn("update.private_router", summary)
+        self.assertNotIn("event.private_doorbell", summary)
+        self.assertNotIn("text.private_label", summary)
+        self.assertNotIn("REDACTION FIXTURE PASSWORD", summary)
+        self.assertNotIn("REDACTION_FIXTURE_TOKEN", summary)
+        self.assertNotIn("REDACTION_FIXTURE_GENERIC_TOKEN", summary)
+        self.assertNotIn("abc+def/ghi==", summary)
+        self.assertNotIn("REDACTION_FIXTURE_AUTH_TOKEN", summary)
+        self.assertNotIn("REDACTION_FIXTURE_JWT", summary)
+        self.assertNotIn("0123456789abcdef", summary)
+        self.assertNotIn("/Users/example/private-ha", summary)
+        self.assertIn("[redacted private URL]", summary)
+        self.assertIn("[redacted entity ID]", summary)
+        self.assertIn("password=[redacted]", summary)
+        self.assertIn("HA_TOKEN=[redacted]", summary)
+        self.assertIn("token=[redacted]", summary)
+        self.assertIn("Bearer [redacted]", summary)
+        self.assertIn("Authorization: Token [redacted]", summary)
+        self.assertIn("[redacted token]", summary)
+        self.assertIn("device_id=[redacted]", summary)
+        self.assertIn("[redacted local path]", summary)
+        self.assertIn("https://github.com/senyo888/humidity-intelligence", summary)
+        self.assertNotIn("sensor.humidity_intelligence_hi_house_average_humidity", summary)
+
     def test_fetch_open_issues_refuses_non_https_request_before_urlopen(self) -> None:
         request = mock.Mock(full_url="file:///tmp/issues.json")
 

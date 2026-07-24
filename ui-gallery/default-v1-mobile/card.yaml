@@ -1,12 +1,10 @@
-# Lovelace UI for Humidity‑Intelligence
+# Deprecated V1 Mobile compatibility skin for Humidity Intelligence V2.
 #
-# This card provides a responsive dashboard containing four circular badges
-# (house humidity, condensation risk, mould risk and 7‑day drift), a Comfort
-# Band panel with guidance and a collapsible 24‑hour multi‑room chart.  It is
-# designed to work seamlessly with both the baseline v1.0.2 package and the
-# advanced v1.1.0 package contained in this repository.  See the README for
-# installation instructions and frontend dependency requirements (button‑card,
-# apexcharts‑card and card‑mod via HACS).
+# Retained through the v2.0.9 line for existing dashboards; use v2_mobile for
+# new dashboards. This card renders canonical V2 entities and backend truth with
+# the classic four-badge, Comfort Band, and humidity-constellation presentation.
+# See the README for migration guidance and frontend dependency requirements
+# (button-card, apexcharts-card, mod-card, and card-mod via HACS).
 
 type: vertical-stack
 cards:
@@ -560,6 +558,12 @@ cards:
         ]]]
       deltas: |
         [[[
+          const escapeHtml = (value) => String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
           const items = Object.keys(states)
             .filter((id) =>
               id.startsWith('sensor.hi_') &&
@@ -583,7 +587,7 @@ cards:
 
           const chip = (item) => `
             <div class="hi-delta">
-              <span class="k">${item.label}</span>
+              <span class="k">${escapeHtml(item.label)}</span>
               <span class="v">${item.value > 0 ? '+' : ''}${item.value.toFixed(1)}%</span>
             </div>`;
 
@@ -605,6 +609,12 @@ cards:
 
     label: |
       [[[
+        const escapeHtml = (value) => String(value ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
         const lowEnt   = states['sensor.house_humidity_target_low'];
         const highEnt  = states['sensor.house_humidity_target_high'];
         const hEnt     = states['sensor.house_average_humidity'];
@@ -615,8 +625,8 @@ cards:
         const h    = hEnt    ? parseFloat(hEnt.state)    : NaN;
 
         const bandTxt = (isNaN(low) || isNaN(high))
-          ? `Target humidity (${season}): —`
-          : `Target humidity (${season}): ${low.toFixed(0)}–${high.toFixed(0)}%`;
+          ? `Target humidity (${escapeHtml(season)}): —`
+          : `Target humidity (${escapeHtml(season)}): ${low.toFixed(0)}–${high.toFixed(0)}%`;
 
         let comfort = 'Comfort: —';
         if (!isNaN(h) && !isNaN(low) && !isNaN(high)) {
@@ -639,12 +649,12 @@ cards:
 
         let condLine = 'Condensation: —';
         if (condRisk && condRisk !== 'Unknown' && condRoom && condRoom !== 'Unknown') {
-          condLine = `Condensation: ${condRisk} in ${condRoom}`;
+          condLine = `Condensation: ${escapeHtml(condRisk)} in ${escapeHtml(condRoom)}`;
         }
 
         let mouldLine = 'Mould: —';
         if (mouldRisk && mouldRisk !== 'Unknown' && mouldRoom && mouldRoom !== 'Unknown') {
-          mouldLine = `Mould: ${mouldRisk} in ${mouldRoom}`;
+          mouldLine = `Mould: ${escapeHtml(mouldRisk)} in ${escapeHtml(mouldRoom)}`;
         }
 
         return `${bandTxt}\n${comfort}\n${condLine}\n${mouldLine}`;

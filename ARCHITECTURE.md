@@ -80,6 +80,32 @@ and exposed without crashing the control loop.
 
 Optional frontend cards and UI dependencies must never block backend functionality.
 
+## Mutation Service Authority
+
+External Home Assistant calls to `pause_control`, `resume_control`,
+`create_dashboard`, and `purge_files` require an admin user context whether they
+target one config entry or all entries. An `entry_id` narrows the target only; it is
+not an authorization bypass.
+
+Contextless background automation/script calls are intentionally rejected. Supported
+external use originates from an authenticated admin UI or API session; any future
+automated trusted route requires separate design approval.
+
+First-run dashboard creation may use a trusted internal setup helper only after the
+user explicitly selects dashboard creation in config flow. That helper must not be
+exposed as a contextless service bypass, and the config entry must record a dashboard
+identifier only after registration succeeds. Dashboard creation authorization is
+separate from later dashboard visibility.
+
+Generated-artifact purge must validate its full fixed target set before mutation,
+show the exact existing file and configured dashboard targets in a completed blocking
+notification before deletion, reject paths outside the direct owned basename set and
+non-regular filesystem objects, and report partial failures truthfully.
+
+Dynamic state or attribute text rendered through generated-card HTML must be escaped
+at the HTML sink. The V1 Mobile presentation remains available but deprecated through
+v2.0.9; any removal requires a separately approved v2.1 migration contract.
+
 ## Home Assistant And HACS Boundaries
 
 Config flow, options flow, entity registry behavior, services, translations,

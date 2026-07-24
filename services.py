@@ -17,7 +17,13 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 
 from .const import CONF_SHOW_OUTPUT_ENTITY_DETAILS, DEFAULT_SHOW_OUTPUT_ENTITY_DETAILS, DOMAIN
-from .helpers.cleanup import list_all_generated_files, list_generated_files, remove_files, remove_dashboard
+from .helpers.cleanup import (
+    list_all_generated_files,
+    list_generated_files,
+    plan_generated_file_removal,
+    remove_dashboard,
+    remove_files,
+)
 from .helpers.drift import humidity_drift_dependency_status, humidity_drift_warning
 from .helpers.diagnostics_redaction import redact_diagnostics_payload
 from .helpers.frontend_dependencies import (
@@ -315,6 +321,60 @@ SERVICE_CREATE_LOCAL_BACKUP_SCHEMA = vol.Schema({
     ),
 })
 SERVICE_LIST_SAVED_VERSIONS_SCHEMA = vol.Schema({})
+
+
+async def async_create_dashboard_for_entry(
+    hass: HomeAssistant,
+    entry: Any,
+    *,
+    layout: str,
+    title: str,
+    url_path: str,
+) -> bool:
+    """Render and create one dashboard for a trusted config entry."""
+    from homeassistant.components.lovelace import dashboard as lovelace_dashboard
+
+    from .ui.register import async_build_entity_mapping, async_register_cards
+
+    mapping = await async_build_entity_mapping(hass, entry.entry_id)
+    cards = await async_register_cards(hass, entry.entry_id, mapping=mapping)
+    yaml_str = cards.get(layout)
+    if not yaml_str:
+        raise HomeAssistantError(
+            f"Dashboard layout {layout!r} is not available for this config entry"
+        )
+
+    filename = f"dashboards/{url_path}.yaml"
+    path = hass.config.path(filename)
+    try:
+        await hass.async_add_executor_job(_write_text, path, yaml_str)
+    except Exception as err:
+        _LOGGER.exception("Unable to write dashboard YAML to %s", filename)
+        raise HomeAssistantError(
+            f"Dashboard YAML could not be written to /config/{filename}"
+        ) from err
+
+    try:
+        await lovelace_dashboard.async_create_dashboard(
+            hass,
+            dashboard_id=url_path,
+            title=title,
+            mode="yaml",
+            filename=filename,
+            icon="mdi:water-percent",
+            show_in_sidebar=True,
+            require_admin=False,
+        )
+    except Exception as err:
+        _LOGGER.exception(
+            "Unable to create dashboard after writing YAML to %s",
+            filename,
+        )
+        raise HomeAssistantError(
+            "Dashboard registration failed after YAML was written to "
+            f"/config/{filename}; check the Home Assistant log"
+        ) from err
+    return True
 
 
 async def async_register_services(hass: HomeAssistant) -> None:
@@ -625,9 +685,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
     hass.services.async_register(DOMAIN, SERVICE_DUMP_CARDS, handle_dump_cards, schema=SERVICE_DUMP_CARDS_SCHEMA)
 
     async def handle_create_dashboard(call: ServiceCall) -> None:
-        from .ui.register import async_build_entity_mapping, async_register_cards
-        from homeassistant.components.lovelace import dashboard as lovelace_dashboard
-
+        await _async_require_admin_user(hass, call, SERVICE_CREATE_DASHBOARD)
         entry_id = call.data.get("entry_id")
         layout = call.data.get("layout", "v2_mobile")
         title = call.data.get("title", "Humidity Intelligence")
@@ -640,32 +698,15 @@ async def async_register_services(hass: HomeAssistant) -> None:
             entries = hass.config_entries.async_entries(DOMAIN)
             entry = entries[0] if entries else None
         if entry is None:
-            return
+            raise HomeAssistantError("No Humidity Intelligence config entry found")
 
-        mapping = await async_build_entity_mapping(hass, entry.entry_id)
-        cards = await async_register_cards(hass, entry.entry_id, mapping=mapping)
-        yaml_str = cards.get(layout)
-        if not yaml_str:
-            return
-
-        filename = f"dashboards/{url_path}.yaml"
-        path = hass.config.path(filename)
-        await hass.async_add_executor_job(_write_text, path, yaml_str)
-
-        # Best-effort dashboard creation; if HA API changes, this will no-op.
-        try:
-            await lovelace_dashboard.async_create_dashboard(
-                hass,
-                dashboard_id=url_path,
-                title=title,
-                mode="yaml",
-                filename=filename,
-                icon="mdi:water-percent",
-                show_in_sidebar=True,
-                require_admin=False,
-            )
-        except Exception:
-            _LOGGER.exception("Unable to auto-create dashboard. YAML written to %s", filename)
+        await async_create_dashboard_for_entry(
+            hass,
+            entry,
+            layout=layout,
+            title=title,
+            url_path=url_path,
+        )
 
     hass.services.async_register(
         DOMAIN,
@@ -691,6 +732,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
     hass.services.async_register(DOMAIN, SERVICE_VIEW_CARDS, handle_view_cards, schema=SERVICE_VIEW_CARDS_SCHEMA)
 
     async def handle_purge_files(call: ServiceCall) -> None:
+        await _async_require_admin_user(hass, call, SERVICE_PURGE_FILES)
         entry_id = call.data.get("entry_id")
         entries = []
         if entry_id:
@@ -701,33 +743,93 @@ async def async_register_services(hass: HomeAssistant) -> None:
             entries = hass.config_entries.async_entries(DOMAIN)
 
         if not entries:
-            return
+            raise HomeAssistantError("No Humidity Intelligence config entry found")
 
-        files = list_all_generated_files(entries)
-        dashboards = [e.data.get("ui_dashboard_id") for e in entries if e.data.get("ui_dashboard_id")]
+        try:
+            files = await hass.async_add_executor_job(
+                plan_generated_file_removal,
+                hass,
+                list_all_generated_files(entries),
+            )
+        except ValueError as err:
+            raise HomeAssistantError(f"Cleanup plan rejected: {err}") from err
+
+        dashboards = []
+        for entry in entries:
+            dashboard_id = entry.data.get("ui_dashboard_id")
+            if dashboard_id and dashboard_id not in dashboards:
+                dashboards.append(dashboard_id)
+        invalid_dashboards = [
+            dashboard_id
+            for dashboard_id in dashboards
+            if (
+                not isinstance(dashboard_id, str)
+                or not _SAFE_DASHBOARD_PATH_RE.fullmatch(dashboard_id)
+            )
+        ]
+        if invalid_dashboards:
+            raise HomeAssistantError(
+                "Cleanup plan rejected invalid dashboard identifier(s): "
+                + ", ".join(str(item) for item in invalid_dashboards)
+            )
+        dashboards.sort()
+
         message_lines = [f"/config/{f}" for f in files]
         for dash in dashboards:
             message_lines.append(f"Dashboard: {dash}")
+        preview_message = (
+            "The following generated artifacts will be removed:\n"
+            + "\n".join(message_lines)
+            if message_lines
+            else "No generated files or dashboards were found."
+        )
         await hass.services.async_call(
             "persistent_notification",
             "create",
             {
-                "title": "Humidity Intelligence Cleanup",
-                "message": "Purging generated files:\n" + "\n".join(message_lines),
+                "title": "Humidity Intelligence Cleanup Preview",
+                "message": preview_message,
             },
-            blocking=False,
+            blocking=True,
         )
-        await hass.async_add_executor_job(remove_files, hass, files)
-        for entry in entries:
-            await remove_dashboard(hass, entry.data.get("ui_dashboard_id"))
+
+        failed_files = await hass.async_add_executor_job(remove_files, hass, files)
+        failed_dashboards = []
+        for dashboard_id in dashboards:
+            if not await remove_dashboard(hass, dashboard_id):
+                failed_dashboards.append(dashboard_id)
+
+        if failed_files or failed_dashboards:
+            failure_lines = [f"/config/{name}" for name in failed_files]
+            failure_lines.extend(
+                f"Dashboard: {dashboard_id}"
+                for dashboard_id in failed_dashboards
+            )
+            await hass.services.async_call(
+                "persistent_notification",
+                "create",
+                {
+                    "title": "Humidity Intelligence Cleanup Incomplete",
+                    "message": (
+                        "Some generated artifacts could not be removed:\n"
+                        + "\n".join(failure_lines)
+                    ),
+                },
+                blocking=True,
+            )
+            details = []
+            if failed_files:
+                details.append("files: " + ", ".join(failed_files))
+            if failed_dashboards:
+                details.append("dashboards: " + ", ".join(failed_dashboards))
+            raise HomeAssistantError("Purge incomplete: " + "; ".join(details))
 
     hass.services.async_register(DOMAIN, SERVICE_PURGE_FILES, handle_purge_files, schema=SERVICE_PURGE_FILES_SCHEMA)
 
     async def handle_pause_control(call: ServiceCall) -> None:
+        await _async_require_admin_user(hass, call, SERVICE_PAUSE_CONTROL)
         entry_id = call.data.get("entry_id")
         minutes = int(call.data.get("minutes", 60))
-        if not entry_id:
-            await _async_require_admin_user(hass, call, SERVICE_PAUSE_CONTROL)
         entries = []
         if entry_id:
             entry = hass.config_entries.async_get_entry(entry_id)
@@ -757,9 +859,8 @@ async def async_register_services(hass: HomeAssistant) -> None:
     )
 
     async def handle_resume_control(call: ServiceCall) -> None:
+        await _async_require_admin_user(hass, call, SERVICE_RESUME_CONTROL)
         entry_id = call.data.get("entry_id")
-        if not entry_id:
-            await _async_require_admin_user(hass, call, SERVICE_RESUME_CONTROL)
         entries = []
         if entry_id:
             entry = hass.config_entries.async_get_entry(entry_id)

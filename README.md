@@ -398,8 +398,14 @@ must be reviewable from tracked repository files.
   sensor creation, lane selection, and runtime control stay backend-owned
 - the Stability preview badge uses a 10 BPM shimmer cadence: one 6-second animation
   cycle for current/complete states
-- global all-entry `pause_control` / `resume_control` calls now require admin user
-  context; scoped calls with `entry_id` remain available for the supplied config entry
+- every `pause_control` / `resume_control` call now requires admin user context;
+  `entry_id` still limits the action to the supplied config entry
+- explicit `create_dashboard` and `purge_files` service calls now require admin user
+  context; first-run dashboard setup uses a trusted internal path, and purge presents
+  an exact blocking target preview before deletion and reports partial failures
+- the V1 Mobile skin remains available through the v2.0.9 line but is deprecated for
+  new dashboards; its dynamic room/risk/profile HTML is escaped, and V2 Mobile is the
+  recommended replacement ahead of a separately reviewed v2.1 removal
 - native diagnostics and support-oriented exports now favor sanitized structure,
   counts, statuses, and summaries instead of raw entity maps, state dumps, room
   names, or Lovelace resource URLs; validation reports may still include configured
@@ -425,7 +431,8 @@ config-entry reload after option changes once the updated code is already loaded
 Run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual
 cards if you use generated Current Air Control cards, the default V2 control row, or
 output-detail surfaces; already-pasted Manual cards are static and do not inherit
-backend template changes automatically.
+backend template changes automatically. Users retaining V1 Mobile must also re-export
+and re-copy that card to receive the v2.0.9 HTML-escaping fix.
 
 ---
 
@@ -626,14 +633,22 @@ Delete:
 
 Restart if using YAML dashboards.
 
-### v1 UI Compatibility
+This cleanup step applies only to the retired pre-integration V1 files listed above.
+It does not remove the V2-generated `v1_mobile` compatibility skin described below.
 
-The classic four-badge + Comfort Band layout remains compatible on the V2 engine.
+### v1 UI Compatibility And Deprecation
+
+The classic four-badge + Comfort Band layout remains compatible on the V2 engine
+through the v2.0.9 line, but it is deprecated for new dashboards. Use V2 Mobile for
+new installs. V1 Mobile removal is proposed for v2.1 and requires a separate approved
+migration; it is not removed by v2.0.9.
 
 - V1 UI = presentation skin
 - V2 = runtime engine
 
-Classic visual layouts remain available.
+Classic visual layouts remain available during v2.0.9. Re-export and re-copy the V1
+card after updating so existing pasted dashboards receive the dynamic-text HTML
+escaping fix.
 
 ### Post-Migration Check
 
@@ -723,7 +738,7 @@ Canonical YAML, preview assets, and contribution rules remain versioned in this 
 - [Gallery source](ui-gallery/README.md)
 - [Default V2 Mobile AQ](ui-gallery/default-v2-mobile-aq/README.md)
 - [Default V2 Tablet Zone 2](ui-gallery/default-v2-tablet-zone-2/README.md)
-- [Default V1 Mobile](ui-gallery/default-v1-mobile/README.md)
+- [Default V1 Mobile (deprecated)](ui-gallery/default-v1-mobile/README.md)
 - [Contributing UI Gallery examples](ui-gallery/CONTRIBUTING.md)
 
 The Wiki is a visual navigation layer. Repository files remain the source of truth
@@ -783,8 +798,19 @@ Notes:
   a Pause LIVE control tile. It reflects future v2.1 diagnostics when available
   while score calculation, lane selection, and runtime control stay backend-owned.
   The current/complete shimmer uses a slow 10 BPM cadence, one pulse every 6 seconds.
-- Global `pause_control` / `resume_control` calls with no `entry_id` require an
-  admin user context. Supplying `entry_id` scopes the call to that config entry.
+- Every `pause_control` / `resume_control` call requires an admin user context.
+  Supplying `entry_id` scopes the action to that config entry; it does not bypass the
+  authorization check. Background automations/scripts whose action context has no
+  `user_id` are intentionally rejected, even when configured by an admin. Invoke
+  these services from an authenticated admin UI or API session.
+- Explicit `create_dashboard` and `purge_files` calls require an admin user context.
+  First-run dashboard creation remains available only through the trusted setup path.
+  A created dashboard is still registered with its normal non-admin viewing setting;
+  the new gate controls creation, not later visibility.
+- `purge_files` validates the complete fixed HI-generated target set, posts the exact
+  existing-file/dashboard preview with a blocking notification, then deletes. Any
+  file or dashboard deletion failure is surfaced as an incomplete purge instead of
+  being silently treated as success.
 - `v205_release_check` is the backward-compatible validation service name. In v2.0.8
   and v2.0.9 it accepts the v2.0.5-v2.0.9 beta/rc/stable line and is runtime/device
   read-only: it writes its validation report, and `write_test_exports: true`
@@ -807,14 +833,14 @@ Common service groups:
 | `dump_cards` | export generated card YAML for static Manual dashboards |
 | `refresh_ui` | rebuild placeholder mappings and refresh cached rendered UI output |
 | `view_cards` | render cards, write them to file, and send a file-path notification through an explicit service call |
-| `create_dashboard` | create a Lovelace dashboard from a rendered HI layout through an explicit service call |
+| `create_dashboard` | admin-only creation of a Lovelace dashboard from a rendered HI layout |
 | `flash_lights` | test configured visual alert behavior |
-| `pause_control` / `resume_control` | pause or resume the automation engine; global all-entry calls require admin context |
+| `pause_control` / `resume_control` | admin-only pause or resume for one supplied entry or all entries |
 | `self_check` | run mapping, generated-card entity, telemetry, drift-helper, and frontend-dependency checks |
 | `v205_release_check` | run runtime-safe v2.0.5-v2.0.9 generated-card and release-validation support checks |
 | `create_local_backup` / `list_saved_versions` | manage package-local HI snapshots for advanced validation |
 | `dump_diagnostics` | export fuller local diagnostics for maintainer/debug workflows |
-| `purge_files` | intentionally remove generated HI artifacts |
+| `purge_files` | admin-only, previewed removal of fixed generated HI artifacts with partial-failure reporting |
 
 Example card export:
 
@@ -942,11 +968,24 @@ CO emergency pressure. Details are in
   exact lowercase `humidity_intelligence_*.json` namespace, preserving both defaults
 - extended the backward-compatible `v205_release_check` manifest contract through
   the v2.0.9 beta/rc/stable line
+- privacy-filtered local issue-triage body summaries before report escaping, removing
+  private HA endpoints, credentials, device IDs, local paths, and entity IDs
+- admin-gated targeted and all-entry `pause_control` / `resume_control` calls plus
+  explicit dashboard creation and generated-file/dashboard purge
+- made purge target truth blocking and exact before deletion, with unsafe filesystem
+  candidates rejected and partial file/dashboard failures reported
+- escaped dynamic HTML in the retained V1 Mobile source/gallery templates and
+  deprecated that layout for new dashboards while preserving it through v2.0.9;
+  planned removal remains a separate v2.1 proposal
 - migration impact: no stored-data migration; callers using another custom report
-  filename must rename it
-- runtime/UI impact: service-schema validation only; entity semantics, deterministic
-  lane ordering, outputs, and generated dashboards are unchanged
-- restart impact: fully restart Home Assistant after installing updated package code
+  filename must rename it. Contextless background automations/scripts can no longer
+  invoke the mutation services; use an authenticated admin UI or API call. Any future
+  automated trusted route requires separate design approval
+- runtime/UI impact: entity semantics, deterministic lane ordering, and output
+  selection are unchanged. V2 generated dashboards are unchanged; V1 users must
+  re-export and re-copy their card to receive the escaped template
+- restart impact: fully restart Home Assistant after installing updated package code;
+  a config-entry reload alone is insufficient
 
 ### v2.0.8
 
