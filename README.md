@@ -63,12 +63,15 @@ For publication status, installed packages, and release tags, use
 [GitHub Releases](https://github.com/senyo888/Humidity-Intelligence/releases) and
 HACS as the user-facing record.
 
-v2.0.9-beta.1 starts the next maintenance line with an HI-owned report-filename
-boundary. The latest published stable release remains v2.0.8.
+v2.0.9-beta.1 completes the HI-owned runtime-artifact namespace: report JSON writes
+under `<config>/humidity_intelligence/exports/`, generated card YAML writes under
+`<config>/humidity_intelligence/ui/`, and external writer services require an
+authenticated admin context. The latest published stable release remains v2.0.8.
 
 The deterministic runtime contract stays intact: one selected control lane per cycle,
-the same public entity meanings, the same migration shape, and output writing only
-through the established runtime paths.
+the same public entity meanings, and output writing only through the established
+runtime paths. No stored HI data migration is required, but external file consumers
+must be deliberately moved to the new owned-directory paths.
 
 ---
 
@@ -426,9 +429,10 @@ must be reviewable from tracked repository files.
 - Home Assistant Area/Label setup assistance can suggest defaults from registry
   metadata, but saved HI telemetry, zone, AQ, humidifier, and alert mappings remain
   the only runtime truth
-- release-prep service usage: run `self_check` or `v205_release_check` for
-  support validation; use `dump_cards` / `refresh_ui` when generated-card surfaces
-  or pasted Manual cards need refreshed YAML
+- release-prep service usage: run `self_check` or `v205_release_check` for support
+  validation; use `refresh_ui` to rebuild the rendered in-memory cache, then
+  `dump_cards` or `view_cards` to write fresh YAML. Already-pasted Manual cards remain
+  static and must be re-copied from the latest export
 - runtime contract: deterministic lane ordering, output-writer boundaries, entity
   semantics, migration shape, and UI truth stay aligned with the existing backend
   model
@@ -797,7 +801,7 @@ Use Home Assistant Developer Tools:
 
 Notes:
 - `entry_id` is optional for most services. If omitted, HI uses all entries or first valid entry based on service behavior.
-- Diagnostics, self-check, and release-check JSON is written under
+- `dump_diagnostics`, `self_check`, and `v205_release_check` JSON is written under
   `<config>/humidity_intelligence/exports/`. Generated card YAML is written under
   `<config>/humidity_intelligence/ui/`. Registered dashboard YAML remains under
   `<config>/dashboards/<url_path>.yaml`.
@@ -805,9 +809,9 @@ Notes:
   `humidity_intelligence_cards_v2_mobile.yaml`. Multi-entry installations add an
   entry-qualified token before the layout to prevent one entry overwriting another.
   Adding a second entry re-exports all loaded entries with qualified names; removing
-  back to one re-exports the remaining entry with unqualified names. Superseded
-  owned-UI names remain inert until an exact purge, so consumers must follow the
-  latest notification rather than infer a path.
+  back to one re-exports the remaining entry with unqualified names. HI no longer
+  refreshes superseded owned-UI names, but external consumers can still read their
+  stale content. Follow the latest notification rather than inferring a path.
 - Default generated V2 dashboards are read-only status surfaces. Runtime-changing
   actions such as pause/resume, dashboard creation, and file cleanup belong in
   Home Assistant service/admin workflows. System and Manual buttons keep the
@@ -841,6 +845,11 @@ Notes:
   release-test card exports plus registered dashboards are purge-owned. Custom card
   exports, custom reports, release-check reports, and all legacy config-root JSON/YAML
   remain retained.
+- Config-entry removal separately removes that entry's exact default/release-test card
+  exports and registered dashboard, but does not remove reports, custom card exports,
+  or legacy root files. When a multi-entry installation returns to one entry, the
+  remaining entry is re-exported with unqualified names; its superseded qualified
+  files stay externally readable until an exact previewed purge.
 - `v205_release_check` is the backward-compatible validation service name. In v2.0.8
   and v2.0.9 it accepts the v2.0.5-v2.0.9 beta/rc/stable line and is runtime/device
   read-only: it writes its validation report, and `write_test_exports: true`
@@ -1021,7 +1030,7 @@ CO emergency pressure. Details are in
   `<config>/dashboards/<url_path>.yaml`
 - added no-follow, descriptor-relative, same-directory atomic YAML writes, exact
   purge ownership, and entry-qualified filenames for multi-entry installations
-- required an authenticated admin user context for every `dump_diagnostics` and
+- required an authenticated admin user context for every external `dump_diagnostics`,
   `self_check`, `v205_release_check`, `dump_cards`, and `view_cards` call; contextless
   background callers and non-admin users are rejected before work begins, while
   trusted HI setup/options/release-test generation uses the internal exporter and
@@ -1047,10 +1056,19 @@ CO emergency pressure. Details are in
   authenticated admin UI or API call. Any future automated trusted route requires
   separate design approval
 - runtime/UI impact: entity semantics, deterministic lane ordering, and output
-  selection are unchanged. V2 generated dashboards are unchanged; V1 users must
-  re-export and re-copy their card to receive the escaped template
+  selection are unchanged. Generated-card logic and rendered backend-truth semantics
+  are unchanged, while export paths and multi-entry filename qualification change.
+  V1 users must re-export and re-copy their card to receive the escaped template
 - restart impact: fully restart Home Assistant after installing updated package code;
   a config-entry reload alone is insufficient
+- recorded advisory HA Lab evidence for package commit `c54e9e1`: full-package backup
+  and source/remote hash verification passed, the maintainer completed the restart,
+  post-restart diagnostics/service/runtime checks passed, and approved single-entry
+  admin write smoke produced valid owned-directory JSON/YAML with expected
+  permissions and post-write continuity
+- HA Lab did not live-test non-admin rejection, multi-entry naming, purge removal,
+  concurrent/fault-injected writes, legacy-root retention, or rendered Lovelace UI;
+  those boundaries remain covered by local tests or require separate live evidence
 
 ### v2.0.8
 

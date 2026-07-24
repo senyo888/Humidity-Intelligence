@@ -130,7 +130,12 @@ unqualified default names. Exact default/per-entry card and release-check test-c
 exports are purge-owned. Custom card names and legacy root YAML are retained.
 Adding a second entry re-exports every loaded entry with qualified names; removing
 back to one entry re-exports the remaining entry with unqualified names. Superseded
-owned-UI names are retained non-destructively but remain exact purge targets.
+owned-UI names are retained non-destructively, are no longer refreshed by HI, and
+remain externally readable until an exact purge. Config-entry removal owns only the
+removed entry's exact default/release-test UI exports and registered dashboard; it
+does not own reports, custom card exports, or legacy root files. When removal returns
+a multi-entry installation to one entry, the remaining entry's qualified files stay
+retained while fresh unqualified exports are written.
 Registered Lovelace dashboard YAML remains separately owned at
 `<config>/dashboards/<url_path>.yaml`.
 

@@ -91,9 +91,13 @@ These external services require an authenticated admin user context.
 `/config/humidity_intelligence/ui/`; multi-entry installations add an entry-qualified
 token to each filename. Adding a second entry re-exports all loaded entries with
 qualified names; removing back to one re-exports the remaining entry with unqualified
-names. Superseded owned-UI names remain exact purge targets. Trusted first-run,
-options, and release-check regeneration uses the same internal exporter without
-routing through the public service handler. Startup refresh remains cache-only.
+names. HI no longer refreshes superseded owned-UI names, but external consumers can
+still read their stale content until exact purge. Config-entry removal deletes only
+the removed entry's exact default/release-test UI exports and registered dashboard;
+reports, custom exports, legacy root files, and remaining-entry superseded qualified
+files are retained. Trusted first-run, options, and release-check regeneration uses
+the same internal exporter without routing through the public service handler.
+Startup refresh remains cache-only.
 Registered dashboard YAML remains under
 `/config/dashboards/<url_path>.yaml`.
 

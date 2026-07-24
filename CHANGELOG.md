@@ -41,12 +41,15 @@ This project follows a practical changelog format for Home Assistant and HACS us
   context before work begins; trusted integration-owned UI regeneration calls the
   internal exporter directly. Adding a second entry re-exports all loaded entries
   with qualified card names; removing back to one re-exports the remaining entry
-  with unqualified names while retaining superseded owned-UI files for exact purge.
-- Narrowed automatic cleanup to exact owned artifacts. Entry-scoped purge/removal can
-  remove the selected entry's default and release-test card exports plus its
-  registered dashboard, but no reports. Unscoped all-entry purge may also remove the
-  fixed default diagnostics and self-check reports. Custom card/report names,
-  release-check reports, and legacy root artifacts remain retained.
+  with unqualified names while retaining the remaining entry's superseded qualified
+  files for exact purge.
+- Narrowed cleanup to exact owned artifacts. Entry-scoped purge may remove the
+  selected entry's default and release-test card exports plus its registered
+  dashboard, but no reports. Unscoped all-entry purge may also remove the fixed
+  default diagnostics and self-check reports. Config-entry removal separately owns
+  only the removed entry's exact default/release-test card exports and registered
+  dashboard. Custom card/report names, release-check reports, remaining-entry
+  superseded qualified files, and legacy root artifacts remain retained.
 - Required authenticated admin user context for every `dump_diagnostics` and
   `v205_release_check` call. Non-admin, unknown-user, and contextless background
   callers are rejected before report lookup, cache work, path resolution, writes, or

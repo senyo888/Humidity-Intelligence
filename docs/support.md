@@ -128,9 +128,13 @@ explicitly so old JSON/YAML cannot silently remain authoritative. Multi-entry
 installations must use the entry-qualified card filename reported by the service
 notification. Adding a second entry re-exports every loaded entry with qualified
 names; removing back to one re-exports the remaining entry with unqualified names.
-Superseded owned-UI files are retained, so do not treat an older inferred filename as
-current truth; follow the newest notification and remove stale defaults through an
-explicit previewed purge when desired.
+HI no longer refreshes superseded owned-UI files, but external consumers can still
+read their stale content. Do not treat an older inferred filename as current truth;
+follow the newest notification and remove stale defaults through an explicit
+previewed purge when desired. Config-entry removal deletes only the removed entry's
+exact default/release-test UI exports and registered dashboard. It retains reports,
+custom card exports, legacy root files, and the remaining entry's superseded
+qualified files after a multi-entry installation returns to one entry.
 
 External `self_check`, `dump_cards`, and `view_cards` calls now require an
 authenticated admin user context, matching the existing report-writer authority
