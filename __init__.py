@@ -194,6 +194,10 @@ async def _async_install_selected_ui(
             + "\n".join(written_cards)
             + "\n\nOpen a file in File Editor, copy the YAML, and paste it into a "
             "Manual card."
+            "\n\nSince v2.0.9, generated card files live under "
+            "/config/humidity_intelligence/ui/. Older generated card files in the "
+            "/config root are retained but are no longer refreshed. Use only the "
+            "exact paths above."
         )
         if multi_entry_export:
             card_message += (
@@ -538,7 +542,9 @@ async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> Non
                 f"{', '.join(changed).title()} changed. Updated card files:\n"
                 + ("\n".join(written) if written else "No card files were generated.")
                 + "\n\n"
-                "Re-copy/paste the layout YAML into your Manual card to apply UI visibility changes."
+                "Re-copy/paste the layout YAML into your Manual card to apply UI visibility changes. "
+                "Use only the exact paths above; legacy generated card files in "
+                "the /config root are no longer refreshed."
             ),
         },
         blocking=False,

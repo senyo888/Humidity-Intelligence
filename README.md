@@ -914,12 +914,65 @@ data:
   filename: humidity_intelligence_v205_release_check.json
 ```
 
+### Finding A Newly Dumped Card
+
+Existing users should expect the location to change in v2.0.9:
+
+- `dump_cards` writes under `<config>/humidity_intelligence/ui/` but does not post a
+  completion path notification. Open that directory in File Editor after the action.
+- `view_cards` writes the selected layout to the same directory and posts the exact
+  path in a persistent notification. Use it when file discovery is the priority.
+- first-run and relevant options regeneration also post every exact written path.
+- `refresh_ui` only rebuilds the rendered in-memory cache; it does not write YAML.
+
+For a single-entry installation using the default basename, a mobile export is
+`<config>/humidity_intelligence/ui/humidity_intelligence_cards_v2_mobile.yaml`.
+Multi-entry installations insert an entry-qualified token, and custom basenames
+produce different filenames. Always use the path reported by `view_cards` or the
+setup/options notification when either applies.
+
+If File Editor was already open, refresh its file tree or reopen it after export. If
+the file still does not appear, confirm that the action was run from an authenticated
+admin UI/API session and check the Home Assistant log for an export error. There is
+no config-root fallback.
+
+An older file such as
+`<config>/humidity_intelligence_cards_v2_mobile.yaml` is retained for migration
+safety but is no longer refreshed. A newer modification time on that legacy file does
+not prove that v2.0.9 wrote it; do not copy it after upgrading.
+
+### Manually Removing Files Purge Intentionally Retains
+
+`purge_files` deliberately leaves legacy config-root JSON/YAML, custom card exports,
+custom reports, and release-check reports in place. Remove one manually only after
+confirming that no file sensor, shell command, script, support tool, or other consumer
+still uses it:
+
+1. Generate and validate the replacement in
+   `<config>/humidity_intelligence/exports/` or
+   `<config>/humidity_intelligence/ui/`.
+2. Back up the exact consumer definition and any artifact that must be retained.
+3. Update or disable the old consumer, then verify it no longer reads the retained
+   path.
+4. In File Editor, Studio Code Server, Samba, or SSH, delete only the exact regular
+   file you have identified. Do not delete either owned directory, use wildcard
+   deletion, or follow a symlink/non-regular object.
+5. Refresh the file view and confirm that the new owned-directory artifact and active
+   Manual card remain correct.
+
+Do not manually delete registered dashboard YAML from
+`<config>/dashboards/<url_path>.yaml`; use the previewed HI cleanup path or Home
+Assistant dashboard management so registration state and the file stay aligned.
+Deleting an unused retained artifact alone does not require a Home Assistant restart.
+Changing a consumer may require that consumer's normal reload.
+
 For GitHub support issues, prefer the native Home Assistant diagnostics download from the Humidity Intelligence integration entry. Diagnostics and `dump_diagnostics` exports favor sanitized structure, counts, statuses, and redaction over raw maps or state dumps. `self_check` and release-validation reports can include configured/generated entity IDs needed to debug missing mappings, so treat those exports as local/private until reviewed or sanitized before public sharing. Use `dump_diagnostics` for fuller local maintainer/debug workflows after reviewing the export.
 
 Detailed manual:
 
 - [Services Reference](https://github.com/senyo888/humidity-intelligence/wiki/Services-Reference)
 - [Generated Dashboards](https://github.com/senyo888/humidity-intelligence/wiki/Generated-Dashboards)
+- [Troubleshooting Generated UI](https://github.com/senyo888/humidity-intelligence/wiki/Troubleshooting-Generated-UI)
 - [Diagnostics and Support Bundle](https://github.com/senyo888/humidity-intelligence/wiki/Diagnostics-and-Support-Bundle)
 - [Release Validation for Users](https://github.com/senyo888/humidity-intelligence/wiki/Release-Validation-for-Users)
 

@@ -101,6 +101,19 @@ Startup refresh remains cache-only.
 Registered dashboard YAML remains under
 `/config/dashboards/<url_path>.yaml`.
 
+`dump_cards` writes files without a completion path notification. Open
+`/config/humidity_intelligence/ui/` in File Editor after the action, or use
+`view_cards` when you want the exact path in a persistent notification. First-run and
+relevant options regeneration also report exact written paths. `refresh_ui` updates
+the in-memory cache only.
+
+If upgrading from the config-root writer, do not copy a retained file such as
+`/config/humidity_intelligence_cards_v2_mobile.yaml`; HI no longer refreshes it.
+Refresh File Editor and use the new owned-directory file. Before manually deleting a
+retained root or custom export, back up and disable every consumer, then delete only
+that exact regular file. Never delete the whole owned directory or registered
+dashboard YAML by hand.
+
 Avoid manual YAML drift.
 
 ### Step 3 - After Any Option Change

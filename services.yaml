@@ -135,7 +135,7 @@ list_saved_versions:
   fields: {}
 dump_cards:
   name: Dump Cards
-  description: Admin-only external action from an authenticated UI/API session; background calls without a user ID are rejected. Write rendered card YAML under Home Assistant config/humidity_intelligence/ui for static Manual dashboards. Without layout, all cached layouts are exported; with layout, only that layout is exported. Trusted first-run setup, options, and release-check paths call the internal exporter directly. Startup refresh remains cache-only.
+  description: Admin-only external action from an authenticated UI/API session; background calls without a user ID are rejected. Write rendered card YAML under Home Assistant config/humidity_intelligence/ui for static Manual dashboards. Without layout, all cached layouts are exported; with layout, only that layout is exported. This action does not post a completion path notification; use view_cards when you want the exact written path in a notification. Trusted first-run setup, options, and release-check paths call the internal exporter directly. Startup refresh remains cache-only.
   fields:
     entry_id:
       name: Entry ID
@@ -181,7 +181,7 @@ create_dashboard:
         text: {}
 view_cards:
   name: View Cards
-  description: Admin-only external action from an authenticated UI/API session; background calls without a user ID are rejected. Export cards under Home Assistant config/humidity_intelligence/ui and post a notification with each exact file path.
+  description: Admin-only external action from an authenticated UI/API session; background calls without a user ID are rejected. Export cards under Home Assistant config/humidity_intelligence/ui and post a notification with each exact file path. Use this instead of dump_cards when path discovery is the priority.
   fields:
     entry_id:
       name: Entry ID

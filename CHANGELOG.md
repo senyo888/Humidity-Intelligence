@@ -35,6 +35,11 @@ This project follows a practical changelog format for Home Assistant and HACS us
   cache-only. Existing root
   JSON/YAML is retained without copy, dual-write, symlink, move, or automatic
   deletion; consumers must update paths after verifying fresh owned-directory output.
+- Clarified the setup/options UI and service/support guidance for existing users:
+  first-run and options notifications point to exact owned UI paths, `dump_cards`
+  versus `view_cards` notification behavior is explicit, legacy root cards are marked
+  stale, and retained-file manual cleanup is documented without wildcard or
+  registered-dashboard deletion.
 - Added descriptor-relative, no-follow, same-directory atomic YAML replacement with
   directory/file identity revalidation and no config-root fallback. External
   `self_check`, `dump_cards`, and `view_cards` calls now require authenticated admin

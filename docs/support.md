@@ -136,6 +136,27 @@ exact default/release-test UI exports and registered dashboard. It retains repor
 custom card exports, legacy root files, and the remaining entry's superseded
 qualified files after a multi-entry installation returns to one entry.
 
+`dump_cards` writes under `<config>/humidity_intelligence/ui/` but does not post a
+completion path notification. `view_cards`, first-run export, and relevant options
+regeneration do post exact written paths. Use `view_cards` when path discovery is the
+priority. `refresh_ui` changes the in-memory cache only and does not write a file.
+Refresh or reopen File Editor after export if the new directory is not immediately
+visible.
+
+For an artifact that exact purge intentionally retains:
+
+1. verify the fresh replacement and its exact path
+2. back up and update every file sensor, shell command, script, or support-tool
+   consumer
+3. delete only the confirmed regular file through File Editor, Studio Code Server,
+   Samba, or SSH
+4. do not delete an owned directory, use a wildcard, follow a symlink/non-regular
+   object, or manually remove registered dashboard YAML
+5. confirm the active owned-directory artifact and Manual card remain correct
+
+Manual deletion of an unused retained file does not itself require a Home Assistant
+restart. Use the affected consumer's normal reload if its configuration changed.
+
 External `self_check`, `dump_cards`, and `view_cards` calls now require an
 authenticated admin user context, matching the existing report-writer authority
 boundary. Contextless automations/scripts are rejected. HI-owned first-run, options,

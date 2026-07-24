@@ -3591,6 +3591,10 @@ def test_options_update_reloads_entry_then_regenerates_owned_ui_with_loaded_code
         "humidity_intelligence_cards_entry123_v2_mobile.yaml"
         in notification[3]["message"]
     )
+    assert "Use only the exact paths above" in notification[3]["message"]
+    assert "legacy generated card files in the /config root" in (
+        notification[3]["message"]
+    )
 
 
 def test_options_update_reports_export_failure_without_success_path():
@@ -5325,6 +5329,37 @@ def test_v205_release_check_service_is_documented_and_registered():
     assert manifest["version"] == "2.0.9-beta.1"
 
 
+def test_owned_ui_path_discovery_and_legacy_cleanup_guidance_is_explicit():
+    services_yaml = (ROOT / "services.yaml").read_text()
+    strings_data = json.loads((ROOT / "strings.json").read_text())
+    translations_data = json.loads((ROOT / "translations" / "en.json").read_text())
+    readme_source = (ROOT / "README.md").read_text()
+    support_source = (ROOT / "docs" / "support.md").read_text()
+
+    for source in (services_yaml, readme_source, support_source):
+        assert "dump_cards" in source
+        assert "view_cards" in source
+        assert "humidity_intelligence/ui" in source
+
+    assert "does not post a completion path notification" in services_yaml
+    assert "Use this instead of dump_cards when path discovery is the priority" in (
+        services_yaml
+    )
+    assert "Manually Removing Files Purge Intentionally Retains" in readme_source
+    assert "Do not manually delete registered dashboard YAML" in readme_source
+    assert "`dump_cards` writes under" in support_source
+    assert "completion path notification" in support_source
+    assert "does not write a file" in support_source
+
+    for data in (strings_data, translations_data):
+        description = data["config"]["step"]["ui_install"]["description"]
+        assert "/config/humidity_intelligence/ui/" in description
+        assert "/config/humidity_intelligence_cards_v2_mobile.yaml" in description
+        assert "retained legacy root file" in description
+        assert "no longer refreshed" in description
+        assert "refresh its file tree" in description
+
+
 def test_v205_release_check_only_fails_local_snapshot_when_required():
     services_mod = _load_services_module()
     entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
@@ -5893,6 +5928,14 @@ def test_first_run_dashboard_creation_uses_trusted_helper():
         for call in service_calls
         if call[0:2] == ("persistent_notification", "create")
     ] == ["Humidity Intelligence UI Cards"]
+    card_notification = [
+        call[2]["message"]
+        for call in service_calls
+        if call[0:2] == ("persistent_notification", "create")
+    ][0]
+    assert "/config/humidity_intelligence/ui/" in card_notification
+    assert "Older generated card files in the /config root" in card_notification
+    assert "Use only the exact paths above" in card_notification
     assert updates == [
         (
             ENTRY_ID,
