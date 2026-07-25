@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
+import copy
 import importlib.util
+import io
 import pathlib
 import shutil
 import subprocess
@@ -55,6 +58,32 @@ PRIVATE_SENTINELS = (
     "/Users/",
     "\\Users\\",
 )
+
+
+def _load_fixture_generator():
+    spec = importlib.util.spec_from_file_location(
+        "hi_inspector_fixture_generator_test",
+        ROOT / "scripts" / "generate_hi_inspector_fixtures.py",
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError("Unable to load HI Inspector fixture generator")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _write_fixture_set(root, generator, fixtures) -> None:
+    root.mkdir(parents=True, exist_ok=True)
+    for filename, payload in fixtures.items():
+        (root / filename).write_text(
+            generator._render(payload),
+            encoding="utf-8",
+        )
+
+
+def _alternate_fixture_version(active_version: str) -> str:
+    return "2.0.8" if active_version != "2.0.8" else "2.0.9-beta.1"
 
 
 class _InspectorHtmlParser(HTMLParser):
@@ -354,6 +383,142 @@ class HiInspectorStaticTests(unittest.TestCase):
         )
         self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
         self.assertIn("fixtures current: 3", completed.stdout)
+
+    def test_fixture_check_accepts_consistent_version_stamp_only_drift(self) -> None:
+        generator = _load_fixture_generator()
+        generated = generator.generate_fixtures()
+        tracked = copy.deepcopy(generated)
+        alternate = _alternate_fixture_version(
+            generator._repository_manifest_version()
+        )
+        tracked["native_schema1.json"]["integration"][
+            "integration_version"
+        ] = alternate
+        tracked["native_schema1_envelope.json"]["data"]["integration"][
+            "integration_version"
+        ] = alternate
+        tracked["native_schema1_envelope.json"]["custom_components"][
+            "humidity_intelligence"
+        ]["version"] = alternate
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            fixture_root = pathlib.Path(tempdir)
+            _write_fixture_set(fixture_root, generator, tracked)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                result = generator._check(generated, fixture_root)
+
+        self.assertEqual(result, 0, output.getvalue())
+        self.assertIn(
+            f"tracked native stamp: {alternate}",
+            output.getvalue(),
+        )
+
+    def test_fixture_check_rejects_non_version_backend_drift(self) -> None:
+        generator = _load_fixture_generator()
+        generated = generator.generate_fixtures()
+        tracked = copy.deepcopy(generated)
+        tracked["native_schema1.json"]["configuration"]["summary"][
+            "zone_count"
+        ] += 1
+        tracked["native_schema1_envelope.json"]["data"]["configuration"][
+            "summary"
+        ]["zone_count"] += 1
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            fixture_root = pathlib.Path(tempdir)
+            _write_fixture_set(fixture_root, generator, tracked)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                result = generator._check(generated, fixture_root)
+
+        self.assertEqual(result, 1)
+        self.assertIn(
+            "stale fixture semantics native_schema1.json",
+            output.getvalue(),
+        )
+
+    def test_fixture_check_rejects_contradictory_tracked_stamps(self) -> None:
+        generator = _load_fixture_generator()
+        generated = generator.generate_fixtures()
+        tracked = copy.deepcopy(generated)
+        tracked["native_schema1_envelope.json"]["custom_components"][
+            "humidity_intelligence"
+        ]["version"] = _alternate_fixture_version(
+            generator._repository_manifest_version()
+        )
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            fixture_root = pathlib.Path(tempdir)
+            _write_fixture_set(fixture_root, generator, tracked)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                result = generator._check(generated, fixture_root)
+
+        self.assertEqual(result, 1)
+        self.assertIn(
+            "Tracked native fixture version stamps are contradictory",
+            output.getvalue(),
+        )
+
+    def test_fixture_check_rejects_invalid_tracked_stamp(self) -> None:
+        generator = _load_fixture_generator()
+        generated = generator.generate_fixtures()
+        tracked = copy.deepcopy(generated)
+        tracked["native_schema1.json"]["integration"][
+            "integration_version"
+        ] = "invalid fixture version"
+        tracked["native_schema1_envelope.json"]["data"]["integration"][
+            "integration_version"
+        ] = "invalid fixture version"
+        tracked["native_schema1_envelope.json"]["custom_components"][
+            "humidity_intelligence"
+        ]["version"] = "invalid fixture version"
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            fixture_root = pathlib.Path(tempdir)
+            _write_fixture_set(fixture_root, generator, tracked)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                result = generator._check(generated, fixture_root)
+
+        self.assertEqual(result, 1)
+        self.assertIn(
+            "Tracked native fixture version stamp is invalid",
+            output.getvalue(),
+        )
+
+    def test_fixture_check_rejects_generated_stamp_not_matching_manifest(
+        self,
+    ) -> None:
+        generator = _load_fixture_generator()
+        tracked = generator.generate_fixtures()
+        generated = copy.deepcopy(tracked)
+        alternate = _alternate_fixture_version(
+            generator._repository_manifest_version()
+        )
+        generated["native_schema1.json"]["integration"][
+            "integration_version"
+        ] = alternate
+        generated["native_schema1_envelope.json"]["data"]["integration"][
+            "integration_version"
+        ] = alternate
+        generated["native_schema1_envelope.json"]["custom_components"][
+            "humidity_intelligence"
+        ]["version"] = alternate
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            fixture_root = pathlib.Path(tempdir)
+            _write_fixture_set(fixture_root, generator, tracked)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                result = generator._check(generated, fixture_root)
+
+        self.assertEqual(result, 1)
+        self.assertIn(
+            "differs from repository manifest version",
+            output.getvalue(),
+        )
 
     def test_fixtures_are_synthetic_and_public_safe(self) -> None:
         self.assertEqual(
