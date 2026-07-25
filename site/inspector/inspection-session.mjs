@@ -27,3 +27,16 @@ export async function readTextForInspection(file, session, token) {
       : { status: "stale" };
   }
 }
+
+export async function settleRevisionBoundEffect(effect, session, token) {
+  try {
+    await effect();
+    return session.isCurrent(token)
+      ? { status: "success" }
+      : { status: "stale" };
+  } catch {
+    return session.isCurrent(token)
+      ? { status: "error" }
+      : { status: "stale" };
+  }
+}

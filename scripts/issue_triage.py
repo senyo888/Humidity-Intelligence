@@ -128,9 +128,54 @@ MAINTENANCE_QUEUE_PUBLIC_SAFETY_PATTERNS = (
 )
 MAINTENANCE_QUEUE_PRIORITY_ORDER = {"P0": 0, "P1": 1, "P2": 2, "P3": 3, "Watch": 4}
 
+HANDOFF_START = "HI-SUPPORT-HANDOFF/1"
+HANDOFF_END = "HI-SUPPORT-HANDOFF-END/1"
+HANDOFF_INSPECTOR_VERSION = "0.2.0-gate2"
+HANDOFF_MAX_SCAN_CHARS = 100_000
+HANDOFF_MAX_BLOCK_CHARS = 4096
+HANDOFF_MAX_LINE_CHARS = 240
+HANDOFF_MAX_COUNT = 1_000_000
+HANDOFF_WARNING_CATEGORIES = (
+    "cfg",
+    "ent-avail",
+    "ent-norm",
+    "drift",
+    "map",
+    "opt-dep",
+    "other",
+    "setup",
+)
+HANDOFF_PRIVACY_CATEGORIES = (
+    "bearer",
+    "location",
+    "email",
+    "entity",
+    "ip",
+    "path",
+    "mac",
+    "mac-field",
+    "network",
+    "token",
+    "private",
+    "secret",
+    "url",
+)
+HANDOFF_FIXED_RESIDUE_LINES = (
+    "Product: HI Support Bundle Inspector",
+    "Evidence class: user-supplied unsigned snapshot; advisory only; not live",
+    "Diagnostic attachment: no",
+    "Anonymity or correctness proof: no",
+    "Home Assistant and HI runtime change: none",
+    (
+        "Interpretation: does not diagnose HI, authenticate the source, "
+        "infer a reason, or recommend a lane"
+    ),
+)
+
 TEMPLATE_IMPROVEMENT_SUGGESTIONS = (
     "Bug, configuration-help, and feature templates now capture the affected area.",
     "Bug and configuration-help templates ask users to attach the downloaded Home Assistant diagnostics file.",
+    "Bug and configuration-help templates provide a separate optional Inspector handoff field that never replaces the preferred native diagnostics attachment.",
     "Issues that attach or mention the native Home Assistant diagnostics download are suggested for `has-diagnostics`; bug/support reports without one are suggested for `needs-bundle`.",
     "Bug and configuration-help templates now capture triage signals for safety, release-blocking, regression, duplicate, maintainer-reply, and proposal-review cases.",
     "Bug reports keep fallback version/check fields for users who cannot download diagnostics.",
@@ -164,6 +209,7 @@ class AnalyzedIssue:
     confidence: str
     signals: list[str]
     diagnostics_bundle: str
+    inspector_handoff: str
     needs_human_decision: bool
     candidate: bool
 
@@ -893,6 +939,329 @@ def _detect_diagnostics_bundle(text: str, category: str) -> str:
     return "not applicable"
 
 
+def _detect_inspector_handoff(body: Any) -> str:
+    """Parse one exact, bounded Inspector handoff without interpreting its claims."""
+
+    if not isinstance(body, str) or "HI-SUPPORT-HANDOFF" not in body:
+        return "absent"
+    if len(body) > HANDOFF_MAX_SCAN_CHARS:
+        return "invalid"
+
+    normalized = body.replace("\r\n", "\n")
+    if "\r" in normalized:
+        return "invalid"
+    lines = normalized.split("\n")
+    start_markers = [
+        (index, line)
+        for index, line in enumerate(lines)
+        if line.startswith("HI-SUPPORT-HANDOFF/")
+    ]
+    end_markers = [
+        (index, line)
+        for index, line in enumerate(lines)
+        if line.startswith("HI-SUPPORT-HANDOFF-END/")
+    ]
+    if not start_markers:
+        if any(line != HANDOFF_END for _, line in end_markers):
+            return "unsupported-version"
+        if end_markers:
+            return "invalid"
+        return "absent"
+    if any(line != HANDOFF_START for _, line in start_markers):
+        return "unsupported-version"
+    if any(line != HANDOFF_END for _, line in end_markers):
+        return "unsupported-version"
+    if len(start_markers) != 1 or len(end_markers) != 1:
+        return "invalid"
+
+    start_index = start_markers[0][0]
+    end_index = end_markers[0][0]
+    if end_index <= start_index:
+        return "invalid"
+    block = lines[start_index : end_index + 1]
+    block_text = "\n".join(block)
+    if (
+        len(block) != 16
+        or len(block_text) > HANDOFF_MAX_BLOCK_CHARS
+        or any(len(line) > HANDOFF_MAX_LINE_CHARS for line in block)
+    ):
+        return "invalid"
+
+    if block[2].startswith("Inspector version: ") and block[2] != (
+        f"Inspector version: {HANDOFF_INSPECTOR_VERSION}"
+    ):
+        return "unsupported-version"
+    if block[4].startswith("Backend diagnostics schema: ") and block[4] not in {
+        "Backend diagnostics schema: 1",
+        "Backend diagnostics schema: not-reported",
+    }:
+        return "unsupported-version"
+
+    fixed_lines = {
+        0: HANDOFF_START,
+        1: "Product: HI Support Bundle Inspector",
+        2: f"Inspector version: {HANDOFF_INSPECTOR_VERSION}",
+        5: "Evidence class: user-supplied unsigned snapshot; advisory only; not live",
+        6: "Diagnostic attachment: no",
+        7: "Anonymity or correctness proof: no",
+        8: "Home Assistant and HI runtime change: none",
+        9: (
+            "Interpretation: does not diagnose HI, authenticate the source, "
+            "infer a reason, or recommend a lane"
+        ),
+        15: HANDOFF_END,
+    }
+    if any(block[index] != expected for index, expected in fixed_lines.items()):
+        return "invalid"
+
+    source_prefix = "Recognized input format: "
+    if not block[3].startswith(source_prefix):
+        return "invalid"
+    source = block[3][len(source_prefix) :]
+    source_status = {
+        "native-ha-diagnostics": "native-summary",
+        "dump-diagnostics-summary": "dump-summary",
+    }.get(source)
+    if source_status is None:
+        return "invalid"
+    schema = block[4].removeprefix("Backend diagnostics schema: ")
+    if (
+        source_status == "native-summary"
+        and schema != "1"
+        or source_status == "dump-summary"
+        and schema != "not-reported"
+    ):
+        return "invalid"
+
+    configuration = _parse_handoff_count_line(
+        block[10],
+        "Configuration counts: ",
+        ("zones", "aq-lanes", "humidifier-lanes", "alert-rules"),
+    )
+    unavailable = _parse_handoff_count_line(
+        block[11],
+        "Unavailable or unknown counts: ",
+        ("total", "missing", "unknown", "unavailable"),
+    )
+    mapped = _parse_handoff_count_line(
+        block[12],
+        "Mapped entity status counts: ",
+        ("total", "available", "missing", "unknown", "unavailable"),
+    )
+    if configuration is None or unavailable is None or mapped is None:
+        return "invalid"
+    if not _handoff_total_is_consistent(
+        unavailable,
+        ("missing", "unknown", "unavailable"),
+    ):
+        return "invalid"
+    if not _handoff_total_is_consistent(
+        mapped,
+        ("available", "missing", "unknown", "unavailable"),
+    ):
+        return "invalid"
+    if not _valid_handoff_category_line(
+        block[13],
+        "Backend warning categories: ",
+        HANDOFF_WARNING_CATEGORIES,
+    ):
+        return "invalid"
+    if not _valid_handoff_category_line(
+        block[14],
+        "Privacy finding categories: ",
+        HANDOFF_PRIVACY_CATEGORIES,
+    ):
+        return "invalid"
+    return source_status
+
+
+def _body_without_inspector_handoff(body: Any) -> str:
+    """Remove only closed, bounded handoff-shaped blocks from issue analysis."""
+
+    if not isinstance(body, str) or "HI-SUPPORT-HANDOFF" not in body:
+        return body if isinstance(body, str) else ""
+    lines = body.replace("\r\n", "\n").split("\n")
+    kept: list[str] = []
+    index = 0
+    neutralizing_unclosed_attempt = False
+    while index < len(lines):
+        line = lines[index]
+        if line.startswith("HI-SUPPORT-HANDOFF-END/"):
+            neutralizing_unclosed_attempt = False
+            index += 1
+            continue
+        if neutralizing_unclosed_attempt:
+            if line.startswith("HI-SUPPORT-HANDOFF/"):
+                index += 1
+                continue
+            if _is_handoff_residue_line(line):
+                index += 1
+                continue
+            neutralizing_unclosed_attempt = False
+        if line.startswith("HI-SUPPORT-HANDOFF/"):
+            block_chars = 0
+            end_index: int | None = None
+            candidate_index = index
+            while candidate_index < len(lines):
+                candidate = lines[candidate_index]
+                block_chars += len(candidate)
+                if candidate_index > index:
+                    block_chars += 1
+                if (
+                    len(candidate) > HANDOFF_MAX_LINE_CHARS
+                    or block_chars > HANDOFF_MAX_BLOCK_CHARS
+                ):
+                    break
+                if (
+                    candidate_index > index
+                    and candidate.startswith("HI-SUPPORT-HANDOFF-END/")
+                ):
+                    end_index = candidate_index
+                    break
+                candidate_index += 1
+            if end_index is not None:
+                index = end_index + 1
+                continue
+            neutralizing_unclosed_attempt = True
+            index += 1
+            continue
+        kept.append(line)
+        index += 1
+    return "\n".join(kept)
+
+
+def _is_handoff_residue_line(line: str) -> bool:
+    """Recognize only strict contract residue after an unmatched start marker."""
+
+    if line in HANDOFF_FIXED_RESIDUE_LINES:
+        return True
+    if re.fullmatch(
+        r"Inspector version: [0-9A-Za-z][0-9A-Za-z._-]{0,31}",
+        line,
+    ):
+        return True
+    if line in {
+        "Recognized input format: native-ha-diagnostics",
+        "Recognized input format: dump-diagnostics-summary",
+    }:
+        return True
+    if re.fullmatch(
+        r"Backend diagnostics schema: (?:[0-9]{1,4}|not-reported)",
+        line,
+    ):
+        return True
+    count_contracts = (
+        (
+            "Configuration counts: ",
+            ("zones", "aq-lanes", "humidifier-lanes", "alert-rules"),
+        ),
+        (
+            "Unavailable or unknown counts: ",
+            ("total", "missing", "unknown", "unavailable"),
+        ),
+        (
+            "Mapped entity status counts: ",
+            ("total", "available", "missing", "unknown", "unavailable"),
+        ),
+    )
+    if any(
+        _parse_handoff_count_line(line, prefix, keys) is not None
+        for prefix, keys in count_contracts
+    ):
+        return True
+    return (
+        _valid_handoff_category_line(
+            line,
+            "Backend warning categories: ",
+            HANDOFF_WARNING_CATEGORIES,
+        )
+        or _valid_handoff_category_line(
+            line,
+            "Privacy finding categories: ",
+            HANDOFF_PRIVACY_CATEGORIES,
+        )
+    )
+
+
+def _parse_handoff_count_line(
+    line: str,
+    prefix: str,
+    expected_keys: tuple[str, ...],
+) -> dict[str, int | str] | None:
+    if not line.startswith(prefix):
+        return None
+    parts = line[len(prefix) :].split("; ")
+    if len(parts) != len(expected_keys):
+        return None
+    parsed: dict[str, int | str] = {}
+    for part, expected_key in zip(parts, expected_keys, strict=True):
+        key, separator, value = part.partition("=")
+        if separator != "=" or key != expected_key:
+            return None
+        if value == "not-reported":
+            parsed[key] = value
+            continue
+        if not re.fullmatch(r"(?:0|[1-9][0-9]{0,6})", value):
+            return None
+        count = int(value)
+        if count > HANDOFF_MAX_COUNT:
+            return None
+        parsed[key] = count
+    return parsed
+
+
+def _handoff_total_is_consistent(
+    counts: dict[str, int | str],
+    component_keys: tuple[str, ...],
+) -> bool:
+    total = counts.get("total")
+    components = [counts.get(key) for key in component_keys]
+    if total == "not-reported":
+        return all(
+            isinstance(value, int) or value == "not-reported"
+            for value in components
+        )
+    if not isinstance(total, int):
+        return False
+    known_components = [
+        value for value in components if isinstance(value, int)
+    ]
+    if any(
+        not isinstance(value, int) and value != "not-reported"
+        for value in components
+    ):
+        return False
+    if sum(known_components) > total:
+        return False
+    if any(value == "not-reported" for value in components):
+        return True
+    return total == sum(known_components)
+
+
+def _valid_handoff_category_line(
+    line: str,
+    prefix: str,
+    allowlist: tuple[str, ...],
+) -> bool:
+    if not line.startswith(prefix):
+        return False
+    value = line[len(prefix) :]
+    if value == "none":
+        return True
+    parts = value.split("; ")
+    indexes: list[int] = []
+    for part in parts:
+        category, separator, count_text = part.rpartition("=")
+        if separator != "=" or category not in allowlist:
+            return False
+        if not re.fullmatch(r"[1-9][0-9]{0,6}", count_text):
+            return False
+        if int(count_text) > HANDOFF_MAX_COUNT:
+            return False
+        indexes.append(allowlist.index(category))
+    return len(indexes) == len(set(indexes)) and indexes == sorted(indexes)
+
+
 def _detect_owner(text: str, category: str, priority: str, confidence: str) -> str:
     if confidence == "low":
         return "Human maintainer/Senyo"
@@ -959,6 +1328,7 @@ def _suggested_labels(
     proposal_required: str,
     release_blocker: str,
     diagnostics_bundle: str,
+    inspector_handoff: str,
 ) -> list[str]:
     labels: list[str] = []
     if not labels_lower:
@@ -979,6 +1349,8 @@ def _suggested_labels(
         labels.append("has-diagnostics")
     elif diagnostics_bundle == "missing":
         labels.append("needs-bundle")
+    if inspector_handoff in {"native-summary", "dump-summary"}:
+        labels.append("has-inspector-handoff")
 
     deduped: list[str] = []
     for label in labels:
@@ -1053,12 +1425,21 @@ def analyze_issue(
     labels_lower = {label.lower() for label in labels}
     title = _issue_title(issue)
     body = issue.get("body") if isinstance(issue, dict) else ""
-    text = _normalise_text(title, body, " ".join(labels))
+    analysis_body = _body_without_inspector_handoff(body)
+    text = _normalise_text(title, analysis_body, " ".join(labels))
 
     category = _detect_category(text, labels_lower)
     priority = _detect_priority(text, category, labels_lower)
     diagnostics_bundle = _detect_diagnostics_bundle(text, category)
-    confidence = _confidence(issue, labels_lower=labels_lower, category=category, priority=priority)
+    inspector_handoff = _detect_inspector_handoff(body)
+    analysis_issue = dict(issue)
+    analysis_issue["body"] = analysis_body
+    confidence = _confidence(
+        analysis_issue,
+        labels_lower=labels_lower,
+        category=category,
+        priority=priority,
+    )
     owner = _detect_owner(text, category, priority, confidence)
     proposal_required = _proposal_required(text, category, priority)
     release_blocker = (
@@ -1073,6 +1454,7 @@ def analyze_issue(
         proposal_required=proposal_required,
         release_blocker=release_blocker,
         diagnostics_bundle=diagnostics_bundle,
+        inspector_handoff=inspector_handoff,
     )
     signals, candidate = _issue_signals(
         issue,
@@ -1084,6 +1466,8 @@ def analyze_issue(
         signals.append("diagnostics attached or mentioned")
     elif diagnostics_bundle == "missing":
         signals.append("diagnostics bundle missing")
+    if inspector_handoff in {"native-summary", "dump-summary"}:
+        signals.append("Inspector handoff present")
     needs_human_decision = (
         owner == "Human maintainer/Senyo"
         or confidence == "low"
@@ -1100,7 +1484,7 @@ def analyze_issue(
         created_at=_format_date(issue.get("created_at")),
         updated_at=_format_date(issue.get("updated_at")),
         current_labels=labels,
-        summary=_body_summary(body),
+        summary=_body_summary(analysis_body),
         category=category,
         priority=priority,
         owner=owner,
@@ -1119,6 +1503,7 @@ def analyze_issue(
         confidence=confidence,
         signals=signals,
         diagnostics_bundle=diagnostics_bundle,
+        inspector_handoff=inspector_handoff,
         needs_human_decision=needs_human_decision,
         candidate=candidate,
     )
@@ -1167,6 +1552,7 @@ def _render_issue(issue: AnalyzedIssue) -> str:
         - Suggested owner: {_escape_report_text(issue.owner)}
         - Suggested labels: {suggested_labels}
         - Diagnostics bundle: {_escape_report_text(issue.diagnostics_bundle)}
+        - Inspector handoff: {_escape_report_text(issue.inspector_handoff)}
         - Proposal required: {_escape_report_text(issue.proposal_required)}
         - Release blocker: {_escape_report_text(issue.release_blocker)}
         - Recommended action: {_escape_report_text(issue.recommended_action)}
@@ -1288,6 +1674,7 @@ def render_report(
         "Review P0/P1 and release-blocker candidates before any release promotion.",
         "Prioritise issues marked `has-diagnostics` after urgent safety/release blockers because they are faster to inspect.",
         "For bug/support reports marked `needs-bundle`, ask for the downloaded Home Assistant diagnostics file before deep investigation when practical.",
+        "Treat `has-inspector-handoff` as an advisory reduced summary only; it never replaces or verifies a native diagnostics attachment.",
         "Community ideas are intake signals only; use interest/comments for visibility, not approval or release authority.",
         "Apply labels, owner handoffs, assignments, comments, closures, or duplicate links manually only after maintainer review.",
         "Convert community ideas into formal HI proposal or handoff notes only if warranted before implementation.",
@@ -1349,10 +1736,14 @@ def render_report(
         "",
         _markdown_list(template_suggestions),
         "",
-        "## Diagnostics bundle guidance",
+        "## Diagnostics and Inspector handoff guidance",
         "",
         "- `has-diagnostics`: issue body mentions or links the downloaded native Home Assistant diagnostics file.",
         "- `needs-bundle`: bug, runtime, UI, or support issue lacks an attached or mentioned native diagnostics file.",
+        "- `has-inspector-handoff`: one exact, bounded `HI-SUPPORT-HANDOFF/1` block is present for advisory manual review.",
+        "- Inspector handoff status is reported separately as `absent`, `native-summary`, `dump-summary`, `invalid`, or `unsupported-version`.",
+        "- An Inspector handoff never satisfies `diagnostics_bundle`, never suggests `has-diagnostics`, and never removes `needs-bundle`.",
+        "- Handoff contents are not used to infer runtime health, safety, lane priority, release readiness, or correctness.",
         "- `dump_diagnostics` exports are local maintainer/debug output and are not treated as the safe GitHub attachment path.",
         "- Suggested labels are advisory only; this script does not create, apply, or remove labels.",
     ]
