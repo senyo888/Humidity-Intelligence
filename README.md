@@ -888,17 +888,32 @@ Then drag the downloaded file into the GitHub issue.
 Diagnostics help maintainers see:
 
 - Humidity Intelligence and Home Assistant versions
-- config entry/options summary
-- selected telemetry, gate, zone, AQ, humidifier, alert, and output entities
+- sanitized config entry/options summaries
+- configuration counts and selected-entity category/status summaries
 - enabled feature areas
-- current runtime lane/mode, gate state, output state, and reason text
+- current runtime lane/mode, gate state, output state, and reason availability/truncation
 - active alert resolution
 - house humidity drift dependency status
 - frontend dependency status when Home Assistant exposes Lovelace resources
 - generated UI/card summary
 - unavailable/unknown configured entities and support warnings
 
-Sensitive keys and values such as tokens, passwords, API keys, webhook URLs, credential-bearing URLs, location fields, usernames, host/IP/MAC/SSID values, device IDs, and unique IDs are redacted. Entity IDs are included because they are needed to debug mappings; review the file before uploading if your entity names contain personal details.
+Sensitive keys and values such as tokens, passwords, API keys, webhook URLs,
+credential-bearing URLs, location fields, usernames, host/IP/MAC/SSID values,
+device IDs, unique IDs, and private entity IDs are redacted. Selected
+entity/mapping/room/Area/Label evidence is generally reduced to counts and status
+categories, but user-configured display and level labels may remain. Review the
+complete file before uploading it to a public issue.
+
+The public [HI Support Bundle Inspector](https://senyo888.github.io/humidity-intelligence/inspector/)
+is an optional browser-local preflight for a supported diagnostics file. It can
+produce a short, unsigned advisory handoff for the bug-report and configuration-help
+forms. Native Home Assistant diagnostics remain the preferred attachment and
+repository/Wiki guidance remains support truth. Live runtime evidence, source
+correctness and anonymity remain separate assessments. Copying occurs only when the
+user activates Copy, and pasting the handoff into GitHub creates normal GitHub issue
+retention. Full `dump_diagnostics` exports remain local unless a maintainer explicitly
+requests one.
 
 Issue triage works best with diagnostics-first reports. For wider ideas, dashboard suggestions, compatibility requests, documentation improvements, or automation/control suggestions, use the Community Ideas & Proposals issue form. Community comments and reactions are useful interest signals; maintainer review and the proposal/release process carry approval and scheduling authority.
 

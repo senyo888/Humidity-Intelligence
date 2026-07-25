@@ -1,0 +1,154 @@
+{
+  "custom_components": {
+    "humidity_intelligence": {
+      "version": "2.0.8"
+    }
+  },
+  "data": {
+    "configuration": {
+      "enabled_feature_areas": {
+        "air_quality": false,
+        "alert_handling": true,
+        "alert_only_mode": false,
+        "generated_ui": false,
+        "humidifiers": false,
+        "telemetry": true,
+        "temperature_slope": false,
+        "visual_alerts": true,
+        "zone_control": true
+      },
+      "summary": {
+        "alert_only_mode": false,
+        "alert_rule_count": 1,
+        "aq_lane_count": 0,
+        "humidifier_lane_count": 0,
+        "telemetry_count": 1,
+        "zone_count": 1
+      }
+    },
+    "diagnostics_summary": {
+      "warnings": [
+        "4 configured/mapped entity references are missing, unknown, or unavailable.",
+        "HI House Humidity Drift 7d is unavailable because required statistics dependency sensor.house_humidity_mean_7d is missing."
+      ]
+    },
+    "generated_ui": {
+      "cached_layout_sizes": {
+        "v2_mobile": 15,
+        "v2_tablet": 25
+      },
+      "cached_layouts": [
+        "v2_mobile",
+        "v2_tablet"
+      ],
+      "configured_layouts": [],
+      "show_output_entity_details": false,
+      "unresolved_placeholders_by_card_count": 0,
+      "unresolved_placeholders_count": 0
+    },
+    "integration": {
+      "diagnostics_schema": 1,
+      "domain": "humidity_intelligence",
+      "home_assistant_version": "2026.5.2",
+      "integration_version": "2.0.8",
+      "native_home_assistant_diagnostics": true,
+      "runtime_control_changed_by_diagnostics": false
+    },
+    "privacy": {
+      "redaction": "Home Assistant async_redact_data plus HI URL/token/key sanitising.",
+      "review_reminder": "The bundle is designed to redact sensitive values, but users should review it before attaching it to a public GitHub issue."
+    },
+    "runtime": {
+      "active_lane": "alert",
+      "current_state": {
+        "reason_available": true,
+        "reason_truncated": false,
+        "runtime_mode": "alert",
+        "runtime_mode_display": "ALERT"
+      },
+      "gate_states": {
+        "control_switches": {},
+        "pause_timers": {},
+        "presence_gate": {
+          "away_state_count": 1,
+          "enabled": true,
+          "entity_status": {
+            "by_status": {
+              "available": 0,
+              "missing": 0,
+              "unavailable": 0,
+              "unknown": 1
+            },
+            "count": 1
+          },
+          "present_state_count": 1
+        },
+        "time_gate": {
+          "enabled": false,
+          "end": null,
+          "outside_action": null,
+          "start": null
+        }
+      },
+      "mapped_runtime_entities": {
+        "air_control_mode": {
+          "configured": true,
+          "status": "available"
+        },
+        "air_control_reason": {
+          "configured": true,
+          "status": "available"
+        },
+        "zone_output": {
+          "configured": true,
+          "status": "unavailable"
+        }
+      },
+      "output_states": {
+        "fan_outputs": {
+          "by_status": {
+            "available": 0,
+            "missing": 0,
+            "unavailable": 1,
+            "unknown": 0
+          },
+          "count": 1
+        },
+        "humidifier_outputs": {
+          "by_status": {
+            "available": 0,
+            "missing": 0,
+            "unavailable": 0,
+            "unknown": 0
+          },
+          "count": 0
+        },
+        "visual_alert_outputs": {
+          "by_status": {
+            "available": 0,
+            "missing": 2,
+            "unavailable": 0,
+            "unknown": 0
+          },
+          "count": 2
+        }
+      },
+      "unavailable_or_unknown_entities": {
+        "by_status": {
+          "missing": 2,
+          "unavailable": 1,
+          "unknown": 1
+        },
+        "count": 4
+      }
+    }
+  },
+  "home_assistant": {
+    "version": "2026.5.2"
+  },
+  "integration_manifest": {
+    "domain": "humidity_intelligence"
+  },
+  "issues": [],
+  "setup_times": {}
+}

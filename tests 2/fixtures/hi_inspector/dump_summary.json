@@ -1,0 +1,142 @@
+{
+  "0123456789abcdef0123456789abcdef": {
+    "cards": [
+      "v2_mobile",
+      "v2_tablet"
+    ],
+    "configuration_summary": {
+      "alert_rule_count": 1,
+      "aq_lane_count": 1,
+      "aq_output_count": 1,
+      "humidifier_lane_count": 1,
+      "humidifier_output_count": 1,
+      "option_keys": [],
+      "presence_gate_entity_count": 0,
+      "telemetry_by_level": {
+        "level1": 6,
+        "level2": 2
+      },
+      "telemetry_by_sensor_type": {
+        "co": 1,
+        "humidity": 3,
+        "iaq": 1,
+        "temperature": 3
+      },
+      "telemetry_count": 8,
+      "visual_alert_light_count": 1,
+      "visual_alert_power_entity_count": 1,
+      "zone_count": 2,
+      "zone_output_count": 2
+    },
+    "diagnostics_summary": {
+      "active_alert_resolution": {
+        "count": 0,
+        "trigger_types": []
+      },
+      "alert_mapping_count": 1,
+      "frontend_dependency_resources": {
+        "reason": "Synthetic fixture",
+        "status": "not_inspectable"
+      },
+      "humidity_drift_7d": {
+        "available": false,
+        "dependency_entity": "sensor.house_humidity_mean_7d",
+        "dependency_status": "missing",
+        "expected_source": "Home Assistant statistics sensor holding the 7-day mean of HI house average humidity.",
+        "history_status": "not_ready_or_unavailable",
+        "migration_hint": "Create a Statistics helper named House Humidity Mean 7d using the registered HI House Average Humidity entity as the source. Use state characteristic mean and max age 7 days. The helper entity ID must be sensor.house_humidity_mean_7d; rename the entity ID manually if Home Assistant creates a different one. Drift stays unavailable until recorder/statistics history coverage is sufficient.",
+        "repair_issue_id": "house_humidity_mean_7d_missing",
+        "repair_kind": "missing_helper",
+        "repair_required": true,
+        "repair_steps": [
+          "Create a Home Assistant Statistics helper named House Humidity Mean 7d.",
+          "Use the registered HI House Average Humidity entity as the source.",
+          "Set state characteristic to mean.",
+          "Set max age to 7 days.",
+          "Rename the helper entity ID to sensor.house_humidity_mean_7d if Home Assistant creates a different entity ID.",
+          "Wait for Home Assistant to collect enough samples; do not fabricate history."
+        ],
+        "repair_summary": "House humidity drift needs the House Humidity Mean 7d Statistics helper.",
+        "required_for": "HI House Humidity Drift 7d",
+        "source_entity": null,
+        "source_entity_status": "unresolved"
+      },
+      "level_labels": {
+        "level1": {
+          "label": "Level 1",
+          "source": "fallback"
+        },
+        "level2": {
+          "label": "Level 2",
+          "source": "fallback"
+        }
+      },
+      "local_version_preservation": {
+        "status": "not_configured"
+      },
+      "pm25_entity_id_normalization": {
+        "blocked_count": 0,
+        "blocked_reasons": [],
+        "changed_count": 0,
+        "status": "not_run"
+      },
+      "target_profile": {
+        "active_profile": "winter",
+        "active_season": "Winter",
+        "custom_target_high": null,
+        "custom_target_low": null,
+        "high_risk": 62.0,
+        "mode": "winter",
+        "target_high": 55.0,
+        "target_low": 45.0
+      },
+      "temperature_comfort": {
+        "active_label": "Custom",
+        "active_profile": "custom",
+        "custom_high": 23.0,
+        "custom_low": 19.0,
+        "mode": "custom",
+        "target_high": 23.0,
+        "target_low": 19.0,
+        "warm_high": 24.0,
+        "watch_high": 24.0
+      },
+      "unavailable_or_unknown_entities": {
+        "by_status": {
+          "missing": 15,
+          "unavailable": 1,
+          "unknown": 0
+        },
+        "count": 16
+      },
+      "visual_alert_count": 1,
+      "warnings": [
+        "16 configured/mapped entity references are missing, unknown, or unavailable.",
+        "HI House Humidity Drift 7d is unavailable because required statistics dependency sensor.house_humidity_mean_7d is missing."
+      ],
+      "zone_mapping_count": 2,
+      "zone_mapping_duplicates": {
+        "count": 0,
+        "pairs": {}
+      }
+    },
+    "entity_map_summary": {
+      "mapped_entity_count": 4,
+      "mapped_keys": [
+        "air_control_mode",
+        "air_control_reason",
+        "fan_output",
+        "optional_output"
+      ]
+    },
+    "state_summary": {
+      "by_status": {
+        "available": 2,
+        "missing": 1,
+        "unavailable": 1,
+        "unknown": 0
+      },
+      "count": 4
+    }
+  }
+}
