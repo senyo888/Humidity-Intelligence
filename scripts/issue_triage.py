@@ -371,6 +371,11 @@ _ENTITY_ID_RE = re.compile(
     re.I,
 )
 _SHARED_IPV4_NETWORK = ipaddress.ip_network("100.64.0.0/10")
+_SUMMARY_REDACTION_INPUT_FACTOR = 8
+_OVERSIZE_SUMMARY_MESSAGE = (
+    "Issue body summary omitted because selected content exceeds the safe "
+    "processing limit."
+)
 
 
 def _is_private_address(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
@@ -474,6 +479,8 @@ def _body_summary(body: Any, *, max_chars: int = 320) -> str:
 
     summary = " ".join(lines) if lines else body.strip()
     summary = re.sub(r"\s+", " ", summary)
+    if len(summary) > max_chars * _SUMMARY_REDACTION_INPUT_FACTOR:
+        summary = _OVERSIZE_SUMMARY_MESSAGE
     summary = _redact_issue_summary_privacy(summary)
     if len(summary) > max_chars:
         return summary[: max_chars - 1].rstrip() + "..."
@@ -1105,10 +1112,8 @@ def _detect_inspector_handoff(body: Any) -> str:
         return "invalid"
     schema = block[4].removeprefix("Backend diagnostics schema: ")
     if (
-        source_status == "native-summary"
-        and schema != "1"
-        or source_status == "dump-summary"
-        and schema != "not-reported"
+        (source_status == "native-summary" and schema != "1")
+        or (source_status == "dump-summary" and schema != "not-reported")
     ):
         return "invalid"
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import pathlib
+import shutil
 import stat
 import subprocess
 import sys
@@ -67,6 +68,8 @@ const handoff = createSupportHandoff(parsed.report);
 if (!handoff.ok) process.exit(3);
 process.stdout.write(handoff.text);
 """
+        if shutil.which("node") is None:
+            self.skipTest("node is required for cross-language handoff tests")
         completed = subprocess.run(
             ["node", "--input-type=module", "--eval", script],
             cwd=ROOT,
@@ -923,11 +926,6 @@ forbidden_actions:
                 self.assertEqual(analyzed.priority, "P0")
                 self.assertEqual(analyzed.confidence, "high")
                 self.assertEqual(analyzed.release_blocker, "yes")
-                if len(safety_line) > self.triage.HANDOFF_MAX_LINE_CHARS:
-                    self.assertGreater(
-                        len(safety_line),
-                        self.triage.HANDOFF_MAX_LINE_CHARS,
-                    )
 
     def test_inspector_handoff_status_is_escaped_and_raw_block_is_not_rendered(self) -> None:
         handoff = self._generated_handoff("native_schema1.json")
@@ -1126,6 +1124,35 @@ forbidden_actions:
             truncated,
             expected_source[:39].rstrip() + "...",
         )
+
+    def test_issue_summary_bounds_privacy_filter_input(self) -> None:
+        max_chars = 320
+        input_limit = max_chars * self.triage._SUMMARY_REDACTION_INPUT_FACTOR
+        path_prefix = "/Users/example/HI Work folder/"
+        long_path = (
+            path_prefix
+            + ("a" * (input_limit - len(path_prefix) - 1))
+            + "/private-end, ordinary prose"
+        )
+        self.assertEqual(
+            self.triage._redact_issue_summary_privacy(long_path),
+            "[redacted local path], ordinary prose",
+        )
+
+        with mock.patch.object(
+            self.triage,
+            "_redact_issue_summary_privacy",
+            side_effect=lambda value: value,
+        ) as redact:
+            summary = self.triage._body_summary(long_path, max_chars=max_chars)
+
+        self.assertLessEqual(
+            len(redact.call_args.args[0]),
+            input_limit,
+        )
+        self.assertEqual(summary, self.triage._OVERSIZE_SUMMARY_MESSAGE)
+        self.assertNotIn("HI Work folder", summary)
+        self.assertNotIn("private-end", summary)
 
     def test_issue_summary_privacy_redacts_decorated_secrets_mapped_ipv6_and_paths(
         self,

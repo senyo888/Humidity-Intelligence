@@ -2,6 +2,7 @@ export const HANDOFF_CONTRACT = "HI-SUPPORT-HANDOFF/1";
 export const HANDOFF_END = "HI-SUPPORT-HANDOFF-END/1";
 export const INSPECTOR_VERSION = "0.3.0-beta.1";
 export const MAX_HANDOFF_LENGTH = 4096;
+export const MAX_HANDOFF_LINE_LENGTH = 240;
 
 const MAX_COUNT = 1_000_000;
 const SOURCE_FORMATS = new Set([
@@ -99,7 +100,7 @@ export function createSupportHandoff(report) {
   const text = lines.join("\n");
   if (
     text.length > MAX_HANDOFF_LENGTH ||
-    lines.some((line) => line.length > 240)
+    lines.some((line) => line.length > MAX_HANDOFF_LINE_LENGTH)
   ) {
     return unavailable();
   }
