@@ -182,8 +182,8 @@ const renderReport = (report) => {
   setText(
     "privacy-summary",
     hasPrivacyRisk
-      ? `${report.privacy.total} common risky pattern${report.privacy.total === 1 ? "" : "s"} detected. Review the original locally; the Inspector does not render the matching values.`
-      : "No common risky pattern was detected. Automated checks cannot guarantee anonymity.",
+      ? `${report.privacy.total} common risky pattern${report.privacy.total === 1 ? "" : "s"} detected. Review the original locally; matching values stay excluded from the Inspector result.`
+      : "Common risky patterns detected: 0. Anonymity assessment remains with the user.",
   );
   renderCategories(
     "privacy-categories",
@@ -231,8 +231,8 @@ const renderReport = (report) => {
   setText(
     "warning-summary",
     report.warnings.total === 0
-      ? "No backend warning was reported."
-      : `${report.warnings.total} backend warning${report.warnings.total === 1 ? "" : "s"} grouped without rendering warning bodies.`,
+      ? "Backend warnings reported: 0."
+      : `${report.warnings.total} backend warning${report.warnings.total === 1 ? "" : "s"} grouped with warning bodies excluded.`,
   );
   renderCategories(
     "warning-categories",
@@ -243,8 +243,8 @@ const renderReport = (report) => {
   setText(
     "sharing-guidance",
     report.source.kind === "native-ha-diagnostics"
-      ? "Native Home Assistant diagnostics are the preferred support attachment. Review the original file yourself and attach it only when you are comfortable; this unsigned result is not proof of correctness or anonymity."
-      : "Keep the original dump_diagnostics export local unless a maintainer explicitly asks for it. This unsigned result is not a support attachment, live evidence, or proof of correctness or anonymity.",
+      ? "Native Home Assistant diagnostics are the preferred support attachment. Review the original file yourself and attach it only when you are comfortable; correctness and anonymity remain separate user assessments."
+      : "Keep the original dump_diagnostics export local unless a maintainer explicitly asks for it. Support attachment, live evidence, correctness and anonymity remain separate from this unsigned result.",
   );
 };
 

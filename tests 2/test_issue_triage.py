@@ -535,7 +535,7 @@ forbidden_actions:
             ),
             "unsupported inspector": (
                 handoff.replace(
-                    "Inspector version: 0.2.0-gate2",
+                    "Inspector version: 0.3.0-beta.1",
                     "Inspector version: 0.3.0",
                 ),
                 "unsupported-version",
@@ -830,7 +830,7 @@ forbidden_actions:
                     (
                         "HI-SUPPORT-HANDOFF/1",
                         "Product: HI Support Bundle Inspector",
-                        "Inspector version: 0.2.0-gate2",
+                        "Inspector version: 0.3.0-beta.1",
                         "Recognized input format: native-ha-diagnostics",
                         "Backend diagnostics schema: 1",
                     )

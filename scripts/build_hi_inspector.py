@@ -12,6 +12,7 @@ from html.parser import HTMLParser
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "site" / "inspector"
+PUBLIC_CANONICAL = "https://senyo888.github.io/humidity-intelligence/inspector/"
 FILES = (
     "app.mjs",
     "handoff.mjs",
@@ -96,7 +97,15 @@ def validate_sources(source: pathlib.Path | None = None) -> None:
         filename: (source / filename).read_text(encoding="utf-8")
         for filename in FILES
     }
-    combined = "\n".join(sources.values()).lower()
+    if sources["index.html"].count(PUBLIC_CANONICAL) != 1:
+        raise RuntimeError(
+            "Inspector HTML must contain exactly one public canonical URL"
+        )
+    scan_sources = {
+        **sources,
+        "index.html": sources["index.html"].replace(PUBLIC_CANONICAL, "", 1),
+    }
+    combined = "\n".join(scan_sources.values()).lower()
     for token in FORBIDDEN_CAPABILITIES:
         if token in combined:
             raise RuntimeError(f"Forbidden Inspector capability or reference: {token}")
@@ -139,6 +148,7 @@ def validate_sources(source: pathlib.Path | None = None) -> None:
     parser = _ReferenceParser()
     parser.feed(sources["index.html"])
     if sorted(parser.references) != [
+        ("link", PUBLIC_CANONICAL),
         ("link", "styles.css"),
         ("script", "app.mjs"),
     ]:
