@@ -327,7 +327,7 @@ test("privacy review reports categories without retaining matched values", () =>
   const payload = fixture("native_schema1.json");
   const privateUrl =
     "https://private.example.invalid/path?token=VeryPrivateToken_123456";
-  payload.privacy.secret = "VeryPrivateToken_123456";
+  payload.privacy["secret"] = "VeryPrivateToken_123456";
   payload.privacy.support_url = privateUrl;
   payload.privacy.owner_email = "fixture-owner@example.invalid";
 
