@@ -19,6 +19,7 @@ import {
   HANDOFF_END,
   INSPECTOR_VERSION,
   MAX_HANDOFF_LENGTH,
+  MAX_HANDOFF_LINE_LENGTH,
   PRIVACY_CATEGORIES,
   PRIVACY_CATEGORY_CODES,
   WARNING_CATEGORIES,
@@ -155,7 +156,7 @@ test("native report produces the exact bounded handoff contract", () => {
     "Configuration counts: zones=1; aq-lanes=0; humidifier-lanes=0; alert-rules=1",
   );
   assert.ok(handoff.text.length <= MAX_HANDOFF_LENGTH);
-  assert.ok(lines.every((line) => line.length <= 240));
+  assert.ok(lines.every((line) => line.length <= MAX_HANDOFF_LINE_LENGTH));
   assert.doesNotMatch(handoff.text, /telemetry/i);
   assert.doesNotMatch(handoff.text, /active lane|reason available/i);
 });
@@ -197,7 +198,7 @@ test("every allowlisted category fits the handoff line and block bounds", () => 
   assert.equal(handoff.ok, true);
   const lines = handoff.text.split("\n");
   assert.ok(handoff.text.length <= MAX_HANDOFF_LENGTH);
-  assert.ok(lines.every((line) => line.length <= 240));
+  assert.ok(lines.every((line) => line.length <= MAX_HANDOFF_LINE_LENGTH));
   for (const [, code] of [
     ...WARNING_CATEGORY_CODES,
     ...PRIVACY_CATEGORY_CODES,
@@ -325,9 +326,9 @@ test("dump summary cannot invent runtime or version truth", () => {
 
 test("privacy review reports categories without retaining matched values", () => {
   const payload = fixture("native_schema1.json");
-  const privateUrl =
-    "https://private.example.invalid/path?token=VeryPrivateToken_123456";
-  payload.privacy["secret"] = "VeryPrivateToken_123456";
+  const secretSentinel = "FIXTURE_PLACEHOLDER_VALUE_1";
+  const privateUrl = `https://private.example.invalid/path?token=${secretSentinel}`;
+  payload.privacy.secret_like_field = secretSentinel;
   payload.privacy.support_url = privateUrl;
   payload.privacy.owner_email = "fixture-owner@example.invalid";
 
@@ -342,7 +343,7 @@ test("privacy review reports categories without retaining matched values", () =>
   assert.ok(categories.includes("Email address"));
 
   const rendered = JSON.stringify(result.report);
-  assert.doesNotMatch(rendered, /VeryPrivateToken_123456/);
+  assert.doesNotMatch(rendered, /FIXTURE_PLACEHOLDER_VALUE_1/);
   assert.doesNotMatch(rendered, /private\.example\.invalid/);
   assert.doesNotMatch(rendered, /fixture-owner@example\.invalid/);
 });
