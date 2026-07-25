@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'none'; font-src 'none'; connect-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; child-src 'none'; manifest-src 'none'; form-action 'none'; base-uri 'none'"
+    >
+    <meta name="referrer" content="no-referrer">
+    <meta name="robots" content="noindex,nofollow,noarchive,nosnippet">
+    <meta
+      name="description"
+      content="A local beta sandbox for reviewing supported Humidity Intelligence diagnostics in the browser tab."
+    >
+    <title>HI Support Bundle Inspector</title>
+    <link rel="stylesheet" href="styles.css">
+    <script type="module" src="app.mjs"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+
+    <header class="site-header">
+      <div class="header-inner">
+        <span class="brand">HI Support Bundle Inspector</span>
+        <span class="beta-badge">Local beta sandbox</span>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <section class="hero" aria-labelledby="page-title">
+        <div class="hero-copy">
+          <p class="eyebrow">Browser-local support review</p>
+          <h1 id="page-title">HI Support Bundle Inspector</h1>
+          <p class="lede">
+            Review a supported Humidity Intelligence diagnostics file through a
+            small, allowlisted summary before deciding what to do next.
+          </p>
+          <p class="build-meta">
+            Inspector version <strong>0.1.0-gate1</strong>
+            <span aria-hidden="true">·</span>
+            Supported native diagnostics schema <strong>1</strong>
+          </p>
+
+          <div class="notice privacy-notice" id="privacy-contract">
+            <span class="notice-mark" aria-hidden="true">01</span>
+            <div>
+              <strong>Diagnostic contents stay in this browser tab.</strong>
+              <p>
+                No diagnostic-content upload or network request, API,
+                analytics, logging, browser storage, persistence or retention.
+                Selecting another file or closing the tab removes the in-memory
+                result. If separately published later, the static host would
+                still receive normal page-request metadata; file contents would
+                not leave this tab.
+              </p>
+            </div>
+          </div>
+
+          <div class="notice authority-notice">
+            <span class="notice-mark" aria-hidden="true">02</span>
+            <div>
+              <strong>This Inspector is not runtime or support authority.</strong>
+              <p>
+                Home Assistant and the HI backend remain authoritative. This
+                local beta does not diagnose HI, authenticate a file, verify
+                live state, infer or recalculate a reason, lane, target, gate or
+                output, recommend an action, change Home Assistant, or prove
+                privacy or anonymity.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <aside class="intake-card" aria-labelledby="intake-title">
+          <p class="step-label">Step 1</p>
+          <h2 id="intake-title">Choose one supported JSON file</h2>
+          <p class="quiet">Up to 1 MiB. The filename is never displayed.</p>
+
+          <input
+            class="visually-hidden"
+            id="diagnostics-file"
+            type="file"
+            tabindex="-1"
+            accept=".json,application/json"
+            aria-describedby="file-help privacy-contract"
+          >
+          <label
+            class="drop-zone"
+            for="diagnostics-file"
+            id="drop-zone"
+            role="button"
+            tabindex="0"
+            aria-describedby="file-help privacy-contract"
+          >
+            <span class="file-mark" aria-hidden="true">JSON</span>
+            <span>
+              <strong>Choose or drop diagnostics</strong>
+              <small id="file-help">
+                Native HI schema 1 or a current single-entry dump summary
+              </small>
+            </span>
+          </label>
+          <button class="clear-button" id="clear-button" type="button" disabled>
+            Clear local result
+          </button>
+
+          <p class="scope-note">
+            This tracked Gate 1 sandbox is not published support availability.
+            Native Home Assistant diagnostics remain the preferred support
+            attachment. Keep an original dump_diagnostics export local unless a
+            maintainer explicitly asks for it.
+          </p>
+        </aside>
+      </section>
+
+      <section
+        class="state-panel empty-state"
+        id="empty-state"
+        aria-labelledby="empty-title"
+        aria-live="polite"
+      >
+        <span class="state-mark" aria-hidden="true">—</span>
+        <div>
+          <h2 id="empty-title">No bundle selected</h2>
+          <p>
+            Choose a supported JSON file to create an in-memory, allowlisted
+            result.
+          </p>
+        </div>
+      </section>
+
+      <section
+        class="state-panel reading-state"
+        id="reading-state"
+        aria-labelledby="reading-title"
+        aria-live="polite"
+        hidden
+      >
+        <span class="state-mark" aria-hidden="true">…</span>
+        <div>
+          <h2 id="reading-title">Reading locally</h2>
+          <p>The previous in-memory result has been cleared.</p>
+        </div>
+      </section>
+
+      <section
+        class="state-panel error-state"
+        id="error-state"
+        role="alert"
+        aria-labelledby="error-title"
+        aria-live="assertive"
+        tabindex="-1"
+        hidden
+      >
+        <span class="state-mark" aria-hidden="true">!</span>
+        <div>
+          <p class="step-label">Input not accepted</p>
+          <h2 id="error-title">No result created</h2>
+          <p id="error-message">
+            The selected file does not match a supported diagnostics contract.
+          </p>
+          <p>
+            The Inspector fails closed for malformed, expanded, newer,
+            contradictory or resource-exhausting input.
+          </p>
+        </div>
+      </section>
+
+      <section
+        class="results"
+        id="results"
+        aria-labelledby="results-title"
+        tabindex="-1"
+        hidden
+      >
+        <div class="results-heading">
+          <div>
+            <p class="step-label">Step 2 · Allowlisted result</p>
+            <h2 id="results-title">Bundle review complete</h2>
+            <p id="source-summary">
+              The recognized source reports the following support facts.
+            </p>
+          </div>
+          <span class="source-badge" id="source-badge">Not reported</span>
+        </div>
+
+        <section class="privacy-result" aria-labelledby="privacy-title">
+          <span class="state-mark" aria-hidden="true" id="privacy-mark">✓</span>
+          <div>
+            <h3 id="privacy-title">Privacy pattern review</h3>
+            <p id="privacy-summary">
+              No common risky pattern was detected. Automated checks cannot
+              guarantee anonymity.
+            </p>
+            <ul class="category-list" id="privacy-categories"></ul>
+          </div>
+        </section>
+
+        <div class="result-grid">
+          <section class="result-card runtime-card" aria-labelledby="runtime-title">
+            <p class="step-label">Backend-reported state only</p>
+            <h3 id="runtime-title">Runtime summary</h3>
+            <dl class="fact-list">
+              <div>
+                <dt>Active lane</dt>
+                <dd id="active-lane">Not reported</dd>
+              </div>
+              <div>
+                <dt>Reason available</dt>
+                <dd id="reason-available">Not reported</dd>
+              </div>
+              <div>
+                <dt>Reason truncated</dt>
+                <dd id="reason-truncated">Not reported</dd>
+              </div>
+            </dl>
+            <p class="card-note">
+              Only a recognized canonical backend lane can appear. Reason
+              bodies and custom display labels are never shown.
+            </p>
+          </section>
+
+          <section class="result-card" aria-labelledby="versions-title">
+            <p class="step-label">Source provenance</p>
+            <h3 id="versions-title">Reported versions</h3>
+            <dl class="fact-list">
+              <div>
+                <dt>HI integration</dt>
+                <dd id="integration-version">Not reported</dd>
+              </div>
+              <div>
+                <dt>Home Assistant</dt>
+                <dd id="ha-version">Not reported</dd>
+              </div>
+              <div>
+                <dt>Diagnostics schema</dt>
+                <dd id="schema-version">Not reported</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section class="result-card wide" aria-labelledby="configuration-title">
+            <p class="step-label">Allowlisted counts</p>
+            <h3 id="configuration-title">Configuration summary</h3>
+            <dl class="metric-grid" id="configuration-metrics"></dl>
+            <ul
+              class="feature-list"
+              id="configuration-features"
+              aria-label="Backend-reported feature areas"
+            ></ul>
+          </section>
+
+          <section class="result-card wide" aria-labelledby="availability-title">
+            <p class="step-label">Distinct status buckets</p>
+            <h3 id="availability-title">Availability summary</h3>
+            <div
+              class="table-wrap"
+              role="region"
+              aria-label="Scrollable availability table"
+              tabindex="0"
+            >
+              <table>
+                <caption>
+                  Counts reported by the recognized source; unknown and
+                  unavailable remain distinct.
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Bucket</th>
+                    <th scope="col">Total</th>
+                    <th scope="col">Available</th>
+                    <th scope="col">Missing</th>
+                    <th scope="col">Unknown</th>
+                    <th scope="col">Unavailable</th>
+                  </tr>
+                </thead>
+                <tbody id="availability-rows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="result-card" aria-labelledby="controls-title">
+            <p class="step-label">Reported controls</p>
+            <h3 id="controls-title">Gates and timers</h3>
+            <dl class="fact-list">
+              <div>
+                <dt>Time gate enabled</dt>
+                <dd id="time-gate">Not reported</dd>
+              </div>
+              <div>
+                <dt>Presence gate enabled</dt>
+                <dd id="presence-gate">Not reported</dd>
+              </div>
+              <div>
+                <dt>Control switches</dt>
+                <dd id="control-switches">Not reported</dd>
+              </div>
+              <div>
+                <dt>Pause timers</dt>
+                <dd id="pause-timers">Not reported</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section class="result-card" aria-labelledby="ui-title">
+            <p class="step-label">Canonical names only</p>
+            <h3 id="ui-title">Generated UI summary</h3>
+            <div class="layout-group">
+              <strong>Configured layouts</strong>
+              <ul id="configured-layouts"></ul>
+            </div>
+            <div class="layout-group">
+              <strong>Cached layouts</strong>
+              <ul id="cached-layouts"></ul>
+            </div>
+            <dl class="fact-list compact">
+              <div>
+                <dt>Unresolved placeholders</dt>
+                <dd id="unresolved-placeholders">Not reported</dd>
+              </div>
+              <div>
+                <dt>Affected cards</dt>
+                <dd id="unresolved-cards">Not reported</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section class="result-card wide" aria-labelledby="warnings-title">
+            <p class="step-label">Local grouping, not diagnosis</p>
+            <h3 id="warnings-title">Backend warning categories</h3>
+            <p id="warning-summary">Warnings were not reported.</p>
+            <ul class="category-list" id="warning-categories"></ul>
+            <p class="card-note">
+              Only local category counts are shown. Raw warning bodies are never
+              rendered.
+            </p>
+          </section>
+        </div>
+
+        <section class="sharing-note" aria-labelledby="sharing-title">
+          <p class="step-label">Source-specific boundary</p>
+          <h3 id="sharing-title">Review before any support action</h3>
+          <p id="sharing-guidance">
+            This result is an unsigned, in-memory snapshot. It is not live
+            evidence, a diagnostic attachment, proof of correctness, or proof of
+            anonymity.
+          </p>
+        </section>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>
+        HI Support Bundle Inspector · Gate 1 local beta · no public support
+        availability
+      </p>
+    </footer>
+  </body>
+</html>
