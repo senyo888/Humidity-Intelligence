@@ -137,8 +137,9 @@ class PagesSiteTests(unittest.TestCase):
         self.assertIn('id="support"', html)
         self.assertIn("Support Humidity Intelligence", html)
         self.assertTrue(required_targets.issubset(set(parser.links)))
-        self.assertEqual(parser.links.count("inspector/"), 1)
-        self.assertEqual(urljoin(PAGES_URL, "inspector/"), INSPECTOR_URL)
+        inspector_links = [link for link in parser.links if link == "inspector/"]
+        self.assertEqual(len(inspector_links), 1)
+        self.assertEqual(urljoin(PAGES_URL, inspector_links[0]), INSPECTOR_URL)
 
     def test_referenced_site_assets_are_public_and_copied_by_workflow(self) -> None:
         _html, parser = parse_index()

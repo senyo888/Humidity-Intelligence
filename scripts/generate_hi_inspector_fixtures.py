@@ -309,7 +309,7 @@ def _check(
     fixture_root = fixture_root or FIXTURE_ROOT
     failures: list[str] = []
     tracked: dict[str, dict[str, Any]] = {}
-    for filename, payload in fixtures.items():
+    for filename in fixtures:
         path = fixture_root / filename
         if not path.is_file():
             failures.append(f"missing fixture {filename}")
