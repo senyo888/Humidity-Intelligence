@@ -27,6 +27,8 @@ import {
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const FIXTURES = path.join(ROOT, "tests 2", "fixtures", "hi_inspector");
+const INTEGRATION_VERSION_PATTERN =
+  /^\d{1,3}\.\d{1,3}\.\d{1,3}(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?(?:\+[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?$/;
 
 const fixtureText = (name) =>
   fs.readFileSync(path.join(FIXTURES, name), "utf8");
@@ -261,11 +263,19 @@ test("handoff fails closed for unknown source or native schema", () => {
 
 test("native schema 1 exposes only allowlisted backend facts", () => {
   const text = fixtureText("native_schema1.json");
+  const nativeFixture = JSON.parse(text);
   const result = parseDiagnosticsText(text, Buffer.byteLength(text));
 
   assert.equal(result.ok, true);
   assert.equal(result.report.source.kind, "native-ha-diagnostics");
-  assert.equal(result.report.integration.integrationVersion, "2.0.9-beta.1");
+  assert.match(
+    nativeFixture.integration.integration_version,
+    INTEGRATION_VERSION_PATTERN,
+  );
+  assert.equal(
+    result.report.integration.integrationVersion,
+    nativeFixture.integration.integration_version,
+  );
   assert.equal(result.report.integration.homeAssistantVersion, "2026.5.2");
   assert.equal(result.report.integration.schema, "1");
   assert.equal(result.report.runtime.activeLane, "alert");
