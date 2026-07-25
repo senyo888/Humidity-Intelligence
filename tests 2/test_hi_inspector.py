@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import importlib.util
 import pathlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -12,9 +14,11 @@ from html.parser import HTMLParser
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "site" / "inspector"
+BUILD_SCRIPT = ROOT / "scripts" / "build_hi_inspector.py"
 FIXTURES = ROOT / "tests 2" / "fixtures" / "hi_inspector"
 EXPECTED_SOURCE_FILES = {
     "app.mjs",
+    "handoff.mjs",
     "index.html",
     "inspection-session.mjs",
     "parser.mjs",
@@ -31,7 +35,7 @@ FORBIDDEN_CAPABILITIES = (
     "sessionstorage",
     "indexeddb",
     "document.cookie",
-    "navigator.clipboard",
+    "document.execcommand",
     "http://",
     "https://",
     "<form",
@@ -154,7 +158,7 @@ class HiInspectorStaticTests(unittest.TestCase):
         for phrase in (
             "HI Support Bundle Inspector",
             "Local beta sandbox",
-            "Inspector version <strong>0.1.0-gate1</strong>",
+            "Inspector version <strong>0.2.0-gate2</strong>",
             "Supported native diagnostics schema <strong>1</strong>",
             "No diagnostic-content upload or network request, API",
             "static host would",
@@ -165,17 +169,20 @@ class HiInspectorStaticTests(unittest.TestCase):
             "prove",
             "Native Home Assistant diagnostics remain the preferred support",
             "not published support availability",
+            "Pasting it into GitHub creates normal GitHub",
+            "Nothing is copied unless you activate the button",
+            "not a diagnostics attachment",
         ):
             self.assertIn(phrase, source)
         self.assertNotIn("Preflight", source)
         self.assertNotIn("support form", source.lower())
-        self.assertNotIn("copy to clipboard", source.lower())
 
     def test_relative_assets_resolve_under_nested_static_base(self) -> None:
         base = pathlib.PurePosixPath("/humidity-intelligence/inspector/")
         for reference in (
             "styles.css",
             "app.mjs",
+            "handoff.mjs",
             "inspection-session.mjs",
         ):
             resolved = base / reference
@@ -202,6 +209,86 @@ class HiInspectorStaticTests(unittest.TestCase):
             6,
         )
         self.assertIn("inspectionSession.invalidate();", source)
+        self.assertIn('handoffText.value = "";', source)
+        self.assertIn("currentHandoffText = \"\";", source)
+
+    def test_clipboard_is_limited_to_explicit_handoff_write(self) -> None:
+        source = (SOURCE / "app.mjs").read_text(encoding="utf-8")
+        self.assertEqual(source.count("navigator.clipboard"), 1)
+        self.assertEqual(source.count("clipboard.writeText"), 2)
+        self.assertEqual(
+            source.count("() => clipboard.writeText(copyText)"),
+            1,
+        )
+        self.assertNotIn("clipboard.read", source)
+        self.assertNotIn("document.execCommand", source)
+        self.assertIn("selectHandoffForManualCopy", source)
+        self.assertIn("settleRevisionBoundEffect", source)
+        self.assertIn('result.status === "success"', source)
+        self.assertIn('result.status === "error"', source)
+        self.assertIn("press Ctrl+C or Cmd+C", source)
+
+    def test_build_rejects_clipboard_access_in_non_app_modules(self) -> None:
+        spec = importlib.util.spec_from_file_location(
+            "hi_inspector_builder_test",
+            BUILD_SCRIPT,
+        )
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        builder = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(builder)
+
+        for filename in ("handoff.mjs", "parser.mjs"):
+            with self.subTest(filename=filename), tempfile.TemporaryDirectory() as tempdir:
+                mutated = pathlib.Path(tempdir) / "inspector"
+                shutil.copytree(SOURCE, mutated)
+                target = mutated / filename
+                target.write_text(
+                    target.read_text(encoding="utf-8")
+                    + "\nnavigator.clipboard.writeText('forbidden');\n",
+                    encoding="utf-8",
+                )
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "clipboard use exceeds",
+                ):
+                    builder.validate_sources(mutated)
+
+    def test_handoff_ui_is_readonly_and_explicit(self) -> None:
+        source = (SOURCE / "index.html").read_text(encoding="utf-8")
+        self.assertIn('id="handoff-text"', source)
+        self.assertIn("readonly", source)
+        self.assertIn('id="copy-handoff"', source)
+        self.assertIn("Copy allowlisted handoff", source)
+        self.assertIn('id="copy-status" role="status"', source)
+
+    def test_support_docs_do_not_overclaim_local_name_redaction(self) -> None:
+        for path in (ROOT / "README.md", ROOT / "docs" / "support.md"):
+            with self.subTest(path=path.name):
+                source = path.read_text(encoding="utf-8")
+                normalized = " ".join(source.split())
+                self.assertIn(
+                    "user-configured display and level labels may remain",
+                    normalized,
+                )
+                self.assertIn(
+                    "Review the complete file before uploading it to a public issue",
+                    normalized,
+                )
+
+    def test_optional_handoff_failure_does_not_hide_valid_result(self) -> None:
+        source = (SOURCE / "app.mjs").read_text(encoding="utf-8")
+        self.assertIn("if (handoff.ok)", source)
+        self.assertIn(
+            "The optional support handoff is unavailable for this result. "
+            "The Inspector result remains valid.",
+            source,
+        )
+        self.assertNotIn("showError(handoff.error)", source)
+        self.assertLess(
+            source.index("if (handoff.ok)"),
+            source.index("renderReport(parsed.report);"),
+        )
 
     def test_mobile_result_grid_contains_wide_table(self) -> None:
         source = (SOURCE / "styles.css").read_text(encoding="utf-8")

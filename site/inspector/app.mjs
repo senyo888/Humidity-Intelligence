@@ -2,9 +2,13 @@ import { LIMITS, parseDiagnosticsText } from "./parser.mjs";
 import {
   createInspectionSession,
   readTextForInspection,
+  settleRevisionBoundEffect,
 } from "./inspection-session.mjs";
+import { createSupportHandoff } from "./handoff.mjs";
 
 const inspectionSession = createInspectionSession();
+let currentHandoffText = "";
+let currentHandoffToken = null;
 const fileInput = document.querySelector("#diagnostics-file");
 const dropZone = document.querySelector("#drop-zone");
 const clearButton = document.querySelector("#clear-button");
@@ -13,6 +17,9 @@ const readingState = document.querySelector("#reading-state");
 const errorState = document.querySelector("#error-state");
 const errorMessage = document.querySelector("#error-message");
 const results = document.querySelector("#results");
+const handoffText = document.querySelector("#handoff-text");
+const copyHandoffButton = document.querySelector("#copy-handoff");
+const copyStatus = document.querySelector("#copy-status");
 
 const byId = (id) => document.getElementById(id);
 const showOnly = (visible) => {
@@ -120,6 +127,11 @@ const renderAvailability = (runtime) => {
 };
 
 const resetRenderedReport = () => {
+  currentHandoffText = "";
+  currentHandoffToken = null;
+  handoffText.value = "";
+  copyHandoffButton.disabled = true;
+  copyStatus.textContent = "";
   for (const id of [
     "source-badge",
     "source-summary",
@@ -289,7 +301,17 @@ const inspectFile = async (file) => {
     return;
   }
 
+  const handoff = createSupportHandoff(parsed.report);
   if (!inspectionSession.isCurrent(inspectionToken)) return;
+  if (handoff.ok) {
+    currentHandoffText = handoff.text;
+    currentHandoffToken = inspectionToken;
+    handoffText.value = currentHandoffText;
+    copyHandoffButton.disabled = false;
+  } else {
+    copyStatus.textContent =
+      "The optional support handoff is unavailable for this result. The Inspector result remains valid.";
+  }
   renderReport(parsed.report);
   showOnly(results);
   results.focus();
@@ -303,6 +325,43 @@ const clearResult = () => {
   resetRenderedReport();
   showOnly(emptyState);
   dropZone.focus();
+};
+
+const selectHandoffForManualCopy = (copyText, copyToken) => {
+  if (
+    !inspectionSession.isCurrent(copyToken) ||
+    currentHandoffToken !== copyToken ||
+    currentHandoffText !== copyText
+  ) {
+    return;
+  }
+  handoffText.focus();
+  handoffText.select();
+  handoffText.setSelectionRange(0, copyText.length);
+  copyStatus.textContent =
+    "Clipboard copy is unavailable. The handoff is selected; press Ctrl+C or Cmd+C.";
+};
+
+const copyHandoff = async () => {
+  const copyText = currentHandoffText;
+  const copyToken = currentHandoffToken;
+  if (!copyText || !copyToken || copyHandoffButton.disabled) return;
+  const clipboard = navigator.clipboard;
+  if (!clipboard || typeof clipboard.writeText !== "function") {
+    selectHandoffForManualCopy(copyText, copyToken);
+    return;
+  }
+  const result = await settleRevisionBoundEffect(
+    () => clipboard.writeText(copyText),
+    inspectionSession,
+    copyToken,
+  );
+  if (result.status === "success") {
+    copyStatus.textContent =
+      "Allowlisted handoff copied. Pasting it into GitHub creates normal GitHub retention.";
+  } else if (result.status === "error") {
+    selectHandoffForManualCopy(copyText, copyToken);
+  }
 };
 
 fileInput.addEventListener("change", () => {
@@ -337,3 +396,6 @@ dropZone.addEventListener("drop", (event) => {
 });
 
 clearButton.addEventListener("click", clearResult);
+copyHandoffButton.addEventListener("click", () => {
+  void copyHandoff();
+});

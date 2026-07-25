@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import pathlib
+import re
 import shutil
 from html.parser import HTMLParser
 
@@ -13,6 +14,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "site" / "inspector"
 FILES = (
     "app.mjs",
+    "handoff.mjs",
     "index.html",
     "inspection-session.mjs",
     "parser.mjs",
@@ -29,7 +31,7 @@ FORBIDDEN_CAPABILITIES = (
     "sessionstorage",
     "indexeddb",
     "document.cookie",
-    "navigator.clipboard",
+    "document.execcommand",
     "http://",
     "https://",
     "<form",
@@ -82,21 +84,57 @@ class _ReferenceParser(HTMLParser):
             self.inline_script_text += data
 
 
-def validate_sources() -> None:
-    actual = sorted(path.name for path in SOURCE.iterdir() if path.is_file())
+def validate_sources(source: pathlib.Path | None = None) -> None:
+    source = source or SOURCE
+    actual = sorted(path.name for path in source.iterdir() if path.is_file())
     if actual != sorted(FILES):
         raise RuntimeError(
             f"Static source allowlist mismatch: expected {sorted(FILES)}, got {actual}"
         )
 
     sources = {
-        filename: (SOURCE / filename).read_text(encoding="utf-8")
+        filename: (source / filename).read_text(encoding="utf-8")
         for filename in FILES
     }
     combined = "\n".join(sources.values()).lower()
     for token in FORBIDDEN_CAPABILITIES:
         if token in combined:
             raise RuntimeError(f"Forbidden Inspector capability or reference: {token}")
+
+    app_source = sources["app.mjs"]
+    executable_sources = {
+        filename: contents
+        for filename, contents in sources.items()
+        if filename.endswith(".mjs")
+    }
+    clipboard_modules = [
+        filename
+        for filename, contents in executable_sources.items()
+        if "navigator.clipboard" in contents
+    ]
+    if (
+        clipboard_modules != ["app.mjs"]
+        or sum(
+            contents.count("navigator.clipboard")
+            for contents in executable_sources.values()
+        )
+        != 1
+        or sum(
+            contents.count("clipboard.writeText")
+            for contents in executable_sources.values()
+        )
+        != 2
+        or app_source.count("navigator.clipboard") != 1
+        or app_source.count("clipboard.writeText") != 2
+        or app_source.count("() => clipboard.writeText(copyText)") != 1
+        or any(
+            re.search(r"\bclipboard\.(?!writeText\b)[A-Za-z_]\w*", contents)
+            for contents in executable_sources.values()
+        )
+    ):
+        raise RuntimeError(
+            "Inspector clipboard use exceeds the explicit handoff write allowlist"
+        )
 
     parser = _ReferenceParser()
     parser.feed(sources["index.html"])

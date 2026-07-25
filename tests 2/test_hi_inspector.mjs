@@ -11,7 +11,19 @@ import {
 import {
   createInspectionSession,
   readTextForInspection,
+  settleRevisionBoundEffect,
 } from "../site/inspector/inspection-session.mjs";
+import {
+  createSupportHandoff,
+  HANDOFF_CONTRACT,
+  HANDOFF_END,
+  INSPECTOR_VERSION,
+  MAX_HANDOFF_LENGTH,
+  PRIVACY_CATEGORIES,
+  PRIVACY_CATEGORY_CODES,
+  WARNING_CATEGORIES,
+  WARNING_CATEGORY_CODES,
+} from "../site/inspector/handoff.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const FIXTURES = path.join(ROOT, "tests 2", "fixtures", "hi_inspector");
@@ -77,6 +89,174 @@ test("current file read failures remain controlled errors", async () => {
     token,
   );
   assert.deepEqual(result, { status: "error" });
+});
+
+test("stale clipboard success cannot update a replacement result", async () => {
+  let resolveWrite;
+  const session = createInspectionSession();
+  const copyToken = session.begin();
+  const pending = settleRevisionBoundEffect(
+    () =>
+      new Promise((resolve) => {
+        resolveWrite = resolve;
+      }),
+    session,
+    copyToken,
+  );
+
+  session.begin();
+  resolveWrite();
+
+  assert.deepEqual(await pending, { status: "stale" });
+});
+
+test("stale clipboard failure cannot select a replacement handoff", async () => {
+  let rejectWrite;
+  const session = createInspectionSession();
+  const copyToken = session.begin();
+  const pending = settleRevisionBoundEffect(
+    () =>
+      new Promise((_resolve, reject) => {
+        rejectWrite = reject;
+      }),
+    session,
+    copyToken,
+  );
+
+  session.invalidate();
+  rejectWrite(new Error("clipboard permission changed"));
+
+  assert.deepEqual(await pending, { status: "stale" });
+});
+
+test("native report produces the exact bounded handoff contract", () => {
+  const parsed = parseDiagnosticsText(fixtureText("native_schema1.json"));
+  assert.equal(parsed.ok, true);
+  const handoff = createSupportHandoff(parsed.report);
+  assert.equal(handoff.ok, true);
+  const lines = handoff.text.split("\n");
+
+  assert.equal(lines.length, 16);
+  assert.equal(lines[0], HANDOFF_CONTRACT);
+  assert.equal(lines.at(-1), HANDOFF_END);
+  assert.equal(
+    lines[2],
+    `Inspector version: ${INSPECTOR_VERSION}`,
+  );
+  assert.equal(
+    lines[3],
+    "Recognized input format: native-ha-diagnostics",
+  );
+  assert.equal(lines[4], "Backend diagnostics schema: 1");
+  assert.equal(
+    lines[10],
+    "Configuration counts: zones=1; aq-lanes=0; humidifier-lanes=0; alert-rules=1",
+  );
+  assert.ok(handoff.text.length <= MAX_HANDOFF_LENGTH);
+  assert.ok(lines.every((line) => line.length <= 240));
+  assert.doesNotMatch(handoff.text, /telemetry/i);
+  assert.doesNotMatch(handoff.text, /active lane|reason available/i);
+});
+
+test("dump handoff preserves source distinction and not-reported schema", () => {
+  const parsed = parseDiagnosticsText(fixtureText("dump_summary.json"));
+  assert.equal(parsed.ok, true);
+  const handoff = createSupportHandoff(parsed.report);
+
+  assert.equal(handoff.ok, true);
+  assert.match(
+    handoff.text,
+    /^Recognized input format: dump-diagnostics-summary$/m,
+  );
+  assert.match(
+    handoff.text,
+    /^Backend diagnostics schema: not-reported$/m,
+  );
+  assert.match(
+    handoff.text,
+    /^Privacy finding categories: entity=4; token=1; private=1$/m,
+  );
+});
+
+test("every allowlisted category fits the handoff line and block bounds", () => {
+  const parsed = parseDiagnosticsText(fixtureText("native_schema1.json"));
+  assert.equal(parsed.ok, true);
+  const report = structuredClone(parsed.report);
+  report.warnings.categories = WARNING_CATEGORIES.map((category) => ({
+    category,
+    count: 1_000_000,
+  }));
+  report.privacy.categories = PRIVACY_CATEGORIES.map((category) => ({
+    category,
+    count: 1_000_000,
+  }));
+
+  const handoff = createSupportHandoff(report);
+  assert.equal(handoff.ok, true);
+  const lines = handoff.text.split("\n");
+  assert.ok(handoff.text.length <= MAX_HANDOFF_LENGTH);
+  assert.ok(lines.every((line) => line.length <= 240));
+  for (const [, code] of [
+    ...WARNING_CATEGORY_CODES,
+    ...PRIVACY_CATEGORY_CODES,
+  ]) {
+    assert.match(
+      handoff.text,
+      new RegExp(`(?:categories: |; )${code}=1000000(?:;|$)`, "m"),
+    );
+  }
+});
+
+test("handoff ignores arbitrary report strings and disallowed categories", () => {
+  const parsed = parseDiagnosticsText(fixtureText("native_schema1.json"));
+  assert.equal(parsed.ok, true);
+  const report = structuredClone(parsed.report);
+  const sentinels = [
+    "private-file-name.json",
+    "sensor.private_room",
+    "https://private.example.invalid/path",
+    "/Users/private/path",
+    "raw warning body",
+    "raw reason body",
+    "Kitchen",
+  ];
+  report.source.label = sentinels[0];
+  report.runtime.activeLane = sentinels[1];
+  report.runtime.reasonBody = sentinels[5];
+  report.arbitrary = sentinels;
+  report.warnings.categories.push({
+    category: sentinels[4],
+    count: 1,
+  });
+  report.privacy.categories.push({
+    category: sentinels[2],
+    count: 1,
+  });
+  const handoff = createSupportHandoff(report);
+
+  assert.equal(handoff.ok, true);
+  for (const sentinel of sentinels) {
+    assert.doesNotMatch(
+      handoff.text,
+      new RegExp(
+        sentinel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        "i",
+      ),
+    );
+  }
+});
+
+test("handoff fails closed for unknown source or native schema", () => {
+  const parsed = parseDiagnosticsText(fixtureText("native_schema1.json"));
+  assert.equal(parsed.ok, true);
+
+  const unknownSource = structuredClone(parsed.report);
+  unknownSource.source.kind = "future-source";
+  assert.equal(createSupportHandoff(unknownSource).ok, false);
+
+  const unknownSchema = structuredClone(parsed.report);
+  unknownSchema.integration.schema = "2";
+  assert.equal(createSupportHandoff(unknownSchema).ok, false);
 });
 
 test("native schema 1 exposes only allowlisted backend facts", () => {

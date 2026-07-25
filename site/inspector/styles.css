@@ -540,10 +540,71 @@ tbody th {
   font-size: 0.84rem;
 }
 
-.sharing-note {
+.sharing-note,
+.handoff-note {
   margin-top: 1.25rem;
   padding: 1.25rem;
   box-shadow: none;
+}
+
+.handoff-note {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.handoff-label {
+  display: block;
+  margin-block: 1rem 0.45rem;
+  font-weight: 800;
+}
+
+#handoff-text {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  padding: 0.85rem;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.handoff-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.8rem;
+}
+
+#copy-handoff {
+  min-height: 44px;
+  border: 1px solid var(--deep-teal);
+  border-radius: 0.75rem;
+  padding: 0.65rem 1rem;
+  background: var(--deep-teal);
+  color: white;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+#copy-handoff:hover:not(:disabled) {
+  background: var(--teal);
+}
+
+#copy-handoff:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+#copy-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
 }
 
 .site-footer {
@@ -592,6 +653,11 @@ tbody th {
 
   .results-heading {
     align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .handoff-actions {
+    align-items: stretch;
     flex-direction: column;
   }
 

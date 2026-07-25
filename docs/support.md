@@ -17,12 +17,12 @@ Please review the bundle before attaching if you are concerned about privacy. Th
 
 - Humidity Intelligence version
 - Home Assistant version
-- config entry and options summary
-- selected telemetry, gate, zone, AQ, humidifier, alert, and output entities
+- sanitized config entry and options summaries
+- configuration counts and selected-entity category/status summaries
 - enabled feature areas
 - Home Assistant Area/Label setup-assist status, including sanitized counts for
   advisory metadata context and saved-room mismatches
-- current runtime mode/lane and reason text
+- current runtime mode/lane and reason availability/truncation
 - gate states
 - output state summary
 - active alert resolution
@@ -52,8 +52,29 @@ It redacts sensitive keys and values such as:
 - usernames, email, phone, host, IP, MAC, SSID, device ID, and unique ID fields
 
 Native diagnostics prefer structure, counts, and statuses over raw entity IDs, room
-names, Area names, Label names, entity maps, and state dumps. Review the file before
-uploading if your local names contain personal information.
+names, Area names, Label names, entity maps, and state dumps. Selected mapping and
+local-name evidence is generally reduced, but user-configured display and level labels may remain.
+Review the complete file before uploading it to a public issue.
+
+## Optional Inspector Handoff (Gate 2 Adoption Sandbox)
+
+The local HI Support Bundle Inspector can generate a short
+`HI-SUPPORT-HANDOFF/1` block after it recognizes a supported diagnostics file. Bug
+reports and configuration-help issues provide a separate optional field for that
+text.
+
+The handoff is a reduced, unsigned advisory snapshot. It is not a diagnostics
+attachment, a live runtime reading, an authentication result, or proof that the
+source is anonymous or correct. It does not diagnose HI, infer a runtime reason, or
+recommend a lane. Native Home Assistant diagnostics remain the preferred attachment
+and the handoff never replaces them.
+
+The Inspector is an adoption sandbox and is not published as a public support route.
+Parsing and handoff generation stay in the browser. Nothing is copied until the user
+activates Copy; pasting the result into a GitHub issue creates normal GitHub
+retention. Do not paste the original diagnostics content into the handoff field.
+Full `dump_diagnostics` exports remain local unless a maintainer explicitly requests
+one.
 
 ## If You Cannot Download Diagnostics
 

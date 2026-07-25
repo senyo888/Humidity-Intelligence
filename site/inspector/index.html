@@ -37,7 +37,7 @@
             small, allowlisted summary before deciding what to do next.
           </p>
           <p class="build-meta">
-            Inspector version <strong>0.1.0-gate1</strong>
+            Inspector version <strong>0.2.0-gate2</strong>
             <span aria-hidden="true">·</span>
             Supported native diagnostics schema <strong>1</strong>
           </p>
@@ -106,7 +106,7 @@
           </button>
 
           <p class="scope-note">
-            This tracked Gate 1 sandbox is not published support availability.
+            This tracked Gate 2 adoption sandbox is not published support availability.
             Native Home Assistant diagnostics remain the preferred support
             attachment. Keep an original dump_diagnostics export local unless a
             maintainer explicitly asks for it.
@@ -347,12 +347,39 @@
             anonymity.
           </p>
         </section>
+
+        <section class="handoff-note" aria-labelledby="handoff-title">
+          <p class="step-label">Optional explicit copy</p>
+          <h3 id="handoff-title">Allowlisted Inspector handoff</h3>
+          <p id="handoff-help">
+            This readonly text is a reduced, unsigned advisory snapshot. It is
+            not a diagnostics attachment, live evidence, or proof of anonymity
+            or correctness. Pasting it into GitHub creates normal GitHub
+            retention. Nothing is copied unless you activate the button.
+          </p>
+          <label class="handoff-label" for="handoff-text">
+            HI Support Bundle Inspector handoff
+          </label>
+          <textarea
+            id="handoff-text"
+            rows="16"
+            readonly
+            spellcheck="false"
+            aria-describedby="handoff-help copy-status"
+          ></textarea>
+          <div class="handoff-actions">
+            <button id="copy-handoff" type="button" disabled>
+              Copy allowlisted handoff
+            </button>
+            <p id="copy-status" role="status" aria-live="polite"></p>
+          </div>
+        </section>
       </section>
     </main>
 
     <footer class="site-footer">
       <p>
-        HI Support Bundle Inspector · Gate 1 local beta · no public support
+        HI Support Bundle Inspector · Gate 2 adoption sandbox · no public support
         availability
       </p>
     </footer>
