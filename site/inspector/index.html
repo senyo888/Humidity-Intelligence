@@ -11,8 +11,9 @@
     <meta name="robots" content="noindex,nofollow,noarchive,nosnippet">
     <meta
       name="description"
-      content="A local beta sandbox for reviewing supported Humidity Intelligence diagnostics in the browser tab."
+      content="A public browser-local preflight that keeps supported Humidity Intelligence diagnostic contents in the browser tab."
     >
+    <link rel="canonical" href="https://senyo888.github.io/humidity-intelligence/inspector/">
     <title>HI Support Bundle Inspector</title>
     <link rel="stylesheet" href="styles.css">
     <script type="module" src="app.mjs"></script>
@@ -23,7 +24,7 @@
     <header class="site-header">
       <div class="header-inner">
         <span class="brand">HI Support Bundle Inspector</span>
-        <span class="beta-badge">Local beta sandbox</span>
+        <span class="beta-badge">Public beta · browser-local</span>
       </div>
     </header>
 
@@ -37,7 +38,7 @@
             small, allowlisted summary before deciding what to do next.
           </p>
           <p class="build-meta">
-            Inspector version <strong>0.2.0-gate2</strong>
+            Inspector version <strong>0.3.0-beta.1</strong>
             <span aria-hidden="true">·</span>
             Supported native diagnostics schema <strong>1</strong>
           </p>
@@ -45,14 +46,14 @@
           <div class="notice privacy-notice" id="privacy-contract">
             <span class="notice-mark" aria-hidden="true">01</span>
             <div>
-              <strong>Diagnostic contents stay in this browser tab.</strong>
+              <strong>Diagnostic contents remain in this browser tab.</strong>
               <p>
-                No diagnostic-content upload or network request, API,
-                analytics, logging, browser storage, persistence or retention.
-                Selecting another file or closing the tab removes the in-memory
-                result. If separately published later, the static host would
-                still receive normal page-request metadata; file contents would
-                not leave this tab.
+                Processing is browser-local and in-memory, with diagnostic-content
+                upload, network APIs, analytics, logging, browser storage,
+                persistence and retention excluded. Selecting another file or
+                closing the tab clears the in-memory result. The static host
+                receives normal page-request metadata; selected file contents
+                remain in this tab.
               </p>
             </div>
           </div>
@@ -60,13 +61,15 @@
           <div class="notice authority-notice">
             <span class="notice-mark" aria-hidden="true">02</span>
             <div>
-              <strong>This Inspector is not runtime or support authority.</strong>
+              <strong>Home Assistant and HI remain authoritative.</strong>
               <p>
-                Home Assistant and the HI backend remain authoritative. This
-                local beta does not diagnose HI, authenticate a file, verify
-                live state, infer or recalculate a reason, lane, target, gate or
-                output, recommend an action, change Home Assistant, or prove
-                privacy or anonymity.
+                The Inspector presents allowlisted backend-reported support
+                summaries alongside separately labelled local privacy-pattern
+                category counts. Those local counts are an advisory preflight.
+                Runtime decisions, source authentication, live-state verification,
+                reason and lane selection, support action and control remain with
+                Home Assistant, HI and maintainer review. Privacy and anonymity
+                assessment remain with the user.
               </p>
             </div>
           </div>
@@ -75,7 +78,7 @@
         <aside class="intake-card" aria-labelledby="intake-title">
           <p class="step-label">Step 1</p>
           <h2 id="intake-title">Choose one supported JSON file</h2>
-          <p class="quiet">Up to 1 MiB. The filename is never displayed.</p>
+          <p class="quiet">Up to 1 MiB. The interface keeps the filename hidden.</p>
 
           <input
             class="visually-hidden"
@@ -106,7 +109,7 @@
           </button>
 
           <p class="scope-note">
-            This tracked Gate 2 adoption sandbox is not published support availability.
+            This public beta is an optional browser-local support preflight.
             Native Home Assistant diagnostics remain the preferred support
             attachment. Keep an original dump_diagnostics export local unless a
             maintainer explicitly asks for it.
@@ -155,10 +158,10 @@
       >
         <span class="state-mark" aria-hidden="true">!</span>
         <div>
-          <p class="step-label">Input not accepted</p>
-          <h2 id="error-title">No result created</h2>
+          <p class="step-label">Input outside the supported contract</p>
+          <h2 id="error-title">Result unavailable</h2>
           <p id="error-message">
-            The selected file does not match a supported diagnostics contract.
+            Choose a current supported Humidity Intelligence diagnostics file.
           </p>
           <p>
             The Inspector fails closed for malformed, expanded, newer,
@@ -216,8 +219,8 @@
               </div>
             </dl>
             <p class="card-note">
-              Only a recognized canonical backend lane can appear. Reason
-              bodies and custom display labels are never shown.
+              The active lane comes from the recognized canonical backend
+              allowlist. Reason bodies and custom display labels stay excluded.
             </p>
           </section>
 
@@ -327,13 +330,13 @@
           </section>
 
           <section class="result-card wide" aria-labelledby="warnings-title">
-            <p class="step-label">Local grouping, not diagnosis</p>
+            <p class="step-label">Local advisory grouping</p>
             <h3 id="warnings-title">Backend warning categories</h3>
             <p id="warning-summary">Warnings were not reported.</p>
             <ul class="category-list" id="warning-categories"></ul>
             <p class="card-note">
-              Only local category counts are shown. Raw warning bodies are never
-              rendered.
+              This surface displays local category counts while raw warning
+              bodies stay excluded.
             </p>
           </section>
         </div>
@@ -342,9 +345,9 @@
           <p class="step-label">Source-specific boundary</p>
           <h3 id="sharing-title">Review before any support action</h3>
           <p id="sharing-guidance">
-            This result is an unsigned, in-memory snapshot. It is not live
-            evidence, a diagnostic attachment, proof of correctness, or proof of
-            anonymity.
+            This result is an unsigned, in-memory snapshot for advisory review.
+            Live evidence, the diagnostic attachment, source correctness and
+            anonymity remain separate evidence.
           </p>
         </section>
 
@@ -352,10 +355,10 @@
           <p class="step-label">Optional explicit copy</p>
           <h3 id="handoff-title">Allowlisted Inspector handoff</h3>
           <p id="handoff-help">
-            This readonly text is a reduced, unsigned advisory snapshot. It is
-            not a diagnostics attachment, live evidence, or proof of anonymity
-            or correctness. Pasting it into GitHub creates normal GitHub
-            retention. Nothing is copied unless you activate the button.
+            This readonly text is a reduced, unsigned advisory snapshot. The
+            diagnostics attachment, live evidence, anonymity and correctness
+            remain separate evidence. Pasting it into GitHub creates normal
+            GitHub retention. Copying occurs only when you activate the button.
           </p>
           <label class="handoff-label" for="handoff-text">
             HI Support Bundle Inspector handoff
@@ -379,8 +382,7 @@
 
     <footer class="site-footer">
       <p>
-        HI Support Bundle Inspector · Gate 2 adoption sandbox · no public support
-        availability
+        HI Support Bundle Inspector · public browser-local preflight · advisory only
       </p>
     </footer>
   </body>

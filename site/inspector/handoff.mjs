@@ -1,6 +1,6 @@
 export const HANDOFF_CONTRACT = "HI-SUPPORT-HANDOFF/1";
 export const HANDOFF_END = "HI-SUPPORT-HANDOFF-END/1";
-export const INSPECTOR_VERSION = "0.2.0-gate2";
+export const INSPECTOR_VERSION = "0.3.0-beta.1";
 export const MAX_HANDOFF_LENGTH = 4096;
 
 const MAX_COUNT = 1_000_000;

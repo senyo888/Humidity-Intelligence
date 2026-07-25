@@ -15,6 +15,7 @@ from html.parser import HTMLParser
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "site" / "inspector"
 BUILD_SCRIPT = ROOT / "scripts" / "build_hi_inspector.py"
+PUBLIC_CANONICAL = "https://senyo888.github.io/humidity-intelligence/inspector/"
 FIXTURES = ROOT / "tests 2" / "fixtures" / "hi_inspector"
 EXPECTED_SOURCE_FILES = {
     "app.mjs",
@@ -110,11 +111,18 @@ class HiInspectorStaticTests(unittest.TestCase):
             {path.name for path in SOURCE.iterdir() if path.is_file()},
             EXPECTED_SOURCE_FILES,
         )
-        combined = "\n".join(
-            path.read_text(encoding="utf-8")
+        sources = {
+            path.name: path.read_text(encoding="utf-8")
             for path in sorted(SOURCE.iterdir())
             if path.is_file()
-        ).lower()
+        }
+        self.assertEqual(sources["index.html"].count(PUBLIC_CANONICAL), 1)
+        sources["index.html"] = sources["index.html"].replace(
+            PUBLIC_CANONICAL,
+            "",
+            1,
+        )
+        combined = "\n".join(sources.values()).lower()
         for capability in FORBIDDEN_CAPABILITIES:
             self.assertNotIn(capability, combined)
         self.assertNotIn("console.", combined)
@@ -126,7 +134,10 @@ class HiInspectorStaticTests(unittest.TestCase):
         parser = _InspectorHtmlParser()
         parser.feed(source)
 
-        self.assertEqual(parser.references, ["styles.css", "app.mjs"])
+        self.assertEqual(
+            parser.references,
+            [PUBLIC_CANONICAL, "styles.css", "app.mjs"],
+        )
         self.assertEqual(parser.file_inputs, 1)
         self.assertEqual(parser.file_input_tabindexes, ["-1"])
         self.assertEqual(parser.drop_zone_roles, ["button"])
@@ -153,28 +164,30 @@ class HiInspectorStaticTests(unittest.TestCase):
             self.assertIn(directive, csp)
         self.assertNotIn("frame-ancestors", csp)
 
-    def test_copy_is_explicit_about_local_beta_and_authority_boundaries(self) -> None:
+    def test_copy_is_explicit_about_public_preflight_and_authority_boundaries(self) -> None:
         source = (SOURCE / "index.html").read_text(encoding="utf-8")
+        normalized = " ".join(source.split())
         for phrase in (
             "HI Support Bundle Inspector",
-            "Local beta sandbox",
-            "Inspector version <strong>0.2.0-gate2</strong>",
+            "Public beta · browser-local",
+            "Inspector version <strong>0.3.0-beta.1</strong>",
             "Supported native diagnostics schema <strong>1</strong>",
-            "No diagnostic-content upload or network request, API",
-            "static host would",
-            "receive normal page-request metadata",
-            "Home Assistant and the HI backend remain authoritative",
-            "does not diagnose HI",
-            "does not",
-            "prove",
+            "Processing is browser-local and in-memory",
+            "static host receives normal page-request metadata",
+            "Home Assistant and HI remain authoritative",
+            "allowlisted backend-reported support summaries",
+            "separately labelled local privacy-pattern category counts",
+            "Those local counts are an advisory preflight",
+            "Runtime decisions, source authentication, live-state",
+            "Privacy and anonymity assessment remain with the user",
             "Native Home Assistant diagnostics remain the preferred support",
-            "not published support availability",
+            "public beta is an optional browser-local support preflight",
             "Pasting it into GitHub creates normal GitHub",
-            "Nothing is copied unless you activate the button",
-            "not a diagnostics attachment",
+            "Copying occurs only when you activate the button",
+            "remain separate evidence",
         ):
-            self.assertIn(phrase, source)
-        self.assertNotIn("Preflight", source)
+            self.assertIn(phrase, normalized)
+        self.assertIn(f'rel="canonical" href="{PUBLIC_CANONICAL}"', source)
         self.assertNotIn("support form", source.lower())
 
     def test_relative_assets_resolve_under_nested_static_base(self) -> None:
@@ -253,6 +266,31 @@ class HiInspectorStaticTests(unittest.TestCase):
                     "clipboard use exceeds",
                 ):
                     builder.validate_sources(mutated)
+
+    def test_build_rejects_public_canonical_url_in_executable_module(self) -> None:
+        spec = importlib.util.spec_from_file_location(
+            "hi_inspector_builder_canonical_test",
+            BUILD_SCRIPT,
+        )
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        builder = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(builder)
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            mutated = pathlib.Path(tempdir) / "inspector"
+            shutil.copytree(SOURCE, mutated)
+            target = mutated / "app.mjs"
+            target.write_text(
+                target.read_text(encoding="utf-8")
+                + f'\nwindow.location.href = "{PUBLIC_CANONICAL}";\n',
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "https://",
+            ):
+                builder.validate_sources(mutated)
 
     def test_handoff_ui_is_readonly_and_explicit(self) -> None:
         source = (SOURCE / "index.html").read_text(encoding="utf-8")

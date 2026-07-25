@@ -905,12 +905,12 @@ entity/mapping/room/Area/Label evidence is generally reduced to counts and statu
 categories, but user-configured display and level labels may remain. Review the
 complete file before uploading it to a public issue.
 
-Gate 2 adds an optional, local Inspector handoff for the bug-report and
-configuration-help forms. It is a short, unsigned advisory summary generated from a
-supported diagnostics file; it is not the diagnostics attachment, a live runtime
-reading, or proof that the source is anonymous or correct. The native Home Assistant
-diagnostics file remains the preferred attachment. The Inspector is an adoption
-sandbox and is not published as a public support route. Nothing is copied until the
+The public [HI Support Bundle Inspector](https://senyo888.github.io/humidity-intelligence/inspector/)
+is an optional browser-local preflight for a supported diagnostics file. It can
+produce a short, unsigned advisory handoff for the bug-report and configuration-help
+forms. Native Home Assistant diagnostics remain the preferred attachment and
+repository/Wiki guidance remains support truth. Live runtime evidence, source
+correctness and anonymity remain separate assessments. Copying occurs only when the
 user activates Copy, and pasting the handoff into GitHub creates normal GitHub issue
 retention. Full `dump_diagnostics` exports remain local unless a maintainer explicitly
 requests one.
