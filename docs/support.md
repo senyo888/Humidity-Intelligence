@@ -17,12 +17,12 @@ Please review the bundle before attaching if you are concerned about privacy. Th
 
 - Humidity Intelligence version
 - Home Assistant version
-- config entry and options summary
-- selected telemetry, gate, zone, AQ, humidifier, alert, and output entities
+- sanitized config entry and options summaries
+- configuration counts and selected-entity category/status summaries
 - enabled feature areas
 - Home Assistant Area/Label setup-assist status, including sanitized counts for
   advisory metadata context and saved-room mismatches
-- current runtime mode/lane and reason text
+- current runtime mode/lane and reason availability/truncation
 - gate states
 - output state summary
 - active alert resolution
@@ -52,8 +52,30 @@ It redacts sensitive keys and values such as:
 - usernames, email, phone, host, IP, MAC, SSID, device ID, and unique ID fields
 
 Native diagnostics prefer structure, counts, and statuses over raw entity IDs, room
-names, Area names, Label names, entity maps, and state dumps. Review the file before
-uploading if your local names contain personal information.
+names, Area names, Label names, entity maps, and state dumps. Selected mapping and
+local-name evidence is generally reduced, but user-configured display and level labels may remain.
+Review the complete file before uploading it to a public issue.
+
+## Optional Public Inspector Preflight
+
+The public
+[HI Support Bundle Inspector](https://senyo888.github.io/humidity-intelligence/inspector/)
+processes a supported diagnostics file in the browser tab and can generate a short
+`HI-SUPPORT-HANDOFF/1` block. Bug reports and configuration-help issues provide a
+separate optional field for that text.
+
+The handoff is a reduced, unsigned advisory snapshot. Native Home Assistant
+diagnostics remain the preferred attachment. Runtime decisions, source
+authentication, live-state verification, reason and lane selection remain with Home
+Assistant and HI; correctness and anonymity remain separate user assessments.
+
+The Inspector is an optional preflight; repository and Wiki guidance remain canonical
+support documentation. Parsing and handoff generation stay in the browser tab.
+GitHub Pages receives normal page-request metadata while selected diagnostic contents
+remain in the tab. Copying occurs only when the user activates Copy; pasting the
+result into a GitHub issue creates normal GitHub retention. The handoff field accepts
+only the generated handoff text. Full `dump_diagnostics` exports remain local unless
+a maintainer explicitly requests one.
 
 ## If You Cannot Download Diagnostics
 

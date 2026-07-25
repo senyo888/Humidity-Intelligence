@@ -40,6 +40,15 @@ private Home Assistant URLs and hosts, local network addresses, bearer credentia
 tokens, device IDs, local user paths, and Home Assistant entity IDs. Public issue links
 remain available for triage.
 
+Inspector handoffs are parsed as an exact, bounded `HI-SUPPORT-HANDOFF/1` contract.
+Only fixed fields, bounded counts, and allowlisted warning/privacy categories are
+accepted. Closed, bounded malformed, injected, duplicated, or unsupported-version
+blocks are classified without rendering their contents or influencing priority,
+safety, release, runtime, or lane analysis. For unmatched or over-bound attempts,
+marker lines and consecutive lines that strictly match the handoff contract grammar
+are neutralized; privacy-filtered triage resumes at the first ordinary line so
+legitimate safety or release evidence that follows cannot be suppressed.
+
 The filter is defense in depth, not permission to publish a generated report
 automatically. Reports remain ignored/local and must be reviewed before any sanitized
 extract is shared.
@@ -142,6 +151,14 @@ diagnostics download and suggests `has-diagnostics`. Bug, runtime, UI, or suppor
 issues without an attached or mentioned native diagnostics file are suggested for
 `needs-bundle`.
 
+Bug and configuration-help forms also provide a separate optional Inspector handoff
+field. Triage reports classify it as `absent`, `native-summary`, `dump-summary`,
+`invalid`, or `unsupported-version`. A valid block suggests
+`has-inspector-handoff`, but never satisfies the diagnostics-bundle signal, suggests
+`has-diagnostics`, removes `needs-bundle`, or changes runtime, safety, priority, and
+release inference. It is an unsigned advisory summary, not a diagnostics attachment
+or proof that the source is anonymous or correct.
+
 The existing `humidity_intelligence.dump_diagnostics` JSON export remains a local
 maintainer/debug tool. It should not be counted as the safe GitHub issue attachment
 path unless a maintainer explicitly asks for it.
@@ -155,7 +172,7 @@ Suggested maintainer flow:
 2. Prioritise `has-diagnostics` issues next because they are faster to inspect.
 3. For `needs-bundle` issues, ask the reporter to attach the downloaded Home Assistant diagnostics file when practical.
 4. Route `community-proposal` issues through maintainer/Bella review before any implementation planning. Convert a community idea into a formal HI proposal only if warranted.
-5. Inspect diagnostics locally before deep investigation; the file should include versions, selected entities, runtime lane/reason, gates, outputs, frontend dependency status, generated UI summary, and redacted diagnostics.
+5. Inspect diagnostics locally before deep investigation; the file should include versions, sanitized configuration and selected-entity summaries, runtime lane/mode and reason availability, gates, outputs, frontend dependency status, generated UI summary, and redacted diagnostics.
 
 ## Implemented Issue Template Triage Fields
 
@@ -187,7 +204,9 @@ Bug reports include a `Checks already tried` field for commands or services alre
 run, such as downloading diagnostics, `refresh_ui`, `self_check`,
 `v205_release_check`, `dump_diagnostics`, or a Home Assistant restart.
 
-Bug reports and configuration help include an optional diagnostics attachment field.
+Bug reports and configuration help include an optional diagnostics attachment field
+and a separate optional Inspector handoff field. The handoff field accepts only the
+copied v1 block and explicitly warns users not to paste original diagnostic content.
 Version/setup fallback fields remain available for users who cannot download
 diagnostics.
 
@@ -245,3 +264,4 @@ Recommended manual labels after review:
 - `support`
 - `needs-bundle`
 - `has-diagnostics`
+- `has-inspector-handoff`

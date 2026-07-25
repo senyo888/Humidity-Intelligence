@@ -19,6 +19,12 @@ body:
       label: Attach your Humidity Intelligence diagnostics file
       description: Drag the downloaded Home Assistant diagnostics file here, or write "Unable to download diagnostics" and fill in the fallback fields below.
       render: text
+  - type: textarea
+    id: inspector-handoff
+    attributes:
+      label: HI Support Bundle Inspector handoff (optional)
+      description: Paste only the copied HI-SUPPORT-HANDOFF/1 text if you used the Inspector. This advisory summary is separate from, and does not replace, the preferred native diagnostics attachment. Do not paste the original diagnostics content here.
+      render: text
   - type: input
     id: hi-version
     attributes:

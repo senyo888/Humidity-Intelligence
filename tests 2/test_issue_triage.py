@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import pathlib
 import stat
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -29,6 +30,68 @@ class IssueTriageTests(unittest.TestCase):
     def setUp(self) -> None:
         self.triage = _load_issue_triage()
         self.generated_at = datetime(2026, 5, 17, 9, 0, tzinfo=timezone.utc)
+
+    def _generated_handoff(
+        self,
+        fixture_name: str,
+        *,
+        all_categories: bool = False,
+    ) -> str:
+        self.assertIn(
+            fixture_name,
+            {"native_schema1.json", "dump_summary.json"},
+        )
+        script = f"""
+import fs from "node:fs";
+import {{ parseDiagnosticsText }} from "./site/inspector/parser.mjs";
+import {{
+  createSupportHandoff,
+  PRIVACY_CATEGORIES,
+  WARNING_CATEGORIES,
+}} from "./site/inspector/handoff.mjs";
+const text = fs.readFileSync(
+  "tests 2/fixtures/hi_inspector/{fixture_name}",
+  "utf8",
+);
+const parsed = parseDiagnosticsText(text);
+if (!parsed.ok) process.exit(2);
+if ({str(all_categories).lower()}) {{
+  parsed.report.warnings.categories = WARNING_CATEGORIES.map(
+    (category) => ({{ category, count: 1_000_000 }}),
+  );
+  parsed.report.privacy.categories = PRIVACY_CATEGORIES.map(
+    (category) => ({{ category, count: 1_000_000 }}),
+  );
+}}
+const handoff = createSupportHandoff(parsed.report);
+if (!handoff.ok) process.exit(3);
+process.stdout.write(handoff.text);
+"""
+        completed = subprocess.run(
+            ["node", "--input-type=module", "--eval", script],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            completed.returncode,
+            0,
+            completed.stdout + completed.stderr,
+        )
+        return completed.stdout
+
+    def _handoff_issue(self, body: str) -> dict:
+        return {
+            "number": 91,
+            "title": "Inspector handoff review",
+            "html_url": "https://github.com/senyo888/humidity-intelligence/issues/91",
+            "user": {"login": "tester"},
+            "created_at": "2026-05-17T08:00:00Z",
+            "updated_at": "2026-05-17T08:30:00Z",
+            "labels": [{"name": "bug"}],
+            "body": body,
+        }
 
     def test_co_emergency_issue_routes_to_aetherwing_as_release_blocker(self) -> None:
         issue = {
@@ -374,6 +437,547 @@ forbidden_actions:
         self.assertIn("needs-bundle", analyzed.suggested_labels)
         self.assertNotIn("has-diagnostics", analyzed.suggested_labels)
 
+    def test_cross_language_native_handoff_is_advisory_and_needs_bundle_remains(self) -> None:
+        handoff = self._generated_handoff("native_schema1.json")
+        analyzed = self.triage.analyze_issue(
+            self._handoff_issue(handoff),
+            now=self.generated_at,
+            lookback_days=3,
+        )
+
+        self.assertEqual(analyzed.inspector_handoff, "native-summary")
+        self.assertEqual(analyzed.diagnostics_bundle, "missing")
+        self.assertEqual(analyzed.category, "bug")
+        self.assertEqual(analyzed.priority, "P2")
+        self.assertIn("has-inspector-handoff", analyzed.suggested_labels)
+        self.assertIn("needs-bundle", analyzed.suggested_labels)
+        self.assertNotIn("has-diagnostics", analyzed.suggested_labels)
+        self.assertIn("Inspector handoff present", analyzed.signals)
+
+    def test_cross_language_dump_handoff_is_separate_from_diagnostics(self) -> None:
+        handoff = self._generated_handoff("dump_summary.json")
+        analyzed = self.triage.analyze_issue(
+            self._handoff_issue(handoff),
+            now=self.generated_at,
+            lookback_days=3,
+        )
+
+        self.assertEqual(analyzed.inspector_handoff, "dump-summary")
+        self.assertEqual(analyzed.diagnostics_bundle, "missing")
+        self.assertIn("has-inspector-handoff", analyzed.suggested_labels)
+        self.assertIn("needs-bundle", analyzed.suggested_labels)
+        self.assertNotIn("has-diagnostics", analyzed.suggested_labels)
+
+    def test_cross_language_all_category_handoff_remains_bounded_and_valid(self) -> None:
+        handoff = self._generated_handoff(
+            "native_schema1.json",
+            all_categories=True,
+        )
+        analyzed = self.triage.analyze_issue(
+            self._handoff_issue(handoff),
+            now=self.generated_at,
+            lookback_days=3,
+        )
+
+        self.assertEqual(analyzed.inspector_handoff, "native-summary")
+        self.assertIn(
+            "Backend warning categories: cfg=1000000; ent-avail=1000000",
+            handoff,
+        )
+        self.assertIn(
+            "Privacy finding categories: bearer=1000000; location=1000000",
+            handoff,
+        )
+        self.assertLessEqual(
+            max(len(line) for line in handoff.splitlines()),
+            self.triage.HANDOFF_MAX_LINE_CHARS,
+        )
+        self.assertLessEqual(
+            len(handoff),
+            self.triage.HANDOFF_MAX_BLOCK_CHARS,
+        )
+
+    def test_inspector_handoff_coexists_with_native_diagnostics(self) -> None:
+        body = (
+            "I attached the downloaded Home Assistant diagnostics file: "
+            "home-assistant_humidity_intelligence_fixture.json\n\n"
+            + self._generated_handoff("native_schema1.json")
+        )
+        analyzed = self.triage.analyze_issue(
+            self._handoff_issue(body),
+            now=self.generated_at,
+            lookback_days=3,
+        )
+
+        self.assertEqual(analyzed.inspector_handoff, "native-summary")
+        self.assertEqual(analyzed.diagnostics_bundle, "present")
+        self.assertIn("has-inspector-handoff", analyzed.suggested_labels)
+        self.assertIn("has-diagnostics", analyzed.suggested_labels)
+        self.assertNotIn("needs-bundle", analyzed.suggested_labels)
+
+    def test_malformed_and_unsupported_handoffs_fail_closed(self) -> None:
+        handoff = self._generated_handoff("native_schema1.json")
+        cases = {
+            "malformed product": (
+                handoff.replace(
+                    "Product: HI Support Bundle Inspector",
+                    "Product: Different tool",
+                ),
+                "invalid",
+            ),
+            "unsupported contract": (
+                handoff.replace(
+                    "HI-SUPPORT-HANDOFF/1",
+                    "HI-SUPPORT-HANDOFF/2",
+                    1,
+                ),
+                "unsupported-version",
+            ),
+            "unsupported inspector": (
+                handoff.replace(
+                    "Inspector version: 0.3.0-beta.1",
+                    "Inspector version: 0.3.0",
+                ),
+                "unsupported-version",
+            ),
+            "exact end marker only": (
+                "HI-SUPPORT-HANDOFF-END/1",
+                "invalid",
+            ),
+            "unsupported end marker only": (
+                "HI-SUPPORT-HANDOFF-END/2",
+                "unsupported-version",
+            ),
+        }
+        for name, (body, expected) in cases.items():
+            with self.subTest(name=name):
+                analyzed = self.triage.analyze_issue(
+                    self._handoff_issue(body),
+                    now=self.generated_at,
+                    lookback_days=3,
+                )
+                self.assertEqual(analyzed.inspector_handoff, expected)
+                self.assertIn("needs-bundle", analyzed.suggested_labels)
+                self.assertNotIn(
+                    "has-inspector-handoff",
+                    analyzed.suggested_labels,
+                )
+
+    def test_injected_duplicate_and_oversize_handoffs_are_invalid(self) -> None:
+        handoff = self._generated_handoff("native_schema1.json")
+        injected = handoff.replace(
+            "HI-SUPPORT-HANDOFF-END/1",
+            "Unexpected: safety release-blocker\nHI-SUPPORT-HANDOFF-END/1",
+        )
+        duplicated = f"{handoff}\n\n{handoff}"
+        duplicate_field = handoff.replace(
+            "Product: HI Support Bundle Inspector",
+            "Product: HI Support Bundle Inspector\n"
+            "Product: HI Support Bundle Inspector",
+        )
+        impossible_mixed_counts = handoff.replace(
+            "Unavailable or unknown counts: total=4; missing=2; "
+            "unknown=1; unavailable=1",
+            "Unavailable or unknown counts: total=1; missing=1; "
+            "unknown=1; unavailable=not-reported",
+        )
+        oversize = (
+            "HI-SUPPORT-HANDOFF/1\n"
+            + ("x" * (self.triage.HANDOFF_MAX_BLOCK_CHARS + 1))
+        )
+
+        for name, body in {
+            "injected": injected,
+            "duplicated": duplicated,
+            "duplicate field": duplicate_field,
+            "impossible mixed counts": impossible_mixed_counts,
+            "oversize": oversize,
+        }.items():
+            with self.subTest(name=name):
+                analyzed = self.triage.analyze_issue(
+                    self._handoff_issue(body),
+                    now=self.generated_at,
+                    lookback_days=3,
+                )
+                self.assertEqual(analyzed.inspector_handoff, "invalid")
+                self.assertNotIn(
+                    "has-inspector-handoff",
+                    analyzed.suggested_labels,
+                )
+                self.assertNotEqual(analyzed.priority, "P0")
+                self.assertNotEqual(analyzed.release_blocker, "yes")
+
+    def test_handoff_mixed_count_semantics_are_bounded(self) -> None:
+        component_keys = ("missing", "unknown", "unavailable")
+        self.assertTrue(
+            self.triage._handoff_total_is_consistent(
+                {
+                    "total": "not-reported",
+                    "missing": 4,
+                    "unknown": 3,
+                    "unavailable": "not-reported",
+                },
+                component_keys,
+            )
+        )
+        self.assertTrue(
+            self.triage._handoff_total_is_consistent(
+                {
+                    "total": 8,
+                    "missing": 4,
+                    "unknown": "not-reported",
+                    "unavailable": 3,
+                },
+                component_keys,
+            )
+        )
+        self.assertFalse(
+            self.triage._handoff_total_is_consistent(
+                {
+                    "total": 6,
+                    "missing": 4,
+                    "unknown": "not-reported",
+                    "unavailable": 3,
+                },
+                component_keys,
+            )
+        )
+
+    def test_handoff_variants_do_not_change_triage_analysis(self) -> None:
+        issue = {
+            "number": 92,
+            "title": "Need help understanding this",
+            "html_url": "https://github.com/senyo888/humidity-intelligence/issues/92",
+            "user": {"login": "tester"},
+            "created_at": "2026-05-17T08:00:00Z",
+            "updated_at": "2026-05-17T08:30:00Z",
+            "labels": [],
+            "body": "",
+        }
+        handoff = self._generated_handoff("native_schema1.json")
+        variants = {
+            "valid": (handoff, "native-summary", True),
+            "invalid": (
+                handoff.replace(
+                    "Product: HI Support Bundle Inspector",
+                    "Product: safety release-blocker",
+                ),
+                "invalid",
+                False,
+            ),
+            "unsupported": (
+                handoff.replace(
+                    "HI-SUPPORT-HANDOFF/1",
+                    "HI-SUPPORT-HANDOFF/2",
+                    1,
+                ),
+                "unsupported-version",
+                False,
+            ),
+        }
+        baseline = self.triage.analyze_issue(
+            issue,
+            now=self.generated_at,
+            lookback_days=3,
+        )
+        invariant_fields = (
+            "category",
+            "priority",
+            "confidence",
+            "release_blocker",
+            "recommended_action",
+            "diagnostics_bundle",
+        )
+
+        for name, (body, expected_status, valid) in variants.items():
+            with self.subTest(name=name):
+                analyzed = self.triage.analyze_issue(
+                    {**issue, "body": body},
+                    now=self.generated_at,
+                    lookback_days=3,
+                )
+                for field in invariant_fields:
+                    self.assertEqual(
+                        getattr(analyzed, field),
+                        getattr(baseline, field),
+                        field,
+                    )
+                self.assertEqual(analyzed.inspector_handoff, expected_status)
+                if valid:
+                    self.assertEqual(
+                        analyzed.suggested_labels,
+                        baseline.suggested_labels
+                        + ["has-inspector-handoff"],
+                    )
+                    self.assertEqual(
+                        analyzed.signals,
+                        baseline.signals + ["Inspector handoff present"],
+                    )
+                else:
+                    self.assertEqual(
+                        analyzed.suggested_labels,
+                        baseline.suggested_labels,
+                    )
+                    self.assertEqual(analyzed.signals, baseline.signals)
+
+    def test_unclosed_or_over_bound_handoff_cannot_suppress_safety_text(self) -> None:
+        safety_text = "CO emergency is active and blocks the release"
+        issue = {
+            "number": 93,
+            "title": "Control report",
+            "html_url": "https://github.com/senyo888/humidity-intelligence/issues/93",
+            "user": {"login": "tester"},
+            "created_at": "2026-05-17T08:00:00Z",
+            "updated_at": "2026-05-17T08:30:00Z",
+            "labels": [],
+            "body": safety_text,
+        }
+        baseline = self.triage.analyze_issue(
+            issue,
+            now=self.generated_at,
+            lookback_days=3,
+        )
+        variants = {
+            "unmatched v1": (
+                f"HI-SUPPORT-HANDOFF/1\n{safety_text}",
+                "invalid",
+            ),
+            "unmatched v2": (
+                f"HI-SUPPORT-HANDOFF/2\n{safety_text}",
+                "unsupported-version",
+            ),
+            "over-bound before end": (
+                (
+                    "HI-SUPPORT-HANDOFF/1\n"
+                    + ("x" * (self.triage.HANDOFF_MAX_LINE_CHARS + 1))
+                    + f"\n{safety_text}\nHI-SUPPORT-HANDOFF-END/1"
+                ),
+                "invalid",
+            ),
+            "no near end": (
+                (
+                    "HI-SUPPORT-HANDOFF/1\n"
+                    + "\n".join(
+                        "bounded filler"
+                        for _ in range(
+                            self.triage.HANDOFF_MAX_BLOCK_CHARS
+                            // len("bounded filler")
+                        )
+                    )
+                    + f"\n{safety_text}\nHI-SUPPORT-HANDOFF-END/1"
+                ),
+                "invalid",
+            ),
+        }
+        invariant_fields = (
+            "category",
+            "priority",
+            "confidence",
+            "release_blocker",
+            "recommended_action",
+            "diagnostics_bundle",
+        )
+
+        for name, (body, expected_status) in variants.items():
+            with self.subTest(name=name):
+                analyzed = self.triage.analyze_issue(
+                    {**issue, "body": body},
+                    now=self.generated_at,
+                    lookback_days=3,
+                )
+                for field in invariant_fields:
+                    self.assertEqual(
+                        getattr(analyzed, field),
+                        getattr(baseline, field),
+                        field,
+                    )
+                self.assertEqual(
+                    analyzed.inspector_handoff,
+                    expected_status,
+                )
+                self.assertEqual(analyzed.release_blocker, "yes")
+                self.assertEqual(analyzed.priority, "P0")
+
+    def test_handoff_attempt_alone_does_not_inflate_empty_body_confidence(self) -> None:
+        issue = {
+            "number": 94,
+            "title": "Need help understanding this",
+            "html_url": "https://github.com/senyo888/humidity-intelligence/issues/94",
+            "user": {"login": "tester"},
+            "created_at": "2026-05-17T08:00:00Z",
+            "updated_at": "2026-05-17T08:30:00Z",
+            "labels": [],
+            "body": "",
+        }
+        baseline = self.triage.analyze_issue(
+            issue,
+            now=self.generated_at,
+            lookback_days=3,
+        )
+        repeated_prefixes = "\n".join(
+            "Configuration counts: zones=0; aq-lanes=0; "
+            "humidifier-lanes=0; alert-rules=0"
+            for _ in range(70)
+        )
+        variants = {
+            "lone v1": ("HI-SUPPORT-HANDOFF/1", "invalid"),
+            "lone v2": (
+                "HI-SUPPORT-HANDOFF/2",
+                "unsupported-version",
+            ),
+            "truncated valid prefix": (
+                "\n".join(
+                    (
+                        "HI-SUPPORT-HANDOFF/1",
+                        "Product: HI Support Bundle Inspector",
+                        "Inspector version: 0.3.0-beta.1",
+                        "Recognized input format: native-ha-diagnostics",
+                        "Backend diagnostics schema: 1",
+                    )
+                ),
+                "invalid",
+            ),
+            "over-bound known prefixes": (
+                f"HI-SUPPORT-HANDOFF/1\n{repeated_prefixes}",
+                "invalid",
+            ),
+        }
+        invariant_fields = (
+            "category",
+            "priority",
+            "confidence",
+            "release_blocker",
+            "recommended_action",
+            "diagnostics_bundle",
+        )
+
+        for name, (body, expected_status) in variants.items():
+            with self.subTest(name=name):
+                analyzed = self.triage.analyze_issue(
+                    {**issue, "body": body},
+                    now=self.generated_at,
+                    lookback_days=3,
+                )
+                for field in invariant_fields:
+                    self.assertEqual(
+                        getattr(analyzed, field),
+                        getattr(baseline, field),
+                        field,
+                    )
+                self.assertEqual(
+                    analyzed.inspector_handoff,
+                    expected_status,
+                )
+                self.assertEqual(
+                    analyzed.suggested_labels,
+                    baseline.suggested_labels,
+                )
+                self.assertEqual(analyzed.signals, baseline.signals)
+
+    def test_generic_handoff_prefix_lines_cannot_hide_safety_evidence(self) -> None:
+        issue = {
+            "number": 95,
+            "title": "Control report",
+            "html_url": "https://github.com/senyo888/humidity-intelligence/issues/95",
+            "user": {"login": "tester"},
+            "created_at": "2026-05-17T08:00:00Z",
+            "updated_at": "2026-05-17T08:30:00Z",
+            "labels": [],
+        }
+        safety_lines = (
+            "Product: carbon monoxide emergency release blocker",
+            "Interpretation: CO emergency is active and blocks the release",
+            "release-blocker-" * 20,
+        )
+        invariant_fields = (
+            "category",
+            "priority",
+            "confidence",
+            "release_blocker",
+            "recommended_action",
+            "diagnostics_bundle",
+        )
+
+        for safety_line in safety_lines:
+            with self.subTest(safety_line=safety_line):
+                baseline = self.triage.analyze_issue(
+                    {**issue, "body": safety_line},
+                    now=self.generated_at,
+                    lookback_days=3,
+                )
+                analyzed = self.triage.analyze_issue(
+                    {
+                        **issue,
+                        "body": f"HI-SUPPORT-HANDOFF/1\n{safety_line}",
+                    },
+                    now=self.generated_at,
+                    lookback_days=3,
+                )
+                for field in invariant_fields:
+                    self.assertEqual(
+                        getattr(analyzed, field),
+                        getattr(baseline, field),
+                        field,
+                    )
+                self.assertEqual(analyzed.category, "runtime")
+                self.assertEqual(analyzed.priority, "P0")
+                self.assertEqual(analyzed.confidence, "high")
+                self.assertEqual(analyzed.release_blocker, "yes")
+                if len(safety_line) > self.triage.HANDOFF_MAX_LINE_CHARS:
+                    self.assertGreater(
+                        len(safety_line),
+                        self.triage.HANDOFF_MAX_LINE_CHARS,
+                    )
+
+    def test_inspector_handoff_status_is_escaped_and_raw_block_is_not_rendered(self) -> None:
+        handoff = self._generated_handoff("native_schema1.json")
+        injected = handoff.replace(
+            "Backend warning categories: ent-avail=2",
+            "Backend warning categories: <img src=x onerror=alert(1)>=2",
+        )
+        analyzed = self.triage.analyze_issue(
+            self._handoff_issue(injected),
+            now=self.generated_at,
+            lookback_days=3,
+        )
+        report = self.triage.render_report(
+            repo="senyo888/humidity-intelligence",
+            analyzed_issues=[analyzed],
+            generated_at=self.generated_at,
+            lookback_days=3,
+            source_note="unit-test fixture",
+            api_status="offline",
+            rate_limit_note="not checked",
+        )
+
+        self.assertEqual(analyzed.inspector_handoff, "invalid")
+        self.assertIn("Inspector handoff: invalid", report)
+        self.assertNotIn("<img", report)
+        self.assertNotIn("onerror", report)
+        self.assertIn("has-inspector-handoff", report)
+        self.assertIn("never satisfies", report)
+
+    def test_issue_forms_expose_optional_separate_inspector_handoff(self) -> None:
+        for filename in ("bug_report.yml", "config_help.yml"):
+            with self.subTest(filename=filename):
+                source = (
+                    ROOT / ".github" / "ISSUE_TEMPLATE" / filename
+                ).read_text(encoding="utf-8")
+                self.assertEqual(source.count("id: inspector-handoff"), 1)
+                block = source.split("id: inspector-handoff", 1)[1].split(
+                    "\n  - type:",
+                    1,
+                )[0]
+                self.assertIn(
+                    "HI Support Bundle Inspector handoff (optional)",
+                    block,
+                )
+                self.assertIn(
+                    "does not replace, the preferred native diagnostics",
+                    block,
+                )
+                self.assertNotIn("validations:", block)
+
     def test_report_escapes_untrusted_issue_markup(self) -> None:
         issue = {
             "number": 88,
@@ -450,6 +1054,180 @@ forbidden_actions:
         self.assertIn("https://github.com/senyo888/humidity-intelligence", summary)
         self.assertNotIn("sensor.humidity_intelligence_hi_house_average_humidity", summary)
 
+    def test_issue_summary_privacy_redacts_structured_and_local_network_variants(
+        self,
+    ) -> None:
+        summary = self.triage._body_summary(
+            'Payload {"access_token":"REDACTION_JSON_ACCESS",'
+            '"device_id":"0123456789abcdef"} at '
+            "http://[fd12:3456::9]:8123/api and http://[fd00::1] plus raw "
+            "fd12:3456::10 and fe80::1234. Link-local IPv4 169.254.8.9. Local hosts "
+            "http://homeassistant:8123/api and http://ha.lan:8123/config. "
+            "Targets notify.mobile_app_private_phone geo_location.private_event "
+            "image_processing.private_camera persistent_notification.private_notice "
+            "plant.private_fern utility_meter.private_power. Ordinary text remains. "
+            "Public references https://github.com/senyo888/humidity-intelligence "
+            "and https://github.com/senyo888/ha.lan/sensor.private_room plus "
+            "https://example.com/path/token=REDACTION_PUBLIC_PATH_SECRET plus "
+            "https://example.com/docs, https://8.8.8.8/status, and "
+            "https://[2606:4700:4700::1111]/status with raw 8.8.8.8 and "
+            "2001:4860:4860::8888.",
+            max_chars=2000,
+        )
+
+        for sensitive in (
+            "REDACTION_JSON_ACCESS",
+            "REDACTION_PUBLIC_PATH_SECRET",
+            "0123456789abcdef",
+            "fd12:3456::9",
+            "fd00::1",
+            "fd12:3456::10",
+            "fe80::1234",
+            "169.254.8.9",
+            "homeassistant",
+            "notify.mobile_app_private_phone",
+            "geo_location.private_event",
+            "image_processing.private_camera",
+            "persistent_notification.private_notice",
+            "plant.private_fern",
+            "utility_meter.private_power",
+        ):
+            self.assertNotIn(sensitive, summary)
+        self.assertNotIn("http://ha.lan:8123/config", summary)
+        self.assertIn("access_token=[redacted]", summary)
+        self.assertIn("device_id=[redacted]", summary)
+        self.assertIn("[redacted private URL]", summary)
+        self.assertIn("[redacted private address]", summary)
+        self.assertIn("[redacted entity ID]", summary)
+        self.assertIn("Ordinary text remains.", summary)
+        self.assertIn("https://github.com/senyo888/humidity-intelligence", summary)
+        self.assertNotIn(
+            "https://github.com/senyo888/ha.lan/sensor.private_room",
+            summary,
+        )
+        self.assertIn(
+            "https://github.com/senyo888/[redacted private host]/"
+            "[redacted entity ID]",
+            summary,
+        )
+        self.assertIn(
+            "https://example.com/path/token=[redacted]",
+            summary,
+        )
+        self.assertIn("https://example.com/docs", summary)
+        self.assertIn("https://8.8.8.8/status", summary)
+        self.assertIn("https://[2606:4700:4700::1111]/status", summary)
+        self.assertIn("8.8.8.8", summary)
+        self.assertIn("2001:4860:4860::8888", summary)
+
+        truncated = self.triage._body_summary("ordinary " * 20, max_chars=40)
+        expected_source = ("ordinary " * 20).strip()
+        self.assertEqual(
+            truncated,
+            expected_source[:39].rstrip() + "...",
+        )
+
+    def test_issue_summary_privacy_redacts_decorated_secrets_mapped_ipv6_and_paths(
+        self,
+    ) -> None:
+        summary = self.triage._body_summary(
+            'JSON {"client_secret":"REDACTION_CLIENT_SECRET"} '
+            "long_lived_access_token=REDACTION_LONG_LIVED "
+            r'literal {\"access_token\":\"REDACTION_ESCAPED_JSON\"} '
+            "**token**: REDACTION_MARKDOWN_TOKEN "
+            "local http://ha.home.arpa:8123/api "
+            "mapped raw ::ffff:192.168.1.25 and URL "
+            "http://[::ffff:192.168.1.25]:8123/api. "
+            "mac /Users/example/My Private House/configuration.yaml then keep mac prose; "
+            "linux /home/example/My Private House/configuration.yaml then keep linux prose; "
+            r"windows C:\Users\example\My Private House\configuration.yaml "
+            "then keep windows prose. Public "
+            "https://github.com/senyo888/humidity-intelligence "
+            "https://example.com/docs https://8.8.8.8/status "
+            "https://[2606:4700:4700::1111]/status.",
+            max_chars=3000,
+        )
+
+        for sensitive in (
+            "REDACTION_CLIENT_SECRET",
+            "REDACTION_LONG_LIVED",
+            "REDACTION_ESCAPED_JSON",
+            "REDACTION_MARKDOWN_TOKEN",
+            "ha.home.arpa",
+            "::ffff:192.168.1.25",
+            "/Users/example/My Private House/configuration.yaml",
+            "/home/example/My Private House/configuration.yaml",
+            r"C:\Users\example\My Private House\configuration.yaml",
+        ):
+            self.assertNotIn(sensitive, summary)
+        for redacted_key in (
+            "client_secret=[redacted]",
+            "long_lived_access_token=[redacted]",
+            "access_token=[redacted]",
+            "token=[redacted]",
+        ):
+            self.assertIn(redacted_key, summary)
+        self.assertGreaterEqual(summary.count("[redacted private address]"), 1)
+        self.assertIn("[redacted private URL]", summary)
+        self.assertEqual(summary.count("[redacted local path]"), 3)
+        for prose in (
+            "then keep mac prose",
+            "then keep linux prose",
+            "then keep windows prose",
+        ):
+            self.assertIn(prose, summary)
+        for public_url in (
+            "https://github.com/senyo888/humidity-intelligence",
+            "https://example.com/docs",
+            "https://8.8.8.8/status",
+            "https://[2606:4700:4700::1111]/status",
+        ):
+            self.assertIn(public_url, summary)
+
+    def test_issue_summary_privacy_redacts_single_decorators_cgnat_and_local_paths(
+        self,
+    ) -> None:
+        summary = self.triage._body_summary(
+            "*token*: REDACTION_STAR_TOKEN "
+            "_api_key_: REDACTION_UNDERSCORE_KEY "
+            "CGNAT http://100.64.12.34:8123/api and raw 100.64.12.34. "
+            "mac /Users/example/HI Work folder/humidity_intelligence_v2-develop, "
+            "then keep mac prose; "
+            "linux /home/example/HI Work folder/humidity_intelligence_v2-develop; "
+            "then keep linux prose; "
+            r"windows C:\Users\example\HI Work folder\humidity-intelligence,"
+            " then keep windows prose. Public https://8.8.8.8/status "
+            "https://[2606:4700:4700::1111]/status.",
+            max_chars=3000,
+        )
+        end_summary = self.triage._body_summary(
+            "/Users/example/HI Work folder/humidity_intelligence_v2-develop",
+            max_chars=1000,
+        )
+
+        for sensitive in (
+            "REDACTION_STAR_TOKEN",
+            "REDACTION_UNDERSCORE_KEY",
+            "100.64.12.34",
+            "/Users/example/HI Work folder/humidity_intelligence_v2-develop",
+            "/home/example/HI Work folder/humidity_intelligence_v2-develop",
+            r"C:\Users\example\HI Work folder\humidity-intelligence",
+        ):
+            self.assertNotIn(sensitive, summary)
+        self.assertIn("token=[redacted]", summary)
+        self.assertIn("api_key=[redacted]", summary)
+        self.assertIn("[redacted private URL]", summary)
+        self.assertIn("[redacted private address]", summary)
+        self.assertEqual(summary.count("[redacted local path]"), 3)
+        self.assertEqual(end_summary, "[redacted local path]")
+        for prose in (
+            "then keep mac prose",
+            "then keep linux prose",
+            "then keep windows prose",
+        ):
+            self.assertIn(prose, summary)
+        self.assertIn("https://8.8.8.8/status", summary)
+        self.assertIn("https://[2606:4700:4700::1111]/status", summary)
     def test_fetch_open_issues_refuses_non_https_request_before_urlopen(self) -> None:
         request = mock.Mock(full_url="file:///tmp/issues.json")
 
