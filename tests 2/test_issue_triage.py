@@ -1054,6 +1054,180 @@ forbidden_actions:
         self.assertIn("https://github.com/senyo888/humidity-intelligence", summary)
         self.assertNotIn("sensor.humidity_intelligence_hi_house_average_humidity", summary)
 
+    def test_issue_summary_privacy_redacts_structured_and_local_network_variants(
+        self,
+    ) -> None:
+        summary = self.triage._body_summary(
+            'Payload {"access_token":"REDACTION_JSON_ACCESS",'
+            '"device_id":"0123456789abcdef"} at '
+            "http://[fd12:3456::9]:8123/api and http://[fd00::1] plus raw "
+            "fd12:3456::10 and fe80::1234. Link-local IPv4 169.254.8.9. Local hosts "
+            "http://homeassistant:8123/api and http://ha.lan:8123/config. "
+            "Targets notify.mobile_app_private_phone geo_location.private_event "
+            "image_processing.private_camera persistent_notification.private_notice "
+            "plant.private_fern utility_meter.private_power. Ordinary text remains. "
+            "Public references https://github.com/senyo888/humidity-intelligence "
+            "and https://github.com/senyo888/ha.lan/sensor.private_room plus "
+            "https://example.com/path/token=REDACTION_PUBLIC_PATH_SECRET plus "
+            "https://example.com/docs, https://8.8.8.8/status, and "
+            "https://[2606:4700:4700::1111]/status with raw 8.8.8.8 and "
+            "2001:4860:4860::8888.",
+            max_chars=2000,
+        )
+
+        for sensitive in (
+            "REDACTION_JSON_ACCESS",
+            "REDACTION_PUBLIC_PATH_SECRET",
+            "0123456789abcdef",
+            "fd12:3456::9",
+            "fd00::1",
+            "fd12:3456::10",
+            "fe80::1234",
+            "169.254.8.9",
+            "homeassistant",
+            "notify.mobile_app_private_phone",
+            "geo_location.private_event",
+            "image_processing.private_camera",
+            "persistent_notification.private_notice",
+            "plant.private_fern",
+            "utility_meter.private_power",
+        ):
+            self.assertNotIn(sensitive, summary)
+        self.assertNotIn("http://ha.lan:8123/config", summary)
+        self.assertIn("access_token=[redacted]", summary)
+        self.assertIn("device_id=[redacted]", summary)
+        self.assertIn("[redacted private URL]", summary)
+        self.assertIn("[redacted private address]", summary)
+        self.assertIn("[redacted entity ID]", summary)
+        self.assertIn("Ordinary text remains.", summary)
+        self.assertIn("https://github.com/senyo888/humidity-intelligence", summary)
+        self.assertNotIn(
+            "https://github.com/senyo888/ha.lan/sensor.private_room",
+            summary,
+        )
+        self.assertIn(
+            "https://github.com/senyo888/[redacted private host]/"
+            "[redacted entity ID]",
+            summary,
+        )
+        self.assertIn(
+            "https://example.com/path/token=[redacted]",
+            summary,
+        )
+        self.assertIn("https://example.com/docs", summary)
+        self.assertIn("https://8.8.8.8/status", summary)
+        self.assertIn("https://[2606:4700:4700::1111]/status", summary)
+        self.assertIn("8.8.8.8", summary)
+        self.assertIn("2001:4860:4860::8888", summary)
+
+        truncated = self.triage._body_summary("ordinary " * 20, max_chars=40)
+        expected_source = ("ordinary " * 20).strip()
+        self.assertEqual(
+            truncated,
+            expected_source[:39].rstrip() + "...",
+        )
+
+    def test_issue_summary_privacy_redacts_decorated_secrets_mapped_ipv6_and_paths(
+        self,
+    ) -> None:
+        summary = self.triage._body_summary(
+            'JSON {"client_secret":"REDACTION_CLIENT_SECRET"} '
+            "long_lived_access_token=REDACTION_LONG_LIVED "
+            r'literal {\"access_token\":\"REDACTION_ESCAPED_JSON\"} '
+            "**token**: REDACTION_MARKDOWN_TOKEN "
+            "local http://ha.home.arpa:8123/api "
+            "mapped raw ::ffff:192.168.1.25 and URL "
+            "http://[::ffff:192.168.1.25]:8123/api. "
+            "mac /Users/example/My Private House/configuration.yaml then keep mac prose; "
+            "linux /home/example/My Private House/configuration.yaml then keep linux prose; "
+            r"windows C:\Users\example\My Private House\configuration.yaml "
+            "then keep windows prose. Public "
+            "https://github.com/senyo888/humidity-intelligence "
+            "https://example.com/docs https://8.8.8.8/status "
+            "https://[2606:4700:4700::1111]/status.",
+            max_chars=3000,
+        )
+
+        for sensitive in (
+            "REDACTION_CLIENT_SECRET",
+            "REDACTION_LONG_LIVED",
+            "REDACTION_ESCAPED_JSON",
+            "REDACTION_MARKDOWN_TOKEN",
+            "ha.home.arpa",
+            "::ffff:192.168.1.25",
+            "/Users/example/My Private House/configuration.yaml",
+            "/home/example/My Private House/configuration.yaml",
+            r"C:\Users\example\My Private House\configuration.yaml",
+        ):
+            self.assertNotIn(sensitive, summary)
+        for redacted_key in (
+            "client_secret=[redacted]",
+            "long_lived_access_token=[redacted]",
+            "access_token=[redacted]",
+            "token=[redacted]",
+        ):
+            self.assertIn(redacted_key, summary)
+        self.assertGreaterEqual(summary.count("[redacted private address]"), 1)
+        self.assertIn("[redacted private URL]", summary)
+        self.assertEqual(summary.count("[redacted local path]"), 3)
+        for prose in (
+            "then keep mac prose",
+            "then keep linux prose",
+            "then keep windows prose",
+        ):
+            self.assertIn(prose, summary)
+        for public_url in (
+            "https://github.com/senyo888/humidity-intelligence",
+            "https://example.com/docs",
+            "https://8.8.8.8/status",
+            "https://[2606:4700:4700::1111]/status",
+        ):
+            self.assertIn(public_url, summary)
+
+    def test_issue_summary_privacy_redacts_single_decorators_cgnat_and_local_paths(
+        self,
+    ) -> None:
+        summary = self.triage._body_summary(
+            "*token*: REDACTION_STAR_TOKEN "
+            "_api_key_: REDACTION_UNDERSCORE_KEY "
+            "CGNAT http://100.64.12.34:8123/api and raw 100.64.12.34. "
+            "mac /Users/example/HI Work folder/humidity_intelligence_v2-develop, "
+            "then keep mac prose; "
+            "linux /home/example/HI Work folder/humidity_intelligence_v2-develop; "
+            "then keep linux prose; "
+            r"windows C:\Users\example\HI Work folder\humidity-intelligence,"
+            " then keep windows prose. Public https://8.8.8.8/status "
+            "https://[2606:4700:4700::1111]/status.",
+            max_chars=3000,
+        )
+        end_summary = self.triage._body_summary(
+            "/Users/example/HI Work folder/humidity_intelligence_v2-develop",
+            max_chars=1000,
+        )
+
+        for sensitive in (
+            "REDACTION_STAR_TOKEN",
+            "REDACTION_UNDERSCORE_KEY",
+            "100.64.12.34",
+            "/Users/example/HI Work folder/humidity_intelligence_v2-develop",
+            "/home/example/HI Work folder/humidity_intelligence_v2-develop",
+            r"C:\Users\example\HI Work folder\humidity-intelligence",
+        ):
+            self.assertNotIn(sensitive, summary)
+        self.assertIn("token=[redacted]", summary)
+        self.assertIn("api_key=[redacted]", summary)
+        self.assertIn("[redacted private URL]", summary)
+        self.assertIn("[redacted private address]", summary)
+        self.assertEqual(summary.count("[redacted local path]"), 3)
+        self.assertEqual(end_summary, "[redacted local path]")
+        for prose in (
+            "then keep mac prose",
+            "then keep linux prose",
+            "then keep windows prose",
+        ):
+            self.assertIn(prose, summary)
+        self.assertIn("https://8.8.8.8/status", summary)
+        self.assertIn("https://[2606:4700:4700::1111]/status", summary)
     def test_fetch_open_issues_refuses_non_https_request_before_urlopen(self) -> None:
         request = mock.Mock(full_url="file:///tmp/issues.json")
 

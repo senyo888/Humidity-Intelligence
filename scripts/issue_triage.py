@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import html
+import ipaddress
 import json
 import os
 import re
@@ -300,16 +301,7 @@ def _contains_any(text: str, terms: tuple[str, ...] | set[str]) -> bool:
     return any(term in text for term in terms)
 
 
-_PRIVATE_IPV4 = (
-    r"(?:127(?:\.\d{1,3}){3}|10(?:\.\d{1,3}){3}|"
-    r"192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})"
-)
-_PRIVATE_HOST = r"(?:localhost|(?:[A-Za-z0-9-]+\.)+local)"
-_PRIVATE_URL_RE = re.compile(
-    rf"\bhttps?://(?:{_PRIVATE_HOST}|{_PRIVATE_IPV4})(?![A-Za-z0-9.-])"
-    r"(?::\d+)?(?:/[^\s]*)?",
-    re.I,
-)
+_HTTP_URL_RE = re.compile(r"\bhttps?://[^\s<>'\"]+", re.I)
 _CREDENTIAL_URL_RE = re.compile(
     r"\bhttps?://(?:[^/\s:@]+:[^@/\s]+@|[^\s]*"
     r"(?:[?&](?:access_token|api_key|apikey|auth|key|password|secret|signature|sig|token)=))"
@@ -322,39 +314,125 @@ _AUTHORIZATION_TOKEN_RE = re.compile(
     re.I,
 )
 _JWT_RE = re.compile(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b")
+_SENSITIVE_KEY_DECORATOR = r"(?:\\?[\"']|\*{1,2}|_{1,2}|`)*"
+_ASSIGNMENT_VALUE = (
+    r"(?:\\\"(?:[^\"\\]|\\(?!\"))*\\\"|"
+    r"\\'(?:[^'\\]|\\(?!'))*\\'|"
+    r"\"(?:[^\"\\]|\\.)*\"|'(?:[^'\\]|\\.)*'|[^\s,;]+)"
+)
 _SENSITIVE_ASSIGNMENT_RE = re.compile(
-    r"\b(?P<key>GITHUB_TOKEN|HA_TOKEN|SUPERVISOR_TOKEN|access_token|refresh_token|"
-    r"api[_-]?key|password|secret|token)\s*(?:=|:)\s*"
-    r"(?:\"[^\"]*\"|'[^']*'|[^\s,;]+)",
+    rf"(?<![A-Za-z0-9_]){_SENSITIVE_KEY_DECORATOR}"
+    r"(?P<key>GITHUB_TOKEN|HA_TOKEN|SUPERVISOR_TOKEN|long_lived_access_token|"
+    r"access_token|refresh_token|api[_-]?key|client_secret|password|secret|token)"
+    rf"{_SENSITIVE_KEY_DECORATOR}\s*(?:=|:)\s*{_ASSIGNMENT_VALUE}",
     re.I,
 )
 _DEVICE_ID_RE = re.compile(
-    r"\b(?P<key>device[_ -]?id)\s*(?:=|:)\s*[\"']?[A-Za-z0-9_-]{8,}",
+    rf"(?<![A-Za-z0-9_]){_SENSITIVE_KEY_DECORATOR}"
+    rf"(?P<key>device[_ -]?id){_SENSITIVE_KEY_DECORATOR}\s*(?:=|:)\s*"
+    rf"{_ASSIGNMENT_VALUE}",
     re.I,
 )
+_LOCAL_PATH_COMPONENT = (
+    r"[A-Za-z0-9._~()-]+(?:[ \t]+[A-Za-z0-9._~()-]+)*"
+)
+_LOCAL_PATH_FILE = rf"{_LOCAL_PATH_COMPONENT}\.[A-Za-z0-9]{{1,16}}"
 _LOCAL_PATH_RE = re.compile(
-    r"(?:/Users/[^\s,;]+|/home/[^\s,;]+|[A-Za-z]:\\Users\\[^\s,;]+)",
+    rf"(?:/(?:Users|home)/(?:{_LOCAL_PATH_COMPONENT}/)+{_LOCAL_PATH_FILE}|"
+    rf"[A-Za-z]:\\Users\\(?:{_LOCAL_PATH_COMPONENT}\\)+{_LOCAL_PATH_FILE}|"
+    rf"/(?:Users|home)/(?:{_LOCAL_PATH_COMPONENT}/)+"
+    rf"{_LOCAL_PATH_COMPONENT}(?=$|[,;])|"
+    rf"[A-Za-z]:\\Users\\(?:{_LOCAL_PATH_COMPONENT}\\)+"
+    rf"{_LOCAL_PATH_COMPONENT}(?=$|[,;])|"
+    r"/(?:Users|home)/[^\s,;]+|[A-Za-z]:\\Users\\[^\s,;]+)",
     re.I,
 )
-_PRIVATE_HOST_RE = re.compile(rf"\b{_PRIVATE_HOST}\b", re.I)
-_PRIVATE_IPV4_RE = re.compile(rf"\b{_PRIVATE_IPV4}\b")
+_LOCAL_HOST_RE = re.compile(
+    r"\b(?:localhost|(?:[A-Za-z0-9-]+\.)+(?:local|lan|home\.arpa))\b",
+    re.I,
+)
+_IP_ADDRESS_RE = re.compile(
+    r"(?<![A-Za-z0-9_.:-])"
+    r"(?P<address>(?:[0-9A-Fa-f]{0,4}:){2,6}(?:\d{1,3}\.){3}\d{1,3}|"
+    r"(?:\d{1,3}\.){3}\d{1,3}|"
+    r"(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{0,4})"
+    r"(?![A-Za-z0-9_:-])"
+)
 _ENTITY_ID_RE = re.compile(
     r"\b(?:air_quality|alarm_control_panel|assist_satellite|automation|binary_sensor|"
-    r"button|calendar|camera|climate|conversation|cover|date|datetime|device_tracker|"
-    r"event|fan|humidifier|image|input_boolean|input_button|input_datetime|"
-    r"input_number|input_select|input_text|lawn_mower|light|lock|media_player|number|"
-    r"person|remote|scene|schedule|script|select|sensor|siren|stt|sun|switch|text|"
-    r"time|timer|todo|tts|update|vacuum|valve|water_heater|weather|zone)"
+    r"button|calendar|camera|climate|conversation|counter|cover|date|datetime|"
+    r"device_tracker|event|fan|geo_location|group|humidifier|image|image_processing|"
+    r"input_boolean|input_button|input_datetime|input_number|input_select|input_text|"
+    r"lawn_mower|light|lock|media_player|notify|number|persistent_notification|person|"
+    r"plant|proximity|remote|scene|schedule|script|select|sensor|siren|stt|sun|switch|"
+    r"text|time|timer|todo|tts|update|utility_meter|vacuum|valve|wake_word|"
+    r"water_heater|weather|zone)"
     r"\.[a-z0-9_]+\b",
     re.I,
 )
+_SHARED_IPV4_NETWORK = ipaddress.ip_network("100.64.0.0/10")
+
+
+def _is_private_address(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    mapped = getattr(address, "ipv4_mapped", None)
+    if mapped is not None:
+        return _is_private_address(mapped)
+    if (
+        isinstance(address, ipaddress.IPv4Address)
+        and address in _SHARED_IPV4_NETWORK
+    ):
+        return True
+    return (
+        address.is_loopback
+        or address.is_private
+        or address.is_link_local
+        or address.is_unspecified
+    )
+
+
+def _is_local_url_hostname(hostname: str | None) -> bool:
+    if not hostname:
+        return False
+    normalized = hostname.rstrip(".").lower()
+    try:
+        return _is_private_address(ipaddress.ip_address(normalized))
+    except ValueError:
+        return (
+            normalized == "localhost"
+            or "." not in normalized
+            or normalized.endswith((".local", ".lan", ".home.arpa"))
+        )
+
+
+def _redact_private_url(match: re.Match[str]) -> str:
+    candidate = match.group(0)
+    url = candidate.rstrip(".,;:!?)}")
+    suffix = candidate[len(url) :]
+    try:
+        hostname = urllib.parse.urlsplit(url).hostname
+    except ValueError:
+        return candidate
+    if _is_local_url_hostname(hostname):
+        return f"[redacted private URL]{suffix}"
+    return candidate
+
+
+def _redact_private_address(match: re.Match[str]) -> str:
+    value = match.group("address")
+    try:
+        address = ipaddress.ip_address(value)
+    except ValueError:
+        return value
+    if _is_private_address(address):
+        return "[redacted private address]"
+    return value
 
 
 def _redact_issue_summary_privacy(value: str) -> str:
     """Remove private operational details before a summary becomes shareable."""
 
     text = _CREDENTIAL_URL_RE.sub("[redacted credential URL]", value)
-    text = _PRIVATE_URL_RE.sub("[redacted private URL]", text)
+    text = _HTTP_URL_RE.sub(_redact_private_url, text)
     text = _AUTHORIZATION_TOKEN_RE.sub(
         lambda match: f"{match.group('prefix')}[redacted]",
         text,
@@ -370,10 +448,11 @@ def _redact_issue_summary_privacy(value: str) -> str:
         text,
     )
     text = _LOCAL_PATH_RE.sub("[redacted local path]", text)
-    text = _PRIVATE_HOST_RE.sub("[redacted private host]", text)
-    text = _PRIVATE_IPV4_RE.sub("[redacted private address]", text)
+    text = _LOCAL_HOST_RE.sub("[redacted private host]", text)
+    text = _IP_ADDRESS_RE.sub(_redact_private_address, text)
+    text = _ENTITY_ID_RE.sub("[redacted entity ID]", text)
 
-    return _ENTITY_ID_RE.sub("[redacted entity ID]", text)
+    return text
 
 
 def _body_summary(body: Any, *, max_chars: int = 320) -> str:
