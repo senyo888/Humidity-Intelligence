@@ -3733,9 +3733,13 @@ def test_readme_only_shows_two_latest_release_notes_before_previous_releases():
     release_notes = readme_source.split("## Release Notes", 1)[1]
     visible_notes, previous_releases = release_notes.split("<details>", 1)
 
-    assert "### v2.0.9-beta.1" in visible_notes
+    assert "### v2.0.9-rc.1" in visible_notes
     assert "### v2.0.8" in visible_notes
     assert "### v2.0.7" not in visible_notes
+    assert "assets/release_banner/v2.0.9_release.png" in visible_notes
+    assert (ROOT / "assets" / "release_banner" / "v2.0.9_release.png").read_bytes()[:8] == (
+        b"\x89PNG\r\n\x1a\n"
+    )
     assert "<summary>Previous Releases</summary>" in previous_releases
     assert "### v2.0.7" in previous_releases
 
@@ -5203,6 +5207,60 @@ def test_v205_release_check_fails_stale_generated_card_entity_references():
     ]
 
 
+def test_v205_release_check_warns_for_existing_unavailable_card_reference():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(45),
+            "sensor.hall_h": _FakeState(44),
+            "sensor.bed_h": _FakeState(46),
+            "sensor.house_humidity_mean_7d": _FakeState(43),
+            "sensor.kitchen_t": _FakeState(21),
+            "sensor.hall_t": _FakeState(20),
+            "sensor.bed_t": _FakeState(19),
+            "sensor.l1_iaq": _FakeState(35),
+            "sensor.co_val": _FakeState(4),
+            "fan.zone1": _FakeState("off"),
+            "fan.zone2": _FakeState("off"),
+            "fan.aq1": _FakeState("off"),
+            "humidifier.l1": _FakeState("off"),
+            "light.alert": _FakeState("unavailable"),
+            "switch.alert_power": _FakeState("off"),
+        },
+    )
+
+    report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        {
+            "entity_map": {},
+            "cards": {
+                "v2_mobile": "type: entity\nentity: light.alert\n",
+                "v2_tablet": "type: entity\nentity: light.alert\n",
+                "v1_mobile": "type: markdown\ncontent: Legacy ready\n",
+                "view_cards_button": "type: button\nname: View cards\n",
+            },
+            "unresolved_placeholders_by_card": {},
+        },
+        manifest_version="2.0.9-rc.1",
+        frontend_dependencies={"status": "not_inspectable"},
+    )
+    checks = {check["id"]: check for check in report["checks"]}
+
+    assert report["status"] == "warn"
+    assert checks["generated_card_entity_availability"]["status"] == "warn"
+    assert checks["generated_card_entity_availability"]["details"]["missing_entities"] == []
+    assert checks["generated_card_entity_availability"]["details"][
+        "unknown_or_unavailable_entities"
+    ] == [
+        {"layout": "v2_mobile", "entity_id": "light.alert", "status": "unavailable"},
+        {"layout": "v2_tablet", "entity_id": "light.alert", "status": "unavailable"},
+    ]
+    assert checks["configured_entity_availability"]["status"] == "warn"
+
+
 def test_generated_card_entity_extraction_includes_embedded_js_references():
     services_mod = _load_services_module()
 
@@ -5326,7 +5384,7 @@ def test_v205_release_check_service_is_documented_and_registered():
     assert "write_test_exports" in services_yaml
     assert "humidity_intelligence.v205_release_check" in readme_source
     assert "humidity_intelligence_v205_release_check.json" in readme_source
-    assert manifest["version"] == "2.0.9-beta.1"
+    assert manifest["version"] == "2.0.9-rc.1"
 
 
 def test_owned_ui_path_discovery_and_legacy_cleanup_guidance_is_explicit():

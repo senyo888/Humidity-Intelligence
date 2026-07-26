@@ -5,9 +5,9 @@ testing and validation branches.
 
 ## Canonical Version Model
 
-- `2.0.8-beta.1`: testing build.
-- `2.0.8-rc.1`: release-candidate build.
-- `2.0.8`: stable version label. On `senyo888-patch-1`, `develop`, or `main`,
+- `2.0.9-beta.1`: testing build.
+- `2.0.9-rc.1`: release-candidate build.
+- `2.0.9`: stable version label. On `senyo888-patch-1`, `develop`, or `main`,
   stable metadata may be staged or promoted through the governed release path.
   Published release status comes from release tags, GitHub release publication, and
   maintainer approval.
@@ -17,6 +17,15 @@ Home Assistant and HACS metadata checks.
 
 v2.0.8 is the latest published stable release line. Tag and GitHub Release `v2.0.8`
 were published from `main` on 2026-07-06.
+
+The working metadata on `senyo888-patch-1` is `2.0.9-rc.1` for local
+release-candidate validation. That branch state is not a tag, GitHub Release, HACS
+publication, `develop` promotion, or `main` promotion. The maintainer has confirmed
+stable-instance beta testing for the v2.0.9 line; the supplied private validation
+packet remains a separate evidence lane and reports `PASS_WITH_NOTES` because two
+configured visual-alert outputs currently exist but are unavailable. No generated
+card reference is missing, and the warning remains visible until those household
+outputs recover or their retained mappings are deliberately updated.
 
 The former v2.0.8 candidate moved through `senyo888-patch-1`, `develop`, and `main`
 before publication. Stable metadata on a staging or review branch was not release
@@ -29,9 +38,9 @@ this lane.
 For future promotion candidates, release readiness needs more than Stage A HA Lab
 package deploy evidence. Each release-readiness record must separately state whether
 restart/reload approval, post-restart read-only checks, generated-card evidence, Bella
-review, Aetherwing review, AetherCore governance review, Aetherbite security/privacy
-review, maintainer stable-instance confirmation, and maintainer promotion approval are
-complete.
+review, Aetherwing runtime/security review, AetherCore governance review, Aetherbite
+release-language/visual review, maintainer stable-instance confirmation, and
+maintainer promotion approval are complete.
 
 ## v2.0.8 Release Path Record
 

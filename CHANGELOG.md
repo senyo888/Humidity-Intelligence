@@ -16,9 +16,11 @@ This project follows a practical changelog format for Home Assistant and HACS us
   support attachment and the repository/Wiki remain support truth. Wiki update
   status: `no-op` because existing diagnostics guidance remains authoritative.
   Release-documentation status: `updated` by this entry.
-- Moved working-branch integration metadata to `2.0.9-beta.1` and extended the
+- Promoted working-branch integration metadata to `2.0.9-rc.1` for release-candidate
+  validation and extended the
   backward-compatible `v205_release_check` manifest contract through the v2.0.9
-  beta/rc/stable line. The latest published stable release remains v2.0.8.
+  beta/rc/stable line. This is not a published release; the latest published stable
+  release remains v2.0.8.
 - Removed the HACS `country` metadata so Humidity Intelligence can be listed
   globally instead of being limited to the GB store scope.
 - Restricted custom filenames for `dump_diagnostics` and `v205_release_check` to

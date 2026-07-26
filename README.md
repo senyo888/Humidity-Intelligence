@@ -57,16 +57,17 @@ It gives you:
 - native Home Assistant diagnostics for support and triage
 - services for dashboard export, self-check, diagnostics, pause/resume, and release validation
 
-Current manifest version: **v2.0.9-beta.1**.
+Current manifest version: **v2.0.9-rc.1**.
 
 For publication status, installed packages, and release tags, use
 [GitHub Releases](https://github.com/senyo888/Humidity-Intelligence/releases) and
 HACS as the user-facing record.
 
-v2.0.9-beta.1 completes the HI-owned runtime-artifact namespace: report JSON writes
+v2.0.9-rc.1 completes the HI-owned runtime-artifact namespace: report JSON writes
 under `<config>/humidity_intelligence/exports/`, generated card YAML writes under
-`<config>/humidity_intelligence/ui/`, and external writer services require an
-authenticated admin context. The latest published stable release remains v2.0.8.
+`<config>/humidity_intelligence/ui/`, and external report/card writer services
+require an authenticated admin context. This is release-candidate metadata, not a
+published release; the latest published stable release remains v2.0.8.
 
 The deterministic runtime contract stays intact: one selected control lane per cycle,
 the same public entity meanings, and output writing only through the established
@@ -383,8 +384,13 @@ must be reviewable from tracked repository files.
 
 ## Current Release Highlights
 
-- working-branch integration metadata is `2.0.9-beta.1`; GitHub Releases and HACS
+- working-branch integration metadata is `2.0.9-rc.1`; GitHub Releases and HACS
   remain the user-facing record for the latest published stable release, v2.0.8
+- the browser-local
+  [HI Support Bundle Inspector](https://senyo888.github.io/humidity-intelligence/inspector/)
+  provides an optional inspect-before-sharing preflight: diagnostics content stays
+  in memory in the browser, with no diagnostic-content upload, analytics, logging,
+  or browser storage; only the user-triggered, allowlisted advisory handoff is copied
 - diagnostics and release-check report writers now accept only exact lowercase
   `humidity_intelligence_*.json` custom filenames, preserve their existing defaults,
   and write only under `<config>/humidity_intelligence/exports/`
@@ -1083,10 +1089,16 @@ CO emergency pressure. Details are in
 
 ## Release Notes
 
-### v2.0.9-beta.1
+### v2.0.9-rc.1
 
-- moved working-branch integration metadata to `2.0.9-beta.1`; v2.0.8 remains the
-  latest published stable release
+![Humidity Intelligence v2.0.9 release banner](assets/release_banner/v2.0.9_release.png)
+
+- promoted working-branch integration metadata to `2.0.9-rc.1` for release-candidate
+  validation; v2.0.8 remains the latest published stable release
+- added the optional browser-local HI Support Bundle Inspector preflight so users
+  can inspect supported diagnostics and copy a bounded advisory handoff before
+  sharing; diagnostic contents are not uploaded, logged, analyzed remotely, or
+  stored by the Inspector
 - restricted `dump_diagnostics` and `v205_release_check` custom filenames to the
   exact lowercase `humidity_intelligence_*.json` namespace, preserving both defaults
 - moved caller-selectable diagnostics and release-check reports from the config root
