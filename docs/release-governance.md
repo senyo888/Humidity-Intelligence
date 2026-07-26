@@ -18,9 +18,9 @@ Home Assistant and HACS metadata checks.
 v2.0.8 is the latest published stable release line. Tag and GitHub Release `v2.0.8`
 were published from `main` on 2026-07-06.
 
-The working metadata on `senyo888-patch-1` is `2.0.9-rc.1` for local
-release-candidate validation. That branch state is not a tag, GitHub Release, HACS
-publication, `develop` promotion, or `main` promotion. The maintainer has confirmed
+The working metadata on `senyo888-patch-1` is stable `2.0.9` after local release
+validation. That branch state is not a tag, GitHub Release, HACS publication,
+`develop` promotion, or `main` promotion. The maintainer has confirmed
 stable-instance beta testing for the v2.0.9 line; the supplied private validation
 packet remains a separate evidence lane and reports `PASS_WITH_NOTES` because two
 configured visual-alert outputs currently exist but are unavailable. No generated

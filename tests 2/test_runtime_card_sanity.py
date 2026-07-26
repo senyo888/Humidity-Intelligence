@@ -3733,7 +3733,7 @@ def test_readme_only_shows_two_latest_release_notes_before_previous_releases():
     release_notes = readme_source.split("## Release Notes", 1)[1]
     visible_notes, previous_releases = release_notes.split("<details>", 1)
 
-    assert "### v2.0.9-rc.1" in visible_notes
+    assert "### v2.0.9" in visible_notes
     assert "### v2.0.8" in visible_notes
     assert "### v2.0.7" not in visible_notes
     assert "assets/release_banner/v2.0.9_release.png" in visible_notes
@@ -5384,7 +5384,7 @@ def test_v205_release_check_service_is_documented_and_registered():
     assert "write_test_exports" in services_yaml
     assert "humidity_intelligence.v205_release_check" in readme_source
     assert "humidity_intelligence_v205_release_check.json" in readme_source
-    assert manifest["version"] == "2.0.9-rc.1"
+    assert manifest["version"] == "2.0.9"
 
 
 def test_owned_ui_path_discovery_and_legacy_cleanup_guidance_is_explicit():
