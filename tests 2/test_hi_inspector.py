@@ -13,6 +13,7 @@ import sys
 import tempfile
 import unittest
 from html.parser import HTMLParser
+from urllib.parse import urljoin
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -92,6 +93,8 @@ class _InspectorHtmlParser(HTMLParser):
         self.ids: set[str] = set()
         self.labels: list[str] = []
         self.references: list[str] = []
+        self.images: list[tuple[str, str, str | None, str | None, str | None]] = []
+        self.links: list[tuple[str, str | None]] = []
         self.metas: dict[str, str] = {}
         self.http_equiv: dict[str, str] = {}
         self.live_regions = 0
@@ -113,6 +116,18 @@ class _InspectorHtmlParser(HTMLParser):
             self.labels.append(values["for"])
         if tag == "link" and values.get("href"):
             self.references.append(values["href"])
+        if tag == "a" and values.get("href"):
+            self.links.append((values["href"], values.get("aria-label")))
+        if tag == "img" and values.get("src"):
+            self.images.append(
+                (
+                    values["src"],
+                    values.get("alt") or "",
+                    values.get("width"),
+                    values.get("height"),
+                    values.get("aria-hidden"),
+                )
+            )
         if tag == "script" and values.get("src"):
             self.references.append(values["src"])
         if tag == "meta":
@@ -165,7 +180,26 @@ class HiInspectorStaticTests(unittest.TestCase):
 
         self.assertEqual(
             parser.references,
-            [PUBLIC_CANONICAL, "styles.css", "app.mjs"],
+            [
+                PUBLIC_CANONICAL,
+                "../assets/logo.png",
+                "styles.css",
+                "app.mjs",
+            ],
+        )
+        self.assertEqual(
+            parser.images,
+            [("../assets/logo.png", "", "40", "40", "true")],
+        )
+        self.assertEqual(
+            parser.links,
+            [
+                ("#main-content", None),
+                (
+                    "../",
+                    "HI Support Bundle Inspector — Humidity Intelligence home",
+                ),
+            ],
         )
         self.assertEqual(parser.file_inputs, 1)
         self.assertEqual(parser.file_input_tabindexes, ["-1"])
@@ -185,12 +219,16 @@ class HiInspectorStaticTests(unittest.TestCase):
         csp = parser.http_equiv["content-security-policy"]
         for directive in (
             "default-src 'none'",
+            "script-src 'self'",
+            "style-src 'self'",
+            "img-src 'self'",
             "connect-src 'none'",
             "worker-src 'none'",
             "form-action 'none'",
             "base-uri 'none'",
         ):
             self.assertIn(directive, csp)
+        self.assertNotIn("img-src 'none'", csp)
         self.assertNotIn("frame-ancestors", csp)
 
     def test_copy_is_explicit_about_public_preflight_and_authority_boundaries(self) -> None:
@@ -235,6 +273,11 @@ class HiInspectorStaticTests(unittest.TestCase):
                 ),
             )
             self.assertTrue((SOURCE / reference).is_file())
+        self.assertEqual(
+            urljoin(f"{base}/", "../assets/logo.png"),
+            "/humidity-intelligence/assets/logo.png",
+        )
+        self.assertTrue((ROOT / "assets" / "logo.png").is_file())
 
     def test_app_invalidates_pending_file_reads(self) -> None:
         source = (SOURCE / "app.mjs").read_text(encoding="utf-8")
@@ -565,6 +608,11 @@ class HiInspectorStaticTests(unittest.TestCase):
                     (destination / filename).read_bytes(),
                     (SOURCE / filename).read_bytes(),
                 )
+            built_logo = (destination / "../assets/logo.png").resolve()
+            self.assertEqual(
+                built_logo.read_bytes(),
+                (ROOT / "assets" / "logo.png").read_bytes(),
+            )
 
     def test_static_build_refuses_source_tree_destination(self) -> None:
         completed = subprocess.run(

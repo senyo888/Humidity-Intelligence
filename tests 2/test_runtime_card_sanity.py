@@ -118,6 +118,7 @@ def _install_homeassistant_stubs(*, include_unit_ratio: bool = True) -> None:
     helpers = types.ModuleType("homeassistant.helpers")
     config_validation = types.ModuleType("homeassistant.helpers.config_validation")
     event = types.ModuleType("homeassistant.helpers.event")
+    issue_registry = types.ModuleType("homeassistant.helpers.issue_registry")
     device_registry = types.ModuleType("homeassistant.helpers.device_registry")
     entity_helper = types.ModuleType("homeassistant.helpers.entity")
     entity_registry = types.ModuleType("homeassistant.helpers.entity_registry")
@@ -168,8 +169,12 @@ def _install_homeassistant_stubs(*, include_unit_ratio: bool = True) -> None:
     class Invalid(Exception):
         pass
 
+    ALLOW_EXTRA = object()
+    PREVENT_EXTRA = object()
+    _NO_DEFAULT = object()
+
     class _SchemaKey:
-        def __init__(self, key, default=None):
+        def __init__(self, key, default=_NO_DEFAULT):
             self.key = key
             self.default = default
 
@@ -180,11 +185,37 @@ def _install_homeassistant_stubs(*, include_unit_ratio: bool = True) -> None:
                 return hash((self.key, repr(self.default)))
 
     class Schema:
-        def __init__(self, schema):
+        def __init__(self, schema, extra=PREVENT_EXTRA):
             self.schema = schema
+            self.extra = extra
 
         def __call__(self, value):
-            return value
+            if not isinstance(self.schema, dict):
+                return value
+            if not isinstance(value, dict):
+                raise Invalid("schema value must be a mapping")
+
+            declared_keys = {
+                key_spec.key if isinstance(key_spec, _SchemaKey) else key_spec
+                for key_spec in self.schema
+            }
+            unexpected_keys = set(value) - declared_keys
+            if unexpected_keys and self.extra is not ALLOW_EXTRA:
+                raise Invalid(
+                    f"extra keys not allowed: {sorted(unexpected_keys)!r}"
+                )
+
+            validated = dict(value) if self.extra is ALLOW_EXTRA else {}
+            for key_spec, validator in self.schema.items():
+                key = key_spec.key if isinstance(key_spec, _SchemaKey) else key_spec
+                if key in value:
+                    item = value[key]
+                elif isinstance(key_spec, _SchemaKey) and key_spec.default is not _NO_DEFAULT:
+                    item = key_spec.default
+                else:
+                    continue
+                validated[key] = validator(item) if callable(validator) else item
+            return validated
 
     def _ensure_list(value):
         if value is None:
@@ -253,10 +284,12 @@ def _install_homeassistant_stubs(*, include_unit_ratio: bool = True) -> None:
 
     core.HomeAssistant = HomeAssistant
     core.ServiceCall = ServiceCall
+    core.callback = lambda func: func
     config_entries.ConfigEntry = ConfigEntry
     exceptions.HomeAssistantError = HomeAssistantError
     const.UnitOfTemperature = UnitOfTemperature
     const.PERCENTAGE = "%"
+    const.EVENT_HOMEASSISTANT_STARTED = "homeassistant_started"
     if include_unit_ratio:
         const.UnitOfRatio = UnitOfRatio
     sensor_mod.SensorEntity = SensorEntity
@@ -275,6 +308,10 @@ def _install_homeassistant_stubs(*, include_unit_ratio: bool = True) -> None:
     entity_helper.Entity = Entity
     entity_helper.async_generate_entity_id = async_generate_entity_id
     entity_registry.async_get = lambda hass: None
+    issue_registry.IssueSeverity = SimpleNamespace(WARNING="warning")
+    issue_registry.async_create_issue = lambda *_args, **_kwargs: None
+    issue_registry.async_delete_issue = lambda *_args, **_kwargs: None
+    helpers.issue_registry = issue_registry
     util.slugify = lambda value: str(value).lower().replace(" ", "_")
     voluptuous.Schema = Schema
     voluptuous.Optional = _SchemaKey
@@ -284,6 +321,8 @@ def _install_homeassistant_stubs(*, include_unit_ratio: bool = True) -> None:
     voluptuous.Range = _range
     voluptuous.All = _all
     voluptuous.Any = _any
+    voluptuous.ALLOW_EXTRA = ALLOW_EXTRA
+    voluptuous.PREVENT_EXTRA = PREVENT_EXTRA
 
     sys.modules["homeassistant"] = ha
     sys.modules["homeassistant.core"] = core
@@ -299,6 +338,7 @@ def _install_homeassistant_stubs(*, include_unit_ratio: bool = True) -> None:
     sys.modules["homeassistant.helpers"] = helpers
     sys.modules["homeassistant.helpers.config_validation"] = config_validation
     sys.modules["homeassistant.helpers.event"] = event
+    sys.modules["homeassistant.helpers.issue_registry"] = issue_registry
     sys.modules["homeassistant.helpers.device_registry"] = device_registry
     sys.modules["homeassistant.helpers.entity"] = entity_helper
     sys.modules["homeassistant.helpers.entity_registry"] = entity_registry
@@ -318,7 +358,11 @@ def _install_package_scaffold() -> None:
         sys.modules[f"{PKG}.{sub}"] = mod
 
     services = types.ModuleType(f"{PKG}.services")
-    services.SERVICE_FLASH_LIGHTS = "flash_lights"
+
+    async def async_flash_lights_for_alert(hass, **kwargs):
+        hass.data.setdefault("_trusted_visual_alert_calls", []).append(dict(kwargs))
+
+    services.async_flash_lights_for_alert = async_flash_lights_for_alert
     sys.modules[f"{PKG}.services"] = services
 
 
@@ -348,10 +392,75 @@ def _load_services_module():
     _install_homeassistant_stubs()
     _install_package_scaffold()
     _load_module(f"{PKG}.const", ROOT / "const.py")
+    _load_module(f"{PKG}.helpers.cleanup", ROOT / "helpers" / "cleanup.py")
+    _load_module(
+        f"{PKG}.helpers.report_exports",
+        ROOT / "helpers" / "report_exports.py",
+    )
     level_labels_path = ROOT / "helpers" / "level_labels.py"
     if level_labels_path.exists():
         _load_module(f"{PKG}.helpers.level_labels", level_labels_path)
     return _load_module(f"{PKG}.services", ROOT / "services.py")
+
+
+def _load_integration_init_module():
+    _install_homeassistant_stubs()
+    _install_package_scaffold()
+    _load_module(f"{PKG}.const", ROOT / "const.py")
+
+    sys.modules[
+        "homeassistant.helpers.config_validation"
+    ].config_entry_only_config_schema = lambda _domain: {}
+    sys.modules["homeassistant.helpers.event"].async_call_later = (
+        lambda _hass, _delay, _callback: lambda: None
+    )
+
+    async def async_noop(*_args, **_kwargs):
+        return None
+
+    services_mod = sys.modules[f"{PKG}.services"]
+    services_mod.SERVICE_REFRESH_UI = "refresh_ui"
+    services_mod.async_create_dashboard_for_entry = async_noop
+    services_mod.async_export_cards_to_owned_ui = async_noop
+    services_mod.async_register_services = async_noop
+    services_mod.async_unregister_services = async_noop
+
+    cleanup_mod = types.ModuleType(f"{PKG}.helpers.cleanup")
+    cleanup_mod.list_owned_ui_filenames = lambda *_args, **_kwargs: []
+    cleanup_mod.remove_dashboard = async_noop
+    sys.modules[f"{PKG}.helpers.cleanup"] = cleanup_mod
+    sys.modules[f"{PKG}.helpers"].cleanup = cleanup_mod
+
+    report_exports_mod = types.ModuleType(f"{PKG}.helpers.report_exports")
+    report_exports_mod.ReportExportError = RuntimeError
+    report_exports_mod.plan_owned_ui_export_removal = lambda *_args: []
+    report_exports_mod.remove_owned_ui_export = lambda *_args: True
+    sys.modules[f"{PKG}.helpers.report_exports"] = report_exports_mod
+    sys.modules[f"{PKG}.helpers"].report_exports = report_exports_mod
+
+    drift_mod = types.ModuleType(f"{PKG}.helpers.drift_repairs")
+    drift_mod.async_update_humidity_drift_repair_issue = async_noop
+    sys.modules[f"{PKG}.helpers.drift_repairs"] = drift_mod
+    sys.modules[f"{PKG}.helpers"].drift_repairs = drift_mod
+
+    entity_registry_mod = types.ModuleType(f"{PKG}.helpers.entity_registry")
+    entity_registry_mod.normalize_pm25_aggregate_entity_ids = (
+        lambda _hass, _entry_id: {"changed": {}, "blocked": []}
+    )
+    sys.modules[f"{PKG}.helpers.entity_registry"] = entity_registry_mod
+    sys.modules[f"{PKG}.helpers"].entity_registry = entity_registry_mod
+
+    register_mod = types.ModuleType(f"{PKG}.ui.register")
+    register_mod.async_register_cards = async_noop
+    register_mod.async_build_entity_mapping = async_noop
+    sys.modules[f"{PKG}.ui.register"] = register_mod
+    sys.modules[f"{PKG}.ui"].register = register_mod
+
+    automations_mod = sys.modules[f"{PKG}.automations"]
+    automations_mod.async_setup_entry = async_noop
+    automations_mod.async_unload_entry = async_noop
+
+    return _load_module(f"{PKG}.integration_init", ROOT / "__init__.py")
 
 
 def _load_core_module():
@@ -442,16 +551,28 @@ class _FlashServiceRegistry:
     def __init__(self, states):
         self.states = states
         self.calls = []
+        self.handler_calls = []
         self.handlers = {}
+        self.schemas = {}
 
     def has_service(self, domain, service):
         return True
 
     def async_register(self, domain, service, handler, schema=None):
         self.handlers[(domain, service)] = handler
+        self.schemas[(domain, service)] = schema
 
     async def async_call(self, domain, service, data=None, blocking=False):
         payload = dict(data or {})
+        handler = self.handlers.get((domain, service))
+        if handler is not None:
+            schema = self.schemas.get((domain, service))
+            if schema is not None:
+                payload = schema(payload)
+            self.handler_calls.append((domain, service, payload))
+            await handler(SimpleNamespace(data=payload, context=None))
+            return
+
         self.calls.append((domain, service, payload, bool(blocking)))
         if domain == "light":
             entity_id = payload.get("entity_id")
@@ -468,6 +589,7 @@ class _FlashHass:
     def __init__(self, states):
         self.states = _FakeStates(states)
         self.services = _FlashServiceRegistry(self.states)
+        self.auth = _FakeAuth({"admin": SimpleNamespace(is_admin=True)})
         self.data = {}
 
 
@@ -604,8 +726,8 @@ class _DumpCardsConfig:
     def __init__(self, root):
         self._root = pathlib.Path(root)
 
-    def path(self, filename):
-        return str(self._root / filename)
+    def path(self, *parts):
+        return str(self._root.joinpath(*parts))
 
 
 class _DumpCardsConfigEntries:
@@ -1324,7 +1446,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
     assert "_handle_aq" not in trace
 
     calls = hass.services.calls
-    assert any(domain == "humidity_intelligence" and service == "flash_lights" for domain, service, *_ in calls)
+    assert hass.data["_trusted_visual_alert_calls"]
     assert not hass.data["humidity_intelligence"][ENTRY_ID]["hi_input_booleans"]["air_downstairs_humidifier_active"].is_on
     assert any(
         domain == "fan"
@@ -1694,18 +1816,10 @@ async def _run_runtime_assertions(engine_mod) -> None:
         and data.get("percentage") == 100
         for domain, service, data, _ in hass_room_alert_dynamic.services.calls
     )
-    assert any(
-        domain == "humidity_intelligence" and service == "flash_lights"
-        for domain, service, *_ in hass_room_alert_dynamic.services.calls
-    )
-    dynamic_flash_calls = [
-        data
-        for domain, service, data, _ in hass_room_alert_dynamic.services.calls
-        if domain == "humidity_intelligence" and service == "flash_lights"
-    ]
+    dynamic_flash_calls = hass_room_alert_dynamic.data["_trusted_visual_alert_calls"]
     assert dynamic_flash_calls
     assert all(data.get("flash_count") == 10 for data in dynamic_flash_calls)
-    assert all("power_entity" not in data for data in dynamic_flash_calls)
+    assert all(data.get("power_entity") is None for data in dynamic_flash_calls)
     assert all(isinstance(data.get("color"), list) for data in dynamic_flash_calls)
     assert all(len(data.get("color")) == 3 for data in dynamic_flash_calls)
     assert all(
@@ -1713,13 +1827,12 @@ async def _run_runtime_assertions(engine_mod) -> None:
         for data in dynamic_flash_calls
     )
     assert len(engine_room_alert_dynamic._visual_alert_tasks) == 1
+    flash_call_count_before_repeat = len(dynamic_flash_calls)
     await engine_room_alert_dynamic._evaluate()
-    dynamic_flash_calls_after_repeat_eval = [
-        data
-        for domain, service, data, _ in hass_room_alert_dynamic.services.calls
-        if domain == "humidity_intelligence" and service == "flash_lights"
+    dynamic_flash_calls_after_repeat_eval = hass_room_alert_dynamic.data[
+        "_trusted_visual_alert_calls"
     ]
-    assert len(dynamic_flash_calls_after_repeat_eval) == len(dynamic_flash_calls)
+    assert len(dynamic_flash_calls_after_repeat_eval) == flash_call_count_before_repeat
     assert len(engine_room_alert_dynamic._visual_alert_tasks) == 1
     await engine_room_alert_dynamic.async_stop()
 
@@ -1760,10 +1873,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
     )
     await engine_room_alert_no_lights._evaluate()
     assert hass_room_alert_no_lights.data["humidity_intelligence"][ENTRY_ID].get("runtime_mode") == "alert"
-    assert not any(
-        domain == "humidity_intelligence" and service == "flash_lights"
-        for domain, service, *_ in hass_room_alert_no_lights.services.calls
-    )
+    assert not hass_room_alert_no_lights.data.get("_trusted_visual_alert_calls")
 
     entry_room_alert_miss_data = _base_entry_data()
     entry_room_alert_miss_data["zones"]["zone1"]["enabled"] = False
@@ -2547,10 +2657,16 @@ async def _run_card_assertions(register_mod) -> None:
     cards = await register_mod.async_register_cards(hass, ENTRY_ID, mapping)
     mobile = cards.get("v2_mobile", "")
     tablet = cards.get("v2_tablet", "")
+    legacy = cards.get("v1_mobile", "")
 
     assert hass.data["humidity_intelligence"][ENTRY_ID].get("unresolved_placeholders_by_card", {}) == {}
     assert mobile.startswith("# Humidity Intelligence V2 Mobile Dashboard YAML")
     assert tablet.startswith("# Humidity Intelligence V2 Tablet Dashboard YAML")
+    assert "const escapeHtml = " in legacy
+    assert "${escapeHtml(item.label)}" in legacy
+    assert "Target humidity (${escapeHtml(season)}):" in legacy
+    assert "Condensation: ${escapeHtml(condRisk)} in ${escapeHtml(condRoom)}" in legacy
+    assert "Mould: ${escapeHtml(mouldRisk)} in ${escapeHtml(mouldRoom)}" in legacy
     assert "Export refreshed Humidity Intelligence card YAML from Home Assistant." in mobile
     assert "Dashboard Manual card" in tablet
     assert hass.data["humidity_intelligence"][ENTRY_ID]["level_labels"] == {
@@ -2987,7 +3103,12 @@ async def _run_visual_flash_restore_assertions(services_mod) -> None:
 
         hass_on = _FlashHass({"light.alert": _FakeState("on", attrs)})
         handler_on = await _registered_flash_handler(services_mod, hass_on)
-        await handler_on(SimpleNamespace(data=payload))
+        await handler_on(
+            SimpleNamespace(
+                data=payload,
+                context=SimpleNamespace(user_id="admin"),
+            )
+        )
         on_calls = _light_service_calls(hass_on)
         assert [service for service, _data in on_calls[:20]] == ["turn_on", "turn_off"] * 10
         assert len(on_calls) == 21
@@ -2998,7 +3119,12 @@ async def _run_visual_flash_restore_assertions(services_mod) -> None:
 
         hass_off = _FlashHass({"light.alert": _FakeState("off", attrs)})
         handler_off = await _registered_flash_handler(services_mod, hass_off)
-        await handler_off(SimpleNamespace(data=payload))
+        await handler_off(
+            SimpleNamespace(
+                data=payload,
+                context=SimpleNamespace(user_id="admin"),
+            )
+        )
         off_calls = _light_service_calls(hass_off)
         assert [service for service, _data in off_calls[:20]] == ["turn_on", "turn_off"] * 10
         assert len(off_calls) == 21
@@ -3008,8 +3134,18 @@ async def _run_visual_flash_restore_assertions(services_mod) -> None:
         hass_overlap = _FlashHass({"light.alert": _FakeState("on", attrs)})
         handler_overlap = await _registered_flash_handler(services_mod, hass_overlap)
         await asyncio.gather(
-            handler_overlap(SimpleNamespace(data=payload)),
-            handler_overlap(SimpleNamespace(data=payload)),
+            handler_overlap(
+                SimpleNamespace(
+                    data=payload,
+                    context=SimpleNamespace(user_id="admin"),
+                )
+            ),
+            handler_overlap(
+                SimpleNamespace(
+                    data=payload,
+                    context=SimpleNamespace(user_id="admin"),
+                )
+            ),
         )
         overlap_services = [service for service, _data in _light_service_calls(hass_overlap)]
         one_sequence = ["turn_on", "turn_off"] * 10 + ["turn_on"]
@@ -3024,7 +3160,7 @@ def test_visual_alert_flash_restores_initial_light_state_and_serializes_overlap(
     asyncio.run(_run_visual_flash_restore_assertions(services_mod))
 
 
-def test_global_pause_and_resume_require_admin_user_context():
+def test_pause_and_resume_require_admin_for_targeted_and_global_calls():
     services_mod = _load_services_module()
     entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
     hass = _FakeHass(entry, {})
@@ -3041,6 +3177,50 @@ def test_global_pause_and_resume_require_admin_user_context():
     resume_handler = hass.services.handlers[(services_mod.DOMAIN, services_mod.SERVICE_RESUME_CONTROL)]
     timer = hass.data[services_mod.DOMAIN][ENTRY_ID]["hi_timers"]["air_control_pause"]
 
+    for handler, action in (
+        (pause_handler, "pause"),
+        (resume_handler, "resume"),
+    ):
+        for context in (
+            SimpleNamespace(user_id="viewer"),
+            SimpleNamespace(user_id=None),
+        ):
+            try:
+                asyncio.run(
+                    handler(
+                        SimpleNamespace(
+                            data={"entry_id": ENTRY_ID},
+                            context=context,
+                        )
+                    )
+                )
+            except Exception as err:
+                assert "requires an admin user" in str(err)
+            else:
+                raise AssertionError(f"targeted {action} should require admin context")
+
+    assert timer.start_calls == 0
+    assert timer.cancel_calls == 0
+
+    asyncio.run(
+        pause_handler(
+            SimpleNamespace(
+                data={"entry_id": ENTRY_ID},
+                context=SimpleNamespace(user_id="admin"),
+            )
+        )
+    )
+    asyncio.run(
+        resume_handler(
+            SimpleNamespace(
+                data={"entry_id": ENTRY_ID},
+                context=SimpleNamespace(user_id="admin"),
+            )
+        )
+    )
+    assert timer.start_calls == 1
+    assert timer.cancel_calls == 1
+
     try:
         asyncio.run(pause_handler(SimpleNamespace(data={}, context=SimpleNamespace(user_id="viewer"))))
     except Exception as err:
@@ -3048,10 +3228,10 @@ def test_global_pause_and_resume_require_admin_user_context():
     else:
         raise AssertionError("global pause should reject non-admin user context")
 
-    assert timer.start_calls == 0
+    assert timer.start_calls == 1
 
     asyncio.run(pause_handler(SimpleNamespace(data={}, context=SimpleNamespace(user_id="admin"))))
-    assert timer.start_calls == 1
+    assert timer.start_calls == 2
     assert timer.native_value == "active"
 
     try:
@@ -3061,10 +3241,10 @@ def test_global_pause_and_resume_require_admin_user_context():
     else:
         raise AssertionError("global resume should reject non-admin user context")
 
-    assert timer.cancel_calls == 0
+    assert timer.cancel_calls == 1
 
     asyncio.run(resume_handler(SimpleNamespace(data={}, context=SimpleNamespace(user_id="admin"))))
-    assert timer.cancel_calls == 1
+    assert timer.cancel_calls == 2
     assert timer.native_value == "idle"
 
 
@@ -3309,6 +3489,7 @@ def test_startup_ui_refresh_contract_is_wired():
     assert ".add_done_callback(" not in init_source
     assert "startup_ui_refresh_scheduled" in init_source
     assert "SERVICE_REFRESH_UI" in init_source
+    assert '"dump_cards",' not in init_source
     assert "STARTUP_UI_REFRESH_DELAY_SECONDS" in init_source
     assert "blocking=True" in init_source
     assert "auto_refresh_ui_on_startup" in const_source
@@ -3333,6 +3514,169 @@ def test_startup_ui_refresh_contract_is_wired():
     assert "_entry_show_output_entity_details" in init_source
     assert "generated-card output details" in init_source
     assert "UI visibility changes" in init_source
+    startup_method = init_source.split(
+        "async def _async_delayed_startup_ui_refresh",
+        1,
+    )[1].split("def _entry_auto_refresh_ui_on_startup", 1)[0]
+    assert "SERVICE_REFRESH_UI" in startup_method
+    assert "async_export_cards_to_owned_ui" not in startup_method
+
+
+def test_options_refresh_uses_trusted_card_export_after_mapping_refresh():
+    integration_mod = _load_integration_init_module()
+    events = []
+
+    async def async_call(domain, service, data=None, blocking=False):
+        events.append(("service", domain, service, data or {}, blocking))
+
+    async def export_cards(_hass, entry_id, filename, layout=None):
+        events.append(("export", entry_id, filename, layout))
+        return [
+            "/config/humidity_intelligence/ui/"
+            "humidity_intelligence_cards_v2_mobile.yaml"
+        ]
+
+    integration_mod.async_export_cards_to_owned_ui = export_cards
+    hass = SimpleNamespace(
+        services=SimpleNamespace(async_call=async_call),
+    )
+
+    asyncio.run(integration_mod._async_refresh_and_dump_cards(hass, ENTRY_ID))
+
+    assert events == [
+        (
+            "service",
+            integration_mod.DOMAIN,
+            "refresh_ui",
+            {"entry_id": ENTRY_ID},
+            True,
+        ),
+        ("export", ENTRY_ID, None, None),
+    ]
+
+
+def test_options_update_reloads_entry_then_regenerates_owned_ui_with_loaded_code():
+    integration_mod = _load_integration_init_module()
+    events = []
+
+    async def async_reload(entry_id):
+        events.append(("reload", entry_id))
+
+    async def refresh_and_dump(_hass, entry_id):
+        events.append(("refresh_export", entry_id))
+        return [
+            "/config/humidity_intelligence/ui/"
+            "humidity_intelligence_cards_entry123_v2_mobile.yaml"
+        ]
+
+    async def async_call(domain, service, data=None, blocking=False):
+        events.append(
+            (
+                "service",
+                domain,
+                service,
+                data or {},
+                blocking,
+            )
+        )
+
+    integration_mod._async_refresh_and_dump_cards = refresh_and_dump
+    entry = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data={},
+        options={
+            "alert_only_mode": True,
+            "show_output_entity_details": False,
+        },
+    )
+    hass = SimpleNamespace(
+        data={
+            integration_mod.DOMAIN: {
+                ENTRY_ID: {
+                    "config": {
+                        "alert_only_mode": False,
+                        "show_output_entity_details": False,
+                    }
+                }
+            }
+        },
+        config_entries=SimpleNamespace(async_reload=async_reload),
+        services=SimpleNamespace(async_call=async_call),
+    )
+
+    asyncio.run(integration_mod._async_options_updated(hass, entry))
+
+    assert events[0:2] == [
+        ("reload", ENTRY_ID),
+        ("refresh_export", ENTRY_ID),
+    ]
+    notification = events[2]
+    assert notification[0:3] == (
+        "service",
+        "persistent_notification",
+        "create",
+    )
+    assert (
+        "/config/humidity_intelligence/ui/"
+        "humidity_intelligence_cards_entry123_v2_mobile.yaml"
+        in notification[3]["message"]
+    )
+    assert "Use only the exact paths above" in notification[3]["message"]
+    assert "legacy generated card files in the /config root" in (
+        notification[3]["message"]
+    )
+
+
+def test_options_update_reports_export_failure_without_success_path():
+    integration_mod = _load_integration_init_module()
+    service_calls = []
+
+    async def async_reload(_entry_id):
+        return None
+
+    async def failed_refresh_and_dump(_hass, _entry_id):
+        raise RuntimeError("fixture writer rejected")
+
+    async def async_call(domain, service, data=None, blocking=False):
+        service_calls.append((domain, service, data or {}, blocking))
+
+    integration_mod._async_refresh_and_dump_cards = failed_refresh_and_dump
+    entry = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data={},
+        options={
+            "alert_only_mode": True,
+            "show_output_entity_details": False,
+        },
+    )
+    hass = SimpleNamespace(
+        data={
+            integration_mod.DOMAIN: {
+                ENTRY_ID: {
+                    "config": {
+                        "alert_only_mode": False,
+                        "show_output_entity_details": False,
+                    }
+                }
+            }
+        },
+        config_entries=SimpleNamespace(async_reload=async_reload),
+        services=SimpleNamespace(async_call=async_call),
+    )
+
+    asyncio.run(integration_mod._async_options_updated(hass, entry))
+
+    notifications = [
+        call
+        for call in service_calls
+        if call[0:2] == ("persistent_notification", "create")
+    ]
+    assert len(notifications) == 1
+    assert notifications[0][2]["title"] == (
+        "Humidity Intelligence UI Update Incomplete"
+    )
+    assert "fixture writer rejected" in notifications[0][2]["message"]
+    assert "files were written" not in notifications[0][2]["message"]
 
 
 def test_options_gates_keeps_custom_targets_behind_advanced():
@@ -3414,16 +3758,21 @@ def test_readme_uses_manifest_version_badge_not_static_ha_compatibility_badge():
     assert "Home%20Assistant-2026.4.3%2B" not in readme_source
 
 
-def test_readme_only_shows_two_latest_release_notes_before_previous_releases():
+def test_readme_shows_current_v209_notes_and_v208_before_previous_releases():
     readme_source = (ROOT / "README.md").read_text()
     release_notes = readme_source.split("## Release Notes", 1)[1]
     visible_notes, previous_releases = release_notes.split("<details>", 1)
 
+    assert "### v2.0.9" in visible_notes
+    assert "set integration metadata to stable `2.0.9`" in visible_notes
     assert "### v2.0.8" in visible_notes
-    assert "### v2.0.7" in visible_notes
-    assert "### v2.0.6" not in visible_notes
+    assert "### v2.0.7" not in visible_notes
+    assert "assets/release_banner/v2.0.9_release.png" not in visible_notes
+    assert (ROOT / "assets" / "release_banner" / "v2.0.9_release.png").read_bytes()[:8] == (
+        b"\x89PNG\r\n\x1a\n"
+    )
     assert "<summary>Previous Releases</summary>" in previous_releases
-    assert "### v2.0.6" in previous_releases
+    assert "### v2.0.7" in previous_releases
 
 
 def test_dump_cards_without_layout_exports_all_cached_layouts():
@@ -3439,7 +3788,7 @@ def test_dump_cards_without_layout_exports_all_cached_layouts():
     with tempfile.TemporaryDirectory() as tmpdir:
         hass = _DumpCardsHass(tmpdir, [entry], {ENTRY_ID: cards})
         written = asyncio.run(
-            services_mod._dump_cards_to_file(
+            services_mod.async_export_cards_to_owned_ui(
                 hass,
                 entry_id=None,
                 filename="humidity_intelligence_cards",
@@ -3448,13 +3797,18 @@ def test_dump_cards_without_layout_exports_all_cached_layouts():
         )
 
         assert written == [
-            "/config/humidity_intelligence_cards_v2_mobile.yaml",
-            "/config/humidity_intelligence_cards_v2_tablet.yaml",
-            "/config/humidity_intelligence_cards_v1_mobile.yaml",
-            "/config/humidity_intelligence_cards_view_cards_button.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_cards_v2_mobile.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_cards_v2_tablet.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_cards_v1_mobile.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_cards_view_cards_button.yaml",
         ]
         for layout, yaml in cards.items():
-            path = pathlib.Path(tmpdir) / f"humidity_intelligence_cards_{layout}.yaml"
+            path = (
+                pathlib.Path(tmpdir)
+                / "humidity_intelligence"
+                / "ui"
+                / f"humidity_intelligence_cards_{layout}.yaml"
+            )
             assert path.read_text() == yaml
 
 
@@ -3470,7 +3824,7 @@ def test_dump_cards_with_layout_exports_only_requested_layout():
     with tempfile.TemporaryDirectory() as tmpdir:
         hass = _DumpCardsHass(tmpdir, [entry], {ENTRY_ID: cards})
         written = asyncio.run(
-            services_mod._dump_cards_to_file(
+            services_mod.async_export_cards_to_owned_ui(
                 hass,
                 entry_id=None,
                 filename="humidity_intelligence_cards",
@@ -3478,10 +3832,150 @@ def test_dump_cards_with_layout_exports_only_requested_layout():
             )
         )
 
-        assert written == ["/config/humidity_intelligence_cards_v2_tablet.yaml"]
-        assert (pathlib.Path(tmpdir) / "humidity_intelligence_cards_v2_tablet.yaml").read_text() == "tablet-card"
-        assert not (pathlib.Path(tmpdir) / "humidity_intelligence_cards_v2_mobile.yaml").exists()
-        assert not (pathlib.Path(tmpdir) / "humidity_intelligence_cards_v1_mobile.yaml").exists()
+        ui_dir = pathlib.Path(tmpdir) / "humidity_intelligence" / "ui"
+        assert written == [
+            "/config/humidity_intelligence/ui/humidity_intelligence_cards_v2_tablet.yaml"
+        ]
+        assert (
+            ui_dir / "humidity_intelligence_cards_v2_tablet.yaml"
+        ).read_text() == "tablet-card"
+        assert not (ui_dir / "humidity_intelligence_cards_v2_mobile.yaml").exists()
+        assert not (ui_dir / "humidity_intelligence_cards_v1_mobile.yaml").exists()
+
+
+def test_card_exports_are_entry_qualified_only_for_multi_entry_installations():
+    services_mod = _load_services_module()
+    first = SimpleNamespace(entry_id="entry_one")
+    second = SimpleNamespace(entry_id="entry_two")
+    cards = {"v2_mobile": "type: markdown\ncontent: Ready\n"}
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        hass = _DumpCardsHass(
+            tmpdir,
+            [first, second],
+            {
+                first.entry_id: cards,
+                second.entry_id: cards,
+            },
+        )
+        written = asyncio.run(
+            services_mod.async_export_cards_to_owned_ui(
+                hass,
+                entry_id=None,
+                filename=None,
+                layout="v2_mobile",
+            )
+        )
+        assert written == [
+            "/config/humidity_intelligence/ui/"
+            "humidity_intelligence_cards_entry_one_v2_mobile.yaml",
+            "/config/humidity_intelligence/ui/"
+            "humidity_intelligence_cards_entry_two_v2_mobile.yaml",
+        ]
+
+        custom = asyncio.run(
+            services_mod.async_export_cards_to_owned_ui(
+                hass,
+                entry_id=first.entry_id,
+                filename="humidity_intelligence_custom_cards",
+                layout="v2_mobile",
+            )
+        )
+        assert custom == [
+            "/config/humidity_intelligence/ui/"
+            "humidity_intelligence_custom_cards_entry_one_v2_mobile.yaml"
+        ]
+
+        boundary_base = "x" * 128
+        assert (
+            services_mod.SERVICE_DUMP_CARDS_SCHEMA(
+                {"filename": boundary_base}
+            )["filename"]
+            == boundary_base
+        )
+        boundary = asyncio.run(
+            services_mod.async_export_cards_to_owned_ui(
+                hass,
+                entry_id=first.entry_id,
+                filename=boundary_base,
+                layout="v2_mobile",
+            )
+        )
+        boundary_name = boundary[0].removeprefix(
+            "/config/humidity_intelligence/ui/"
+        )
+        assert len(boundary_name) <= 255
+        assert (
+            pathlib.Path(tmpdir)
+            / "humidity_intelligence"
+            / "ui"
+            / boundary_name
+        ).is_file()
+
+
+def test_service_schema_stub_rejects_undeclared_keys_by_default():
+    services_mod = _load_services_module()
+
+    release_defaults = services_mod.SERVICE_V205_RELEASE_CHECK_SCHEMA({})
+    assert release_defaults["write_test_exports"] is False
+    assert release_defaults["require_local_hi_snapshot"] is False
+
+    try:
+        services_mod.SERVICE_DUMP_CARDS_SCHEMA({"undeclared": True})
+    except services_mod.vol.Invalid as err:
+        assert "extra keys not allowed" in str(err)
+    else:
+        raise AssertionError("service schema stub accepted an undeclared key")
+
+    allow_extra_schema = services_mod.vol.Schema(
+        {services_mod.vol.Optional("layout"): str},
+        extra=services_mod.vol.ALLOW_EXTRA,
+    )
+    assert allow_extra_schema(
+        {"layout": "v2_mobile", "undeclared": True}
+    ) == {
+        "layout": "v2_mobile",
+        "undeclared": True,
+    }
+
+
+def test_owned_ui_purge_names_are_exact_for_default_and_release_test_exports():
+    services_mod = _load_services_module()
+    cleanup_mod = sys.modules[f"{PKG}.helpers.cleanup"]
+    entry = SimpleNamespace(entry_id="entry_one")
+
+    single = cleanup_mod.list_owned_ui_filenames(
+        [entry],
+        multiple_installation=False,
+        include_unqualified_defaults=True,
+    )
+    assert "humidity_intelligence_cards_v2_mobile.yaml" in single
+    assert (
+        "humidity_intelligence_v205_release_check_cards_v2_mobile.yaml"
+        in single
+    )
+    assert (
+        "humidity_intelligence_v205_release_check_cards_scoped_v2_tablet.yaml"
+        in single
+    )
+    assert "humidity_intelligence_cards_entry_one_v2_mobile.yaml" in single
+    assert (
+        "humidity_intelligence_v205_release_check_cards_entry_one_v2_mobile.yaml"
+        in single
+    )
+    assert "humidity_intelligence_custom_cards_v2_mobile.yaml" not in single
+
+    multi = cleanup_mod.list_owned_ui_filenames(
+        [entry],
+        multiple_installation=True,
+        include_unqualified_defaults=False,
+    )
+    assert "humidity_intelligence_cards_entry_one_v2_mobile.yaml" in multi
+    assert (
+        "humidity_intelligence_v205_release_check_cards_entry_one_v2_mobile.yaml"
+        in multi
+    )
+    assert "humidity_intelligence_cards_v2_mobile.yaml" not in multi
 
 
 def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
@@ -3533,13 +4027,13 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
         },
         write_test_exports=True,
         unscoped_written=[
-            "/config/humidity_intelligence_v205_release_check_cards_v2_mobile.yaml",
-            "/config/humidity_intelligence_v205_release_check_cards_v2_tablet.yaml",
-            "/config/humidity_intelligence_v205_release_check_cards_v1_mobile.yaml",
-            "/config/humidity_intelligence_v205_release_check_cards_view_cards_button.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_v205_release_check_cards_v2_mobile.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_v205_release_check_cards_v2_tablet.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_v205_release_check_cards_v1_mobile.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_v205_release_check_cards_view_cards_button.yaml",
         ],
         scoped_written=[
-            "/config/humidity_intelligence_v205_release_check_cards_scoped_v2_tablet.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_v205_release_check_cards_scoped_v2_tablet.yaml",
         ],
     )
     checks = {check["id"]: check for check in report["checks"]}
@@ -3556,7 +4050,7 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
         hass,
         entry,
         runtime_data,
-        manifest_version="2.0.8-beta.1",
+        manifest_version="2.0.9-beta.1",
         frontend_dependencies={
             "status": "not_inspectable",
             "reason": "Lovelace resource collection is not available in this Home Assistant runtime context.",
@@ -3565,6 +4059,17 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
     beta_checks = {check["id"]: check for check in beta_report["checks"]}
     assert beta_report["status"] == "pass"
     assert beta_checks["manifest_version"]["status"] == "pass"
+
+    future_report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        runtime_data,
+        manifest_version="2.0.10-beta.1",
+        frontend_dependencies={"status": "not_inspectable"},
+    )
+    future_checks = {check["id"]: check for check in future_report["checks"]}
+    assert future_report["status"] == "fail"
+    assert future_checks["manifest_version"]["status"] == "fail"
 
     failed_report = services_mod._build_v205_release_check_entry_report(
         hass,
@@ -3577,10 +4082,10 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
         },
         write_test_exports=True,
         unscoped_written=[
-            "/config/humidity_intelligence_v205_release_check_cards_v2_tablet.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_v205_release_check_cards_v2_tablet.yaml",
         ],
         scoped_written=[
-            "/config/humidity_intelligence_v205_release_check_cards_scoped_v2_tablet.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_v205_release_check_cards_scoped_v2_tablet.yaml",
         ],
     )
     failed_checks = {check["id"]: check for check in failed_report["checks"]}
@@ -3866,7 +4371,565 @@ def test_flash_lights_power_entity_rejects_non_switch_light_domains():
         raise AssertionError("fan power_entity should be rejected")
 
 
-def test_dump_diagnostics_legacy_export_redacts_sensitive_payload_before_write():
+def test_external_flash_and_local_snapshot_services_require_admin_before_work():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {"light.alert": _FakeState("off")})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth(
+        {
+            "admin": SimpleNamespace(is_admin=True),
+            "viewer": SimpleNamespace(is_admin=False),
+        }
+    )
+    local_version_calls = {"create": 0, "list": 0}
+    original_create_local_backup = services_mod.async_create_local_backup
+    original_list_saved_versions = services_mod.async_list_saved_versions
+
+    async def unexpected_local_backup(*_args, **_kwargs):
+        local_version_calls["create"] += 1
+        raise AssertionError("local backup work must not begin before authorization")
+
+    async def tracked_list_saved_versions(*_args, **_kwargs):
+        local_version_calls["list"] += 1
+        return {
+            "success": True,
+            "valid_snapshots": [],
+            "invalid_snapshots": [],
+            "latest_snapshot": None,
+            "total_size": 0,
+        }
+
+    services_mod.async_create_local_backup = unexpected_local_backup
+    services_mod.async_list_saved_versions = tracked_list_saved_versions
+    try:
+        asyncio.run(services_mod.async_register_services(hass))
+        handlers = {
+            services_mod.SERVICE_FLASH_LIGHTS: hass.services.handlers[
+                (services_mod.DOMAIN, services_mod.SERVICE_FLASH_LIGHTS)
+            ],
+            services_mod.SERVICE_CREATE_LOCAL_BACKUP: hass.services.handlers[
+                (services_mod.DOMAIN, services_mod.SERVICE_CREATE_LOCAL_BACKUP)
+            ],
+            services_mod.SERVICE_LIST_SAVED_VERSIONS: hass.services.handlers[
+                (services_mod.DOMAIN, services_mod.SERVICE_LIST_SAVED_VERSIONS)
+            ],
+        }
+
+        for service, handler in handlers.items():
+            for user_id in ("viewer", None, "missing"):
+                calls_before = list(hass.services.calls)
+                try:
+                    asyncio.run(
+                        handler(
+                            SimpleNamespace(
+                                data={"lights": ["light.alert"]}
+                                if service == services_mod.SERVICE_FLASH_LIGHTS
+                                else {},
+                                context=SimpleNamespace(user_id=user_id),
+                            )
+                        )
+                    )
+                except services_mod.HomeAssistantError as err:
+                    assert str(err) == f"{service} requires an admin user context"
+                else:
+                    raise AssertionError(
+                        f"{service} should reject user context {user_id!r}"
+                    )
+                assert hass.services.calls == calls_before
+                assert local_version_calls == {"create": 0, "list": 0}
+
+        listed = asyncio.run(
+            handlers[services_mod.SERVICE_LIST_SAVED_VERSIONS](
+                SimpleNamespace(
+                    data={},
+                    context=SimpleNamespace(user_id="admin"),
+                )
+            )
+        )
+        assert listed["success"] is True
+        assert local_version_calls == {"create": 0, "list": 1}
+        assert any(
+            call[0:2] == ("persistent_notification", "create")
+            and call[2].get("title") == "Humidity Intelligence Local Snapshots"
+            for call in hass.services.calls
+        )
+    finally:
+        services_mod.async_create_local_backup = original_create_local_backup
+        services_mod.async_list_saved_versions = original_list_saved_versions
+
+
+def test_report_service_schemas_reject_non_owned_root_filenames_before_write():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    executor_calls = 0
+
+    async def counting_executor_job(func, *args):
+        nonlocal executor_calls
+        executor_calls += 1
+        return func(*args)
+
+    hass.async_add_executor_job = counting_executor_job
+    asyncio.run(services_mod.async_register_services(hass))
+
+    services = (
+        (
+            services_mod.SERVICE_DUMP_DIAGNOSTICS,
+            "humidity_intelligence_diagnostics.json",
+        ),
+        (
+            services_mod.SERVICE_V205_RELEASE_CHECK,
+            "humidity_intelligence_v205_release_check.json",
+        ),
+    )
+    rejected = (
+        "configuration.yaml",
+        "secrets.yaml",
+        "automations.yaml",
+        "scripts.yaml",
+        "scenes.yaml",
+        ".HA_VERSION",
+        "my_report.json",
+        "Humidity_intelligence_report.json",
+        "humidity_intelligence_report.JSON",
+        "humidity_intelligence_report.txt",
+        " humidity_intelligence_report.json ",
+        "humidity_intelligence_../secrets.json",
+        "humidity_intelligence_reports/report.json",
+        "humidity_intelligence_reports\\report.json",
+    )
+
+    for service, default_filename in services:
+        schema = hass.services.schemas[(services_mod.DOMAIN, service)]
+        assert schema is not None
+        assert schema({})["filename"] == default_filename
+        assert (
+            schema({"filename": "humidity_intelligence_release_2026.json"})["filename"]
+            == "humidity_intelligence_release_2026.json"
+        )
+
+        for filename in rejected:
+            calls_before = executor_calls
+            dispatches_before = len(hass.services.handler_calls)
+            try:
+                asyncio.run(
+                    hass.services.async_call(
+                        services_mod.DOMAIN,
+                        service,
+                        {"filename": filename},
+                        blocking=True,
+                    )
+                )
+            except Exception as err:
+                assert "humidity_intelligence_*.json" in str(err)
+            else:
+                raise AssertionError(f"{service} should reject non-owned report filename {filename!r}")
+            assert executor_calls == calls_before
+            assert len(hass.services.handler_calls) == dispatches_before
+
+    card_schema = hass.services.schemas[(services_mod.DOMAIN, services_mod.SERVICE_DUMP_CARDS)]
+    assert card_schema({"filename": "custom_cards"})["filename"] == "custom_cards"
+    view_schema = hass.services.schemas[(services_mod.DOMAIN, services_mod.SERVICE_VIEW_CARDS)]
+    assert view_schema({"filename": "custom_cards"})["filename"] == "custom_cards"
+
+
+def test_report_writers_require_admin_before_report_side_effects():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth(
+        {
+            "admin": SimpleNamespace(is_admin=True),
+            "viewer": SimpleNamespace(is_admin=False),
+        }
+    )
+    counters = {
+        "config_entries": 0,
+        "destination": 0,
+        "executor": 0,
+    }
+    original_config_entries = hass.config_entries
+
+    class CountingConfigEntries:
+        def async_get_entry(self, entry_id):
+            counters["config_entries"] += 1
+            return original_config_entries.async_get_entry(entry_id)
+
+        def async_entries(self, domain):
+            counters["config_entries"] += 1
+            return original_config_entries.async_entries(domain)
+
+    class CountingConfig:
+        def path(self, *parts):
+            counters["destination"] += 1
+            return str(pathlib.Path(tempfile.gettempdir()).joinpath(*parts))
+
+    async def counting_executor_job(func, *args):
+        counters["executor"] += 1
+        return func(*args)
+
+    hass.config_entries = CountingConfigEntries()
+    hass.config = CountingConfig()
+    hass.async_add_executor_job = counting_executor_job
+    asyncio.run(services_mod.async_register_services(hass))
+
+    for service in (
+        services_mod.SERVICE_DUMP_DIAGNOSTICS,
+        services_mod.SERVICE_SELF_CHECK,
+        services_mod.SERVICE_V205_RELEASE_CHECK,
+        services_mod.SERVICE_DUMP_CARDS,
+        services_mod.SERVICE_VIEW_CARDS,
+    ):
+        handler = hass.services.handlers[(services_mod.DOMAIN, service)]
+        for user_id in ("viewer", None, "missing"):
+            before = dict(counters)
+            calls_before = list(hass.services.calls)
+            try:
+                asyncio.run(
+                    handler(
+                        SimpleNamespace(
+                            data={},
+                            context=SimpleNamespace(user_id=user_id),
+                        )
+                    )
+                )
+            except Exception as err:
+                assert str(err) == f"{service} requires an admin user context"
+            else:
+                raise AssertionError(f"{service} should reject user context {user_id!r}")
+            assert counters == before
+            assert hass.services.calls == calls_before
+
+
+def test_report_writer_admin_lookup_precedes_async_report_work():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    events = []
+
+    class RecordingAuth:
+        async def async_get_user(self, user_id):
+            events.append(("auth", user_id))
+            return SimpleNamespace(is_admin=True)
+
+    async def frontend_status(_hass):
+        events.append(("frontend", None))
+        return {"status": "not_inspectable"}
+
+    async def local_version_status(_hass):
+        events.append(("local_versions", None))
+        return {"status": "not_configured"}
+
+    original_frontend_status = services_mod.async_frontend_dependency_status
+    original_local_version_status = services_mod.async_local_version_status
+    original_executor = hass.async_add_executor_job
+
+    async def tracking_executor(func, *args):
+        events.append(("executor", func.__name__))
+        return await original_executor(func, *args)
+
+    hass.auth = RecordingAuth()
+    hass.async_add_executor_job = tracking_executor
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        _set_fake_config_path(hass, tmpdir)
+        try:
+            services_mod.async_frontend_dependency_status = frontend_status
+            services_mod.async_local_version_status = local_version_status
+            asyncio.run(services_mod.async_register_services(hass))
+
+            for service in (
+                services_mod.SERVICE_DUMP_DIAGNOSTICS,
+                services_mod.SERVICE_SELF_CHECK,
+                services_mod.SERVICE_V205_RELEASE_CHECK,
+            ):
+                events.clear()
+                handler = hass.services.handlers[(services_mod.DOMAIN, service)]
+                asyncio.run(
+                    handler(
+                        SimpleNamespace(
+                            data={"entry_id": "missing"},
+                            context=SimpleNamespace(user_id="admin"),
+                        )
+                    )
+                )
+                assert events[0] == ("auth", "admin")
+                assert any(event[0] == "executor" for event in events)
+        finally:
+            services_mod.async_frontend_dependency_status = original_frontend_status
+            services_mod.async_local_version_status = original_local_version_status
+
+
+def test_report_writer_services_use_owned_directory_and_truthful_notification():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth({"admin": SimpleNamespace(is_admin=True)})
+
+    async def frontend_status(_hass):
+        return {"status": "not_inspectable"}
+
+    async def local_version_status(_hass):
+        return {"status": "not_configured"}
+
+    original_frontend_status = services_mod.async_frontend_dependency_status
+    original_local_version_status = services_mod.async_local_version_status
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = pathlib.Path(tmpdir)
+        _set_fake_config_path(hass, root)
+        try:
+            services_mod.async_frontend_dependency_status = frontend_status
+            services_mod.async_local_version_status = local_version_status
+            asyncio.run(services_mod.async_register_services(hass))
+
+            diagnostics_name = "humidity_intelligence_diagnostics_test.json"
+            release_name = "humidity_intelligence_release_test.json"
+            diagnostics_handler = hass.services.handlers[
+                (services_mod.DOMAIN, services_mod.SERVICE_DUMP_DIAGNOSTICS)
+            ]
+            release_handler = hass.services.handlers[
+                (services_mod.DOMAIN, services_mod.SERVICE_V205_RELEASE_CHECK)
+            ]
+            asyncio.run(
+                diagnostics_handler(
+                    SimpleNamespace(
+                        data={
+                            "entry_id": "missing",
+                            "filename": diagnostics_name,
+                        },
+                        context=SimpleNamespace(user_id="admin"),
+                    )
+                )
+            )
+            asyncio.run(
+                release_handler(
+                    SimpleNamespace(
+                        data={
+                            "entry_id": "missing",
+                            "filename": release_name,
+                        },
+                        context=SimpleNamespace(user_id="admin"),
+                    )
+                )
+            )
+        finally:
+            services_mod.async_frontend_dependency_status = original_frontend_status
+            services_mod.async_local_version_status = original_local_version_status
+
+        for filename in (diagnostics_name, release_name):
+            assert not (root / filename).exists()
+            report = root / "humidity_intelligence" / "exports" / filename
+            assert report.is_file()
+            json.loads(report.read_text(encoding="utf-8"))
+
+        notifications = [
+            call
+            for call in hass.services.calls
+            if call[0:2] == ("persistent_notification", "create")
+        ]
+        assert len(notifications) == 1
+        message = notifications[0][2]["message"]
+        assert (
+            "Home Assistant config/humidity_intelligence/exports/"
+            + release_name
+        ) in message
+        assert f"/config/{release_name}" not in message
+
+
+def test_self_check_uses_fixed_owned_report_and_retains_payload_semantics():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth({"admin": SimpleNamespace(is_admin=True)})
+    hass.data[services_mod.DOMAIN][ENTRY_ID].update(
+        {
+            "entity_map": {"runtime_mode": "sensor.missing_runtime_mode"},
+            "cards": {},
+            "unresolved_placeholders": ["sensor.unresolved"],
+            "unresolved_placeholders_by_card": {
+                "v2_mobile": ["sensor.unresolved"]
+            },
+        }
+    )
+
+    async def frontend_status(_hass):
+        return {"status": "not_inspectable"}
+
+    async def local_version_status(_hass):
+        return {"status": "not_configured"}
+
+    original_frontend_status = services_mod.async_frontend_dependency_status
+    original_local_version_status = services_mod.async_local_version_status
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = pathlib.Path(tmpdir)
+        legacy = root / "humidity_intelligence_self_check.json"
+        legacy.write_text('{"legacy": true}\n', encoding="utf-8")
+        _set_fake_config_path(hass, root)
+        try:
+            services_mod.async_frontend_dependency_status = frontend_status
+            services_mod.async_local_version_status = local_version_status
+            asyncio.run(services_mod.async_register_services(hass))
+            handler = hass.services.handlers[
+                (services_mod.DOMAIN, services_mod.SERVICE_SELF_CHECK)
+            ]
+            asyncio.run(
+                handler(
+                    SimpleNamespace(
+                        data={"entry_id": ENTRY_ID},
+                        context=SimpleNamespace(user_id="admin"),
+                    )
+                )
+            )
+        finally:
+            services_mod.async_frontend_dependency_status = original_frontend_status
+            services_mod.async_local_version_status = original_local_version_status
+
+        destination = (
+            root
+            / "humidity_intelligence"
+            / "exports"
+            / "humidity_intelligence_self_check.json"
+        )
+        payload = json.loads(destination.read_text(encoding="utf-8"))
+        assert payload[ENTRY_ID]["missing_entities"] == [
+            "sensor.missing_runtime_mode"
+        ]
+        assert payload[ENTRY_ID]["telemetry_count"] == len(
+            entry.data["telemetry"]
+        )
+        assert payload[ENTRY_ID]["unresolved_placeholders"] == [
+            "sensor.unresolved"
+        ]
+        assert legacy.read_text(encoding="utf-8") == '{"legacy": true}\n'
+        notification = [
+            call
+            for call in hass.services.calls
+            if call[0:2] == ("persistent_notification", "create")
+        ][-1]
+        assert (
+            "Home Assistant config/humidity_intelligence/exports/"
+            "humidity_intelligence_self_check.json"
+        ) in notification[2]["message"]
+        assert "local/private" in notification[2]["message"]
+
+
+def test_view_cards_notification_reports_exact_owned_ui_path():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth({"admin": SimpleNamespace(is_admin=True)})
+    hass.data[services_mod.DOMAIN][ENTRY_ID]["cards"] = {
+        "v2_tablet": "type: markdown\ncontent: Tablet\n"
+    }
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = pathlib.Path(tmpdir)
+        _set_fake_config_path(hass, root)
+        asyncio.run(services_mod.async_register_services(hass))
+        handler = hass.services.handlers[
+            (services_mod.DOMAIN, services_mod.SERVICE_VIEW_CARDS)
+        ]
+        asyncio.run(
+            handler(
+                SimpleNamespace(
+                    data={
+                        "entry_id": ENTRY_ID,
+                        "layout": "v2_tablet",
+                    },
+                    context=SimpleNamespace(user_id="admin"),
+                )
+            )
+        )
+
+        expected = (
+            "/config/humidity_intelligence/ui/"
+            "humidity_intelligence_cards_v2_tablet.yaml"
+        )
+        assert root.joinpath(expected.removeprefix("/config/")).is_file()
+        notification = [
+            call
+            for call in hass.services.calls
+            if call[0:2] == ("persistent_notification", "create")
+        ][-1]
+        assert expected in notification[2]["message"]
+
+
+def test_report_writers_surface_owned_export_failure_as_service_error():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth({"admin": SimpleNamespace(is_admin=True)})
+
+    async def frontend_status(_hass):
+        return {"status": "not_inspectable"}
+
+    async def local_version_status(_hass):
+        return {"status": "not_configured"}
+
+    def failed_write(*_args):
+        raise services_mod.ReportExportError("fixture destination rejected")
+
+    original_frontend_status = services_mod.async_frontend_dependency_status
+    original_local_version_status = services_mod.async_local_version_status
+    original_write = services_mod.write_owned_report
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        _set_fake_config_path(hass, tmpdir)
+        try:
+            services_mod.async_frontend_dependency_status = frontend_status
+            services_mod.async_local_version_status = local_version_status
+            services_mod.write_owned_report = failed_write
+            asyncio.run(services_mod.async_register_services(hass))
+            for service, expected in (
+                (
+                    services_mod.SERVICE_DUMP_DIAGNOSTICS,
+                    "Diagnostics report operation incomplete: "
+                    "fixture destination rejected",
+                ),
+                (
+                    services_mod.SERVICE_V205_RELEASE_CHECK,
+                    "Release-check report operation incomplete: "
+                    "fixture destination rejected",
+                ),
+            ):
+                handler = hass.services.handlers[(services_mod.DOMAIN, service)]
+                try:
+                    asyncio.run(
+                        handler(
+                            SimpleNamespace(
+                                data={"entry_id": "missing"},
+                                context=SimpleNamespace(user_id="admin"),
+                            )
+                        )
+                    )
+                except Exception as err:
+                    assert str(err) == expected
+                else:
+                    raise AssertionError(
+                        f"{service} export failure should be reported"
+                    )
+        finally:
+            services_mod.async_frontend_dependency_status = original_frontend_status
+            services_mod.async_local_version_status = original_local_version_status
+            services_mod.write_owned_report = original_write
+
+    assert not [
+        call
+        for call in hass.services.calls
+        if call[0:2] == ("persistent_notification", "create")
+    ]
+
+
+def test_dump_diagnostics_owned_export_redacts_sensitive_payload_before_write():
     services_mod = _load_services_module()
     entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
     hass = _FakeHass(
@@ -3884,6 +4947,7 @@ def test_dump_diagnostics_legacy_export_redacts_sensitive_payload_before_write()
     )
     hass.config = _DumpCardsConfig(tempfile.mkdtemp())
     hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth({"admin": SimpleNamespace(is_admin=True)})
     hass.data["lovelace"] = SimpleNamespace(
         resources=_FakeLovelaceResources(
             [
@@ -3928,21 +4992,29 @@ def test_dump_diagnostics_legacy_export_redacts_sensitive_payload_before_write()
 
     captured = {}
 
-    def capture_write(path, payload):
-        captured["path"] = path
+    def capture_write(config_root, filename, payload):
+        captured["config_root"] = config_root
+        captured["filename"] = filename
         captured["payload"] = payload
 
     original_local_version_status = services_mod.async_local_version_status
-    original_write_json = services_mod._write_json
+    original_write_owned_report = services_mod.write_owned_report
     try:
         services_mod.async_local_version_status = local_version_status
-        services_mod._write_json = capture_write
+        services_mod.write_owned_report = capture_write
         asyncio.run(services_mod.async_register_services(hass))
         handler = hass.services.handlers[(services_mod.DOMAIN, services_mod.SERVICE_DUMP_DIAGNOSTICS)]
-        asyncio.run(handler(SimpleNamespace(data={"entry_id": ENTRY_ID})))
+        asyncio.run(
+            handler(
+                SimpleNamespace(
+                    data={"entry_id": ENTRY_ID},
+                    context=SimpleNamespace(user_id="admin"),
+                )
+            )
+        )
     finally:
         services_mod.async_local_version_status = original_local_version_status
-        services_mod._write_json = original_write_json
+        services_mod.write_owned_report = original_write_owned_report
 
     rendered = json.dumps(captured["payload"], sort_keys=True)
     for secret in (
@@ -3967,6 +5039,7 @@ def test_dump_diagnostics_legacy_export_redacts_sensitive_payload_before_write()
     assert "configuration_summary" in captured["payload"][ENTRY_ID]
     assert "entity_map_summary" in captured["payload"][ENTRY_ID]
     assert captured["payload"][ENTRY_ID]["entity_map_summary"]["mapped_entity_count"] == 2
+    assert captured["filename"] == "humidity_intelligence_diagnostics.json"
 
 
 def test_generated_v2_cards_escape_dynamic_html_text():
@@ -4215,13 +5288,13 @@ def test_frontend_dependency_status_is_non_blocking_for_release_contract_checks(
         },
         write_test_exports=True,
         unscoped_written=[
-            "/config/humidity_intelligence_v205_release_check_cards_v2_mobile.yaml",
-            "/config/humidity_intelligence_v205_release_check_cards_v2_tablet.yaml",
-            "/config/humidity_intelligence_v205_release_check_cards_v1_mobile.yaml",
-            "/config/humidity_intelligence_v205_release_check_cards_view_cards_button.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_v205_release_check_cards_v2_mobile.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_v205_release_check_cards_v2_tablet.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_v205_release_check_cards_v1_mobile.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_v205_release_check_cards_view_cards_button.yaml",
         ],
         scoped_written=[
-            "/config/humidity_intelligence_v205_release_check_cards_scoped_v2_tablet.yaml",
+            "/config/humidity_intelligence/ui/humidity_intelligence_v205_release_check_cards_scoped_v2_tablet.yaml",
         ],
     )
     checks = {check["id"]: check for check in report["checks"]}
@@ -4277,6 +5350,60 @@ def test_v205_release_check_fails_stale_generated_card_entity_references():
     assert checks["generated_card_entity_availability"]["details"]["missing_entities"] == [
         {"layout": "v2_mobile", "entity_id": "sensor.air_control_downstairs_pm25_average"}
     ]
+
+
+def test_v205_release_check_warns_for_existing_unavailable_card_reference():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(
+        entry,
+        {
+            "sensor.kitchen_h": _FakeState(45),
+            "sensor.hall_h": _FakeState(44),
+            "sensor.bed_h": _FakeState(46),
+            "sensor.house_humidity_mean_7d": _FakeState(43),
+            "sensor.kitchen_t": _FakeState(21),
+            "sensor.hall_t": _FakeState(20),
+            "sensor.bed_t": _FakeState(19),
+            "sensor.l1_iaq": _FakeState(35),
+            "sensor.co_val": _FakeState(4),
+            "fan.zone1": _FakeState("off"),
+            "fan.zone2": _FakeState("off"),
+            "fan.aq1": _FakeState("off"),
+            "humidifier.l1": _FakeState("off"),
+            "light.alert": _FakeState("unavailable"),
+            "switch.alert_power": _FakeState("off"),
+        },
+    )
+
+    report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        {
+            "entity_map": {},
+            "cards": {
+                "v2_mobile": "type: entity\nentity: light.alert\n",
+                "v2_tablet": "type: entity\nentity: light.alert\n",
+                "v1_mobile": "type: markdown\ncontent: Legacy ready\n",
+                "view_cards_button": "type: button\nname: View cards\n",
+            },
+            "unresolved_placeholders_by_card": {},
+        },
+        manifest_version="2.0.9-rc.1",
+        frontend_dependencies={"status": "not_inspectable"},
+    )
+    checks = {check["id"]: check for check in report["checks"]}
+
+    assert report["status"] == "warn"
+    assert checks["generated_card_entity_availability"]["status"] == "warn"
+    assert checks["generated_card_entity_availability"]["details"]["missing_entities"] == []
+    assert checks["generated_card_entity_availability"]["details"][
+        "unknown_or_unavailable_entities"
+    ] == [
+        {"layout": "v2_mobile", "entity_id": "light.alert", "status": "unavailable"},
+        {"layout": "v2_tablet", "entity_id": "light.alert", "status": "unavailable"},
+    ]
+    assert checks["configured_entity_availability"]["status"] == "warn"
 
 
 def test_generated_card_entity_extraction_includes_embedded_js_references():
@@ -4390,17 +5517,50 @@ def test_v205_release_check_service_is_documented_and_registered():
     services_source = (ROOT / "services.py").read_text()
     services_yaml = (ROOT / "services.yaml").read_text()
     readme_source = (ROOT / "README.md").read_text()
+    manifest = json.loads((ROOT / "manifest.json").read_text())
 
     assert 'SERVICE_V205_RELEASE_CHECK = "v205_release_check"' in services_source
     assert "SERVICE_V205_RELEASE_CHECK_SCHEMA" in services_source
     assert "handle_v205_release_check" in services_source
     assert "SERVICE_V205_RELEASE_CHECK" in services_source.split("async_unregister_services", 1)[1]
     assert "v205_release_check:" in services_yaml
-    assert "v2.0.5-v2.0.8" in services_yaml
-    assert "v2.0.5-v2.0.8" in readme_source
+    assert "v2.0.5-v2.0.9" in services_yaml
+    assert "v2.0.5-v2.0.9" in readme_source
     assert "write_test_exports" in services_yaml
     assert "humidity_intelligence.v205_release_check" in readme_source
     assert "humidity_intelligence_v205_release_check.json" in readme_source
+    assert manifest["version"] == "2.0.9"
+
+
+def test_owned_ui_path_discovery_and_legacy_cleanup_guidance_is_explicit():
+    services_yaml = (ROOT / "services.yaml").read_text()
+    strings_data = json.loads((ROOT / "strings.json").read_text())
+    translations_data = json.loads((ROOT / "translations" / "en.json").read_text())
+    readme_source = (ROOT / "README.md").read_text()
+    support_source = (ROOT / "docs" / "support.md").read_text()
+
+    for source in (services_yaml, readme_source, support_source):
+        assert "dump_cards" in source
+        assert "view_cards" in source
+        assert "humidity_intelligence/ui" in source
+
+    assert "does not post a completion path notification" in services_yaml
+    assert "Use this instead of dump_cards when path discovery is the priority" in (
+        services_yaml
+    )
+    assert "Manually Removing Files Purge Intentionally Retains" in readme_source
+    assert "Do not manually delete registered dashboard YAML" in readme_source
+    assert "`dump_cards` writes under" in support_source
+    assert "completion path notification" in support_source
+    assert "does not write a file" in support_source
+
+    for data in (strings_data, translations_data):
+        description = data["config"]["step"]["ui_install"]["description"]
+        assert "/config/humidity_intelligence/ui/" in description
+        assert "/config/humidity_intelligence_cards_v2_mobile.yaml" in description
+        assert "retained legacy root file" in description
+        assert "no longer refreshed" in description
+        assert "refresh its file tree" in description
 
 
 def test_v205_release_check_only_fails_local_snapshot_when_required():
@@ -4798,6 +5958,919 @@ def test_v205_release_check_warns_on_blocked_pm25_normalization():
     assert checks["pm25_entity_id_normalization"]["details"]["status"] == "blocked"
     assert summary["pm25_entity_id_normalization"]["status"] == "blocked"
     assert any("PM25 aggregate entity ID normalization is blocked" in warning for warning in summary["warnings"])
+
+
+def _install_dashboard_test_dependencies(*, events, create_error=None, delete_error=None):
+    register_mod = types.ModuleType(f"{PKG}.ui.register")
+
+    async def async_build_entity_mapping(_hass, entry_id):
+        events.append(("mapping", entry_id))
+        return {"sensor.placeholder": "sensor.actual"}
+
+    async def async_register_cards(_hass, entry_id, *, mapping):
+        events.append(("cards", entry_id, dict(mapping)))
+        return {
+            "v2_mobile": "type: markdown\ncontent: Mobile ready\n",
+            "v2_tablet": "type: markdown\ncontent: Tablet ready\n",
+        }
+
+    async def async_create_dashboard(_hass, **kwargs):
+        events.append(("create_dashboard", dict(kwargs)))
+        if create_error is not None:
+            raise create_error
+
+    async def async_delete_dashboard(_hass, *, dashboard_id):
+        events.append(("delete_dashboard", dashboard_id))
+        if delete_error is not None:
+            raise delete_error
+
+    register_mod.async_build_entity_mapping = async_build_entity_mapping
+    register_mod.async_register_cards = async_register_cards
+    sys.modules[f"{PKG}.ui.register"] = register_mod
+    sys.modules["homeassistant.components.lovelace"].dashboard = SimpleNamespace(
+        async_create_dashboard=async_create_dashboard,
+        async_delete_dashboard=async_delete_dashboard,
+    )
+
+
+def _set_fake_config_path(hass, root):
+    hass.config = SimpleNamespace(
+        path=lambda *parts: str(pathlib.Path(root).joinpath(*parts)),
+    )
+
+
+def test_create_dashboard_requires_admin_before_render_or_write():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth(
+        {
+            "admin": SimpleNamespace(is_admin=True),
+            "viewer": SimpleNamespace(is_admin=False),
+        }
+    )
+    events = []
+    _install_dashboard_test_dependencies(events=events)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        _set_fake_config_path(hass, tmpdir)
+        asyncio.run(services_mod.async_register_services(hass))
+        handler = hass.services.handlers[
+            (services_mod.DOMAIN, services_mod.SERVICE_CREATE_DASHBOARD)
+        ]
+
+        for context in (
+            SimpleNamespace(user_id="viewer"),
+            SimpleNamespace(user_id=None),
+        ):
+            try:
+                asyncio.run(
+                    handler(
+                        SimpleNamespace(
+                            data={
+                                "entry_id": ENTRY_ID,
+                                "layout": "v2_mobile",
+                                "title": "Humidity Intelligence",
+                                "url_path": "humidity-intelligence",
+                            },
+                            context=context,
+                        )
+                    )
+                )
+            except Exception as err:
+                assert "requires an admin user" in str(err)
+            else:
+                raise AssertionError("create_dashboard should require admin context")
+
+        assert events == []
+        assert not (
+            pathlib.Path(tmpdir) / "dashboards" / "humidity-intelligence.yaml"
+        ).exists()
+
+        asyncio.run(
+            handler(
+                SimpleNamespace(
+                    data={
+                        "entry_id": ENTRY_ID,
+                        "layout": "v2_mobile",
+                        "title": "Humidity Intelligence",
+                        "url_path": "humidity-intelligence",
+                    },
+                    context=SimpleNamespace(user_id="admin"),
+                )
+            )
+        )
+        assert [event[0] for event in events] == [
+            "mapping",
+            "cards",
+            "create_dashboard",
+        ]
+        assert events[-1][1]["require_admin"] is False
+        assert (
+            pathlib.Path(tmpdir) / "dashboards" / "humidity-intelligence.yaml"
+        ).read_text(encoding="utf-8") == "type: markdown\ncontent: Mobile ready\n"
+
+
+def test_create_dashboard_helper_rejects_unsafe_url_path_before_work():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+
+    class RejectPathAccess:
+        def path(self, *_parts):
+            raise AssertionError("config path must not be evaluated")
+
+    hass = SimpleNamespace(config=RejectPathAccess())
+    try:
+        asyncio.run(
+            services_mod.async_create_dashboard_for_entry(
+                hass,
+                entry,
+                layout="v2_mobile",
+                title="Humidity Intelligence",
+                url_path="../configuration",
+            )
+        )
+    except services_mod.HomeAssistantError as err:
+        assert "Dashboard URL path" in str(err)
+    else:
+        raise AssertionError("unsafe dashboard path should be rejected")
+
+
+def test_first_run_dashboard_creation_uses_trusted_helper():
+    integration_mod = _load_integration_init_module()
+    service_calls = []
+    updates = []
+    helper_calls = []
+    card_export_calls = []
+
+    async def async_call(domain, service, data=None, blocking=False):
+        service_calls.append((domain, service, data or {}, blocking))
+
+    async def create_dashboard(_hass, entry, **kwargs):
+        helper_calls.append((entry.entry_id, kwargs))
+        return True
+
+    async def export_cards(_hass, entry_id, filename, layout=None):
+        card_export_calls.append((entry_id, filename, layout))
+        return [
+            "/config/humidity_intelligence/ui/"
+            "humidity_intelligence_cards_v2_mobile.yaml"
+        ]
+
+    integration_mod.async_create_dashboard_for_entry = create_dashboard
+    integration_mod.async_export_cards_to_owned_ui = export_cards
+    hass = SimpleNamespace(
+        services=SimpleNamespace(async_call=async_call),
+        config_entries=SimpleNamespace(
+            async_entries=lambda _domain: [entry],
+            async_update_entry=lambda entry, *, data: updates.append(
+                (entry.entry_id, data)
+            )
+        ),
+    )
+    entry = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data={"ui_layouts": ["v2_mobile", "create_dashboard"]},
+    )
+
+    asyncio.run(integration_mod._async_install_selected_ui(hass, entry))
+
+    assert helper_calls == [
+        (
+            ENTRY_ID,
+            {
+                "layout": "v2_mobile",
+                "title": "Humidity Intelligence",
+                "url_path": "humidity-intelligence",
+            },
+        )
+    ]
+    assert card_export_calls == [(ENTRY_ID, None, None)]
+    assert all(
+        call[0:2] != (integration_mod.DOMAIN, "dump_cards")
+        for call in service_calls
+    )
+    assert [
+        call[2]["title"]
+        for call in service_calls
+        if call[0:2] == ("persistent_notification", "create")
+    ] == ["Humidity Intelligence UI Cards"]
+    card_notification = [
+        call[2]["message"]
+        for call in service_calls
+        if call[0:2] == ("persistent_notification", "create")
+    ][0]
+    assert "/config/humidity_intelligence/ui/" in card_notification
+    assert "Older generated card files in the /config root" in card_notification
+    assert "Use only the exact paths above" in card_notification
+    assert updates == [
+        (
+            ENTRY_ID,
+            {
+                "ui_layouts": ["v2_mobile", "create_dashboard"],
+                "ui_install_done": True,
+                "ui_dashboard_id": "humidity-intelligence",
+            },
+        )
+    ]
+
+
+def test_second_entry_first_run_reexports_all_entries_with_qualified_paths():
+    integration_mod = _load_integration_init_module()
+    service_calls = []
+    export_calls = []
+    updates = []
+    first = SimpleNamespace(
+        entry_id="entry_one",
+        data={"ui_layouts": ["v2_mobile"], "ui_install_done": True},
+    )
+    second = SimpleNamespace(
+        entry_id="entry_two",
+        data={"ui_layouts": ["v2_mobile"]},
+    )
+
+    async def async_call(domain, service, data=None, blocking=False):
+        service_calls.append((domain, service, data or {}, blocking))
+
+    async def export_cards(_hass, entry_id, filename, layout=None):
+        export_calls.append((entry_id, filename, layout))
+        return [
+            "/config/humidity_intelligence/ui/"
+            "humidity_intelligence_cards_entry_one_v2_mobile.yaml",
+            "/config/humidity_intelligence/ui/"
+            "humidity_intelligence_cards_entry_two_v2_mobile.yaml",
+        ]
+
+    integration_mod.async_export_cards_to_owned_ui = export_cards
+    hass = SimpleNamespace(
+        services=SimpleNamespace(async_call=async_call),
+        config_entries=SimpleNamespace(
+            async_entries=lambda _domain: [first, second],
+            async_update_entry=lambda entry, *, data: updates.append(
+                (entry.entry_id, data)
+            ),
+        ),
+    )
+
+    asyncio.run(integration_mod._async_install_selected_ui(hass, second))
+
+    assert export_calls == [(None, None, None)]
+    notification = [
+        call
+        for call in service_calls
+        if call[0:2] == ("persistent_notification", "create")
+    ][0]
+    assert "humidity_intelligence_cards_entry_one_v2_mobile.yaml" in (
+        notification[2]["message"]
+    )
+    assert "humidity_intelligence_cards_entry_two_v2_mobile.yaml" in (
+        notification[2]["message"]
+    )
+    assert updates[0][0] == "entry_two"
+
+
+def test_first_run_dashboard_failure_is_visible_and_retryable():
+    integration_mod = _load_integration_init_module()
+    service_calls = []
+    updates = []
+
+    async def async_call(domain, service, data=None, blocking=False):
+        service_calls.append((domain, service, data or {}, blocking))
+
+    async def create_dashboard(_hass, _entry, **_kwargs):
+        raise RuntimeError("registration failed")
+
+    async def export_cards(_hass, _entry_id, _filename, layout=None):
+        return [
+            "/config/humidity_intelligence/ui/"
+            "humidity_intelligence_cards_v2_tablet.yaml"
+        ]
+
+    integration_mod.async_create_dashboard_for_entry = create_dashboard
+    integration_mod.async_export_cards_to_owned_ui = export_cards
+    hass = SimpleNamespace(
+        services=SimpleNamespace(async_call=async_call),
+        config_entries=SimpleNamespace(
+            async_entries=lambda _domain: [entry],
+            async_update_entry=lambda entry, *, data: updates.append(
+                (entry.entry_id, data)
+            )
+        ),
+    )
+    entry = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data={"ui_layouts": ["v2_tablet", "create_dashboard"]},
+    )
+
+    asyncio.run(integration_mod._async_install_selected_ui(hass, entry))
+
+    notifications = [
+        call
+        for call in service_calls
+        if call[0:2] == ("persistent_notification", "create")
+    ]
+    assert [call[2]["title"] for call in notifications] == [
+        "Humidity Intelligence Dashboard Creation Incomplete",
+        "Humidity Intelligence UI Cards",
+    ]
+    failure_message = notifications[0][2]["message"]
+    assert "YAML file may remain" in failure_message
+    assert "HI backend setup and card exports remain available" in failure_message
+    assert "authenticated admin UI or API session" in failure_message
+    assert updates == [
+        (
+            ENTRY_ID,
+            {
+                "ui_layouts": ["v2_tablet", "create_dashboard"],
+                "ui_install_done": True,
+            },
+        )
+    ]
+
+
+def test_config_entry_removal_uses_owned_ui_plans_without_report_or_legacy_cleanup():
+    integration_mod = _load_integration_init_module()
+    planned_names = []
+    removed_paths = []
+    service_calls = []
+    dashboard_calls = []
+    plan = SimpleNamespace(
+        relative_path=(
+            "humidity_intelligence/ui/"
+            "humidity_intelligence_cards_v2_mobile.yaml"
+        )
+    )
+
+    def list_names(entries, **kwargs):
+        assert [item.entry_id for item in entries] == [ENTRY_ID]
+        assert kwargs == {
+            "multiple_installation": False,
+            "include_unqualified_defaults": True,
+        }
+        return ["humidity_intelligence_cards_v2_mobile.yaml"]
+
+    def plan_removal(config_root, filenames):
+        planned_names.append((config_root, list(filenames)))
+        return [plan]
+
+    def remove_export(config_root, removal_plan):
+        removed_paths.append((config_root, removal_plan.relative_path))
+        return True
+
+    async def remove_dashboard(_hass, dashboard_id):
+        dashboard_calls.append(dashboard_id)
+        return True
+
+    async def async_call(domain, service, data=None, blocking=False):
+        service_calls.append((domain, service, data or {}, blocking))
+
+    async def executor_job(func, *args):
+        return func(*args)
+
+    integration_mod.list_owned_ui_filenames = list_names
+    integration_mod.plan_owned_ui_export_removal = plan_removal
+    integration_mod.remove_owned_ui_export = remove_export
+    integration_mod.remove_dashboard = remove_dashboard
+    entry = SimpleNamespace(
+        entry_id=ENTRY_ID,
+        data={"ui_dashboard_id": "humidity-intelligence"},
+    )
+    hass = SimpleNamespace(
+        config=SimpleNamespace(path=lambda *_parts: "/config"),
+        config_entries=SimpleNamespace(
+            async_entries=lambda _domain: [entry],
+        ),
+        services=SimpleNamespace(async_call=async_call),
+        async_add_executor_job=executor_job,
+    )
+
+    asyncio.run(integration_mod.async_remove_entry(hass, entry))
+
+    assert planned_names == [
+        ("/config", ["humidity_intelligence_cards_v2_mobile.yaml"])
+    ]
+    assert removed_paths == [
+        (
+            "/config",
+            "humidity_intelligence/ui/"
+            "humidity_intelligence_cards_v2_mobile.yaml",
+        )
+    ]
+    assert dashboard_calls == ["humidity-intelligence"]
+    message = service_calls[0][2]["message"]
+    assert "/config/humidity_intelligence/ui/" in message
+    assert "exports/" not in message
+    assert "/config/humidity_intelligence_cards_" not in message
+
+
+def test_two_to_one_entry_removal_reexports_remaining_entry_and_owns_qualified_remnants():
+    integration_mod = _load_integration_init_module()
+    listed = []
+    export_calls = []
+    service_calls = []
+    removed = SimpleNamespace(
+        entry_id="entry_two",
+        data={},
+    )
+    remaining = SimpleNamespace(
+        entry_id="entry_one",
+        data={},
+    )
+
+    def list_names(entries, **kwargs):
+        listed.append(([item.entry_id for item in entries], kwargs))
+        return [
+            "humidity_intelligence_cards_entry_two_v2_mobile.yaml",
+        ]
+
+    async def export_cards(
+        _hass,
+        entry_id,
+        filename,
+        layout=None,
+        *,
+        multiple_installation=None,
+    ):
+        export_calls.append(
+            (
+                entry_id,
+                filename,
+                layout,
+                multiple_installation,
+            )
+        )
+        return [
+            "/config/humidity_intelligence/ui/"
+            "humidity_intelligence_cards_v2_mobile.yaml"
+        ]
+
+    async def async_call(domain, service, data=None, blocking=False):
+        service_calls.append((domain, service, data or {}, blocking))
+
+    async def executor_job(func, *args):
+        return func(*args)
+
+    integration_mod.list_owned_ui_filenames = list_names
+    integration_mod.plan_owned_ui_export_removal = lambda *_args: []
+    integration_mod.async_export_cards_to_owned_ui = export_cards
+    integration_mod.remove_dashboard = lambda *_args: _async_true()
+
+    async def _async_true():
+        return True
+
+    hass = SimpleNamespace(
+        config=SimpleNamespace(path=lambda *_parts: "/config"),
+        config_entries=SimpleNamespace(
+            async_entries=lambda _domain: [removed, remaining],
+        ),
+        services=SimpleNamespace(async_call=async_call),
+        async_add_executor_job=executor_job,
+    )
+
+    asyncio.run(integration_mod.async_remove_entry(hass, removed))
+
+    assert listed == [
+        (
+            ["entry_two"],
+            {
+                "multiple_installation": True,
+                "include_unqualified_defaults": False,
+            },
+        )
+    ]
+    assert export_calls == [
+        ("entry_one", None, None, False),
+    ]
+    updated = [
+        call
+        for call in service_calls
+        if call[2].get("title") == "Humidity Intelligence UI Cards Updated"
+    ]
+    assert len(updated) == 1
+    assert "humidity_intelligence_cards_v2_mobile.yaml" in updated[0][2]["message"]
+
+
+def test_create_dashboard_reports_partial_registration_failure():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth({"admin": SimpleNamespace(is_admin=True)})
+    events = []
+    _install_dashboard_test_dependencies(
+        events=events,
+        create_error=RuntimeError("registration failed"),
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        _set_fake_config_path(hass, tmpdir)
+        asyncio.run(services_mod.async_register_services(hass))
+        handler = hass.services.handlers[
+            (services_mod.DOMAIN, services_mod.SERVICE_CREATE_DASHBOARD)
+        ]
+        try:
+            asyncio.run(
+                handler(
+                    SimpleNamespace(
+                        data={
+                            "entry_id": ENTRY_ID,
+                            "layout": "v2_mobile",
+                            "title": "Humidity Intelligence",
+                            "url_path": "humidity-intelligence",
+                        },
+                        context=SimpleNamespace(user_id="admin"),
+                    )
+                )
+            )
+        except Exception as err:
+            message = str(err).lower()
+            assert "yaml" in message
+            assert "dashboard" in message
+        else:
+            raise AssertionError("dashboard registration failure should be reported")
+
+        assert (
+            pathlib.Path(tmpdir) / "dashboards" / "humidity-intelligence.yaml"
+        ).exists()
+
+
+def test_purge_validates_all_candidates_before_any_side_effect():
+    services_mod = _load_services_module()
+    entry_data = _base_entry_data()
+    entry_data["ui_dashboard_id"] = "humidity-intelligence"
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=entry_data, options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth({"admin": SimpleNamespace(is_admin=True)})
+    events = []
+    _install_dashboard_test_dependencies(events=events)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        _set_fake_config_path(hass, tmpdir)
+        ui_dir = pathlib.Path(tmpdir) / "humidity_intelligence" / "ui"
+        ui_dir.mkdir(parents=True)
+        safe_path = ui_dir / "humidity_intelligence_cards_v2_mobile.yaml"
+        safe_path.write_text("safe", encoding="utf-8")
+        unsafe_path = ui_dir / "humidity_intelligence_cards_v2_tablet.yaml"
+        unsafe_path.symlink_to(safe_path)
+        asyncio.run(services_mod.async_register_services(hass))
+        handler = hass.services.handlers[
+            (services_mod.DOMAIN, services_mod.SERVICE_PURGE_FILES)
+        ]
+
+        try:
+            asyncio.run(
+                handler(
+                    SimpleNamespace(
+                        data={"entry_id": ENTRY_ID},
+                        context=SimpleNamespace(user_id="admin"),
+                    )
+                )
+            )
+        except Exception as err:
+            assert "Cleanup plan rejected" in str(err)
+        else:
+            raise AssertionError("purge should reject an unsafe complete target plan")
+
+        assert safe_path.read_text(encoding="utf-8") == "safe"
+        assert hass.services.calls == []
+        assert events == []
+
+
+def test_purge_requires_admin_and_uses_exact_blocking_preview():
+    services_mod = _load_services_module()
+    report_exports_mod = sys.modules[f"{PKG}.helpers.report_exports"]
+    entry_data = _base_entry_data()
+    entry_data["ui_layouts"] = ["v2_mobile"]
+    entry_data["ui_dashboard_id"] = "humidity-intelligence"
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=entry_data, options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth(
+        {
+            "admin": SimpleNamespace(is_admin=True),
+            "viewer": SimpleNamespace(is_admin=False),
+        }
+    )
+    events = []
+    _install_dashboard_test_dependencies(events=events)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        _set_fake_config_path(hass, tmpdir)
+        ui_dir = pathlib.Path(tmpdir) / "humidity_intelligence" / "ui"
+        ui_dir.mkdir(parents=True)
+        generated = ui_dir / "humidity_intelligence_cards_v2_mobile.yaml"
+        generated.write_text("generated", encoding="utf-8")
+        legacy_root = pathlib.Path(tmpdir) / "humidity_intelligence_cards.yaml"
+        legacy_root.write_text("legacy", encoding="utf-8")
+        owned_diagnostics = report_exports_mod.write_owned_report(
+            tmpdir,
+            report_exports_mod.DEFAULT_DIAGNOSTICS_REPORT_FILENAME,
+            {"status": "retained"},
+        )
+        asyncio.run(services_mod.async_register_services(hass))
+        handler = hass.services.handlers[
+            (services_mod.DOMAIN, services_mod.SERVICE_PURGE_FILES)
+        ]
+
+        for context in (
+            SimpleNamespace(user_id="viewer"),
+            SimpleNamespace(user_id=None),
+        ):
+            try:
+                asyncio.run(
+                    handler(
+                        SimpleNamespace(
+                            data={"entry_id": ENTRY_ID},
+                            context=context,
+                        )
+                    )
+                )
+            except Exception as err:
+                assert "requires an admin user" in str(err)
+            else:
+                raise AssertionError("purge_files should require admin context")
+
+        assert generated.exists()
+        assert hass.services.calls == []
+        assert events == []
+
+        sequence = []
+        original_async_call = hass.services.async_call
+        original_executor = hass.async_add_executor_job
+
+        async def tracking_call(domain, service, data=None, blocking=False):
+            if (domain, service) == ("persistent_notification", "create"):
+                sequence.append(("notification", bool(blocking)))
+            return await original_async_call(domain, service, data, blocking)
+
+        async def tracking_executor(func, *args):
+            sequence.append((func.__name__, None))
+            return await original_executor(func, *args)
+
+        hass.services.async_call = tracking_call
+        hass.async_add_executor_job = tracking_executor
+        asyncio.run(
+            handler(
+                SimpleNamespace(
+                    data={"entry_id": ENTRY_ID},
+                    context=SimpleNamespace(user_id="admin"),
+                )
+            )
+        )
+
+        preview_calls = [
+            call
+            for call in hass.services.calls
+            if call[0:2] == ("persistent_notification", "create")
+            and call[2].get("title") == "Humidity Intelligence Cleanup Preview"
+        ]
+        assert len(preview_calls) == 1
+        preview = preview_calls[0]
+        assert preview[3] is True
+        assert (
+            "/config/humidity_intelligence/ui/"
+            "humidity_intelligence_cards_v2_mobile.yaml"
+        ) in preview[2]["message"]
+        assert "/config/humidity_intelligence_cards.yaml" not in preview[2]["message"]
+        assert "Dashboard: humidity-intelligence" in preview[2]["message"]
+        assert "humidity_intelligence_diagnostics.json" not in preview[2]["message"]
+        assert sequence.index(("notification", True)) < sequence.index(
+            ("remove_owned_ui_export", None)
+        )
+        assert not generated.exists()
+        assert legacy_root.read_text(encoding="utf-8") == "legacy"
+        assert (pathlib.Path(tmpdir) / owned_diagnostics).is_file()
+        assert ("delete_dashboard", "humidity-intelligence") in events
+
+
+def test_unscoped_purge_removes_only_fixed_owned_reports():
+    services_mod = _load_services_module()
+    report_exports_mod = sys.modules[f"{PKG}.helpers.report_exports"]
+    entry_data = _base_entry_data()
+    entry_data["ui_layouts"] = ["v2_mobile"]
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=entry_data, options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth({"admin": SimpleNamespace(is_admin=True)})
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = pathlib.Path(tmpdir)
+        _set_fake_config_path(hass, root)
+        default_name = report_exports_mod.DEFAULT_DIAGNOSTICS_REPORT_FILENAME
+        self_check_name = report_exports_mod.DEFAULT_SELF_CHECK_REPORT_FILENAME
+        release_name = "humidity_intelligence_v205_release_check.json"
+        custom_name = "humidity_intelligence_custom.json"
+        legacy_root = root / default_name
+        legacy_root.write_text('{"legacy": true}\n', encoding="utf-8")
+        legacy_self_check = root / self_check_name
+        legacy_self_check.write_text('{"legacy_self_check": true}\n', encoding="utf-8")
+        for filename in (
+            default_name,
+            self_check_name,
+            release_name,
+            custom_name,
+        ):
+            report_exports_mod.write_owned_report(
+                root,
+                filename,
+                {"name": filename},
+            )
+
+        asyncio.run(services_mod.async_register_services(hass))
+        handler = hass.services.handlers[
+            (services_mod.DOMAIN, services_mod.SERVICE_PURGE_FILES)
+        ]
+        asyncio.run(
+            handler(
+                SimpleNamespace(
+                    data={},
+                    context=SimpleNamespace(user_id="admin"),
+                )
+            )
+        )
+
+        exports_dir = root / "humidity_intelligence" / "exports"
+        assert not (exports_dir / default_name).exists()
+        assert not (exports_dir / self_check_name).exists()
+        assert (exports_dir / release_name).is_file()
+        assert (exports_dir / custom_name).is_file()
+        assert legacy_root.read_text(encoding="utf-8") == '{"legacy": true}\n'
+        assert (
+            legacy_self_check.read_text(encoding="utf-8")
+            == '{"legacy_self_check": true}\n'
+        )
+
+        preview_calls = [
+            call
+            for call in hass.services.calls
+            if call[0:2] == ("persistent_notification", "create")
+            and call[2].get("title") == "Humidity Intelligence Cleanup Preview"
+        ]
+        assert len(preview_calls) == 1
+        preview_message = preview_calls[0][2]["message"]
+        assert (
+            "Home Assistant config/humidity_intelligence/exports/" + default_name
+        ) in preview_message
+        assert (
+            "Home Assistant config/humidity_intelligence/exports/"
+            + self_check_name
+        ) in preview_message
+        assert release_name not in preview_message
+        assert custom_name not in preview_message
+
+
+def test_unscoped_purge_reports_owned_diagnostics_changed_after_preview():
+    services_mod = _load_services_module()
+    report_exports_mod = sys.modules[f"{PKG}.helpers.report_exports"]
+    entry_data = _base_entry_data()
+    entry_data["ui_layouts"] = ["v2_mobile"]
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=entry_data, options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth({"admin": SimpleNamespace(is_admin=True)})
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = pathlib.Path(tmpdir)
+        _set_fake_config_path(hass, root)
+        default_name = report_exports_mod.DEFAULT_DIAGNOSTICS_REPORT_FILENAME
+        report_exports_mod.write_owned_report(
+            root,
+            default_name,
+            {"version": 1},
+        )
+        destination = root / report_exports_mod.DEFAULT_DIAGNOSTICS_REPORT_RELATIVE_PATH
+
+        asyncio.run(services_mod.async_register_services(hass))
+        handler = hass.services.handlers[
+            (services_mod.DOMAIN, services_mod.SERVICE_PURGE_FILES)
+        ]
+        original_async_call = hass.services.async_call
+
+        async def replace_after_preview(domain, service, data=None, blocking=False):
+            result = await original_async_call(domain, service, data, blocking)
+            if (
+                (domain, service) == ("persistent_notification", "create")
+                and (data or {}).get("title")
+                == "Humidity Intelligence Cleanup Preview"
+            ):
+                destination.unlink()
+                destination.write_text('{"version": 2}\n', encoding="utf-8")
+            return result
+
+        hass.services.async_call = replace_after_preview
+        try:
+            asyncio.run(
+                handler(
+                    SimpleNamespace(
+                        data={},
+                        context=SimpleNamespace(user_id="admin"),
+                    )
+                )
+            )
+        except Exception as err:
+            message = str(err)
+            assert "Purge incomplete" in message
+            assert "reports:" in message
+            assert report_exports_mod.DEFAULT_DIAGNOSTICS_REPORT_RELATIVE_PATH in message
+        else:
+            raise AssertionError("changed diagnostics export should fail the purge")
+
+        assert json.loads(destination.read_text(encoding="utf-8")) == {"version": 2}
+        incomplete = [
+            call
+            for call in hass.services.calls
+            if call[0:2] == ("persistent_notification", "create")
+            and call[2].get("title") == "Humidity Intelligence Cleanup Incomplete"
+        ]
+        assert len(incomplete) == 1
+        assert (
+            report_exports_mod.DEFAULT_DIAGNOSTICS_REPORT_RELATIVE_PATH
+            in incomplete[0][2]["message"]
+        )
+
+
+def test_purge_reports_file_and_dashboard_failures():
+    services_mod = _load_services_module()
+    entry_data = _base_entry_data()
+    entry_data["ui_dashboard_id"] = "humidity-intelligence"
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=entry_data, options={})
+    hass = _FakeHass(entry, {})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth({"admin": SimpleNamespace(is_admin=True)})
+    events = []
+    _install_dashboard_test_dependencies(
+        events=events,
+        delete_error=RuntimeError("delete failed"),
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        _set_fake_config_path(hass, tmpdir)
+        generated_name = "humidity_intelligence_cards_v2_mobile.yaml"
+        generated_relative = f"humidity_intelligence/ui/{generated_name}"
+        generated_path = (
+            pathlib.Path(tmpdir) / "humidity_intelligence" / "ui" / generated_name
+        )
+        generated_path.parent.mkdir(parents=True)
+        generated_path.write_text(
+            "generated",
+            encoding="utf-8",
+        )
+        asyncio.run(services_mod.async_register_services(hass))
+        handler = hass.services.handlers[
+            (services_mod.DOMAIN, services_mod.SERVICE_PURGE_FILES)
+        ]
+        original_remove_export = services_mod.remove_owned_ui_export
+
+        def fail_remove_export(*_args):
+            raise services_mod.ReportExportError("fixture removal failed")
+
+        services_mod.remove_owned_ui_export = fail_remove_export
+        try:
+            try:
+                asyncio.run(
+                    handler(
+                        SimpleNamespace(
+                            data={"entry_id": ENTRY_ID},
+                            context=SimpleNamespace(user_id="admin"),
+                        )
+                    )
+                )
+            except Exception as err:
+                message = str(err)
+                assert "Purge incomplete" in message
+                assert generated_relative in message
+                assert "humidity-intelligence" in message
+            else:
+                raise AssertionError("partial purge failure should be reported")
+        finally:
+            services_mod.remove_owned_ui_export = original_remove_export
+
+
+def test_generated_v1_cards_escape_dynamic_html_text():
+    sources = []
+    for path in (
+        ROOT / "ui" / "cards" / "v1_mobile.yaml",
+        ROOT / "ui-gallery" / "default-v1-mobile" / "card.yaml",
+    ):
+        source = path.read_text(encoding="utf-8")
+        sources.append(source)
+        assert source.count("const escapeHtml = ") >= 2, path
+        assert "${escapeHtml(item.label)}" in source, path
+        assert "Target humidity (${escapeHtml(season)}):" in source, path
+        assert (
+            "Condensation: ${escapeHtml(condRisk)} in ${escapeHtml(condRoom)}"
+            in source
+        ), path
+        assert (
+            "Mould: ${escapeHtml(mouldRisk)} in ${escapeHtml(mouldRoom)}"
+            in source
+        ), path
+        assert '<span class="k">${item.label}</span>' not in source, path
+        assert "Condensation: ${condRisk} in ${condRoom}" not in source, path
+        assert "Mould: ${mouldRisk} in ${mouldRoom}" not in source, path
+    assert sources[0] == sources[1]
 
 
 if __name__ == "__main__":

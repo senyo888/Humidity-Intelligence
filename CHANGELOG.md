@@ -8,14 +8,98 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+No unreleased changes.
+
+## 2.0.9 - 2026-07-28
+
 - Added the optional HI Support Bundle Inspector to the Pages artifact as a
-  separate, noindex preflight at `/humidity-intelligence/inspector/`. Diagnostic
-  parsing and handoff generation remain browser-local with zero automatic or
-  network diagnostic-content egress; the only export is user-triggered copying of
-  the allowlisted handoff. Native Home Assistant diagnostics remain the preferred
+  separate, noindex preflight at `/humidity-intelligence/inspector/`. Diagnostic parsing and
+  handoff generation remain browser-local with zero automatic or network
+  diagnostic-content egress; the only export is user-triggered copying of the
+  allowlisted handoff. Native Home Assistant diagnostics remain the preferred
   support attachment and the repository/Wiki remain support truth. Wiki update
-  status: `no-op` because existing diagnostics guidance remains authoritative.
+  status: `updated`; existing diagnostics guidance remains authoritative, and the
+  Services Reference now documents the final external service permission boundaries.
   Release-documentation status: `updated` by this entry.
+- Set integration metadata to stable `2.0.9`, aligned the release documentation, and
+  extended the backward-compatible `v205_release_check` manifest contract through
+  the v2.0.9 beta/rc/stable line. GitHub Releases and HACS remain the authoritative
+  publication and installed-package records.
+- Removed the HACS `country` metadata so Humidity Intelligence can be listed
+  globally instead of being limited to the GB store scope.
+- Restricted custom filenames for `dump_diagnostics` and `v205_release_check` to
+  the exact lowercase `humidity_intelligence_*.json` namespace so those report
+  writers cannot overwrite unrelated basename files in the Home Assistant config
+  folder. Defaults are unchanged. Automations or scripts using another custom
+  report filename must be updated, and Home Assistant must be fully restarted after
+  installing the package update; a config-entry reload alone is insufficient.
+- Moved caller-selectable diagnostics and release-check reports into the owned
+  `<config>/humidity_intelligence/exports/` directory with descriptor-relative
+  no-follow directory creation, same-directory atomic replacement, and no config-root
+  fallback. Existing config-root reports are retained without automatic migration.
+  Report consumers must update their full path. Concurrent writes are serialized and
+  the last atomic replacement wins. Entry-scoped purge does not delete export reports;
+  only unscoped all-entry purge may remove the exact default diagnostics export,
+  while release-check and custom reports remain retained.
+- Completed the runtime-owned artifact namespace: the fixed entity-bearing
+  `self_check` report now uses the secure report writer at
+  `<config>/humidity_intelligence/exports/humidity_intelligence_self_check.json`,
+  while generated `dump_cards`, `view_cards`, setup/options, and release-test card
+  YAML now writes under `<config>/humidity_intelligence/ui/`. Startup refresh remains
+  cache-only. Existing root
+  JSON/YAML is retained without copy, dual-write, symlink, move, or automatic
+  deletion; consumers must update paths after verifying fresh owned-directory output.
+- Clarified the setup/options UI and service/support guidance for existing users:
+  first-run and options notifications point to exact owned UI paths, `dump_cards`
+  versus `view_cards` notification behavior is explicit, legacy root cards are marked
+  stale, and retained-file manual cleanup is documented without wildcard or
+  registered-dashboard deletion.
+- Added descriptor-relative, no-follow, same-directory atomic YAML replacement with
+  directory/file identity revalidation and no config-root fallback. External
+  `self_check`, `dump_cards`, and `view_cards` calls now require authenticated admin
+  context before work begins; trusted integration-owned UI regeneration calls the
+  internal exporter directly. Adding a second entry re-exports all loaded entries
+  with qualified card names; removing back to one re-exports the remaining entry
+  with unqualified names while retaining the remaining entry's superseded qualified
+  files for exact purge.
+- Narrowed cleanup to exact owned artifacts. Entry-scoped purge may remove the
+  selected entry's default and release-test card exports plus its registered
+  dashboard, but no reports. Unscoped all-entry purge may also remove the fixed
+  default diagnostics and self-check reports. Config-entry removal separately owns
+  only the removed entry's exact default/release-test card exports and registered
+  dashboard. Custom card/report names, release-check reports, remaining-entry
+  superseded qualified files, and legacy root artifacts remain retained.
+- Required authenticated admin user context for every `dump_diagnostics` and
+  `v205_release_check` call. Non-admin, unknown-user, and contextless background
+  callers are rejected before report lookup, cache work, path resolution, writes, or
+  notifications. Direct authenticated admin UI/API calls remain supported.
+- Required admin user context for targeted and all-entry `pause_control` /
+  `resume_control` calls, explicit `create_dashboard`, and `purge_files`. Existing
+  background automations/scripts whose action context has no `user_id` can no longer
+  invoke those mutation services, even when configured by an admin. Use an
+  authenticated admin UI or API session; any future automated trusted route requires
+  separate design approval. First-run dashboard creation remains available through
+  the trusted config-entry setup path.
+- Required authenticated admin user context for every external `flash_lights`,
+  `create_local_backup`, and `list_saved_versions` call. Non-admin, unknown-user,
+  and contextless callers are rejected before light, snapshot, or inventory work.
+  `list_saved_versions` remains read-only but is gated because its persistent
+  notification exposes package-local snapshot metadata. Engine-owned visual alerts
+  use a separate trusted internal helper after deterministic lane selection, so
+  alert continuity, entity semantics, and lane ordering are unchanged.
+- Made `purge_files` validate its complete fixed set of direct HI-generated file and
+  configured-dashboard targets before mutation, publish the exact existing target
+  preview with a blocking notification, reject unsafe/non-regular filesystem
+  candidates, and report file or dashboard deletion failures as an incomplete purge.
+- Escaped dynamic room, target-profile, condensation, and mould text in the V1 Mobile
+  source and gallery templates. V1 Mobile remains exportable through v2.0.9 but is
+  deprecated for new dashboards in favor of V2 Mobile; removal is deferred to a
+  separate v2.1 migration proposal. Existing pasted V1 cards must be re-exported and
+  re-copied to receive the escaping fix.
+- Redacted private Home Assistant URLs and hosts, local network addresses, bearer
+  credentials and tokens, device IDs, local user paths, and Home Assistant entity IDs from
+  locally generated issue-triage body summaries before Markdown/HTML escaping.
+  Public issue links remain available for maintainer triage.
 
 ## 2.0.8 - 2026-07-05
 

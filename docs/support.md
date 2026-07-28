@@ -123,4 +123,79 @@ Public status wording should stay expectation-safe:
 
 ## Maintainer Notes
 
-Native diagnostics are the preferred GitHub attachment. The existing `humidity_intelligence.dump_diagnostics` service remains useful for local Home Assistant validation and writes a fuller JSON export to `/config`, but users should attach the native Home Assistant diagnostics download unless asked otherwise. Review any full `dump_diagnostics` export before sharing it publicly because it intentionally contains more local troubleshooting context than the native issue bundle.
+Native diagnostics are the preferred GitHub attachment. The existing
+`humidity_intelligence.dump_diagnostics` service remains useful for local Home
+Assistant validation and writes a fuller JSON export under
+`<config>/humidity_intelligence/exports/`. The service requires an authenticated
+admin user context; non-admin and contextless background calls are rejected. Users
+should attach the native Home Assistant diagnostics download unless asked otherwise.
+Review any full `dump_diagnostics` export before sharing it publicly because it
+intentionally contains more local troubleshooting context than the native issue
+bundle.
+
+The v2.0.9 path change is non-destructive. Existing report and card files in the
+config root are not moved, copied, symlinked, dual-written, or deleted. The fixed
+self-check report now lives at
+`<config>/humidity_intelligence/exports/humidity_intelligence_self_check.json`;
+generated card YAML lives under `<config>/humidity_intelligence/ui/`. Registered
+dashboard YAML remains at `<config>/dashboards/<url_path>.yaml`.
+
+Update file sensors, shell commands, support tools, or other consumers from
+`<config>/<report filename>` to
+`<config>/humidity_intelligence/exports/<report filename>` and from
+`<config>/<card filename>` to
+`<config>/humidity_intelligence/ui/<card filename>` only after verifying a newly
+generated owned-directory artifact. Then disable or remove the stale root consumer
+explicitly so old JSON/YAML cannot silently remain authoritative. Multi-entry
+installations must use the entry-qualified card filename reported by the service
+notification. Adding a second entry re-exports every loaded entry with qualified
+names; removing back to one re-exports the remaining entry with unqualified names.
+HI no longer refreshes superseded owned-UI files, but external consumers can still
+read their stale content. Do not treat an older inferred filename as current truth;
+follow the newest notification and remove stale defaults through an explicit
+previewed purge when desired. Config-entry removal deletes only the removed entry's
+exact default/release-test UI exports and registered dashboard. It retains reports,
+custom card exports, legacy root files, and the remaining entry's superseded
+qualified files after a multi-entry installation returns to one entry.
+
+`dump_cards` writes under `<config>/humidity_intelligence/ui/` but does not post a
+completion path notification. `view_cards`, first-run export, and relevant options
+regeneration do post exact written paths. Use `view_cards` when path discovery is the
+priority. `refresh_ui` changes the in-memory cache only and does not write a file.
+Refresh or reopen File Editor after export if the new directory is not immediately
+visible.
+
+For an artifact that exact purge intentionally retains:
+
+1. verify the fresh replacement and its exact path
+2. back up and update every file sensor, shell command, script, or support-tool
+   consumer
+3. delete only the confirmed regular file through File Editor, Studio Code Server,
+   Samba, or SSH
+4. do not delete an owned directory, use a wildcard, follow a symlink/non-regular
+   object, or manually remove registered dashboard YAML
+5. confirm the active owned-directory artifact and Manual card remain correct
+
+Manual deletion of an unused retained file does not itself require a Home Assistant
+restart. Use the affected consumer's normal reload if its configuration changed.
+
+External `self_check`, `dump_cards`, and `view_cards` calls now require an
+authenticated admin user context, matching the existing report-writer authority
+boundary. Contextless automations/scripts are rejected. HI-owned first-run, options,
+and release-check test-card regeneration continues through its trusted internal path.
+Startup refresh remains cache-only and does not claim that files were written.
+
+External `flash_lights`, `create_local_backup`, and `list_saved_versions` calls also
+require authenticated admin user context and reject non-admin or contextless callers
+before light, snapshot, or inventory work begins. Engine-owned visual alerts use a
+separate trusted internal helper after lane selection; the public service is not a
+parallel control path. The inventory service remains read-only but is admin-gated
+because its persistent notification exposes package-local snapshot metadata.
+
+Keep a backup of every external consumer definition before changing it. A full Home
+Assistant restart is required after installing or rolling back the package; a
+config-entry reload is suitable only for exercising already-loaded updated code.
+Rollback restores the complete prior integration package and backed-up consumer
+paths, then requires another full restart. Files already written in either owned
+directory are retained and are not moved back to the config root. Rolling back also
+restores the older root-writer and external caller-authority behavior.

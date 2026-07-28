@@ -1452,7 +1452,7 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         options = [
             SelectOptionDict(value="v2_mobile", label="V2 Mobile"),
             SelectOptionDict(value="v2_tablet", label="V2 Tablet"),
-            SelectOptionDict(value="v1_mobile", label="V1 Mobile"),
+            SelectOptionDict(value="v1_mobile", label="V1 Mobile (deprecated - use V2 Mobile)"),
             SelectOptionDict(value="view_cards_button", label="View Cards Button"),
             SelectOptionDict(value="create_dashboard", label="Create Dashboard Automatically"),
         ]

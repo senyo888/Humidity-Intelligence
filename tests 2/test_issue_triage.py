@@ -272,7 +272,8 @@ forbidden_actions:
         self.assertIn("No GitHub issues were closed, edited, labelled, assigned, or commented on.", report)
 
     def test_malformed_or_private_maintenance_review_queue_file_becomes_warning(self) -> None:
-        action_yaml = """
+        private_path = "/" + "Users/example/private-lab"
+        action_yaml = f"""
 id: HI-MRQ-2026-002
 title: "Unsafe local action"
 owner: Unknown
@@ -282,8 +283,8 @@ priority: P1
 status: open
 source:
   type: manual
-  ref: "/Users/senyo/private-ha-lab"
-instruction: "Use /Users/senyo/private-ha-lab and then label the GitHub issue."
+  ref: "{private_path}"
+instruction: "Use {private_path} and then label the GitHub issue."
 completion_criteria:
   - "Unsafe instruction should not be accepted."
 allowed_actions: [report, mutate_github_issue]
@@ -333,8 +334,8 @@ forbidden_actions:
 
     def test_public_safety_rejects_cross_platform_local_paths(self) -> None:
         for local_path in (
-            "/home/runner/work/private-ha-lab",
-            r"C:\Users\Senyo\private-ha-lab",
+            "/" + "home/example/work/private-lab",
+            "C:" + r"\Users\Example\private-lab",
         ):
             with self.subTest(local_path=local_path):
                 issue = self.triage._public_safety_issue({"instruction": local_path})

@@ -192,18 +192,32 @@ class PagesSiteTests(unittest.TestCase):
         csp = parser.meta.get("Content-Security-Policy", "")
 
         self.assertEqual(parser.canonical, INSPECTOR_URL)
+        self.assertEqual(parser.images, ["../assets/logo.png"])
+        self.assertEqual(
+            urljoin(INSPECTOR_URL, parser.images[0]),
+            f"{PAGES_URL}assets/logo.png",
+        )
         self.assertEqual(
             robots,
             {"noindex", "nofollow", "noarchive", "nosnippet"},
         )
         for directive in (
             "default-src 'none'",
+            "img-src 'self'",
             "connect-src 'none'",
             "worker-src 'none'",
             "form-action 'none'",
             "base-uri 'none'",
         ):
             self.assertIn(directive, csp)
+        self.assertNotIn("img-src 'none'", csp)
+        workflow = (ROOT / ".github/workflows/pages.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "cp assets/logo.png _site/assets/logo.png",
+            workflow,
+        )
         self.assertIn(
             "Diagnostic contents remain in this browser tab.",
             normalized,
@@ -268,7 +282,11 @@ class PagesSiteTests(unittest.TestCase):
             self.assertIn(INSPECTOR_URL, source)
             self.assertIn("native", source.lower())
             self.assertIn("preferred", source.lower())
-        self.assertIn("Wiki update status: `no-op`", normalized_changelog)
+        self.assertIn("Wiki update status: `updated`", normalized_changelog)
+        self.assertIn(
+            "Services Reference now documents the final external service permission boundaries.",
+            normalized_changelog,
+        )
         self.assertIn("Release-documentation status:", normalized_changelog)
         self.assertIn("`updated` by this entry", normalized_changelog)
 

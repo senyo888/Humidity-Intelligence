@@ -28,7 +28,7 @@ The UI reflects.
 
 - `cards/v2_mobile.yaml`
 - `cards/v2_tablet.yaml`
-- `cards/v1_mobile.yaml` (legacy-compatible skin)
+- `cards/v1_mobile.yaml` (deprecated in v2.0.9; use V2 Mobile for new dashboards)
 - `cards/view_cards_button.yaml`
 
 Mobile and tablet share identical control logic.
@@ -50,7 +50,7 @@ Feature parity is maintained.
 <details>
 <summary>Additional layout previews</summary>
 
-### v1 Mobile (Legacy-Compatible Skin)
+### v1 Mobile (Deprecated Legacy-Compatible Skin)
 <img src="../assets/readme/ui_v1_mobile.png" width="320" alt="HI v1 mobile UI preview">
 
 ### v2 Mobile (AQ State Example)
@@ -85,6 +85,34 @@ Use:
 - `humidity_intelligence.create_dashboard`
 - `humidity_intelligence.view_cards`
 - `humidity_intelligence.dump_cards`
+
+These external services require an authenticated admin user context.
+`dump_cards` and `view_cards` write generated YAML under
+`/config/humidity_intelligence/ui/`; multi-entry installations add an entry-qualified
+token to each filename. Adding a second entry re-exports all loaded entries with
+qualified names; removing back to one re-exports the remaining entry with unqualified
+names. HI no longer refreshes superseded owned-UI names, but external consumers can
+still read their stale content until exact purge. Config-entry removal deletes only
+the removed entry's exact default/release-test UI exports and registered dashboard;
+reports, custom exports, legacy root files, and remaining-entry superseded qualified
+files are retained. Trusted first-run, options, and release-check regeneration uses
+the same internal exporter without routing through the public service handler.
+Startup refresh remains cache-only.
+Registered dashboard YAML remains under
+`/config/dashboards/<url_path>.yaml`.
+
+`dump_cards` writes files without a completion path notification. Open
+`/config/humidity_intelligence/ui/` in File Editor after the action, or use
+`view_cards` when you want the exact path in a persistent notification. First-run and
+relevant options regeneration also report exact written paths. `refresh_ui` updates
+the in-memory cache only.
+
+If upgrading from the config-root writer, do not copy a retained file such as
+`/config/humidity_intelligence_cards_v2_mobile.yaml`; HI no longer refreshes it.
+Refresh File Editor and use the new owned-directory file. Before manually deleting a
+retained root or custom export, back up and disable every consumer, then delete only
+that exact regular file. Never delete the whole owned directory or registered
+dashboard YAML by hand.
 
 Avoid manual YAML drift.
 
@@ -187,6 +215,16 @@ If mismatch occurs:
 
 ## Versioned UI Contract Notes
 
+### v2.0.9 Current Contract
+
+- V1 Mobile remains exportable through the v2.0.9 line but is deprecated for new
+  dashboards; use V2 Mobile for new installs.
+- Dynamic V1 room labels, target-profile labels, condensation context, and mould
+  context are escaped before insertion into HTML.
+- Already-pasted V1 Manual cards are static and must be re-exported and re-copied to
+  receive the escaping fix.
+- V1 Mobile removal is deferred to a separately approved v2.1 migration proposal.
+
 ### v2.0.5 Current Contract
 
 - `show_output_entity_details` controls only the expandable generated-card output details panel.
@@ -195,6 +233,8 @@ If mismatch occurs:
 - New generated V2 cards default to the cleaner output display unless output details are enabled.
 - `v2_tablet` is the default first-install UI export layout.
 - `humidity_intelligence.dump_cards` remains the supported export path after UI visibility, template, or mapping changes.
+- Generated-card consumers must use `/config/humidity_intelligence/ui/`; legacy
+  config-root YAML is retained and is not refreshed, migrated, or purged.
 - Already-pasted Manual cards are static; refresh/export updates HI output files, not the pasted card content.
 
 ### Historical v2.0.2 UI Contract Updates
@@ -217,12 +257,15 @@ If mismatch occurs:
 
 ## Legacy v1 UI Support
 
-`v1_mobile.yaml` remains compatible with the V2 engine.
+`v1_mobile.yaml` remains compatible with the V2 engine through v2.0.9, but is
+deprecated for new dashboards. Prefer `v2_mobile.yaml`.
 
 Legacy support keeps the V2 backend contract. V1 backend templates and packages stay
 retired.
 
-Backend must be fully removed before using V2 runtime.
+Backend must be fully removed before using V2 runtime. Removing the V1 presentation
+skin is a separate proposed v2.1 change with an explicit user migration and rollback
+plan; v2.0.9 does not remove it.
 
 ---
 

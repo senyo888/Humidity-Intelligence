@@ -9,7 +9,7 @@
 [![Latest Release](https://img.shields.io/github/v/release/senyo888/Humidity-Intelligence?display_name=tag&sort=semver)](https://github.com/senyo888/Humidity-Intelligence/releases)
 [![Project Site](https://img.shields.io/badge/Project%20Site-GitHub%20Pages-5aa8d6)](https://senyo888.github.io/humidity-intelligence/)
 [![HACS](https://img.shields.io/badge/HACS-Custom%20Integration-orange)](https://hacs.xyz)
-[![Manifest Version](https://img.shields.io/badge/dynamic/json?label=Manifest%20Version&query=%24.version&url=https%3A%2F%2Fraw.githubusercontent.com%2Fsenyo888%2FHumidity-Intelligence%2Fsenyo888-patch-1%2Fmanifest.json&color=blue)](manifest.json)
+[![Manifest Version](https://img.shields.io/badge/dynamic/json?label=Manifest%20Version&query=%24.version&url=https%3A%2F%2Fraw.githubusercontent.com%2Fsenyo888%2FHumidity-Intelligence%2Fmain%2Fmanifest.json&color=blue)](https://github.com/senyo888/Humidity-Intelligence/blob/main/manifest.json)
 [![License](https://img.shields.io/github/license/senyo888/Humidity-Intelligence)](LICENSE)
 [![Sponsor](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/senyo888)
 
@@ -57,20 +57,22 @@ It gives you:
 - native Home Assistant diagnostics for support and triage
 - services for dashboard export, self-check, diagnostics, pause/resume, and release validation
 
-Current manifest version: **v2.0.8**.
+Current manifest version: **v2.0.9**.
 
 For publication status, installed packages, and release tags, use
 [GitHub Releases](https://github.com/senyo888/Humidity-Intelligence/releases) and
 HACS as the user-facing record.
 
-v2.0.8 focuses on a calmer first-run setup, Home Assistant Core `2026.7`
-percentage-unit compatibility, safer generated dashboards, a passive Stability
-preview badge, tighter global pause/resume admin boundaries, and cleaner support
-exports.
+v2.0.9 completes the HI-owned runtime-artifact namespace: report JSON writes under
+`<config>/humidity_intelligence/exports/`, generated card YAML writes under
+`<config>/humidity_intelligence/ui/`, and protected external writer, mutation, and
+snapshot-inventory services require an authenticated admin context. GitHub Releases
+and HACS remain the authoritative publication and installed-package records.
 
 The deterministic runtime contract stays intact: one selected control lane per cycle,
-the same public entity meanings, the same migration shape, and output writing only
-through the established runtime paths.
+the same public entity meanings, and output writing only through the established
+runtime paths. No stored HI data migration is required, but external file consumers
+must be deliberately moved to the new owned-directory paths.
 
 ---
 
@@ -382,15 +384,27 @@ must be reviewable from tracked repository files.
 
 ## Current Release Highlights
 
-- integration metadata is stable `2.0.8`; GitHub Releases and HACS remain the
-  user-facing publication record
-- first-run setup now starts with a welcome page before Frontend Dependencies; it
-  explains the staged setup method so users can safely save a small initial sensor
-  set and return through Options for deeper tuning
-- computed humidity, target, drift, and delta sensors now use Home Assistant's
-  `UnitOfRatio.PERCENTAGE` unit enumerator on Core `2026.7`, with a legacy `%`
-  fallback for older supported Core versions; entity IDs, values, lane ordering,
-  services, diagnostics semantics, and generated-card display behavior are unchanged
+- integration metadata and release documentation identify stable `2.0.9`; GitHub
+  Releases and HACS remain the authoritative publication and installed-package
+  records
+- the browser-local
+  [HI Support Bundle Inspector](https://senyo888.github.io/humidity-intelligence/inspector/)
+  provides an optional inspect-before-sharing preflight: diagnostics content stays
+  in memory in the browser, with no diagnostic-content upload, analytics, logging,
+  or browser storage; only the user-triggered, allowlisted advisory handoff is copied
+- diagnostics and release-check report writers now accept only exact lowercase
+  `humidity_intelligence_*.json` custom filenames, preserve their existing defaults,
+  and write only under `<config>/humidity_intelligence/exports/`
+- the fixed self-check report now shares that secure export directory, and generated
+  card YAML now writes under `<config>/humidity_intelligence/ui/`; registered
+  dashboard YAML remains under `<config>/dashboards/`
+- every external `dump_diagnostics`, `self_check`, `v205_release_check`, `dump_cards`,
+  and `view_cards` call now requires an authenticated admin user context; trusted
+  setup/options/release-check regeneration calls the internal exporter directly,
+  while startup refresh remains cache-only
+- first-run setup now starts with a welcome/setup-strategy page before Frontend
+  Dependencies, so users can save a small initial sensor set and return through
+  Options for deeper tuning
 - Temperature Slope setup/options now handles collapsed Advanced source lists safely:
   empty submitted source lists fall back to the configured temperature sensors or
   saved source defaults instead of hiding a required-source validation loop
@@ -402,8 +416,14 @@ must be reviewable from tracked repository files.
   sensor creation, lane selection, and runtime control stay backend-owned
 - the Stability preview badge uses a 10 BPM shimmer cadence: one 6-second animation
   cycle for current/complete states
-- global all-entry `pause_control` / `resume_control` calls now require admin user
-  context; scoped calls with `entry_id` remain available for the supplied config entry
+- every `pause_control` / `resume_control` call now requires admin user context;
+  `entry_id` still limits the action to the supplied config entry
+- explicit `create_dashboard` and `purge_files` service calls now require admin user
+  context; first-run dashboard setup uses a trusted internal path, and purge presents
+  an exact blocking target preview before deletion and reports partial failures
+- the V1 Mobile skin remains available through the v2.0.9 line but is deprecated for
+  new dashboards; its dynamic room/risk/profile HTML is escaped, and V2 Mobile is the
+  recommended replacement ahead of a separately reviewed v2.1 removal
 - native diagnostics and support-oriented exports now favor sanitized structure,
   counts, statuses, and summaries instead of raw entity maps, state dumps, room
   names, or Lovelace resource URLs; validation reports may still include configured
@@ -411,14 +431,15 @@ must be reviewable from tracked repository files.
 - local issue-triage private report writing is confined through the private atomic
   writer, keeping public issue/support flows separate from local report output
 - the tracked secret scan now fails closed when no tracked files are selected
-- `v205_release_check` preserves its service name while accepting the v2.0.8
+- `v205_release_check` preserves its service name while accepting the v2.0.9
   beta/rc/stable line for generated-card and release-validation support checks
 - Home Assistant Area/Label setup assistance can suggest defaults from registry
   metadata, but saved HI telemetry, zone, AQ, humidifier, and alert mappings remain
   the only runtime truth
-- release-prep service usage: run `self_check` or `v205_release_check` for
-  support validation; use `dump_cards` / `refresh_ui` when generated-card surfaces
-  or pasted Manual cards need refreshed YAML
+- release-prep service usage: run `self_check` or `v205_release_check` for support
+  validation; use `refresh_ui` to rebuild the rendered in-memory cache, then
+  `dump_cards` or `view_cards` to write fresh YAML. Already-pasted Manual cards remain
+  static and must be re-copied from the latest export
 - runtime contract: deterministic lane ordering, output-writer boundaries, entity
   semantics, migration shape, and UI truth stay aligned with the existing backend
   model
@@ -429,7 +450,8 @@ config-entry reload after option changes once the updated code is already loaded
 Run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual
 cards if you use generated Current Air Control cards, the default V2 control row, or
 output-detail surfaces; already-pasted Manual cards are static and do not inherit
-backend template changes automatically.
+backend template changes automatically. Users retaining V1 Mobile must also re-export
+and re-copy that card to receive the v2.0.9 HTML-escaping fix.
 
 ---
 
@@ -630,14 +652,22 @@ Delete:
 
 Restart if using YAML dashboards.
 
-### v1 UI Compatibility
+This cleanup step applies only to the retired pre-integration V1 files listed above.
+It does not remove the V2-generated `v1_mobile` compatibility skin described below.
 
-The classic four-badge + Comfort Band layout remains compatible on the V2 engine.
+### v1 UI Compatibility And Deprecation
+
+The classic four-badge + Comfort Band layout remains compatible on the V2 engine
+through the v2.0.9 line, but it is deprecated for new dashboards. Use V2 Mobile for
+new installs. V1 Mobile removal is proposed for v2.1 and requires a separate approved
+migration; it is not removed by v2.0.9.
 
 - V1 UI = presentation skin
 - V2 = runtime engine
 
-Classic visual layouts remain available.
+Classic visual layouts remain available during v2.0.9. Re-export and re-copy the V1
+card after updating so existing pasted dashboards receive the dynamic-text HTML
+escaping fix.
 
 ### Post-Migration Check
 
@@ -727,7 +757,7 @@ Canonical YAML, preview assets, and contribution rules remain versioned in this 
 - [Gallery source](ui-gallery/README.md)
 - [Default V2 Mobile AQ](ui-gallery/default-v2-mobile-aq/README.md)
 - [Default V2 Tablet Zone 2](ui-gallery/default-v2-tablet-zone-2/README.md)
-- [Default V1 Mobile](ui-gallery/default-v1-mobile/README.md)
+- [Default V1 Mobile (deprecated)](ui-gallery/default-v1-mobile/README.md)
 - [Contributing UI Gallery examples](ui-gallery/CONTRIBUTING.md)
 
 The Wiki is a visual navigation layer. Repository files remain the source of truth
@@ -778,7 +808,17 @@ Use Home Assistant Developer Tools:
 
 Notes:
 - `entry_id` is optional for most services. If omitted, HI uses all entries or first valid entry based on service behavior.
-- File outputs are written into your HA config folder.
+- `dump_diagnostics`, `self_check`, and `v205_release_check` JSON is written under
+  `<config>/humidity_intelligence/exports/`. Generated card YAML is written under
+  `<config>/humidity_intelligence/ui/`. Registered dashboard YAML remains under
+  `<config>/dashboards/<url_path>.yaml`.
+- Single-entry card exports retain unqualified names such as
+  `humidity_intelligence_cards_v2_mobile.yaml`. Multi-entry installations add an
+  entry-qualified token before the layout to prevent one entry overwriting another.
+  Adding a second entry re-exports all loaded entries with qualified names; removing
+  back to one re-exports the remaining entry with unqualified names. HI no longer
+  refreshes superseded owned-UI names, but external consumers can still read their
+  stale content. Follow the latest notification rather than inferring a path.
 - Default generated V2 dashboards are read-only status surfaces. Runtime-changing
   actions such as pause/resume, dashboard creation, and file cleanup belong in
   Home Assistant service/admin workflows. System and Manual buttons keep the
@@ -787,33 +827,90 @@ Notes:
   a Pause LIVE control tile. It reflects future v2.1 diagnostics when available
   while score calculation, lane selection, and runtime control stay backend-owned.
   The current/complete shimmer uses a slow 10 BPM cadence, one pulse every 6 seconds.
-- Global `pause_control` / `resume_control` calls with no `entry_id` require an
-  admin user context. Supplying `entry_id` scopes the call to that config entry.
+- Every `pause_control` / `resume_control` call requires an admin user context.
+  Supplying `entry_id` scopes the action to that config entry; it does not bypass the
+  authorization check. Background automations/scripts whose action context has no
+  `user_id` are intentionally rejected, even when configured by an admin. Invoke
+  these services from an authenticated admin UI or API session.
+- Explicit `create_dashboard` and `purge_files` calls require an admin user context.
+  First-run dashboard creation remains available only through the trusted setup path.
+  A created dashboard is still registered with its normal non-admin viewing setting;
+  the new gate controls creation, not later visibility.
+- Every external `dump_diagnostics`, `self_check`, `v205_release_check`, `dump_cards`,
+  and `view_cards` call also requires an admin user context. Contextless background
+  automations/scripts cannot invoke these writers; use an authenticated admin UI,
+  REST, or WebSocket session. There is no YAML option that manufactures an admin
+  context for a background automation. HI-owned setup/options and release-check
+  test-card regeneration remains available through the trusted internal exporter;
+  startup refresh remains cache-only.
+- Every external `flash_lights`, `create_local_backup`, and `list_saved_versions`
+  call requires an admin user context and rejects background automations/scripts
+  without a `user_id` before light, snapshot, or inventory work begins.
+  `list_saved_versions` remains read-only but is gated because its notification
+  exposes package-local snapshot metadata. Runtime-owned visual alerts use a separate
+  trusted internal helper after the engine selects an alert lane, so this permission
+  boundary does not change deterministic lane resolution or active-alert continuity.
+- `purge_files` validates the complete fixed HI-generated target set, posts the exact
+  existing-file/dashboard preview with a blocking notification, then deletes. Any
+  file or dashboard deletion failure is surfaced as an incomplete purge instead of
+  being silently treated as success. An `entry_id`-scoped purge does not remove
+  report exports. Only an unscoped all-entry purge may remove the exact default
+  diagnostics and fixed self-check reports. Exact default/per-entry card and
+  release-test card exports plus registered dashboards are purge-owned. Custom card
+  exports, custom reports, release-check reports, and all legacy config-root JSON/YAML
+  remain retained.
+- Config-entry removal separately removes that entry's exact default/release-test card
+  exports and registered dashboard, but does not remove reports, custom card exports,
+  or legacy root files. When a multi-entry installation returns to one entry, the
+  remaining entry is re-exported with unqualified names; its superseded qualified
+  files stay externally readable until an exact previewed purge.
 - `v205_release_check` is the backward-compatible validation service name. In v2.0.8
-  it accepts the v2.0.5-v2.0.8 beta/rc/stable line and is runtime/device read-only:
-  it writes its validation report, and `write_test_exports: true` additionally
-  writes card-export test files.
-- `dump_diagnostics` and native diagnostics are support surfaces; v2.0.8 support
-  exports are sanitized for public/private boundary safety where possible, but
+  and v2.0.9 it accepts the v2.0.5-v2.0.9 beta/rc/stable line and is runtime/device
+  read-only: it writes its validation report, and `write_test_exports: true`
+  additionally writes card-export test files.
+- `dump_diagnostics` and native diagnostics are support surfaces; support exports are
+  sanitized for public/private boundary safety where possible, but
   `self_check` / `v205_release_check` validation reports may include entity IDs
   needed for mapping support. Treat those validation reports as local/private until
   reviewed or sanitized before public sharing.
+- Custom filenames for `dump_diagnostics` and `v205_release_check` must use the
+  exact lowercase `humidity_intelligence_*.json` pattern. The defaults are
+  unchanged. JSON report services now write under
+  `<config>/humidity_intelligence/exports/`; existing root-level reports are not
+  moved, copied, or deleted. Generated card consumers must similarly move from the
+  config-root filename to `<config>/humidity_intelligence/ui/<filename>`. HI does not
+  dual-write, copy, symlink, move, or delete legacy root JSON/YAML, so verify a fresh
+  owned-directory artifact before updating file sensors, shell commands, scripts, or
+  support tools; then disable the stale root consumer explicitly. Update callers that
+  supply another custom report filename. Fully restart Home
+  Assistant after installing this package update; a config-entry reload alone does
+  not load the changed service code or schema. Concurrent writes are serialized
+  inside HI and each replacement is atomic; the last atomic replacement wins, but
+  callers must not rely on invocation order.
+
+- Rollback restores the complete prior integration package and any backed-up consumer
+  paths, followed by a full Home Assistant restart. Files already written under
+  `<config>/humidity_intelligence/exports/` or
+  `<config>/humidity_intelligence/ui/` remain in place and are not moved back to the
+  config root. Reverting package code alone does not refresh a legacy root artifact;
+  consumers must be deliberately pointed at the restored path.
 
 Common service groups:
 
 | Service | Use |
 | --- | --- |
-| `dump_cards` | export generated card YAML for static Manual dashboards |
+| `dump_cards` | admin-only export of generated card YAML for static Manual dashboards |
 | `refresh_ui` | rebuild placeholder mappings and refresh cached rendered UI output |
-| `view_cards` | render cards, write them to file, and send a file-path notification through an explicit service call |
-| `create_dashboard` | create a Lovelace dashboard from a rendered HI layout through an explicit service call |
-| `flash_lights` | test configured visual alert behavior |
-| `pause_control` / `resume_control` | pause or resume the automation engine; global all-entry calls require admin context |
-| `self_check` | run mapping, generated-card entity, telemetry, drift-helper, and frontend-dependency checks |
-| `v205_release_check` | run runtime-safe v2.0.5-v2.0.8 generated-card and release-validation support checks |
-| `create_local_backup` / `list_saved_versions` | manage package-local HI snapshots for advanced validation |
-| `dump_diagnostics` | export fuller local diagnostics for maintainer/debug workflows |
-| `purge_files` | intentionally remove generated HI artifacts |
+| `view_cards` | admin-only render/export plus an exact file-path notification |
+| `create_dashboard` | admin-only creation of a Lovelace dashboard from a rendered HI layout |
+| `flash_lights` | admin-only test of configured visual alert behavior; runtime alerts use the trusted engine path |
+| `pause_control` / `resume_control` | admin-only pause or resume for one supplied entry or all entries |
+| `self_check` | admin-only fixed export of mapping, generated-card entity, telemetry, drift-helper, and frontend-dependency checks |
+| `v205_release_check` | admin-only runtime-safe v2.0.5-v2.0.9 generated-card and release-validation support checks |
+| `create_local_backup` | admin-only creation of a package-local HI snapshot for advanced validation |
+| `list_saved_versions` | admin-only, read-only inspection of package-local HI snapshot metadata |
+| `dump_diagnostics` | admin-only export of fuller local diagnostics for maintainer/debug workflows |
+| `purge_files` | admin-only, previewed removal of fixed generated HI artifacts with partial-failure reporting |
 
 Example card export:
 
@@ -832,12 +929,65 @@ data:
   filename: humidity_intelligence_v205_release_check.json
 ```
 
+### Finding A Newly Dumped Card
+
+Existing users should expect the location to change in v2.0.9:
+
+- `dump_cards` writes under `<config>/humidity_intelligence/ui/` but does not post a
+  completion path notification. Open that directory in File Editor after the action.
+- `view_cards` writes the selected layout to the same directory and posts the exact
+  path in a persistent notification. Use it when file discovery is the priority.
+- first-run and relevant options regeneration also post every exact written path.
+- `refresh_ui` only rebuilds the rendered in-memory cache; it does not write YAML.
+
+For a single-entry installation using the default basename, a mobile export is
+`<config>/humidity_intelligence/ui/humidity_intelligence_cards_v2_mobile.yaml`.
+Multi-entry installations insert an entry-qualified token, and custom basenames
+produce different filenames. Always use the path reported by `view_cards` or the
+setup/options notification when either applies.
+
+If File Editor was already open, refresh its file tree or reopen it after export. If
+the file still does not appear, confirm that the action was run from an authenticated
+admin UI/API session and check the Home Assistant log for an export error. There is
+no config-root fallback.
+
+An older file such as
+`<config>/humidity_intelligence_cards_v2_mobile.yaml` is retained for migration
+safety but is no longer refreshed. A newer modification time on that legacy file does
+not prove that v2.0.9 wrote it; do not copy it after upgrading.
+
+### Manually Removing Files Purge Intentionally Retains
+
+`purge_files` deliberately leaves legacy config-root JSON/YAML, custom card exports,
+custom reports, and release-check reports in place. Remove one manually only after
+confirming that no file sensor, shell command, script, support tool, or other consumer
+still uses it:
+
+1. Generate and validate the replacement in
+   `<config>/humidity_intelligence/exports/` or
+   `<config>/humidity_intelligence/ui/`.
+2. Back up the exact consumer definition and any artifact that must be retained.
+3. Update or disable the old consumer, then verify it no longer reads the retained
+   path.
+4. In File Editor, Studio Code Server, Samba, or SSH, delete only the exact regular
+   file you have identified. Do not delete either owned directory, use wildcard
+   deletion, or follow a symlink/non-regular object.
+5. Refresh the file view and confirm that the new owned-directory artifact and active
+   Manual card remain correct.
+
+Do not manually delete registered dashboard YAML from
+`<config>/dashboards/<url_path>.yaml`; use the previewed HI cleanup path or Home
+Assistant dashboard management so registration state and the file stay aligned.
+Deleting an unused retained artifact alone does not require a Home Assistant restart.
+Changing a consumer may require that consumer's normal reload.
+
 For GitHub support issues, prefer the native Home Assistant diagnostics download from the Humidity Intelligence integration entry. Diagnostics and `dump_diagnostics` exports favor sanitized structure, counts, statuses, and redaction over raw maps or state dumps. `self_check` and release-validation reports can include configured/generated entity IDs needed to debug missing mappings, so treat those exports as local/private until reviewed or sanitized before public sharing. Use `dump_diagnostics` for fuller local maintainer/debug workflows after reviewing the export.
 
 Detailed manual:
 
 - [Services Reference](https://github.com/senyo888/humidity-intelligence/wiki/Services-Reference)
 - [Generated Dashboards](https://github.com/senyo888/humidity-intelligence/wiki/Generated-Dashboards)
+- [Troubleshooting Generated UI](https://github.com/senyo888/humidity-intelligence/wiki/Troubleshooting-Generated-UI)
 - [Diagnostics and Support Bundle](https://github.com/senyo888/humidity-intelligence/wiki/Diagnostics-and-Support-Bundle)
 - [Release Validation for Users](https://github.com/senyo888/humidity-intelligence/wiki/Release-Validation-for-Users)
 
@@ -948,19 +1098,80 @@ CO emergency pressure. Details are in
 
 ## Release Notes
 
+### v2.0.9
+
+- set integration metadata to stable `2.0.9` and aligned the release documentation;
+  GitHub Releases and HACS remain the authoritative publication and installed-package
+  records
+- added the optional browser-local HI Support Bundle Inspector preflight so users
+  can inspect supported diagnostics and copy a bounded advisory handoff before
+  sharing; diagnostic contents are not uploaded, logged, analyzed remotely, or
+  stored by the Inspector
+- restricted `dump_diagnostics` and `v205_release_check` custom filenames to the
+  exact lowercase `humidity_intelligence_*.json` namespace, preserving both defaults
+- moved caller-selectable diagnostics and release-check reports from the config root
+  into `<config>/humidity_intelligence/exports/`, without automatically migrating or
+  deleting legacy root reports
+- moved the fixed `humidity_intelligence_self_check.json` report into the same secure
+  exports directory and all generated card YAML into
+  `<config>/humidity_intelligence/ui/`; registered dashboards remain under
+  `<config>/dashboards/<url_path>.yaml`
+- added no-follow, descriptor-relative, same-directory atomic YAML writes, exact
+  purge ownership, and entry-qualified filenames for multi-entry installations
+- required an authenticated admin user context for every external `dump_diagnostics`,
+  `self_check`, `v205_release_check`, `dump_cards`, and `view_cards` call; contextless
+  background callers and non-admin users are rejected before work begins, while
+  trusted HI setup/options/release-test generation uses the internal exporter and
+  startup refresh remains cache-only
+- required an authenticated admin user context for every external `flash_lights`,
+  `create_local_backup`, and `list_saved_versions` call; non-admin and contextless
+  callers are rejected before light, snapshot, or inventory work, while
+  `list_saved_versions` remains read-only and engine-owned visual alerts use a
+  separate trusted helper after deterministic lane selection
+- extended the backward-compatible `v205_release_check` manifest contract through
+  the v2.0.9 beta/rc/stable line
+- privacy-filtered local issue-triage body summaries before report escaping, removing
+  private HA endpoints, credentials, device IDs, local paths, and entity IDs
+- admin-gated targeted and all-entry `pause_control` / `resume_control` calls plus
+  explicit dashboard creation and generated-file/dashboard purge
+- made purge target truth blocking and exact before deletion, with unsafe filesystem
+  candidates rejected and partial file/dashboard failures reported
+- escaped dynamic HTML in the retained V1 Mobile source/gallery templates and
+  deprecated that layout for new dashboards while preserving it through v2.0.9;
+  planned removal remains a separate v2.1 proposal
+- migration impact: no stored-data migration. Report consumers must move from
+  `<config>/<filename>` to `<config>/humidity_intelligence/exports/<filename>`;
+  card consumers must move to `<config>/humidity_intelligence/ui/<filename>`. Legacy
+  root JSON/YAML remains untouched with no dual-write, copy, symlink, move, or
+  automatic deletion. Verify fresh owned-directory output before switching consumers.
+  Callers using another custom report filename must rename it. Contextless background
+  automations/scripts can no longer invoke the external writer, `flash_lights`,
+  `create_local_backup`, or `list_saved_versions` services; use an authenticated
+  admin UI or API call. Runtime visual-alert continuity is unchanged because the
+  engine uses its trusted internal helper. Any future automated trusted route
+  requires separate design approval
+- runtime/UI impact: entity semantics, deterministic lane ordering, and output
+  selection are unchanged. Generated-card logic and rendered backend-truth semantics
+  are unchanged, while export paths and multi-entry filename qualification change.
+  V1 users must re-export and re-copy their card to receive the escaped template
+- restart impact: fully restart Home Assistant after installing updated package code;
+  a config-entry reload alone is insufficient
+- recorded advisory HA Lab evidence for package commit `c54e9e1`: full-package backup
+  and source/remote hash verification passed, the maintainer completed the restart,
+  post-restart diagnostics/service/runtime checks passed, and approved single-entry
+  admin write smoke produced valid owned-directory JSON/YAML with expected
+  permissions and post-write continuity
+- HA Lab did not live-test non-admin rejection, multi-entry naming, purge removal,
+  concurrent/fault-injected writes, legacy-root retention, or rendered Lovelace UI;
+  those boundaries remain covered by local tests or require separate live evidence
+
 ### v2.0.8
 
 - set integration metadata to stable `2.0.8`; GitHub Releases and HACS remain the
   user-facing publication record
-- added a first-run welcome page before Frontend Dependencies that explains the
-  staged setup method, with README guidance and telemetry copy updated so users can
-  safely save a small initial sensor set and return through Options later
-- migrated computed humidity, target, drift, and delta sensor percentage units from
-  the deprecated Home Assistant `PERCENTAGE` unit constant to
-  `UnitOfRatio.PERCENTAGE` for Home Assistant Core `2026.7` compatibility, with a
-  legacy `%` fallback for older supported Core versions; entity IDs, values, lane
-  ordering, services, diagnostics semantics, and generated-card display behavior are
-  unchanged
+- added first-run welcome/setup guidance before Frontend Dependencies, keeping setup
+  staged and making it safer to save a small initial telemetry set before later
+  Options tuning
 - fixed Temperature Slope setup/options fallback when collapsed Advanced source lists
   submit empty values
 - made default generated V2 dashboards status-safe where appropriate: default card
@@ -992,6 +1203,9 @@ CO emergency pressure. Details are in
   or re-export generated cards and update pasted Manual-card YAML for the new default
   V2 card surfaces
 
+<details>
+<summary>Previous Releases</summary>
+
 ### v2.0.7
 
 - promoted integration metadata to stable `2.0.7`
@@ -1013,9 +1227,6 @@ CO emergency pressure. Details are in
 - added release/PR checklist support for recording Wiki update status as `updated`, `no-op`, or `blocked` when public manual guidance is affected
 - added a Wiki Services Reference, footer navigation across public Wiki content pages, and a Wiki banner asset for a clearer support-manual experience
 - migration impact: existing PM2.5 aggregate entity IDs using `pm2_5` are normalized to `pm25` during HI setup; restart Home Assistant after updating so the new package and registry normalization run, then regenerate/re-copy generated cards if your dashboard uses PM2.5 aggregate surfaces or the Current Air Control UI change
-
-<details>
-<summary>Previous Releases</summary>
 
 ### v2.0.6
 

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'none'; font-src 'none'; connect-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; child-src 'none'; manifest-src 'none'; form-action 'none'; base-uri 'none'"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'none'; connect-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; child-src 'none'; manifest-src 'none'; form-action 'none'; base-uri 'none'"
     >
     <meta name="referrer" content="no-referrer">
     <meta name="robots" content="noindex,nofollow,noarchive,nosnippet">
@@ -14,6 +14,7 @@
       content="A public browser-local preflight that keeps supported Humidity Intelligence diagnostic contents in the browser tab."
     >
     <link rel="canonical" href="https://senyo888.github.io/humidity-intelligence/inspector/">
+    <link rel="icon" href="../assets/logo.png" type="image/png">
     <title>HI Support Bundle Inspector</title>
     <link rel="stylesheet" href="styles.css">
     <script type="module" src="app.mjs"></script>
@@ -23,7 +24,21 @@
 
     <header class="site-header">
       <div class="header-inner">
-        <span class="brand">HI Support Bundle Inspector</span>
+        <a
+          class="brand"
+          href="../"
+          aria-label="HI Support Bundle Inspector — Humidity Intelligence home"
+        >
+          <img
+            class="brand-logo"
+            src="../assets/logo.png"
+            alt=""
+            width="40"
+            height="40"
+            aria-hidden="true"
+          >
+          <span>HI Support Bundle Inspector</span>
+        </a>
         <span class="beta-badge">Public beta · browser-local</span>
       </div>
     </header>

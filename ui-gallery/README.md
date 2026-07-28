@@ -42,8 +42,10 @@ This repository directory remains the canonical source for gallery YAML, preview
 - [Card YAML](default-v2-tablet-zone-2/card.yaml)
 - [Example notes](default-v2-tablet-zone-2/README.md)
 
-### Default V1 Mobile
+### Default V1 Mobile (Deprecated)
 
+- Status: deprecated in v2.0.9; retained through the v2.0.9 line
+- Replacement: Default V2 Mobile AQ / `ui/cards/v2_mobile.yaml`
 - Style: legacy-compatible mobile layout with comfort band and humidity constellation
 - Optimised for: phones and users keeping a V1-style dashboard presentation
 - Author: @senyo888
@@ -55,6 +57,10 @@ This repository directory remains the canonical source for gallery YAML, preview
 - [View preview](default-v1-mobile/preview.png)
 - [Card YAML](default-v1-mobile/card.yaml)
 - [Example notes](default-v1-mobile/README.md)
+
+The V1 example remains available for existing users during v2.0.9, including the
+dynamic-text HTML-escaping fix. Do not use it for new dashboard installations.
+Removal is deferred to a separately approved v2.1 migration proposal.
 
 ## Submitting Gallery Examples
 
