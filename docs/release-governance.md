@@ -12,8 +12,10 @@ testing and validation branches.
   Published release status comes from release tags, GitHub release publication, and
   maintainer approval.
 
-The integration version in `manifest.json` is the release-state source of truth for
-Home Assistant and HACS metadata checks.
+The integration version in `manifest.json` is the source of truth for the installed
+Home Assistant package and integration metadata checks. When GitHub Releases are
+used, HACS derives published version state from the GitHub Release/tag; that state
+must remain aligned with the manifest.
 
 The tracked source and release documentation identify stable `2.0.9`. A branch or
 merge containing stable metadata is not by itself a tag, GitHub Release, or HACS
