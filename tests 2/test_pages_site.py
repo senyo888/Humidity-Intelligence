@@ -282,7 +282,11 @@ class PagesSiteTests(unittest.TestCase):
             self.assertIn(INSPECTOR_URL, source)
             self.assertIn("native", source.lower())
             self.assertIn("preferred", source.lower())
-        self.assertIn("Wiki update status: `no-op`", normalized_changelog)
+        self.assertIn("Wiki update status: `updated`", normalized_changelog)
+        self.assertIn(
+            "Services Reference now documents the final external service permission boundaries.",
+            normalized_changelog,
+        )
         self.assertIn("Release-documentation status:", normalized_changelog)
         self.assertIn("`updated` by this entry", normalized_changelog)
 
