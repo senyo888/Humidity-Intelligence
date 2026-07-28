@@ -20,12 +20,10 @@ were published from `main` on 2026-07-06.
 
 The working metadata on `senyo888-patch-1` is stable `2.0.9` after local release
 validation. That branch state is not a tag, GitHub Release, HACS publication,
-`develop` promotion, or `main` promotion. The maintainer has confirmed
-stable-instance beta testing for the v2.0.9 line; the supplied private validation
-packet remains a separate evidence lane and reports `PASS_WITH_NOTES` because two
-configured visual-alert outputs currently exist but are unavailable. No generated
-card reference is missing, and the warning remains visible until those household
-outputs recover or their retained mappings are deliberately updated.
+`develop` promotion, or `main` promotion. Release readiness for this line must still
+be established through public-safe validation summaries, GitHub CI, the required
+review gates, and explicit maintainer approval. Local operational evidence does not
+replace or become part of the tracked public correctness contract.
 
 The former v2.0.8 candidate moved through `senyo888-patch-1`, `develop`, and `main`
 before publication. Stable metadata on a staging or review branch was not release
