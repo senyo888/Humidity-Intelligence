@@ -584,6 +584,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
     )
 
     async def handle_list_saved_versions(call: ServiceCall) -> dict:
+        await _async_require_admin_user(hass, call, SERVICE_LIST_SAVED_VERSIONS)
         try:
             result = await async_list_saved_versions(hass)
         except LocalVersionError as err:

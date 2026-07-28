@@ -218,12 +218,12 @@ def _stat_regular_file(
             dir_fd=directory_fd,
             follow_symlinks=False,
         )
-    except FileNotFoundError:
+    except FileNotFoundError as err:
         if allow_absent:
             return None
         raise ReportExportError(
             f"Owned {artifact_label} changed before operation: {filename}"
-        )
+        ) from err
     except (NotImplementedError, OSError, TypeError) as err:
         raise ReportExportError(
             f"Unable to inspect owned {artifact_label} {filename!r} securely: {err}"

@@ -4366,7 +4366,7 @@ def test_flash_lights_power_entity_rejects_non_switch_light_domains():
         raise AssertionError("fan power_entity should be rejected")
 
 
-def test_external_flash_and_local_backup_require_admin_before_mutation():
+def test_external_flash_and_local_snapshot_services_require_admin_before_work():
     services_mod = _load_services_module()
     entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
     hass = _FakeHass(entry, {"light.alert": _FakeState("off")})
@@ -4377,15 +4377,26 @@ def test_external_flash_and_local_backup_require_admin_before_mutation():
             "viewer": SimpleNamespace(is_admin=False),
         }
     )
-    local_backup_calls = 0
+    local_version_calls = {"create": 0, "list": 0}
     original_create_local_backup = services_mod.async_create_local_backup
+    original_list_saved_versions = services_mod.async_list_saved_versions
 
     async def unexpected_local_backup(*_args, **_kwargs):
-        nonlocal local_backup_calls
-        local_backup_calls += 1
+        local_version_calls["create"] += 1
         raise AssertionError("local backup work must not begin before authorization")
 
+    async def tracked_list_saved_versions(*_args, **_kwargs):
+        local_version_calls["list"] += 1
+        return {
+            "success": True,
+            "valid_snapshots": [],
+            "invalid_snapshots": [],
+            "latest_snapshot": None,
+            "total_size": 0,
+        }
+
     services_mod.async_create_local_backup = unexpected_local_backup
+    services_mod.async_list_saved_versions = tracked_list_saved_versions
     try:
         asyncio.run(services_mod.async_register_services(hass))
         handlers = {
@@ -4394,6 +4405,9 @@ def test_external_flash_and_local_backup_require_admin_before_mutation():
             ],
             services_mod.SERVICE_CREATE_LOCAL_BACKUP: hass.services.handlers[
                 (services_mod.DOMAIN, services_mod.SERVICE_CREATE_LOCAL_BACKUP)
+            ],
+            services_mod.SERVICE_LIST_SAVED_VERSIONS: hass.services.handlers[
+                (services_mod.DOMAIN, services_mod.SERVICE_LIST_SAVED_VERSIONS)
             ],
         }
 
@@ -4418,9 +4432,26 @@ def test_external_flash_and_local_backup_require_admin_before_mutation():
                         f"{service} should reject user context {user_id!r}"
                     )
                 assert hass.services.calls == calls_before
-                assert local_backup_calls == 0
+                assert local_version_calls == {"create": 0, "list": 0}
+
+        listed = asyncio.run(
+            handlers[services_mod.SERVICE_LIST_SAVED_VERSIONS](
+                SimpleNamespace(
+                    data={},
+                    context=SimpleNamespace(user_id="admin"),
+                )
+            )
+        )
+        assert listed["success"] is True
+        assert local_version_calls == {"create": 0, "list": 1}
+        assert any(
+            call[0:2] == ("persistent_notification", "create")
+            and call[2].get("title") == "Humidity Intelligence Local Snapshots"
+            for call in hass.services.calls
+        )
     finally:
         services_mod.async_create_local_backup = original_create_local_backup
+        services_mod.async_list_saved_versions = original_list_saved_versions
 
 
 def test_report_service_schemas_reject_non_owned_root_filenames_before_write():

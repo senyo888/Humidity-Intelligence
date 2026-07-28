@@ -57,6 +57,18 @@ class ReportExportTests(unittest.TestCase):
                 with self.assertRaises(self.exports.ReportExportError):
                     validate(candidate)
 
+    def test_required_file_disappearance_preserves_the_original_cause(self):
+        missing = FileNotFoundError("owned report disappeared")
+        with mock.patch.object(self.exports.os, "stat", side_effect=missing):
+            with self.assertRaises(self.exports.ReportExportError) as raised:
+                self.exports._stat_regular_file(
+                    1,
+                    "humidity_intelligence_race.json",
+                    allow_absent=False,
+                )
+
+        self.assertIs(raised.exception.__cause__, missing)
+
     def test_write_creates_owned_directory_and_leaves_root_report_untouched(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)

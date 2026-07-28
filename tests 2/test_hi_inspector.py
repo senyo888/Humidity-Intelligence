@@ -604,6 +604,11 @@ class HiInspectorStaticTests(unittest.TestCase):
                     (destination / filename).read_bytes(),
                     (SOURCE / filename).read_bytes(),
                 )
+            built_logo = (destination / "../assets/logo.png").resolve()
+            self.assertEqual(
+                built_logo.read_bytes(),
+                (ROOT / "assets" / "logo.png").read_bytes(),
+            )
 
     def test_static_build_refuses_source_tree_destination(self) -> None:
         completed = subprocess.run(

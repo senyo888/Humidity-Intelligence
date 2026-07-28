@@ -223,7 +223,23 @@ def build(destination: pathlib.Path) -> None:
     destination.mkdir(parents=True, exist_ok=True)
     for filename in FILES:
         shutil.copyfile(SOURCE / filename, destination / filename)
-    print(f"HI Inspector static build passed: {len(FILES)} files -> {destination}")
+
+    logo_destination = (destination / OFFICIAL_LOGO_REFERENCE).resolve()
+    try:
+        logo_destination.relative_to(destination.parent)
+    except ValueError as err:
+        raise RuntimeError(
+            "Inspector logo reference must stay inside the build root"
+        ) from err
+    logo_destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(OFFICIAL_LOGO, logo_destination)
+    if logo_destination.read_bytes() != OFFICIAL_LOGO.read_bytes():
+        raise RuntimeError("Built Inspector logo does not match the official asset")
+
+    print(
+        "HI Inspector static build passed: "
+        f"{len(FILES)} files plus official logo -> {destination}"
+    )
 
 
 def main() -> int:
