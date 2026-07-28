@@ -74,9 +74,9 @@ record:
 
 - exact diagnostics, self-check, release-check, generated-card, and registered
   dashboard paths;
-- admin rejection before work for external `self_check`, `dump_cards`, and
-  `view_cards`, continuity of trusted setup/options/release-test exports, and truthful
-  cache-only startup refresh;
+- admin rejection before work for external `dump_diagnostics`, `self_check`,
+  `v205_release_check`, `dump_cards`, and `view_cards`, continuity of trusted
+  setup/options/release-test exports, and truthful cache-only startup refresh;
 - single-entry and entry-qualified multi-entry filenames, exact purge preview/removal
   ownership, and retention of custom and legacy root artifacts;
 - descriptor-relative no-follow atomic writer tests, including concurrent writes,

@@ -17,6 +17,7 @@ _GENERATED_UI_LAYOUTS = (
     "v2_tablet",
     "view_cards_button",
 )
+RELEASE_CHECK_CARD_BASE = "humidity_intelligence_v205_release_check_cards"
 
 
 def safe_artifact_entry_slug(value: str) -> str:
@@ -66,11 +67,10 @@ def list_owned_ui_filenames(
                     False,
                 )
             )
-        release_base = "humidity_intelligence_v205_release_check_cards"
         for layout in _GENERATED_UI_LAYOUTS:
             filenames.add(
                 build_generated_card_filename(
-                    release_base,
+                    RELEASE_CHECK_CARD_BASE,
                     layout,
                     "",
                     False,
@@ -78,7 +78,7 @@ def list_owned_ui_filenames(
             )
         filenames.add(
             build_generated_card_filename(
-                f"{release_base}_scoped",
+                f"{RELEASE_CHECK_CARD_BASE}_scoped",
                 "v2_tablet",
                 "",
                 False,
@@ -100,11 +100,10 @@ def list_owned_ui_filenames(
                     )
                 )
 
-            release_base = "humidity_intelligence_v205_release_check_cards"
             for layout in _GENERATED_UI_LAYOUTS:
                 filenames.add(
                     build_generated_card_filename(
-                        release_base,
+                        RELEASE_CHECK_CARD_BASE,
                         layout,
                         entry_id,
                         naming_mode,
@@ -112,7 +111,7 @@ def list_owned_ui_filenames(
                 )
             filenames.add(
                 build_generated_card_filename(
-                    f"{release_base}_scoped",
+                    f"{RELEASE_CHECK_CARD_BASE}_scoped",
                     "v2_tablet",
                     entry_id,
                     naming_mode,

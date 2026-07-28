@@ -112,6 +112,35 @@ class ReportExportTests(unittest.TestCase):
 
             self.assertEqual(stat.S_IMODE(exports_dir.stat().st_mode), before_mode)
 
+    def test_new_owned_directories_use_restrictive_permissions(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            previous_umask = os.umask(0)
+            try:
+                self.exports.write_owned_report(
+                    root,
+                    "humidity_intelligence_permissions.json",
+                    {"ok": True},
+                )
+                self.exports.write_owned_ui_export(
+                    root,
+                    "humidity_intelligence_cards_v2_mobile.yaml",
+                    "type: markdown\ncontent: Ready\n",
+                )
+            finally:
+                os.umask(previous_umask)
+
+            for directory in (
+                root / "humidity_intelligence",
+                root / "humidity_intelligence" / "exports",
+                root / "humidity_intelligence" / "ui",
+            ):
+                with self.subTest(directory=directory):
+                    self.assertEqual(
+                        stat.S_IMODE(directory.stat().st_mode),
+                        0o700,
+                    )
+
     def test_symlinked_components_and_final_symlink_fail_closed(self):
         if not hasattr(os, "symlink"):
             self.skipTest("symlink support is required")
@@ -358,6 +387,28 @@ class ReportExportTests(unittest.TestCase):
             self.assertTrue(exports_dir.is_dir())
             self.assertEqual(list(exports_dir.iterdir()), [])
             self.assertFalse((root / filename).exists())
+
+    def test_cleanup_failure_does_not_mask_write_failure(self):
+        with tempfile.TemporaryDirectory() as tmpdir, mock.patch.object(
+            self.exports.json,
+            "dump",
+            side_effect=ValueError("primary write failure"),
+        ), mock.patch.object(
+            self.exports,
+            "_unlink_temporary_report",
+            side_effect=self.exports.ReportExportError("cleanup failure"),
+        ), mock.patch.object(
+            self.exports._LOGGER,
+            "warning",
+        ) as warning:
+            with self.assertRaisesRegex(ValueError, "primary write failure"):
+                self.exports.write_owned_report(
+                    Path(tmpdir),
+                    "humidity_intelligence_cleanup.json",
+                    {"ok": False},
+                )
+
+            warning.assert_called_once()
 
     def test_concurrent_same_name_writes_remain_complete_json(self):
         with tempfile.TemporaryDirectory() as tmpdir:

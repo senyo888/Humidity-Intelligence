@@ -17,6 +17,7 @@ from homeassistant.helpers import config_validation as cv
 
 from .const import CONF_SHOW_OUTPUT_ENTITY_DETAILS, DEFAULT_SHOW_OUTPUT_ENTITY_DETAILS, DOMAIN
 from .helpers.cleanup import (
+    RELEASE_CHECK_CARD_BASE,
     build_generated_card_filename,
     list_owned_ui_filenames,
     remove_dashboard,
@@ -341,6 +342,11 @@ async def async_create_dashboard_for_entry(
     url_path: str,
 ) -> bool:
     """Render and create one dashboard for a trusted config entry."""
+    try:
+        url_path = _validate_dashboard_url_path(url_path)
+    except vol.Invalid as err:
+        raise HomeAssistantError(str(err)) from err
+
     from homeassistant.components.lovelace import dashboard as lovelace_dashboard
 
     from .ui.register import async_build_entity_mapping, async_register_cards
@@ -674,12 +680,11 @@ async def async_register_services(hass: HomeAssistant) -> None:
                 unscoped_written: List[str] = []
                 scoped_written: List[str] = []
                 if write_test_exports:
-                    base = "humidity_intelligence_v205_release_check_cards"
-                    scoped_base = f"{base}_scoped"
+                    scoped_base = f"{RELEASE_CHECK_CARD_BASE}_scoped"
                     unscoped_written = await async_export_cards_to_owned_ui(
                         hass,
                         entry.entry_id,
-                        base,
+                        RELEASE_CHECK_CARD_BASE,
                         layout=None,
                     )
                     scoped_written = await async_export_cards_to_owned_ui(

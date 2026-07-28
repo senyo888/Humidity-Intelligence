@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from dataclasses import dataclass
 import json
+import logging
 import os
 import re
 import secrets
@@ -33,6 +34,7 @@ _OWNED_REPORT_FILENAME_SUFFIX = ".json"
 _OWNED_UI_FILENAME_SUFFIX = ".yaml"
 _TEMP_CREATE_ATTEMPTS = 128
 _REPORT_OPERATION_LOCK = threading.Lock()
+_LOGGER = logging.getLogger(__name__)
 
 
 class ReportExportError(RuntimeError):
@@ -122,7 +124,7 @@ def _open_directory_component(
         if not create:
             return None
         try:
-            os.mkdir(component, mode=0o777, dir_fd=parent_fd)
+            os.mkdir(component, mode=0o700, dir_fd=parent_fd)
         except FileExistsError:
             pass
         except (NotImplementedError, OSError, TypeError) as err:
@@ -550,13 +552,20 @@ def _write_owned_artifact_locked(
             except OSError:
                 pass
             if temporary_exists:
-                _unlink_temporary_report(
-                    directory_fd,
-                    temporary_name,
-                    expected_device=temporary_identity.st_dev,
-                    expected_inode=temporary_identity.st_ino,
-                    artifact_label=artifact_label,
-                )
+                try:
+                    _unlink_temporary_report(
+                        directory_fd,
+                        temporary_name,
+                        expected_device=temporary_identity.st_dev,
+                        expected_inode=temporary_identity.st_ino,
+                        artifact_label=artifact_label,
+                    )
+                except ReportExportError:
+                    _LOGGER.warning(
+                        "Unable to remove temporary %s file after a failed write",
+                        artifact_label,
+                        exc_info=True,
+                    )
 
     return f"{relative_directory}/{filename}"
 

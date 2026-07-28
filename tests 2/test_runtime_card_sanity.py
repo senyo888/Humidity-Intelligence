@@ -5927,6 +5927,31 @@ def test_create_dashboard_requires_admin_before_render_or_write():
         ).read_text(encoding="utf-8") == "type: markdown\ncontent: Mobile ready\n"
 
 
+def test_create_dashboard_helper_rejects_unsafe_url_path_before_work():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+
+    class RejectPathAccess:
+        def path(self, *_parts):
+            raise AssertionError("config path must not be evaluated")
+
+    hass = SimpleNamespace(config=RejectPathAccess())
+    try:
+        asyncio.run(
+            services_mod.async_create_dashboard_for_entry(
+                hass,
+                entry,
+                layout="v2_mobile",
+                title="Humidity Intelligence",
+                url_path="../configuration",
+            )
+        )
+    except Exception as err:
+        assert "Dashboard URL path" in str(err)
+    else:
+        raise AssertionError("unsafe dashboard path should be rejected")
+
+
 def test_first_run_dashboard_creation_uses_trusted_helper():
     integration_mod = _load_integration_init_module()
     service_calls = []
