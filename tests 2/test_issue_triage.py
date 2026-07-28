@@ -1255,6 +1255,7 @@ forbidden_actions:
             self.assertIn(prose, summary)
         self.assertIn("https://8.8.8.8/status", summary)
         self.assertIn("https://[2606:4700:4700::1111]/status", summary)
+
     def test_fetch_open_issues_refuses_non_https_request_before_urlopen(self) -> None:
         request = mock.Mock(full_url="file:///tmp/issues.json")
 
