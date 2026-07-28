@@ -11,6 +11,7 @@ on:
       - "assets/v2_ui_gallery/v204_presence_gate_reason.png"
       - "assets/v2_ui_gallery/ui_v2_mobile_aq.png"
       - "assets/v2_ui_gallery/ui_v2_tablet_zone_2.png"
+      - "scripts/build_hi_inspector.py"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -25,10 +26,11 @@ concurrency:
 
 jobs:
   build:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Configure Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
@@ -40,6 +42,7 @@ jobs:
           rm -rf _site
           mkdir -p _site/assets/site _site/assets/v2_ui_gallery
           cp site/index.html site/styles.css site/robots.txt site/sitemap.xml _site/
+          python3 scripts/build_hi_inspector.py _site/inspector
           cp assets/logo.png _site/assets/logo.png
           cp assets/header.png _site/assets/header.png
           cp assets/site/github-pages-hero.png _site/assets/site/github-pages-hero.png
@@ -54,6 +57,7 @@ jobs:
           path: _site
 
   deploy:
+    if: github.ref == 'refs/heads/main'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

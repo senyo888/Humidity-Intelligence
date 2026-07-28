@@ -7,12 +7,15 @@ import json
 import pathlib
 import re
 import unittest
+from urllib.parse import urljoin
 import xml.etree.ElementTree as ET
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
 PAGES_URL = "https://senyo888.github.io/humidity-intelligence/"
+INSPECTOR_URL = f"{PAGES_URL}inspector/"
+INSPECTOR_SOURCE = SITE / "inspector"
 
 
 class PageParser(HTMLParser):
@@ -34,7 +37,11 @@ class PageParser(HTMLParser):
         if tag == "img" and values.get("src"):
             self.images.append(values["src"] or "")
         if tag == "meta":
-            key = values.get("name") or values.get("property")
+            key = (
+                values.get("name")
+                or values.get("property")
+                or values.get("http-equiv")
+            )
             content = values.get("content")
             if key and content:
                 self.meta[key] = content
@@ -64,6 +71,13 @@ class PageParser(HTMLParser):
 
 def parse_index() -> tuple[str, PageParser]:
     html = (SITE / "index.html").read_text(encoding="utf-8")
+    parser = PageParser()
+    parser.feed(html)
+    return html, parser
+
+
+def parse_inspector() -> tuple[str, PageParser]:
+    html = (INSPECTOR_SOURCE / "index.html").read_text(encoding="utf-8")
     parser = PageParser()
     parser.feed(html)
     return html, parser
@@ -123,6 +137,9 @@ class PagesSiteTests(unittest.TestCase):
         self.assertIn('id="support"', html)
         self.assertIn("Support Humidity Intelligence", html)
         self.assertTrue(required_targets.issubset(set(parser.links)))
+        inspector_links = [link for link in parser.links if link == "inspector/"]
+        self.assertEqual(len(inspector_links), 1)
+        self.assertEqual(urljoin(PAGES_URL, inspector_links[0]), INSPECTOR_URL)
 
     def test_referenced_site_assets_are_public_and_copied_by_workflow(self) -> None:
         _html, parser = parse_index()
@@ -138,6 +155,97 @@ class PagesSiteTests(unittest.TestCase):
                 self.assertTrue(source_asset.exists(), f"{source_asset} is missing")
                 self.assertIn(f"cp {asset}", workflow)
 
+    def test_pages_workflow_builds_validated_inspector_at_public_route(self) -> None:
+        workflow = (ROOT / ".github/workflows/pages.yml").read_text(encoding="utf-8")
+        expected_files = {
+            "app.mjs",
+            "handoff.mjs",
+            "index.html",
+            "inspection-session.mjs",
+            "parser.mjs",
+            "styles.css",
+        }
+
+        self.assertIn(
+            "python3 scripts/build_hi_inspector.py _site/inspector",
+            workflow,
+        )
+        self.assertIn("branches: [main]", workflow)
+        self.assertIn("workflow_dispatch:", workflow)
+        for job in ("build", "deploy"):
+            with self.subTest(job=job):
+                self.assertRegex(
+                    workflow,
+                    rf"(?m)^  {job}:\n"
+                    r"    if: github\.ref == 'refs/heads/main'$",
+                )
+        self.assertIn('"scripts/build_hi_inspector.py"', workflow)
+        self.assertEqual(
+            {path.name for path in INSPECTOR_SOURCE.iterdir() if path.is_file()},
+            expected_files,
+        )
+
+    def test_public_inspector_is_noindex_canonical_and_zero_network_egress(self) -> None:
+        html, parser = parse_inspector()
+        normalized = " ".join(html.split())
+        robots = set(parser.meta.get("robots", "").split(","))
+        csp = parser.meta.get("Content-Security-Policy", "")
+
+        self.assertEqual(parser.canonical, INSPECTOR_URL)
+        self.assertEqual(
+            robots,
+            {"noindex", "nofollow", "noarchive", "nosnippet"},
+        )
+        for directive in (
+            "default-src 'none'",
+            "connect-src 'none'",
+            "worker-src 'none'",
+            "form-action 'none'",
+            "base-uri 'none'",
+        ):
+            self.assertIn(directive, csp)
+        self.assertIn(
+            "Diagnostic contents remain in this browser tab.",
+            normalized,
+        )
+        self.assertIn(
+            "selected file contents remain in this tab",
+            normalized,
+        )
+        self.assertIn(
+            "Native Home Assistant diagnostics remain the preferred support",
+            normalized,
+        )
+
+    def test_public_inspector_and_triage_share_one_version_contract(self) -> None:
+        html = (INSPECTOR_SOURCE / "index.html").read_text(encoding="utf-8")
+        handoff = (INSPECTOR_SOURCE / "handoff.mjs").read_text(encoding="utf-8")
+        triage = (ROOT / "scripts" / "issue_triage.py").read_text(encoding="utf-8")
+
+        html_version = re.search(
+            r"Inspector version\s*<strong>([^<]+)</strong>",
+            html,
+        )
+        handoff_version = re.search(
+            r'export const INSPECTOR_VERSION = "([^"]+)";',
+            handoff,
+        )
+        triage_version = re.search(
+            r'HANDOFF_INSPECTOR_VERSION = "([^"]+)"',
+            triage,
+        )
+        self.assertIsNotNone(html_version)
+        self.assertIsNotNone(handoff_version)
+        self.assertIsNotNone(triage_version)
+        self.assertEqual(
+            {
+                html_version.group(1),
+                handoff_version.group(1),
+                triage_version.group(1),
+            },
+            {"0.3.0-beta.1"},
+        )
+
     def test_sitemap_and_robots_allow_indexing_the_project_site(self) -> None:
         robots = (SITE / "robots.txt").read_text(encoding="utf-8")
         sitemap = SITE / "sitemap.xml"
@@ -148,11 +256,26 @@ class PagesSiteTests(unittest.TestCase):
         self.assertIn("Allow: /", robots)
         self.assertIn(f"Sitemap: {PAGES_URL}sitemap.xml", robots)
         self.assertEqual(locs, [PAGES_URL])
+        self.assertNotIn(INSPECTOR_URL, locs)
+
+    def test_public_support_docs_record_gate3_status_and_route(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        support = (ROOT / "docs/support.md").read_text(encoding="utf-8")
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        normalized_changelog = " ".join(changelog.split())
+
+        for source in (readme, support):
+            self.assertIn(INSPECTOR_URL, source)
+            self.assertIn("native", source.lower())
+            self.assertIn("preferred", source.lower())
+        self.assertIn("Wiki update status: `no-op`", normalized_changelog)
+        self.assertIn("Release-documentation status:", normalized_changelog)
+        self.assertIn("`updated` by this entry", normalized_changelog)
 
     def test_pages_public_copy_has_no_private_or_overclaiming_terms(self) -> None:
         site_text = "\n".join(
             path.read_text(encoding="utf-8")
-            for path in sorted(SITE.glob("*"))
+            for path in sorted(SITE.rglob("*"))
             if path.is_file() and path.suffix in {".html", ".css", ".txt", ".xml"}
         )
         private_patterns = (

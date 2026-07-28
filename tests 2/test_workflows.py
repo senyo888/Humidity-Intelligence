@@ -15,7 +15,7 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 FIRST_INTERACTION_V3_SHA = "1c4688942c71f71d4f5502a26ea67c331730fa4d"
-ACTIONS_CHECKOUT_V6_SHA = "df4cb1c069e1874edd31b4311f1884172cec0e10"
+ACTIONS_CHECKOUT_V7_SHA = "3d3c42e5aac5ba805825da76410c181273ba90b1"
 HACS_ACTION_MAIN_SHA = "1ebf01c408f29afcb6406bd431bc98fd8cbb15aa"
 MUTABLE_ACTION_REF_RE = re.compile(
     r"^\s*uses:\s*[^@\s]+@(main|master|v?\d+(?:\.\d+){0,2})\s*(?:#.*)?$",
@@ -126,9 +126,9 @@ class WorkflowConfigurationTests(unittest.TestCase):
             encoding="utf-8"
         )
 
-        self.assertIn(f"actions/checkout@{ACTIONS_CHECKOUT_V6_SHA} # v6", workflow)
+        self.assertIn(f"actions/checkout@{ACTIONS_CHECKOUT_V7_SHA} # v7", workflow)
         self.assertIn(f"hacs/action@{HACS_ACTION_MAIN_SHA} # main", workflow)
-        self.assertNotIn("actions/checkout@v6", workflow)
+        self.assertNotIn("actions/checkout@v7", workflow)
         self.assertNotIn("hacs/action@main", workflow)
 
     def test_workflow_actions_do_not_use_mutable_refs(self) -> None:

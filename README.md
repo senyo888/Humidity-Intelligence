@@ -63,9 +63,10 @@ For publication status, installed packages, and release tags, use
 [GitHub Releases](https://github.com/senyo888/Humidity-Intelligence/releases) and
 HACS as the user-facing record.
 
-v2.0.8 focuses on a calmer first-run setup, safer generated dashboards, a passive
-Stability preview badge, tighter global pause/resume admin boundaries, and cleaner
-support exports.
+v2.0.8 focuses on a calmer first-run setup, Home Assistant Core `2026.7`
+percentage-unit compatibility, safer generated dashboards, a passive Stability
+preview badge, tighter global pause/resume admin boundaries, and cleaner support
+exports.
 
 The deterministic runtime contract stays intact: one selected control lane per cycle,
 the same public entity meanings, the same migration shape, and output writing only
@@ -383,9 +384,13 @@ must be reviewable from tracked repository files.
 
 - integration metadata is stable `2.0.8`; GitHub Releases and HACS remain the
   user-facing publication record
-- first-run setup now starts with a welcome/setup-strategy page before Frontend
-  Dependencies, so users can save a small initial sensor set and return through
-  Options for deeper tuning
+- first-run setup now starts with a welcome page before Frontend Dependencies; it
+  explains the staged setup method so users can safely save a small initial sensor
+  set and return through Options for deeper tuning
+- computed humidity, target, drift, and delta sensors now use Home Assistant's
+  `UnitOfRatio.PERCENTAGE` unit enumerator on Core `2026.7`, with a legacy `%`
+  fallback for older supported Core versions; entity IDs, values, lane ordering,
+  services, diagnostics semantics, and generated-card display behavior are unchanged
 - Temperature Slope setup/options now handles collapsed Advanced source lists safely:
   empty submitted source lists fall back to the configured temperature sensors or
   saved source defaults instead of hiding a required-source validation loop
@@ -883,17 +888,32 @@ Then drag the downloaded file into the GitHub issue.
 Diagnostics help maintainers see:
 
 - Humidity Intelligence and Home Assistant versions
-- config entry/options summary
-- selected telemetry, gate, zone, AQ, humidifier, alert, and output entities
+- sanitized config entry/options summaries
+- configuration counts and selected-entity category/status summaries
 - enabled feature areas
-- current runtime lane/mode, gate state, output state, and reason text
+- current runtime lane/mode, gate state, output state, and reason availability/truncation
 - active alert resolution
 - house humidity drift dependency status
 - frontend dependency status when Home Assistant exposes Lovelace resources
 - generated UI/card summary
 - unavailable/unknown configured entities and support warnings
 
-Sensitive keys and values such as tokens, passwords, API keys, webhook URLs, credential-bearing URLs, location fields, usernames, host/IP/MAC/SSID values, device IDs, and unique IDs are redacted. Entity IDs are included because they are needed to debug mappings; review the file before uploading if your entity names contain personal details.
+Sensitive keys and values such as tokens, passwords, API keys, webhook URLs,
+credential-bearing URLs, location fields, usernames, host/IP/MAC/SSID values,
+device IDs, unique IDs, and private entity IDs are redacted. Selected
+entity/mapping/room/Area/Label evidence is generally reduced to counts and status
+categories, but user-configured display and level labels may remain. Review the
+complete file before uploading it to a public issue.
+
+The public [HI Support Bundle Inspector](https://senyo888.github.io/humidity-intelligence/inspector/)
+is an optional browser-local preflight for a supported diagnostics file. It can
+produce a short, unsigned advisory handoff for the bug-report and configuration-help
+forms. Native Home Assistant diagnostics remain the preferred attachment and
+repository/Wiki guidance remains support truth. Live runtime evidence, source
+correctness and anonymity remain separate assessments. Copying occurs only when the
+user activates Copy, and pasting the handoff into GitHub creates normal GitHub issue
+retention. Full `dump_diagnostics` exports remain local unless a maintainer explicitly
+requests one.
 
 Issue triage works best with diagnostics-first reports. For wider ideas, dashboard suggestions, compatibility requests, documentation improvements, or automation/control suggestions, use the Community Ideas & Proposals issue form. Community comments and reactions are useful interest signals; maintainer review and the proposal/release process carry approval and scheduling authority.
 
@@ -932,9 +952,15 @@ CO emergency pressure. Details are in
 
 - set integration metadata to stable `2.0.8`; GitHub Releases and HACS remain the
   user-facing publication record
-- added first-run welcome/setup guidance before Frontend Dependencies, keeping setup
-  staged and making it safer to save a small initial telemetry set before later
-  Options tuning
+- added a first-run welcome page before Frontend Dependencies that explains the
+  staged setup method, with README guidance and telemetry copy updated so users can
+  safely save a small initial sensor set and return through Options later
+- migrated computed humidity, target, drift, and delta sensor percentage units from
+  the deprecated Home Assistant `PERCENTAGE` unit constant to
+  `UnitOfRatio.PERCENTAGE` for Home Assistant Core `2026.7` compatibility, with a
+  legacy `%` fallback for older supported Core versions; entity IDs, values, lane
+  ordering, services, diagnostics semantics, and generated-card display behavior are
+  unchanged
 - fixed Temperature Slope setup/options fallback when collapsed Advanced source lists
   submit empty values
 - made default generated V2 dashboards status-safe where appropriate: default card
