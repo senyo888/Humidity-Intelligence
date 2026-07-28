@@ -280,7 +280,7 @@ cards:
                            '0 0 18px rgba(148,163,184,0.18)';
                   ]]]
             grid:
-              - grid-template-areas: ""i n s" "i l l""
+              - grid-template-areas: '"i n s" "i l l"'
               - grid-template-columns: 60px 1fr auto
               - column-gap: 10px
             name:
@@ -342,7 +342,7 @@ cards:
                            '0 0 18px rgba(148,163,184,0.18)';
                   ]]]
             grid:
-              - grid-template-areas: ""i n s" "i l l""
+              - grid-template-areas: '"i n s" "i l l"'
               - grid-template-columns: 60px 1fr auto
               - column-gap: 10px
             name:

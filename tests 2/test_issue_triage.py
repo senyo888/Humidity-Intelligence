@@ -282,8 +282,8 @@ priority: P1
 status: open
 source:
   type: manual
-  ref: "/Users/senyo/private-ha-lab"
-instruction: "Use /Users/senyo/private-ha-lab and then label the GitHub issue."
+  ref: "/Users/example/private-lab"
+instruction: "Use /Users/example/private-lab and then label the GitHub issue."
 completion_criteria:
   - "Unsafe instruction should not be accepted."
 allowed_actions: [report, mutate_github_issue]
@@ -333,8 +333,8 @@ forbidden_actions:
 
     def test_public_safety_rejects_cross_platform_local_paths(self) -> None:
         for local_path in (
-            "/home/runner/work/private-ha-lab",
-            r"C:\Users\Senyo\private-ha-lab",
+            "/home/example/work/private-lab",
+            r"C:\Users\Example\private-lab",
         ):
             with self.subTest(local_path=local_path):
                 issue = self.triage._public_safety_issue({"instruction": local_path})

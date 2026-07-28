@@ -8,6 +8,10 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+No unreleased changes.
+
+## 2.0.9 - 2026-07-28
+
 - Added the optional HI Support Bundle Inspector to the Pages artifact as a
   separate, noindex preflight at `/humidity-intelligence/inspector/`. Diagnostic parsing and
   handoff generation remain browser-local with zero automatic or network
@@ -16,11 +20,10 @@ This project follows a practical changelog format for Home Assistant and HACS us
   support attachment and the repository/Wiki remain support truth. Wiki update
   status: `no-op` because existing diagnostics guidance remains authoritative.
   Release-documentation status: `updated` by this entry.
-- Promoted working-branch integration metadata to stable `2.0.9` after local release
-  validation and extended the
-  backward-compatible `v205_release_check` manifest contract through the v2.0.9
-  beta/rc/stable line. Publication remains pending; the latest published stable
-  release remains v2.0.8.
+- Set integration metadata to stable `2.0.9`, aligned the release documentation, and
+  extended the backward-compatible `v205_release_check` manifest contract through
+  the v2.0.9 beta/rc/stable line. GitHub Releases and HACS remain the authoritative
+  publication and installed-package records.
 - Removed the HACS `country` metadata so Humidity Intelligence can be listed
   globally instead of being limited to the GB store scope.
 - Restricted custom filenames for `dump_diagnostics` and `v205_release_check` to

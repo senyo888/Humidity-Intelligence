@@ -49,7 +49,7 @@ cards:
       ]]]
     styles:
       grid:
-        - grid-template-areas: ""i s""
+        - grid-template-areas: '"i s"'
         - grid-template-columns: 52px 1fr
         - align-items: center
         - column-gap: 12px
