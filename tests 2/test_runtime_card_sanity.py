@@ -171,9 +171,10 @@ def _install_homeassistant_stubs(*, include_unit_ratio: bool = True) -> None:
 
     ALLOW_EXTRA = object()
     PREVENT_EXTRA = object()
+    _NO_DEFAULT = object()
 
     class _SchemaKey:
-        def __init__(self, key, default=None):
+        def __init__(self, key, default=_NO_DEFAULT):
             self.key = key
             self.default = default
 
@@ -209,7 +210,7 @@ def _install_homeassistant_stubs(*, include_unit_ratio: bool = True) -> None:
                 key = key_spec.key if isinstance(key_spec, _SchemaKey) else key_spec
                 if key in value:
                     item = value[key]
-                elif isinstance(key_spec, _SchemaKey) and key_spec.default is not None:
+                elif isinstance(key_spec, _SchemaKey) and key_spec.default is not _NO_DEFAULT:
                     item = key_spec.default
                 else:
                     continue
@@ -3914,6 +3915,10 @@ def test_card_exports_are_entry_qualified_only_for_multi_entry_installations():
 
 def test_service_schema_stub_rejects_undeclared_keys_by_default():
     services_mod = _load_services_module()
+
+    release_defaults = services_mod.SERVICE_V205_RELEASE_CHECK_SCHEMA({})
+    assert release_defaults["write_test_exports"] is False
+    assert release_defaults["require_local_hi_snapshot"] is False
 
     try:
         services_mod.SERVICE_DUMP_CARDS_SCHEMA({"undeclared": True})
