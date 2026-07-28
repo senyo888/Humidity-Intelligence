@@ -169,6 +169,9 @@ def _install_homeassistant_stubs(*, include_unit_ratio: bool = True) -> None:
     class Invalid(Exception):
         pass
 
+    ALLOW_EXTRA = object()
+    PREVENT_EXTRA = object()
+
     class _SchemaKey:
         def __init__(self, key, default=None):
             self.key = key
@@ -181,8 +184,9 @@ def _install_homeassistant_stubs(*, include_unit_ratio: bool = True) -> None:
                 return hash((self.key, repr(self.default)))
 
     class Schema:
-        def __init__(self, schema):
+        def __init__(self, schema, extra=PREVENT_EXTRA):
             self.schema = schema
+            self.extra = extra
 
         def __call__(self, value):
             if not isinstance(self.schema, dict):
@@ -190,7 +194,17 @@ def _install_homeassistant_stubs(*, include_unit_ratio: bool = True) -> None:
             if not isinstance(value, dict):
                 raise Invalid("schema value must be a mapping")
 
-            validated = dict(value)
+            declared_keys = {
+                key_spec.key if isinstance(key_spec, _SchemaKey) else key_spec
+                for key_spec in self.schema
+            }
+            unexpected_keys = set(value) - declared_keys
+            if unexpected_keys and self.extra is not ALLOW_EXTRA:
+                raise Invalid(
+                    f"extra keys not allowed: {sorted(unexpected_keys)!r}"
+                )
+
+            validated = dict(value) if self.extra is ALLOW_EXTRA else {}
             for key_spec, validator in self.schema.items():
                 key = key_spec.key if isinstance(key_spec, _SchemaKey) else key_spec
                 if key in value:
@@ -306,6 +320,8 @@ def _install_homeassistant_stubs(*, include_unit_ratio: bool = True) -> None:
     voluptuous.Range = _range
     voluptuous.All = _all
     voluptuous.Any = _any
+    voluptuous.ALLOW_EXTRA = ALLOW_EXTRA
+    voluptuous.PREVENT_EXTRA = PREVENT_EXTRA
 
     sys.modules["homeassistant"] = ha
     sys.modules["homeassistant.core"] = core
@@ -3736,7 +3752,7 @@ def test_readme_only_shows_two_latest_release_notes_before_previous_releases():
     assert "### v2.0.9" in visible_notes
     assert "### v2.0.8" in visible_notes
     assert "### v2.0.7" not in visible_notes
-    assert "assets/release_banner/v2.0.9_release.png" in visible_notes
+    assert "assets/release_banner/v2.0.9_release.png" not in visible_notes
     assert (ROOT / "assets" / "release_banner" / "v2.0.9_release.png").read_bytes()[:8] == (
         b"\x89PNG\r\n\x1a\n"
     )
@@ -3880,6 +3896,28 @@ def test_card_exports_are_entry_qualified_only_for_multi_entry_installations():
             / "ui"
             / boundary_name
         ).is_file()
+
+
+def test_service_schema_stub_rejects_undeclared_keys_by_default():
+    services_mod = _load_services_module()
+
+    try:
+        services_mod.SERVICE_DUMP_CARDS_SCHEMA({"undeclared": True})
+    except services_mod.vol.Invalid as err:
+        assert "extra keys not allowed" in str(err)
+    else:
+        raise AssertionError("service schema stub accepted an undeclared key")
+
+    allow_extra_schema = services_mod.vol.Schema(
+        {services_mod.vol.Optional("layout"): str},
+        extra=services_mod.vol.ALLOW_EXTRA,
+    )
+    assert allow_extra_schema(
+        {"layout": "v2_mobile", "undeclared": True}
+    ) == {
+        "layout": "v2_mobile",
+        "undeclared": True,
+    }
 
 
 def test_owned_ui_purge_names_are_exact_for_default_and_release_test_exports():
@@ -5946,7 +5984,7 @@ def test_create_dashboard_helper_rejects_unsafe_url_path_before_work():
                 url_path="../configuration",
             )
         )
-    except Exception as err:
+    except services_mod.HomeAssistantError as err:
         assert "Dashboard URL path" in str(err)
     else:
         raise AssertionError("unsafe dashboard path should be rejected")

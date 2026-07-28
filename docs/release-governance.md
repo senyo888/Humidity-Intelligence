@@ -15,15 +15,13 @@ testing and validation branches.
 The integration version in `manifest.json` is the release-state source of truth for
 Home Assistant and HACS metadata checks.
 
-v2.0.8 is the latest published stable release line. Tag and GitHub Release `v2.0.8`
-were published from `main` on 2026-07-06.
-
-The working metadata on `senyo888-patch-1` is stable `2.0.9` after local release
-validation. That branch state is not a tag, GitHub Release, HACS publication,
-`develop` promotion, or `main` promotion. Release readiness for this line must still
-be established through public-safe validation summaries, GitHub CI, the required
-review gates, and explicit maintainer approval. Local operational evidence does not
-replace or become part of the tracked public correctness contract.
+The tracked source and release documentation identify stable `2.0.9`. A branch or
+merge containing stable metadata is not by itself a tag, GitHub Release, or HACS
+publication. Public release status comes from GitHub Releases and HACS, while
+release readiness must be established through public-safe validation summaries,
+GitHub CI, the required review gates, and explicit maintainer approval. Local
+operational evidence does not replace or become part of the tracked public
+correctness contract.
 
 The former v2.0.8 candidate moved through `senyo888-patch-1`, `develop`, and `main`
 before publication. Stable metadata on a staging or review branch was not release

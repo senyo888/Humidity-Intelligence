@@ -9,7 +9,7 @@
 [![Latest Release](https://img.shields.io/github/v/release/senyo888/Humidity-Intelligence?display_name=tag&sort=semver)](https://github.com/senyo888/Humidity-Intelligence/releases)
 [![Project Site](https://img.shields.io/badge/Project%20Site-GitHub%20Pages-5aa8d6)](https://senyo888.github.io/humidity-intelligence/)
 [![HACS](https://img.shields.io/badge/HACS-Custom%20Integration-orange)](https://hacs.xyz)
-[![Manifest Version](https://img.shields.io/badge/dynamic/json?label=Manifest%20Version&query=%24.version&url=https%3A%2F%2Fraw.githubusercontent.com%2Fsenyo888%2FHumidity-Intelligence%2Fsenyo888-patch-1%2Fmanifest.json&color=blue)](manifest.json)
+[![Manifest Version](https://img.shields.io/badge/dynamic/json?label=Manifest%20Version&query=%24.version&url=https%3A%2F%2Fraw.githubusercontent.com%2Fsenyo888%2FHumidity-Intelligence%2Fmain%2Fmanifest.json&color=blue)](https://github.com/senyo888/Humidity-Intelligence/blob/main/manifest.json)
 [![License](https://img.shields.io/github/license/senyo888/Humidity-Intelligence)](LICENSE)
 [![Sponsor](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/senyo888)
 
@@ -66,9 +66,8 @@ HACS as the user-facing record.
 v2.0.9 completes the HI-owned runtime-artifact namespace: report JSON writes
 under `<config>/humidity_intelligence/exports/`, generated card YAML writes under
 `<config>/humidity_intelligence/ui/`, and external report/card writer services
-require an authenticated admin context. Stable `2.0.9` metadata is staged locally
-after release validation, but it is not yet a published release; the latest
-published stable release remains v2.0.8.
+require an authenticated admin context. GitHub Releases and HACS remain the
+authoritative publication and installed-package records.
 
 The deterministic runtime contract stays intact: one selected control lane per cycle,
 the same public entity meanings, and output writing only through the established
@@ -385,8 +384,9 @@ must be reviewable from tracked repository files.
 
 ## Current Release Highlights
 
-- working-branch integration metadata is stable `2.0.9`; GitHub Releases and HACS
-  remain the user-facing record for the latest published stable release, v2.0.8
+- integration metadata and release documentation identify stable `2.0.9`; GitHub
+  Releases and HACS remain the authoritative publication and installed-package
+  records
 - the browser-local
   [HI Support Bundle Inspector](https://senyo888.github.io/humidity-intelligence/inspector/)
   provides an optional inspect-before-sharing preflight: diagnostics content stays
@@ -1092,11 +1092,9 @@ CO emergency pressure. Details are in
 
 ### v2.0.9
 
-![Humidity Intelligence v2.0.9 release banner](assets/release_banner/v2.0.9_release.png)
-
-- promoted working-branch integration metadata to stable `2.0.9` after local release
-  validation; publication remains pending and v2.0.8 remains the latest published
-  stable release
+- set integration metadata to stable `2.0.9` and aligned the release documentation;
+  GitHub Releases and HACS remain the authoritative publication and installed-package
+  records
 - added the optional browser-local HI Support Bundle Inspector preflight so users
   can inspect supported diagnostics and copy a bounded advisory handoff before
   sharing; diagnostic contents are not uploaded, logged, analyzed remotely, or
