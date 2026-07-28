@@ -13,6 +13,8 @@ from html.parser import HTMLParser
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "site" / "inspector"
 PUBLIC_CANONICAL = "https://senyo888.github.io/humidity-intelligence/inspector/"
+OFFICIAL_LOGO = ROOT / "assets" / "logo.png"
+OFFICIAL_LOGO_REFERENCE = "../assets/logo.png"
 FILES = (
     "app.mjs",
     "handoff.mjs",
@@ -45,6 +47,7 @@ class _ReferenceParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__()
         self.references: list[tuple[str, str]] = []
+        self.images: list[tuple[str, str, str | None, str | None, str | None]] = []
         self.csp = ""
         self.referrer = ""
         self.robots = ""
@@ -59,6 +62,16 @@ class _ReferenceParser(HTMLParser):
         values = dict(attrs)
         if tag == "link" and values.get("href"):
             self.references.append(("link", values["href"]))
+        if tag == "img" and values.get("src"):
+            self.images.append(
+                (
+                    values["src"],
+                    values.get("alt") or "",
+                    values.get("width"),
+                    values.get("height"),
+                    values.get("aria-hidden"),
+                )
+            )
         if tag == "script":
             source = values.get("src")
             if source:
@@ -87,6 +100,11 @@ class _ReferenceParser(HTMLParser):
 
 def validate_sources(source: pathlib.Path | None = None) -> None:
     source = source or SOURCE
+    if (
+        not OFFICIAL_LOGO.is_file()
+        or OFFICIAL_LOGO.read_bytes()[:8] != b"\x89PNG\r\n\x1a\n"
+    ):
+        raise RuntimeError("Official HI logo asset is missing or is not a PNG")
     actual = sorted(path.name for path in source.iterdir() if path.is_file())
     if actual != sorted(FILES):
         raise RuntimeError(
@@ -148,6 +166,7 @@ def validate_sources(source: pathlib.Path | None = None) -> None:
     parser = _ReferenceParser()
     parser.feed(sources["index.html"])
     if sorted(parser.references) != [
+        ("link", OFFICIAL_LOGO_REFERENCE),
         ("link", PUBLIC_CANONICAL),
         ("link", "styles.css"),
         ("script", "app.mjs"),
@@ -155,10 +174,17 @@ def validate_sources(source: pathlib.Path | None = None) -> None:
         raise RuntimeError(
             f"Inspector HTML references are not allowlisted: {parser.references}"
         )
+    if parser.images != [
+        (OFFICIAL_LOGO_REFERENCE, "", "40", "40", "true")
+    ]:
+        raise RuntimeError(
+            f"Inspector official-logo markup is not allowlisted: {parser.images}"
+        )
     if parser.inline_script_text.strip():
         raise RuntimeError("Inline scripts are not permitted")
     for directive in (
         "default-src 'none'",
+        "img-src 'self'",
         "connect-src 'none'",
         "worker-src 'none'",
         "form-action 'none'",

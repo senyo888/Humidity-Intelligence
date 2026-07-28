@@ -1598,6 +1598,28 @@ def test_alert_form_input_payload_helper_preserves_add_and_edit_semantics():
     }
 
 
+def test_v1_mobile_is_deprecated_but_available_through_v209():
+    config_source = (ROOT / "config_flow.py").read_text(encoding="utf-8")
+    strings = json.loads((ROOT / "strings.json").read_text(encoding="utf-8"))
+    translations = json.loads(
+        (ROOT / "translations" / "en.json").read_text(encoding="utf-8")
+    )
+
+    assert (
+        'SelectOptionDict(value="v1_mobile", '
+        'label="V1 Mobile (deprecated - use V2 Mobile)")'
+        in config_source
+    )
+    assert 'vol.Optional("ui_layouts", default=["v2_tablet"])' in config_source
+
+    for payload in (strings, translations):
+        description = payload["config"]["step"]["ui_install"]["description"]
+        assert "V1 Mobile is deprecated in v2.0.9" in description
+        assert "remains available through the v2.0.9 line" in description
+        assert "Use V2 Mobile for new dashboards" in description
+        assert "planned V1 removal is v2.1" in description
+
+
 if __name__ == "__main__":
     tests = [
         (name, value)

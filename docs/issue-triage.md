@@ -52,6 +52,7 @@ legitimate safety or release evidence that follows cannot be suppressed.
 The filter is defense in depth, not permission to publish a generated report
 automatically. Reports remain ignored/local and must be reviewed before any sanitized
 extract is shared.
+
 ## Authentication
 
 The script works without `GITHUB_TOKEN` for public, low-volume checks. Unauthenticated

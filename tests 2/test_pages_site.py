@@ -192,18 +192,32 @@ class PagesSiteTests(unittest.TestCase):
         csp = parser.meta.get("Content-Security-Policy", "")
 
         self.assertEqual(parser.canonical, INSPECTOR_URL)
+        self.assertEqual(parser.images, ["../assets/logo.png"])
+        self.assertEqual(
+            urljoin(INSPECTOR_URL, parser.images[0]),
+            f"{PAGES_URL}assets/logo.png",
+        )
         self.assertEqual(
             robots,
             {"noindex", "nofollow", "noarchive", "nosnippet"},
         )
         for directive in (
             "default-src 'none'",
+            "img-src 'self'",
             "connect-src 'none'",
             "worker-src 'none'",
             "form-action 'none'",
             "base-uri 'none'",
         ):
             self.assertIn(directive, csp)
+        self.assertNotIn("img-src 'none'", csp)
+        workflow = (ROOT / ".github/workflows/pages.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "cp assets/logo.png _site/assets/logo.png",
+            workflow,
+        )
         self.assertIn(
             "Diagnostic contents remain in this browser tab.",
             normalized,

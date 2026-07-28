@@ -80,6 +80,69 @@ and exposed without crashing the control loop.
 
 Optional frontend cards and UI dependencies must never block backend functionality.
 
+## Mutation Service Authority
+
+External Home Assistant calls to `pause_control`, `resume_control`,
+`create_dashboard`, `purge_files`, `dump_diagnostics`, `self_check`,
+`v205_release_check`, `dump_cards`, and `view_cards` require an admin user context
+whether they target one config entry or all entries. An `entry_id` narrows the target
+only; it is not an authorization bypass.
+
+Contextless background automation/script calls are intentionally rejected. Supported
+external use originates from an authenticated admin UI or API session; any future
+automated trusted route requires separate design approval.
+
+First-run dashboard creation may use a trusted internal setup helper only after the
+user explicitly selects dashboard creation in config flow. First-run card export,
+option-triggered regeneration, and release-check test exports use a separate trusted
+internal card exporter so admin-gating the public `dump_cards` and `view_cards`
+handlers does not break integration-owned continuity. Startup refresh remains
+cache-only and does not claim a filesystem export. Neither helper is exposed as a
+contextless service bypass. The config entry records a dashboard identifier only
+after registration succeeds. Dashboard creation authorization is separate from later
+dashboard visibility.
+
+Generated-artifact purge must validate its full fixed target set before mutation,
+show the exact existing file and configured dashboard targets in a completed blocking
+notification before deletion, reject paths outside the direct owned basename set and
+non-regular filesystem objects, and report partial failures truthfully.
+
+Caller-selectable diagnostics and release-check report basenames must match
+`humidity_intelligence_*.json` and are written only inside the owned
+`<config>/humidity_intelligence/exports/` directory. Directory verification,
+creation, temporary writes, atomic replacement, cleanup, and report purge stay
+descriptor-relative, reject symlink/non-regular targets, and fail closed without a
+config-root fallback. In-process writes are serialized; concurrent same-name calls
+produce complete JSON and the last atomic replacement wins without promising caller
+invocation order. The fixed self-check report uses the same writer and exact
+`<config>/humidity_intelligence/exports/humidity_intelligence_self_check.json`
+destination. Entry-scoped purge owns no export report. Only an unscoped all-entry
+purge may remove the exact default diagnostics and fixed self-check exports;
+release-check, custom, and legacy config-root reports remain retained.
+
+Generated card YAML is written only inside
+`<config>/humidity_intelligence/ui/`. Directory verification, creation, temporary
+writes, atomic replacement, and cleanup are descriptor-relative and no-follow,
+reject symlink and non-regular targets, revalidate directory/file identity, and fail
+closed without a config-root fallback. Same-name writes are serialized. Multi-entry
+installations use entry-qualified filenames; single-entry installations retain the
+unqualified default names. Exact default/per-entry card and release-check test-card
+exports are purge-owned. Custom card names and legacy root YAML are retained.
+Adding a second entry re-exports every loaded entry with qualified names; removing
+back to one entry re-exports the remaining entry with unqualified names. Superseded
+owned-UI names are retained non-destructively, are no longer refreshed by HI, and
+remain externally readable until an exact purge. Config-entry removal owns only the
+removed entry's exact default/release-test UI exports and registered dashboard; it
+does not own reports, custom card exports, or legacy root files. When removal returns
+a multi-entry installation to one entry, the remaining entry's qualified files stay
+retained while fresh unqualified exports are written.
+Registered Lovelace dashboard YAML remains separately owned at
+`<config>/dashboards/<url_path>.yaml`.
+
+Dynamic state or attribute text rendered through generated-card HTML must be escaped
+at the HTML sink. The V1 Mobile presentation remains available but deprecated through
+v2.0.9; any removal requires a separately approved v2.1 migration contract.
+
 ## Home Assistant And HACS Boundaries
 
 Config flow, options flow, entity registry behavior, services, translations,
