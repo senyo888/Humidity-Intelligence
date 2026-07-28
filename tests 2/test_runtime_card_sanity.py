@@ -1826,11 +1826,12 @@ async def _run_runtime_assertions(engine_mod) -> None:
         for data in dynamic_flash_calls
     )
     assert len(engine_room_alert_dynamic._visual_alert_tasks) == 1
+    flash_call_count_before_repeat = len(dynamic_flash_calls)
     await engine_room_alert_dynamic._evaluate()
     dynamic_flash_calls_after_repeat_eval = hass_room_alert_dynamic.data[
         "_trusted_visual_alert_calls"
     ]
-    assert len(dynamic_flash_calls_after_repeat_eval) == len(dynamic_flash_calls)
+    assert len(dynamic_flash_calls_after_repeat_eval) == flash_call_count_before_repeat
     assert len(engine_room_alert_dynamic._visual_alert_tasks) == 1
     await engine_room_alert_dynamic.async_stop()
 
@@ -4410,7 +4411,7 @@ def test_external_flash_and_local_backup_require_admin_before_mutation():
                             )
                         )
                     )
-                except Exception as err:
+                except services_mod.HomeAssistantError as err:
                     assert str(err) == f"{service} requires an admin user context"
                 else:
                     raise AssertionError(
