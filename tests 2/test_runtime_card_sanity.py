@@ -3762,7 +3762,7 @@ def test_readme_shows_current_v209_notes_and_v208_before_previous_releases():
     release_notes = readme_source.split("## Release Notes", 1)[1]
     visible_notes, previous_releases = release_notes.split("<details>", 1)
 
-    assert "### v2.0.9" not in visible_notes
+    assert "### v2.0.9" in visible_notes
     assert "set integration metadata to stable `2.0.9`" in visible_notes
     assert "### v2.0.8" in visible_notes
     assert "### v2.0.7" not in visible_notes
