@@ -1090,8 +1090,6 @@ CO emergency pressure. Details are in
 
 ## Release Notes
 
-### v2.0.9
-
 - set integration metadata to stable `2.0.9` and aligned the release documentation;
   GitHub Releases and HACS remain the authoritative publication and installed-package
   records
