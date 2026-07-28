@@ -18,7 +18,8 @@ No unreleased changes.
   diagnostic-content egress; the only export is user-triggered copying of the
   allowlisted handoff. Native Home Assistant diagnostics remain the preferred
   support attachment and the repository/Wiki remain support truth. Wiki update
-  status: `no-op` because existing diagnostics guidance remains authoritative.
+  status: `updated`; existing diagnostics guidance remains authoritative, and the
+  Services Reference now documents the final external service permission boundaries.
   Release-documentation status: `updated` by this entry.
 - Set integration metadata to stable `2.0.9`, aligned the release documentation, and
   extended the backward-compatible `v205_release_check` manifest contract through
