@@ -112,6 +112,34 @@ class DocumentationBannerTests(unittest.TestCase):
             changelog.index("## 2.0.9 - 2026-07-28"),
         )
 
+    def test_v209_release_governance_requires_exact_review_and_admin_gates(self) -> None:
+        governance = (ROOT / "docs" / "release-governance.md").read_text(
+            encoding="utf-8"
+        )
+        packet = governance.split(
+            "For v2.0.9 owned-artifact namespace validation", 1
+        )[1].split("## Branch Responsibilities", 1)[0]
+
+        self.assertIn("CodeRabbit must then finish", governance)
+        self.assertIn("exact-head review", governance)
+        self.assertIn("move from draft to ready", governance)
+        for service in (
+            "dump_diagnostics",
+            "self_check",
+            "v205_release_check",
+            "dump_cards",
+            "view_cards",
+            "flash_lights",
+            "create_local_backup",
+            "list_saved_versions",
+            "pause_control",
+            "resume_control",
+            "create_dashboard",
+            "purge_files",
+        ):
+            with self.subTest(service=service):
+                self.assertIn(f"`{service}`", packet)
+
 
 if __name__ == "__main__":
     unittest.main()

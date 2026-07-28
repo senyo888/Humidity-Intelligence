@@ -67,15 +67,22 @@ review, Aetherwing runtime/release validation, AetherCore governance consistency
 review, README/release approval, and the normal release sanity checks for the exact
 branch being promoted.
 
+For v2.0.9, the promotion PR must move from draft to ready only after the local,
+house-agent, and explicit maintainer gates are complete. CodeRabbit must then finish
+an exact-head review; actionable feedback must be fixed through a prerequisite PR or
+explicitly recorded as not applicable before promotion can continue.
+
 For v2.0.9 owned-artifact namespace validation, the release packet must separately
 record:
 
 - exact diagnostics, self-check, release-check, generated-card, and registered
   dashboard paths;
 - admin rejection before work for external `dump_diagnostics`, `self_check`,
-  `v205_release_check`, `dump_cards`, `view_cards`, `flash_lights`, and
-  `create_local_backup`; continuity of trusted setup/options/release-test exports
-  and engine-owned visual alerts; and truthful cache-only startup refresh;
+  `v205_release_check`, `dump_cards`, `view_cards`, `flash_lights`,
+  `create_local_backup`, `list_saved_versions`, `pause_control`, `resume_control`,
+  `create_dashboard`, and `purge_files`; continuity of trusted
+  setup/options/release-test exports and engine-owned visual alerts; and truthful
+  cache-only startup refresh;
 - single-entry and entry-qualified multi-entry filenames, exact purge preview/removal
   ownership, and retention of custom and legacy root artifacts;
 - descriptor-relative no-follow atomic writer tests, including concurrent writes,

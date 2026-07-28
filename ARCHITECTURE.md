@@ -80,14 +80,15 @@ and exposed without crashing the control loop.
 
 Optional frontend cards and UI dependencies must never block backend functionality.
 
-## Mutation Service Authority
+## External Service Authority
 
 External Home Assistant calls to `pause_control`, `resume_control`,
 `create_dashboard`, `purge_files`, `dump_diagnostics`, `self_check`,
 `v205_release_check`, `dump_cards`, `view_cards`, `flash_lights`, and
 `create_local_backup` require an admin user context whether they target one config
-entry or all entries. An `entry_id` narrows the target only; it is not an
-authorization bypass.
+entry or all entries. The read-only `list_saved_versions` service is also admin-gated
+because it exposes package-local snapshot inventory through a persistent
+notification. An `entry_id` narrows a target only; it is not an authorization bypass.
 
 Contextless background automation/script calls are intentionally rejected. Supported
 external use originates from an authenticated admin UI or API session; any future

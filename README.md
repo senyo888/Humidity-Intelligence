@@ -63,11 +63,11 @@ For publication status, installed packages, and release tags, use
 [GitHub Releases](https://github.com/senyo888/Humidity-Intelligence/releases) and
 HACS as the user-facing record.
 
-v2.0.9 completes the HI-owned runtime-artifact namespace: report JSON writes
-under `<config>/humidity_intelligence/exports/`, generated card YAML writes under
-`<config>/humidity_intelligence/ui/`, and external report/card writer services
-require an authenticated admin context. GitHub Releases and HACS remain the
-authoritative publication and installed-package records.
+v2.0.9 completes the HI-owned runtime-artifact namespace: report JSON writes under
+`<config>/humidity_intelligence/exports/`, generated card YAML writes under
+`<config>/humidity_intelligence/ui/`, and protected external writer, mutation, and
+snapshot-inventory services require an authenticated admin context. GitHub Releases
+and HACS remain the authoritative publication and installed-package records.
 
 The deterministic runtime contract stays intact: one selected control lane per cycle,
 the same public entity meanings, and output writing only through the established
@@ -843,11 +843,13 @@ Notes:
   context for a background automation. HI-owned setup/options and release-check
   test-card regeneration remains available through the trusted internal exporter;
   startup refresh remains cache-only.
-- Every external `flash_lights` and `create_local_backup` call requires an admin user
-  context and rejects background automations/scripts without a `user_id` before
-  light or snapshot work begins. Runtime-owned visual alerts use a separate trusted
-  internal helper after the engine selects an alert lane, so this permission boundary
-  does not change deterministic lane resolution or active-alert continuity.
+- Every external `flash_lights`, `create_local_backup`, and `list_saved_versions`
+  call requires an admin user context and rejects background automations/scripts
+  without a `user_id` before light, snapshot, or inventory work begins.
+  `list_saved_versions` remains read-only but is gated because its notification
+  exposes package-local snapshot metadata. Runtime-owned visual alerts use a separate
+  trusted internal helper after the engine selects an alert lane, so this permission
+  boundary does not change deterministic lane resolution or active-alert continuity.
 - `purge_files` validates the complete fixed HI-generated target set, posts the exact
   existing-file/dashboard preview with a blocking notification, then deletes. Any
   file or dashboard deletion failure is surfaced as an incomplete purge instead of
@@ -906,7 +908,7 @@ Common service groups:
 | `self_check` | admin-only fixed export of mapping, generated-card entity, telemetry, drift-helper, and frontend-dependency checks |
 | `v205_release_check` | admin-only runtime-safe v2.0.5-v2.0.9 generated-card and release-validation support checks |
 | `create_local_backup` | admin-only creation of a package-local HI snapshot for advanced validation |
-| `list_saved_versions` | read-only inspection of package-local HI snapshot metadata |
+| `list_saved_versions` | admin-only, read-only inspection of package-local HI snapshot metadata |
 | `dump_diagnostics` | admin-only export of fuller local diagnostics for maintainer/debug workflows |
 | `purge_files` | admin-only, previewed removal of fixed generated HI artifacts with partial-failure reporting |
 
@@ -1121,10 +1123,11 @@ CO emergency pressure. Details are in
   background callers and non-admin users are rejected before work begins, while
   trusted HI setup/options/release-test generation uses the internal exporter and
   startup refresh remains cache-only
-- required an authenticated admin user context for every external `flash_lights` and
-  `create_local_backup` call; non-admin and contextless callers are rejected before
-  light or snapshot mutation, while engine-owned visual alerts use a separate
-  trusted helper after deterministic lane selection
+- required an authenticated admin user context for every external `flash_lights`,
+  `create_local_backup`, and `list_saved_versions` call; non-admin and contextless
+  callers are rejected before light, snapshot, or inventory work, while
+  `list_saved_versions` remains read-only and engine-owned visual alerts use a
+  separate trusted helper after deterministic lane selection
 - extended the backward-compatible `v205_release_check` manifest contract through
   the v2.0.9 beta/rc/stable line
 - privacy-filtered local issue-triage body summaries before report escaping, removing
@@ -1142,10 +1145,11 @@ CO emergency pressure. Details are in
   root JSON/YAML remains untouched with no dual-write, copy, symlink, move, or
   automatic deletion. Verify fresh owned-directory output before switching consumers.
   Callers using another custom report filename must rename it. Contextless background
-  automations/scripts can no longer invoke the external writer, `flash_lights`, or
-  `create_local_backup` services; use an authenticated admin UI or API call. Runtime
-  visual-alert continuity is unchanged because the engine uses its trusted internal
-  helper. Any future automated trusted route requires separate design approval
+  automations/scripts can no longer invoke the external writer, `flash_lights`,
+  `create_local_backup`, or `list_saved_versions` services; use an authenticated
+  admin UI or API call. Runtime visual-alert continuity is unchanged because the
+  engine uses its trusted internal helper. Any future automated trusted route
+  requires separate design approval
 - runtime/UI impact: entity semantics, deterministic lane ordering, and output
   selection are unchanged. Generated-card logic and rendered backend-truth semantics
   are unchanged, while export paths and multi-entry filename qualification change.

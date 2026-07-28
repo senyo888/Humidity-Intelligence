@@ -131,7 +131,7 @@ create_local_backup:
           unit_of_measurement: B
 list_saved_versions:
   name: List Local HI Snapshots
-  description: List finalized local HI-only snapshots and invalid snapshot folders. This is not a Home Assistant backup and does not change running code.
+  description: Admin-only read of finalized local HI-only snapshots and invalid snapshot folders from an authenticated UI/API session. Contextless and non-admin calls are rejected. This is not a Home Assistant backup and does not change running code.
   fields: {}
 dump_cards:
   name: Dump Cards
