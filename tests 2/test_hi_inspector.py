@@ -13,6 +13,7 @@ import sys
 import tempfile
 import unittest
 from html.parser import HTMLParser
+from urllib.parse import urljoin
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -190,12 +191,15 @@ class HiInspectorStaticTests(unittest.TestCase):
             parser.images,
             [("../assets/logo.png", "", "40", "40", "true")],
         )
-        self.assertIn(
-            (
-                "../",
-                "HI Support Bundle Inspector — Humidity Intelligence home",
-            ),
+        self.assertEqual(
             parser.links,
+            [
+                ("#main-content", None),
+                (
+                    "../",
+                    "HI Support Bundle Inspector — Humidity Intelligence home",
+                ),
+            ],
         )
         self.assertEqual(parser.file_inputs, 1)
         self.assertEqual(parser.file_input_tabindexes, ["-1"])
@@ -215,6 +219,8 @@ class HiInspectorStaticTests(unittest.TestCase):
         csp = parser.http_equiv["content-security-policy"]
         for directive in (
             "default-src 'none'",
+            "script-src 'self'",
+            "style-src 'self'",
             "img-src 'self'",
             "connect-src 'none'",
             "worker-src 'none'",
@@ -268,10 +274,8 @@ class HiInspectorStaticTests(unittest.TestCase):
             )
             self.assertTrue((SOURCE / reference).is_file())
         self.assertEqual(
-            base / "../assets/logo.png",
-            pathlib.PurePosixPath(
-                "/humidity-intelligence/inspector/../assets/logo.png"
-            ),
+            urljoin(f"{base}/", "../assets/logo.png"),
+            "/humidity-intelligence/assets/logo.png",
         )
         self.assertTrue((ROOT / "assets" / "logo.png").is_file())
 
