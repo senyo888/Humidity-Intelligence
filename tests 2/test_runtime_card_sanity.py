@@ -357,7 +357,11 @@ def _install_package_scaffold() -> None:
         sys.modules[f"{PKG}.{sub}"] = mod
 
     services = types.ModuleType(f"{PKG}.services")
-    services.SERVICE_FLASH_LIGHTS = "flash_lights"
+
+    async def async_flash_lights_for_alert(hass, **kwargs):
+        hass.data.setdefault("_trusted_visual_alert_calls", []).append(dict(kwargs))
+
+    services.async_flash_lights_for_alert = async_flash_lights_for_alert
     sys.modules[f"{PKG}.services"] = services
 
 
@@ -584,6 +588,7 @@ class _FlashHass:
     def __init__(self, states):
         self.states = _FakeStates(states)
         self.services = _FlashServiceRegistry(self.states)
+        self.auth = _FakeAuth({"admin": SimpleNamespace(is_admin=True)})
         self.data = {}
 
 
@@ -1440,7 +1445,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
     assert "_handle_aq" not in trace
 
     calls = hass.services.calls
-    assert any(domain == "humidity_intelligence" and service == "flash_lights" for domain, service, *_ in calls)
+    assert hass.data["_trusted_visual_alert_calls"]
     assert not hass.data["humidity_intelligence"][ENTRY_ID]["hi_input_booleans"]["air_downstairs_humidifier_active"].is_on
     assert any(
         domain == "fan"
@@ -1810,18 +1815,10 @@ async def _run_runtime_assertions(engine_mod) -> None:
         and data.get("percentage") == 100
         for domain, service, data, _ in hass_room_alert_dynamic.services.calls
     )
-    assert any(
-        domain == "humidity_intelligence" and service == "flash_lights"
-        for domain, service, *_ in hass_room_alert_dynamic.services.calls
-    )
-    dynamic_flash_calls = [
-        data
-        for domain, service, data, _ in hass_room_alert_dynamic.services.calls
-        if domain == "humidity_intelligence" and service == "flash_lights"
-    ]
+    dynamic_flash_calls = hass_room_alert_dynamic.data["_trusted_visual_alert_calls"]
     assert dynamic_flash_calls
     assert all(data.get("flash_count") == 10 for data in dynamic_flash_calls)
-    assert all("power_entity" not in data for data in dynamic_flash_calls)
+    assert all(data.get("power_entity") is None for data in dynamic_flash_calls)
     assert all(isinstance(data.get("color"), list) for data in dynamic_flash_calls)
     assert all(len(data.get("color")) == 3 for data in dynamic_flash_calls)
     assert all(
@@ -1829,13 +1826,12 @@ async def _run_runtime_assertions(engine_mod) -> None:
         for data in dynamic_flash_calls
     )
     assert len(engine_room_alert_dynamic._visual_alert_tasks) == 1
+    flash_call_count_before_repeat = len(dynamic_flash_calls)
     await engine_room_alert_dynamic._evaluate()
-    dynamic_flash_calls_after_repeat_eval = [
-        data
-        for domain, service, data, _ in hass_room_alert_dynamic.services.calls
-        if domain == "humidity_intelligence" and service == "flash_lights"
+    dynamic_flash_calls_after_repeat_eval = hass_room_alert_dynamic.data[
+        "_trusted_visual_alert_calls"
     ]
-    assert len(dynamic_flash_calls_after_repeat_eval) == len(dynamic_flash_calls)
+    assert len(dynamic_flash_calls_after_repeat_eval) == flash_call_count_before_repeat
     assert len(engine_room_alert_dynamic._visual_alert_tasks) == 1
     await engine_room_alert_dynamic.async_stop()
 
@@ -1876,10 +1872,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
     )
     await engine_room_alert_no_lights._evaluate()
     assert hass_room_alert_no_lights.data["humidity_intelligence"][ENTRY_ID].get("runtime_mode") == "alert"
-    assert not any(
-        domain == "humidity_intelligence" and service == "flash_lights"
-        for domain, service, *_ in hass_room_alert_no_lights.services.calls
-    )
+    assert not hass_room_alert_no_lights.data.get("_trusted_visual_alert_calls")
 
     entry_room_alert_miss_data = _base_entry_data()
     entry_room_alert_miss_data["zones"]["zone1"]["enabled"] = False
@@ -3109,7 +3102,12 @@ async def _run_visual_flash_restore_assertions(services_mod) -> None:
 
         hass_on = _FlashHass({"light.alert": _FakeState("on", attrs)})
         handler_on = await _registered_flash_handler(services_mod, hass_on)
-        await handler_on(SimpleNamespace(data=payload))
+        await handler_on(
+            SimpleNamespace(
+                data=payload,
+                context=SimpleNamespace(user_id="admin"),
+            )
+        )
         on_calls = _light_service_calls(hass_on)
         assert [service for service, _data in on_calls[:20]] == ["turn_on", "turn_off"] * 10
         assert len(on_calls) == 21
@@ -3120,7 +3118,12 @@ async def _run_visual_flash_restore_assertions(services_mod) -> None:
 
         hass_off = _FlashHass({"light.alert": _FakeState("off", attrs)})
         handler_off = await _registered_flash_handler(services_mod, hass_off)
-        await handler_off(SimpleNamespace(data=payload))
+        await handler_off(
+            SimpleNamespace(
+                data=payload,
+                context=SimpleNamespace(user_id="admin"),
+            )
+        )
         off_calls = _light_service_calls(hass_off)
         assert [service for service, _data in off_calls[:20]] == ["turn_on", "turn_off"] * 10
         assert len(off_calls) == 21
@@ -3130,8 +3133,18 @@ async def _run_visual_flash_restore_assertions(services_mod) -> None:
         hass_overlap = _FlashHass({"light.alert": _FakeState("on", attrs)})
         handler_overlap = await _registered_flash_handler(services_mod, hass_overlap)
         await asyncio.gather(
-            handler_overlap(SimpleNamespace(data=payload)),
-            handler_overlap(SimpleNamespace(data=payload)),
+            handler_overlap(
+                SimpleNamespace(
+                    data=payload,
+                    context=SimpleNamespace(user_id="admin"),
+                )
+            ),
+            handler_overlap(
+                SimpleNamespace(
+                    data=payload,
+                    context=SimpleNamespace(user_id="admin"),
+                )
+            ),
         )
         overlap_services = [service for service, _data in _light_service_calls(hass_overlap)]
         one_sequence = ["turn_on", "turn_off"] * 10 + ["turn_on"]
@@ -4351,6 +4364,63 @@ def test_flash_lights_power_entity_rejects_non_switch_light_domains():
         assert "switch or light" in str(err)
     else:
         raise AssertionError("fan power_entity should be rejected")
+
+
+def test_external_flash_and_local_backup_require_admin_before_mutation():
+    services_mod = _load_services_module()
+    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+    hass = _FakeHass(entry, {"light.alert": _FakeState("off")})
+    hass.services = _FlashServiceRegistry(hass.states)
+    hass.auth = _FakeAuth(
+        {
+            "admin": SimpleNamespace(is_admin=True),
+            "viewer": SimpleNamespace(is_admin=False),
+        }
+    )
+    local_backup_calls = 0
+    original_create_local_backup = services_mod.async_create_local_backup
+
+    async def unexpected_local_backup(*_args, **_kwargs):
+        nonlocal local_backup_calls
+        local_backup_calls += 1
+        raise AssertionError("local backup work must not begin before authorization")
+
+    services_mod.async_create_local_backup = unexpected_local_backup
+    try:
+        asyncio.run(services_mod.async_register_services(hass))
+        handlers = {
+            services_mod.SERVICE_FLASH_LIGHTS: hass.services.handlers[
+                (services_mod.DOMAIN, services_mod.SERVICE_FLASH_LIGHTS)
+            ],
+            services_mod.SERVICE_CREATE_LOCAL_BACKUP: hass.services.handlers[
+                (services_mod.DOMAIN, services_mod.SERVICE_CREATE_LOCAL_BACKUP)
+            ],
+        }
+
+        for service, handler in handlers.items():
+            for user_id in ("viewer", None, "missing"):
+                calls_before = list(hass.services.calls)
+                try:
+                    asyncio.run(
+                        handler(
+                            SimpleNamespace(
+                                data={"lights": ["light.alert"]}
+                                if service == services_mod.SERVICE_FLASH_LIGHTS
+                                else {},
+                                context=SimpleNamespace(user_id=user_id),
+                            )
+                        )
+                    )
+                except services_mod.HomeAssistantError as err:
+                    assert str(err) == f"{service} requires an admin user context"
+                else:
+                    raise AssertionError(
+                        f"{service} should reject user context {user_id!r}"
+                    )
+                assert hass.services.calls == calls_before
+                assert local_backup_calls == 0
+    finally:
+        services_mod.async_create_local_backup = original_create_local_backup
 
 
 def test_report_service_schemas_reject_non_owned_root_filenames_before_write():

@@ -30,7 +30,7 @@ from ..const import (
     ZONE_OUTPUT_LEVEL_MAX,
     ZONE_OUTPUT_LEVEL_MIN,
 )
-from ..services import SERVICE_FLASH_LIGHTS
+from ..services import async_flash_lights_for_alert
 from ..helpers.parsing import hass_temperature_unit, parse_numeric, parse_temperature
 from ..helpers.seasonal import (
     condensation_risk as seasonal_condensation_risk,
@@ -863,11 +863,13 @@ class HIAutomationEngine:
                 if power_entity:
                     flash_payload["power_entity"] = power_entity
                 try:
-                    await self.hass.services.async_call(
-                        DOMAIN,
-                        SERVICE_FLASH_LIGHTS,
-                        flash_payload,
-                        blocking=False,
+                    await async_flash_lights_for_alert(
+                        self.hass,
+                        power_entity=flash_payload.get("power_entity"),
+                        lights=flash_payload["lights"],
+                        color=flash_payload["color"],
+                        duration=flash_payload["duration"],
+                        flash_count=flash_payload["flash_count"],
                     )
                 except Exception:
                     _LOGGER.exception(
