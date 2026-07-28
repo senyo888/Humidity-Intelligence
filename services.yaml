@@ -1,6 +1,6 @@
 flash_lights:
   name: Flash lights
-  description: Flash selected lights for an alert
+  description: Admin-only external action from an authenticated UI/API session; background calls without a user ID are rejected. Test selected visual-alert lights. HI runtime alerts use a separate trusted internal helper so the engine does not require or manufacture a user context.
   fields:
     power_entity:
       name: Optional power entity
@@ -108,7 +108,7 @@ v205_release_check:
           unit_of_measurement: min
 create_local_backup:
   name: Create Local HI Snapshot
-  description: Create a local HI-only snapshot of /config/custom_components/humidity_intelligence. This is not a Home Assistant backup, does not intercept HACS updates, and does not change running code until Home Assistant is restarted.
+  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Create a local HI-only snapshot of /config/custom_components/humidity_intelligence. This is not a Home Assistant backup, does not intercept HACS updates, and does not change running code until Home Assistant is restarted.
   fields:
     retain_count:
       name: Snapshots to retain

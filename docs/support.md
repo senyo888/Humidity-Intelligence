@@ -185,6 +185,11 @@ boundary. Contextless automations/scripts are rejected. HI-owned first-run, opti
 and release-check test-card regeneration continues through its trusted internal path.
 Startup refresh remains cache-only and does not claim that files were written.
 
+External `flash_lights` and `create_local_backup` calls also require authenticated
+admin user context and reject non-admin or contextless callers before light or
+snapshot work begins. Engine-owned visual alerts use a separate trusted internal
+helper after lane selection; the public service is not a parallel control path.
+
 Keep a backup of every external consumer definition before changing it. A full Home
 Assistant restart is required after installing or rolling back the package; a
 config-entry reload is suitable only for exercising already-loaded updated code.

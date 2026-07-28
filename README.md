@@ -843,6 +843,11 @@ Notes:
   context for a background automation. HI-owned setup/options and release-check
   test-card regeneration remains available through the trusted internal exporter;
   startup refresh remains cache-only.
+- Every external `flash_lights` and `create_local_backup` call requires an admin user
+  context and rejects background automations/scripts without a `user_id` before
+  light or snapshot work begins. Runtime-owned visual alerts use a separate trusted
+  internal helper after the engine selects an alert lane, so this permission boundary
+  does not change deterministic lane resolution or active-alert continuity.
 - `purge_files` validates the complete fixed HI-generated target set, posts the exact
   existing-file/dashboard preview with a blocking notification, then deletes. Any
   file or dashboard deletion failure is surfaced as an incomplete purge instead of
@@ -896,11 +901,12 @@ Common service groups:
 | `refresh_ui` | rebuild placeholder mappings and refresh cached rendered UI output |
 | `view_cards` | admin-only render/export plus an exact file-path notification |
 | `create_dashboard` | admin-only creation of a Lovelace dashboard from a rendered HI layout |
-| `flash_lights` | test configured visual alert behavior |
+| `flash_lights` | admin-only test of configured visual alert behavior; runtime alerts use the trusted engine path |
 | `pause_control` / `resume_control` | admin-only pause or resume for one supplied entry or all entries |
 | `self_check` | admin-only fixed export of mapping, generated-card entity, telemetry, drift-helper, and frontend-dependency checks |
 | `v205_release_check` | admin-only runtime-safe v2.0.5-v2.0.9 generated-card and release-validation support checks |
-| `create_local_backup` / `list_saved_versions` | manage package-local HI snapshots for advanced validation |
+| `create_local_backup` | admin-only creation of a package-local HI snapshot for advanced validation |
+| `list_saved_versions` | read-only inspection of package-local HI snapshot metadata |
 | `dump_diagnostics` | admin-only export of fuller local diagnostics for maintainer/debug workflows |
 | `purge_files` | admin-only, previewed removal of fixed generated HI artifacts with partial-failure reporting |
 
@@ -1113,6 +1119,10 @@ CO emergency pressure. Details are in
   background callers and non-admin users are rejected before work begins, while
   trusted HI setup/options/release-test generation uses the internal exporter and
   startup refresh remains cache-only
+- required an authenticated admin user context for every external `flash_lights` and
+  `create_local_backup` call; non-admin and contextless callers are rejected before
+  light or snapshot mutation, while engine-owned visual alerts use a separate
+  trusted helper after deterministic lane selection
 - extended the backward-compatible `v205_release_check` manifest contract through
   the v2.0.9 beta/rc/stable line
 - privacy-filtered local issue-triage body summaries before report escaping, removing
@@ -1130,9 +1140,10 @@ CO emergency pressure. Details are in
   root JSON/YAML remains untouched with no dual-write, copy, symlink, move, or
   automatic deletion. Verify fresh owned-directory output before switching consumers.
   Callers using another custom report filename must rename it. Contextless background
-  automations/scripts can no longer invoke the external writer services; use an
-  authenticated admin UI or API call. Any future automated trusted route requires
-  separate design approval
+  automations/scripts can no longer invoke the external writer, `flash_lights`, or
+  `create_local_backup` services; use an authenticated admin UI or API call. Runtime
+  visual-alert continuity is unchanged because the engine uses its trusted internal
+  helper. Any future automated trusted route requires separate design approval
 - runtime/UI impact: entity semantics, deterministic lane ordering, and output
   selection are unchanged. Generated-card logic and rendered backend-truth semantics
   are unchanged, while export paths and multi-entry filename qualification change.

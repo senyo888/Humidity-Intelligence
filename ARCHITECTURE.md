@@ -84,9 +84,10 @@ Optional frontend cards and UI dependencies must never block backend functionali
 
 External Home Assistant calls to `pause_control`, `resume_control`,
 `create_dashboard`, `purge_files`, `dump_diagnostics`, `self_check`,
-`v205_release_check`, `dump_cards`, and `view_cards` require an admin user context
-whether they target one config entry or all entries. An `entry_id` narrows the target
-only; it is not an authorization bypass.
+`v205_release_check`, `dump_cards`, `view_cards`, `flash_lights`, and
+`create_local_backup` require an admin user context whether they target one config
+entry or all entries. An `entry_id` narrows the target only; it is not an
+authorization bypass.
 
 Contextless background automation/script calls are intentionally rejected. Supported
 external use originates from an authenticated admin UI or API session; any future
@@ -101,6 +102,11 @@ cache-only and does not claim a filesystem export. Neither helper is exposed as 
 contextless service bypass. The config entry records a dashboard identifier only
 after registration succeeds. Dashboard creation authorization is separate from later
 dashboard visibility.
+
+Runtime-owned visual alerts call a separate trusted internal flashing helper after
+the deterministic engine has selected an alert lane. The public `flash_lights`
+service is admin-gated and is not the engine's control path; it cannot create,
+reorder, or override a lane decision.
 
 Generated-artifact purge must validate its full fixed target set before mutation,
 show the exact existing file and configured dashboard targets in a completed blocking

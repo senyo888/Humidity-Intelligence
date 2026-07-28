@@ -222,7 +222,11 @@ def _install_package_scaffold() -> None:
         sys.modules[f"{PKG}.{sub}"] = mod
 
     services = types.ModuleType(f"{PKG}.services")
-    services.SERVICE_FLASH_LIGHTS = "flash_lights"
+
+    async def async_flash_lights_for_alert(hass, **kwargs):
+        hass.data.setdefault("_trusted_visual_alert_calls", []).append(dict(kwargs))
+
+    services.async_flash_lights_for_alert = async_flash_lights_for_alert
     sys.modules[f"{PKG}.services"] = services
 
 

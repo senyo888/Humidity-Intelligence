@@ -392,49 +392,91 @@ async def async_create_dashboard_for_entry(
     return True
 
 
+async def async_flash_lights_for_alert(
+    hass: HomeAssistant,
+    *,
+    power_entity: Optional[str] = None,
+    lights: Optional[List[str]] = None,
+    color: Optional[List[int]] = None,
+    duration: int = 10,
+    flash_count: Optional[int] = None,
+) -> None:
+    """Run one trusted HI visual-alert flash without using the public service."""
+    if power_entity:
+        try:
+            power_entity = _validate_visual_power_entity(power_entity)
+        except vol.Invalid as err:
+            raise HomeAssistantError(str(err)) from err
+
+    lights = _dedupe_lights(lights or [])
+    color_list = color or [255, 0, 0]
+    duration = max(1, int(duration))
+    rgb_color = tuple(color_list[:3]) if len(color_list) >= 3 else (255, 0, 0)
+
+    if not lights:
+        _LOGGER.debug("No lights provided for visual alert; skipping light flash.")
+        return
+
+    locks = _light_flash_locks(hass, lights)
+    acquired_locks: List[asyncio.Lock] = []
+    try:
+        for lock in locks:
+            await lock.acquire()
+            acquired_locks.append(lock)
+
+        initial_states = _capture_light_states(hass, lights)
+
+        if power_entity:
+            domain = power_entity.split(".")[0]
+            if hass.services.has_service(domain, "turn_on"):
+                try:
+                    await hass.services.async_call(
+                        domain,
+                        "turn_on",
+                        {"entity_id": power_entity},
+                        blocking=True,
+                    )
+                    await asyncio.sleep(0.5)
+                except Exception:
+                    _LOGGER.exception(
+                        "Failed to turn on alert power entity %s",
+                        power_entity,
+                    )
+
+        supports_color = {
+            light: _supports_color(hass.states.get(light))
+            for light in lights
+        }
+        await _flash_lights(
+            hass,
+            lights,
+            rgb_color,
+            duration,
+            flash_count,
+            supports_color,
+        )
+        await _restore_lights(hass, initial_states)
+    finally:
+        for lock in reversed(acquired_locks):
+            try:
+                lock.release()
+            except RuntimeError:
+                continue
+
+
 async def async_register_services(hass: HomeAssistant) -> None:
     """Register services for the integration."""
 
     async def handle_flash(call: ServiceCall) -> None:
-        power_entity = call.data.get("power_entity")
-        lights = _dedupe_lights(call.data.get("lights") or [])
-        color_list = call.data.get("color") or [255, 0, 0]
-        duration = max(1, int(call.data.get("duration", 10)))
-        flash_count = call.data.get("flash_count")
-        color = tuple(color_list[:3]) if len(color_list) >= 3 else (255, 0, 0)
-
-        if not lights:
-            _LOGGER.debug("No lights provided to flash_lights; skipping light flash.")
-            return
-
-        locks = _light_flash_locks(hass, lights)
-        acquired_locks: List[asyncio.Lock] = []
-        try:
-            for lock in locks:
-                await lock.acquire()
-                acquired_locks.append(lock)
-
-            initial_states = _capture_light_states(hass, lights)
-
-            if power_entity:
-                domain = power_entity.split(".")[0]
-                if hass.services.has_service(domain, "turn_on"):
-                    try:
-                        await hass.services.async_call(domain, "turn_on", {"entity_id": power_entity}, blocking=True)
-                        await asyncio.sleep(0.5)
-                    except Exception:
-                        _LOGGER.exception("Failed to turn on alert power entity %s", power_entity)
-
-            supports_color = {light: _supports_color(hass.states.get(light)) for light in lights}
-
-            await _flash_lights(hass, lights, color, duration, flash_count, supports_color)
-            await _restore_lights(hass, initial_states)
-        finally:
-            for lock in reversed(acquired_locks):
-                try:
-                    lock.release()
-                except RuntimeError:
-                    continue
+        await _async_require_admin_user(hass, call, SERVICE_FLASH_LIGHTS)
+        await async_flash_lights_for_alert(
+            hass,
+            power_entity=call.data.get("power_entity"),
+            lights=call.data.get("lights"),
+            color=call.data.get("color"),
+            duration=call.data.get("duration", 10),
+            flash_count=call.data.get("flash_count"),
+        )
 
     hass.services.async_register(DOMAIN, SERVICE_FLASH_LIGHTS, handle_flash, schema=SERVICE_FLASH_SCHEMA)
 
@@ -512,6 +554,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
     hass.services.async_register(DOMAIN, SERVICE_DUMP_DIAGNOSTICS, handle_dump, schema=SERVICE_DUMP_SCHEMA)
 
     async def handle_create_local_backup(call: ServiceCall) -> dict:
+        await _async_require_admin_user(hass, call, SERVICE_CREATE_LOCAL_BACKUP)
         try:
             result = await async_create_local_backup(
                 hass,

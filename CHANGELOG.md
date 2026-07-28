@@ -79,6 +79,11 @@ No unreleased changes.
   authenticated admin UI or API session; any future automated trusted route requires
   separate design approval. First-run dashboard creation remains available through
   the trusted config-entry setup path.
+- Required authenticated admin user context for every external `flash_lights` and
+  `create_local_backup` call. Non-admin, unknown-user, and contextless callers are
+  rejected before light or snapshot mutation. Engine-owned visual alerts use a
+  separate trusted internal helper after deterministic lane selection, so alert
+  continuity, entity semantics, and lane ordering are unchanged.
 - Made `purge_files` validate its complete fixed set of direct HI-generated file and
   configured-dashboard targets before mutation, publish the exact existing target
   preview with a blocking notification, reject unsafe/non-regular filesystem
