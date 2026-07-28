@@ -98,7 +98,7 @@ class DocumentationBannerTests(unittest.TestCase):
             "Humidity-Intelligence%2Fsenyo888-patch-1%2Fmanifest.json",
             readme,
         )
-        self.assertNotIn("### v2.0.9", readme)
+        self.assertIn("### v2.0.9", readme)
         self.assertEqual(
             readme.count(
                 "![Humidity Intelligence v2.0.9 release banner]"
