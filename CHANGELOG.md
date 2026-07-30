@@ -36,9 +36,10 @@ This project follows a practical changelog format for Home Assistant and HACS us
   pasted Manual cards must be re-exported and re-copied to receive the new display
   contract.
 - Extended the backward-compatible `v205_release_check` service contract through
-  the v2.0.10 beta/rc/stable line without renaming the service. No config/options
-  schema, stored-data migration, entity creation, or manifest version change is part
-  of this unreleased implementation slice.
+  the v2.0.10 beta/rc/stable line without renaming the service. The branch now
+  carries explicit `2.0.10-beta.1` manifest identity for HA Lab beta validation.
+  No config/options schema, stored-data migration, or entity creation is part of
+  this unreleased implementation slice.
 
 ## 2.0.9 - 2026-07-28
 

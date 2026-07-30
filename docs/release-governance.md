@@ -76,8 +76,9 @@ an exact-head review; actionable feedback must be fixed through a prerequisite P
 explicitly recorded as not applicable before promotion can continue.
 
 For the targeted v2.0.10 beta humidifier reconciliation slice, implementation on
-`senyo888-patch-1` does not itself authorize a manifest bump, HA Lab/stable-instance
-mutation, branch promotion, tag, GitHub Release, HACS publication, or deployment.
+`senyo888-patch-1` carries manifest identity `2.0.10-beta.1`. That beta identity
+does not authorize HA Lab/stable-instance mutation, branch promotion, tag, GitHub
+Release, HACS publication, or deployment.
 Beta evidence must cover restored demand, long-demand device stops, output
 availability recovery, all supported output domains, isolation/gate interactions,
 shared-output aggregation, bounded retry/fault behavior, generated V2 truth,

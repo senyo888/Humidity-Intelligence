@@ -57,7 +57,7 @@ It gives you:
 - native Home Assistant diagnostics for support and triage
 - services for dashboard export, self-check, diagnostics, pause/resume, and release validation
 
-Current manifest version: **v2.0.9**.
+Current manifest version: **v2.0.10-beta.1**.
 
 For publication status, installed packages, and release tags, use
 [GitHub Releases](https://github.com/senyo888/Humidity-Intelligence/releases) and
@@ -458,8 +458,8 @@ must be reviewable from tracked repository files.
 - the tracked secret scan now fails closed when no tracked files are selected
 - `v205_release_check` preserves its service name; the unreleased implementation
   extends its generated-card, humidifier-reconciliation, and release-validation
-  contract through the v2.0.10 beta/rc/stable line without changing current stable
-  `2.0.9` manifest metadata
+  contract through the v2.0.10 beta/rc/stable line and carries explicit
+  `2.0.10-beta.1` manifest metadata for HA Lab beta validation
 - Home Assistant Area/Label setup assistance can suggest defaults from registry
   metadata, but saved HI telemetry, zone, AQ, humidifier, and alert mappings remain
   the only runtime truth
