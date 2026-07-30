@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -24,6 +25,10 @@ from ..const import (
     CONF_ALERT_HANDLING_ENABLED,
     DEFAULT_ALERT_HANDLING_ENABLED,
     HUMIDIFIER_RECOVERY_IN_BAND_DEFAULT,
+    HUMIDIFIER_RECONCILE_CONFIRM_SECONDS,
+    HUMIDIFIER_RECONCILE_HISTORY_LIMIT,
+    HUMIDIFIER_RECONCILE_MAX_ATTEMPTS,
+    HUMIDIFIER_RECONCILE_RETRY_DELAYS_SECONDS,
     STARTUP_SENSOR_RECHECK_SECONDS,
     ZONE_OUTPUT_LEVEL_BOOST_DEFAULT,
     ZONE_OUTPUT_LEVEL_DEFAULT,
@@ -74,6 +79,7 @@ _LOGGER = logging.getLogger(__name__)
 
 _MAX_STATE_LENGTH = 255
 _TRUNCATION_SUFFIX = " [full in attribute]"
+_HUMIDIFIER_OUTPUT_DOMAINS = {"humidifier", "fan", "switch"}
 
 
 class HIAutomationEngine:
@@ -105,6 +111,10 @@ class HIAutomationEngine:
         self._co_below_since: Optional[datetime] = None
         self._evaluate_lock: Optional[asyncio.Lock] = None
         self._evaluate_pending = False
+        self._stopped = False
+        self._humidifier_lane_demand: Dict[str, bool] = {}
+        self._humidifier_output_records: Dict[str, Dict[str, Any]] = {}
+        self._humidifier_retry_tasks: Dict[str, asyncio.Task] = {}
         configured_interval = None
         if entry.options:
             configured_interval = entry.options.get("engine_interval_minutes")
@@ -134,6 +144,7 @@ class HIAutomationEngine:
         return self.entry.data.get(key, default)
 
     async def async_start(self) -> None:
+        self._stopped = False
         sources = self._evaluation_sources()
         self._unsub = async_track_state_change_event(self.hass, sources, self._handle_change)
         self._periodic = async_track_time_interval(
@@ -143,8 +154,10 @@ class HIAutomationEngine:
         )
         await self.async_request_evaluate()
         self._schedule_startup_recheck()
+        self._notify_other_humidifier_engines()
 
     async def async_stop(self) -> None:
+        self._stopped = True
         if self._unsub:
             self._unsub()
         if self._periodic:
@@ -157,8 +170,12 @@ class HIAutomationEngine:
             task.cancel()
         for task in self._visual_alert_tasks.values():
             task.cancel()
+        for task in self._humidifier_retry_tasks.values():
+            task.cancel()
+        self._humidifier_retry_tasks.clear()
         self._visual_alert_tasks.clear()
         self._visual_alert_active.clear()
+        self._notify_other_humidifier_engines()
 
     async def _handle_change(self, event) -> None:
         await self.async_request_evaluate()
@@ -168,6 +185,8 @@ class HIAutomationEngine:
 
     async def async_request_evaluate(self) -> None:
         """Request an immediate evaluation cycle."""
+        if self._stopped:
+            return
         evaluate_lock = self._get_evaluate_lock()
         if evaluate_lock.locked():
             self._evaluate_pending = True
@@ -445,6 +464,9 @@ class HIAutomationEngine:
     def _evaluation_sources(self) -> List[str]:
         sources = [t["entity_id"] for t in self.telemetry if t.get("entity_id")]
         sources.extend(self.presence_gate.get("entities", []) or [])
+        for cfg in self.humidifiers.values():
+            if isinstance(cfg, dict):
+                sources.extend(cfg.get("outputs", []) or [])
         data = self.hass.data.get(DOMAIN, {}).get(self.entry.entry_id, {})
         booleans = data.get("hi_input_booleans", {})
         timers = data.get("hi_timers", {})
@@ -1093,28 +1115,65 @@ class HIAutomationEngine:
         self._aq_tasks[level] = asyncio.create_task(_timer())
 
     async def _handle_humidifiers(self) -> List[Dict[str, Any]]:
-        active_details: List[Dict[str, Any]] = []
+        lane_details: Dict[str, Dict[str, Any]] = {}
+        output_owners: Dict[str, set[str]] = {}
         profile = self._active_target_profile()
-        configured_levels = set(self.humidifiers.keys())
         for level in ("level1", "level2"):
-            if level in configured_levels:
-                continue
-            await self._set_bool(self._humidifier_active_key(level), False)
-
-        for level, cfg in self.humidifiers.items():
             active_key = self._humidifier_active_key(level)
-            outputs = cfg.get("outputs", [])
-            if not cfg.get("enabled"):
-                await self._set_humidifier_outputs_state(outputs, False)
+            cfg = self.humidifiers.get(level)
+            if not isinstance(cfg, dict):
+                self._humidifier_lane_demand[level] = False
                 await self._set_bool(active_key, False)
+                continue
+
+            outputs = cfg.get("outputs", [])
+            outputs = sorted(
+                {
+                    str(entity_id).strip()
+                    for entity_id in outputs
+                    if str(entity_id).strip()
+                }
+            )
+            for entity_id in outputs:
+                output_owners.setdefault(entity_id, set()).add(level)
+
+            lane_label = "downstairs" if level == "level1" else "upstairs"
+            detail: Dict[str, Any] = {
+                "level": level,
+                "lane": lane_label,
+                "season": profile.label,
+                "profile": profile.key,
+                "outputs": outputs,
+                "demand": False,
+                "status": "inactive",
+                "environmental_state": "inactive",
+            }
+
+            if not cfg.get("enabled"):
+                self._humidifier_lane_demand[level] = False
+                await self._set_bool(active_key, False)
+                lane_details[level] = detail
                 continue
             if not outputs:
+                self._humidifier_lane_demand[level] = False
                 await self._set_bool(active_key, False)
+                detail["status"] = "degraded"
+                detail["reconciliation"] = "degraded"
+                detail["failure_category"] = "no_outputs"
+                lane_details[level] = detail
                 continue
+
             avg = self._level_avg("humidity", level)
             if avg is None:
+                self._humidifier_lane_demand[level] = False
                 await self._set_bool(active_key, False)
+                detail["status"] = "degraded"
+                detail["environmental_state"] = "unknown"
+                detail["reconciliation"] = "degraded"
+                detail["failure_category"] = "telemetry_unavailable"
+                lane_details[level] = detail
                 continue
+
             band_adjust = _to_float(cfg.get("band_adjust", 0))
             if band_adjust is None:
                 band_adjust = 0.0
@@ -1126,53 +1185,50 @@ class HIAutomationEngine:
             high = profile.high + band_adjust
             high_risk = profile.high_risk + band_adjust
             recovery_off = min(high, low + recovery_in_band)
-            currently_active = self._bool_is_on(active_key)
-            lane_label = "downstairs" if level == "level1" else "upstairs"
+            previous_demand = self._humidifier_lane_demand.get(
+                level,
+                self._bool_is_on(active_key),
+            )
+
             if avg <= low:
-                action = "hold_on"
-                if not currently_active:
-                    await self._set_humidifier_outputs_state(outputs, True)
-                    await self._set_bool(active_key, True)
-                    action = "turn_on"
-                _LOGGER.debug(
-                    "HI entry %s humidifier trigger: lane=%s humidity=%.1f start<=%.1f stop>=%.1f target=%.1f-%.1f season=%s action=%s",
-                    self.entry.entry_id,
-                    lane_label,
-                    avg,
-                    low,
-                    recovery_off,
-                    low,
-                    high,
-                    profile.label,
-                    action,
+                demand = True
+                environmental_state = "start"
+                trigger_condition = f"{avg:.1f}% <= start threshold {low:.1f}%"
+            elif avg >= recovery_off:
+                demand = False
+                environmental_state = "inactive"
+                trigger_condition = f"{avg:.1f}% >= stop threshold {recovery_off:.1f}%"
+            else:
+                demand = bool(previous_demand)
+                environmental_state = "recovering" if demand else "inactive"
+                trigger_condition = (
+                    f"{avg:.1f}% is between start {low:.1f}% and stop {recovery_off:.1f}%"
                 )
-                active_details.append({
-                    "level": level,
-                    "lane": lane_label,
-                    "season": profile.label,
-                    "profile": profile.key,
-                    "status": "active",
-                    "action": action,
+
+            self._humidifier_lane_demand[level] = demand
+            await self._set_bool(active_key, demand)
+            detail.update(
+                {
+                    "demand": demand,
+                    "status": "active" if demand else "inactive",
+                    "environmental_state": environmental_state,
                     "humidity": avg,
                     "low": low,
                     "high": high,
                     "high_risk": high_risk,
                     "recovery_off": recovery_off,
-                    "outputs": outputs,
-                    "trigger_condition": f"{avg:.1f}% <= start threshold {low:.1f}%",
+                    "trigger_condition": trigger_condition,
                     "recovery_behavior": (
                         f"Stop when humidity recovers to {recovery_off:.1f}% "
                         f"(inside target band {low:.1f}-{high:.1f}%)."
                     ),
-                })
-            elif avg >= recovery_off:
-                action = "hold_off"
-                if currently_active:
-                    await self._set_humidifier_outputs_state(outputs, False)
-                    await self._set_bool(active_key, False)
-                    action = "turn_off"
+                }
+            )
+            lane_details[level] = detail
+
+            if demand:
                 _LOGGER.debug(
-                    "HI entry %s humidifier stop: lane=%s humidity=%.1f start<=%.1f stop>=%.1f target=%.1f-%.1f season=%s action=%s",
+                    "HI entry %s humidifier demand: lane=%s humidity=%.1f start<=%.1f stop>=%.1f target=%.1f-%.1f season=%s state=%s",
                     self.entry.entry_id,
                     lane_label,
                     avg,
@@ -1181,42 +1237,39 @@ class HIAutomationEngine:
                     low,
                     high,
                     profile.label,
-                    action,
+                    environmental_state,
                 )
-            else:
-                if currently_active:
-                    _LOGGER.debug(
-                        "HI entry %s humidifier recovering: lane=%s humidity=%.1f start<=%.1f stop>=%.1f target=%.1f-%.1f season=%s",
-                        self.entry.entry_id,
-                        lane_label,
-                        avg,
-                        low,
-                        recovery_off,
-                        low,
-                        high,
-                        profile.label,
-                    )
-                    active_details.append({
-                        "level": level,
-                        "lane": lane_label,
-                        "season": profile.label,
-                        "profile": profile.key,
-                        "status": "recovering",
-                        "action": "hold_on",
-                        "humidity": avg,
-                        "low": low,
-                        "high": high,
-                        "high_risk": high_risk,
-                        "recovery_off": recovery_off,
-                        "outputs": outputs,
-                        "trigger_condition": (
-                            f"{avg:.1f}% is between start {low:.1f}% and stop {recovery_off:.1f}%"
-                        ),
-                        "recovery_behavior": (
-                            f"Lane stays on until humidity reaches {recovery_off:.1f}% to avoid short-cycling."
-                        ),
-                    })
-        return active_details
+            elif previous_demand:
+                _LOGGER.debug(
+                    "HI entry %s humidifier demand cleared: lane=%s humidity=%.1f start<=%.1f stop>=%.1f target=%.1f-%.1f season=%s",
+                    self.entry.entry_id,
+                    lane_label,
+                    avg,
+                    low,
+                    recovery_off,
+                    low,
+                    high,
+                    profile.label,
+                )
+
+        output_status = await self._reconcile_humidifier_outputs(
+            {
+                entity_id: {
+                    level
+                    for level in owners
+                    if bool(lane_details.get(level, {}).get("demand"))
+                }
+                for entity_id, owners in output_owners.items()
+            },
+            configured_owners=output_owners,
+        )
+        self._apply_humidifier_output_truth_to_lanes(lane_details, output_status)
+        self._publish_humidifier_truth(lane_details, output_status)
+        return [
+            detail
+            for level, detail in lane_details.items()
+            if level in {"level1", "level2"} and detail.get("demand")
+        ]
 
     async def _return_to_normal(self) -> None:
         await self._clear_alert_runtime_state()
@@ -1239,12 +1292,731 @@ class HIAutomationEngine:
         await self._deactivate_humidifier_activity(turn_off_outputs=True)
 
     async def _deactivate_humidifier_activity(self, *, turn_off_outputs: bool) -> None:
+        lane_details: Dict[str, Dict[str, Any]] = {}
+        configured_owners: Dict[str, set[str]] = {}
+        for level in ("level1", "level2"):
+            cfg = self.humidifiers.get(level)
+            outputs = []
+            if isinstance(cfg, dict):
+                outputs = sorted(
+                    {
+                        str(entity_id).strip()
+                        for entity_id in cfg.get("outputs", []) or []
+                        if str(entity_id).strip()
+                    }
+                )
+            for entity_id in outputs:
+                configured_owners.setdefault(entity_id, set()).add(level)
+            self._humidifier_lane_demand[level] = False
+            await self._set_bool(self._humidifier_active_key(level), False)
+            lane_details[level] = {
+                "level": level,
+                "lane": "downstairs" if level == "level1" else "upstairs",
+                "outputs": outputs,
+                "demand": False,
+                "status": "inactive",
+                "environmental_state": "inactive",
+            }
+
+        output_status: Dict[str, Dict[str, Any]] = {}
+        if turn_off_outputs:
+            output_status = await self._reconcile_humidifier_outputs(
+                {entity_id: set() for entity_id in configured_owners},
+                configured_owners=configured_owners,
+            )
+        self._apply_humidifier_output_truth_to_lanes(lane_details, output_status)
+        self._publish_humidifier_truth(lane_details, output_status)
+
+    async def _reconcile_humidifier_outputs(
+        self,
+        desired_owners: Dict[str, set[str]],
+        *,
+        configured_owners: Optional[Dict[str, set[str]]] = None,
+    ) -> Dict[str, Dict[str, Any]]:
+        configured = configured_owners or desired_owners
+        configured_outputs = sorted(configured)
+        for entity_id in set(self._humidifier_output_records) - set(configured_outputs):
+            self._cancel_humidifier_retry(entity_id)
+            self._humidifier_output_records.pop(entity_id, None)
+
+        now = self._monotonic()
+        isolated = self._humidifier_outputs_isolated()
+        results: Dict[str, Dict[str, Any]] = {}
+        for entity_id in configured_outputs:
+            owners = set(desired_owners.get(entity_id, set()))
+            all_owners = set(configured.get(entity_id, set()))
+            desired_on = bool(owners)
+            record = self._humidifier_output_records.setdefault(
+                entity_id,
+                self._new_humidifier_output_record(),
+            )
+            observed, platform_action = self._humidifier_observed_state(entity_id)
+            record["owners"] = sorted(owners)
+            record["configured_owners"] = sorted(all_owners)
+            record["domain"] = entity_id.partition(".")[0]
+            record["observed"] = observed
+            record["platform_action"] = platform_action
+            if record.get("desired_on") is None or bool(record.get("desired_on")) != desired_on:
+                self._cancel_humidifier_retry(entity_id)
+                record["generation"] = int(record.get("generation", 0)) + 1
+                record["desired_on"] = desired_on
+                record["on_attempts"] = 0
+                record["off_attempts"] = 0
+                record["fault_latched"] = False
+                record["failure_category"] = None
+                record["next_allowed_at"] = 0.0
+                record["settling_until"] = 0.0
+                record["mismatch_started"] = None
+                self._record_humidifier_transition(
+                    record,
+                    "desired_on" if desired_on else "desired_off",
+                )
+
+            conflict = self._humidifier_ownership_conflict(entity_id)
+            record["ownership_conflict"] = conflict
+
+            if conflict:
+                self._cancel_humidifier_retry(entity_id)
+                record["failure_category"] = conflict
+                record["fault_latched"] = False
+                self._set_humidifier_reconciliation_state(
+                    record,
+                    "degraded",
+                    "ownership_conflict",
+                )
+            elif isolated:
+                self._cancel_humidifier_retry(entity_id)
+                record["failure_category"] = None
+                record["fault_latched"] = False
+                self._set_humidifier_reconciliation_state(record, "isolated")
+            elif desired_on and observed == "on":
+                self._cancel_humidifier_retry(entity_id)
+                record["mismatch_started"] = None
+                record["failure_category"] = None
+                record["fault_latched"] = False
+                if platform_action == "idle":
+                    state = "platform_idle"
+                elif platform_action in {"drying", "off", "unknown"}:
+                    state = "degraded"
+                    record["failure_category"] = "unexpected_platform_action"
+                else:
+                    state = "output_on"
+                self._set_humidifier_reconciliation_state(record, state, "observed_match")
+            elif not desired_on and observed == "off":
+                self._cancel_humidifier_retry(entity_id)
+                record["mismatch_started"] = None
+                record["failure_category"] = None
+                record["fault_latched"] = False
+                record["on_attempts"] = 0
+                record["off_attempts"] = 0
+                record["next_allowed_at"] = 0.0
+                record["settling_until"] = 0.0
+                self._set_humidifier_reconciliation_state(
+                    record,
+                    "matched_off",
+                    "observed_match",
+                )
+            elif desired_on and observed == "off":
+                await self._reconcile_humidifier_mismatch(
+                    entity_id,
+                    record,
+                    desired_on=True,
+                    now=now,
+                )
+            elif not desired_on and observed == "on":
+                await self._reconcile_humidifier_mismatch(
+                    entity_id,
+                    record,
+                    desired_on=False,
+                    now=now,
+                )
+            elif not desired_on and observed == "unknown":
+                await self._reconcile_unknown_humidifier_off(
+                    entity_id,
+                    record,
+                    now=now,
+                )
+            else:
+                self._cancel_humidifier_retry(entity_id)
+                record["failure_category"] = observed
+                record["fault_latched"] = False
+                state = "unknown" if observed in {"missing", "unknown", "unavailable", "other"} else "degraded"
+                self._set_humidifier_reconciliation_state(
+                    record,
+                    state,
+                    f"observed_{observed}",
+                )
+
+            results[entity_id] = self._humidifier_output_status(record, now)
+        return results
+
+    async def _reconcile_humidifier_mismatch(
+        self,
+        entity_id: str,
+        record: Dict[str, Any],
+        *,
+        desired_on: bool,
+        now: float,
+    ) -> None:
+        attempts_key = "on_attempts" if desired_on else "off_attempts"
+        attempts = int(record.get(attempts_key, 0))
+        if record.get("mismatch_started") is None:
+            record["mismatch_started"] = now
+            self._record_humidifier_transition(record, "mismatch_opened")
+
+        settling_until = float(record.get("settling_until") or 0.0)
+        if attempts >= HUMIDIFIER_RECONCILE_MAX_ATTEMPTS:
+            if now < settling_until:
+                self._schedule_humidifier_retry(entity_id, settling_until)
+                state = "retrying" if desired_on else "stopping"
+                self._set_humidifier_reconciliation_state(record, state)
+                return
+            self._cancel_humidifier_retry(entity_id)
+            record["fault_latched"] = True
+            record["failure_category"] = "retry_exhausted"
+            self._set_humidifier_reconciliation_state(
+                record,
+                "fault_latched",
+                "retry_exhausted",
+            )
+            return
+
+        next_allowed_at = float(record.get("next_allowed_at") or 0.0)
+        if now < next_allowed_at:
+            self._schedule_humidifier_retry(entity_id, next_allowed_at)
+            state = "retrying" if desired_on and attempts > 1 else (
+                "requested" if desired_on else "stopping"
+            )
+            self._set_humidifier_reconciliation_state(record, state)
+            return
+
+        attempted, dispatch_result = await self._dispatch_humidifier_output(
+            entity_id,
+            desired_on,
+        )
+        record["last_command_intent"] = "turn_on" if desired_on else "turn_off"
+        record["last_dispatch_result"] = dispatch_result
+        if not attempted:
+            self._cancel_humidifier_retry(entity_id)
+            record["failure_category"] = dispatch_result
+            record["fault_latched"] = False
+            self._set_humidifier_reconciliation_state(
+                record,
+                "degraded",
+                dispatch_result,
+            )
+            return
+
+        record["last_dispatch_utc"] = datetime.now().astimezone().isoformat()
+        attempts += 1
+        record[attempts_key] = attempts
+        record["failure_category"] = (
+            "dispatch_exception" if dispatch_result == "exception" else "confirmation_pending"
+        )
+        record["settling_until"] = now + HUMIDIFIER_RECONCILE_CONFIRM_SECONDS
+        if attempts == 1:
+            record["next_allowed_at"] = (
+                now + HUMIDIFIER_RECONCILE_RETRY_DELAYS_SECONDS[0]
+            )
+        elif attempts == 2:
+            record["next_allowed_at"] = (
+                now + HUMIDIFIER_RECONCILE_RETRY_DELAYS_SECONDS[1]
+            )
+        else:
+            record["next_allowed_at"] = record["settling_until"]
+        self._record_humidifier_transition(record, dispatch_result)
+        self._schedule_humidifier_retry(
+            entity_id,
+            float(record["next_allowed_at"]),
+        )
+        state = (
+            "retrying"
+            if desired_on and dispatch_result == "exception"
+            else "requested"
+            if desired_on and attempts == 1
+            else "retrying"
+            if desired_on
+            else "stopping"
+        )
+        self._set_humidifier_reconciliation_state(record, state)
+
+    async def _reconcile_unknown_humidifier_off(
+        self,
+        entity_id: str,
+        record: Dict[str, Any],
+        *,
+        now: float,
+    ) -> None:
+        attempts = int(record.get("off_attempts", 0))
+        settling_until = float(record.get("settling_until") or 0.0)
+        if attempts:
+            if now < settling_until:
+                self._schedule_humidifier_retry(entity_id, settling_until)
+                self._set_humidifier_reconciliation_state(record, "stopping")
+            else:
+                self._cancel_humidifier_retry(entity_id)
+                record["failure_category"] = "confirmation_timeout"
+                self._set_humidifier_reconciliation_state(
+                    record,
+                    "degraded",
+                    "unknown_off_unconfirmed",
+                )
+            return
+
+        attempted, dispatch_result = await self._dispatch_humidifier_output(
+            entity_id,
+            False,
+        )
+        record["last_command_intent"] = "turn_off"
+        record["last_dispatch_result"] = dispatch_result
+        if not attempted:
+            record["failure_category"] = dispatch_result
+            self._set_humidifier_reconciliation_state(
+                record,
+                "degraded",
+                dispatch_result,
+            )
+            return
+
+        record["last_dispatch_utc"] = datetime.now().astimezone().isoformat()
+        record["off_attempts"] = 1
+        record["settling_until"] = now + HUMIDIFIER_RECONCILE_CONFIRM_SECONDS
+        record["failure_category"] = (
+            "dispatch_exception" if dispatch_result == "exception" else "confirmation_pending"
+        )
+        self._record_humidifier_transition(record, dispatch_result)
+        self._schedule_humidifier_retry(
+            entity_id,
+            float(record["settling_until"]),
+        )
+        self._set_humidifier_reconciliation_state(record, "stopping")
+
+    async def _dispatch_humidifier_output(
+        self,
+        entity_id: str,
+        on: bool,
+    ) -> Tuple[bool, str]:
+        domain, separator, _object_id = entity_id.partition(".")
+        if not separator or domain not in _HUMIDIFIER_OUTPUT_DOMAINS:
+            return False, "unsupported_domain"
+        service = "turn_on" if on else "turn_off"
+        if not self.hass.services.has_service(domain, service):
+            return False, "service_unavailable"
+
+        state = self.hass.states.get(entity_id)
+        if state is None:
+            return False, "missing"
+        state_text = str(getattr(state, "state", "") or "").strip().lower()
+        if on and state_text in {"unknown", "unavailable"}:
+            return False, state_text
+        try:
+            await self.hass.services.async_call(
+                domain,
+                service,
+                {"entity_id": entity_id},
+                blocking=False,
+            )
+        except Exception:
+            _LOGGER.exception(
+                "HI humidifier output dispatch failed: domain=%s intent=%s",
+                domain,
+                service,
+            )
+            return True, "exception"
+        return True, "dispatched_unconfirmed"
+
+    def _humidifier_observed_state(self, entity_id: str) -> Tuple[str, str]:
+        state = self.hass.states.get(entity_id)
+        if state is None:
+            return "missing", "not_exposed"
+        state_text = str(getattr(state, "state", "") or "").strip().lower()
+        if state_text in {"on", "off", "unknown", "unavailable"}:
+            observed = state_text
+        else:
+            observed = "other"
+
+        platform_action = "not_exposed"
+        if entity_id.startswith("humidifier."):
+            action = str(
+                getattr(state, "attributes", {}).get("action") or ""
+            ).strip().lower()
+            if action in {"humidifying", "idle", "drying", "off"}:
+                platform_action = action
+            elif action:
+                platform_action = "unknown"
+        return observed, platform_action
+
+    def _humidifier_ownership_conflict(self, entity_id: str) -> Optional[str]:
+        if entity_id in self._configured_non_humidifier_outputs():
+            return "cross_family_ownership"
+        domain_data = self.hass.data.get(DOMAIN, {})
+        if not isinstance(domain_data, dict):
+            return None
+        for entry_id, runtime_data in domain_data.items():
+            if entry_id == self.entry.entry_id or not isinstance(runtime_data, dict):
+                continue
+            engine = runtime_data.get("automation_engine")
+            if not isinstance(engine, HIAutomationEngine) or engine._stopped:
+                continue
+            if entity_id in engine._configured_humidifier_outputs():
+                return "cross_entry_ownership"
+        return None
+
+    def _configured_humidifier_outputs(self) -> set[str]:
+        outputs: set[str] = set()
         for cfg in self.humidifiers.values():
-            outputs = cfg.get("outputs", [])
-            if turn_off_outputs:
-                await self._set_humidifier_outputs_state(outputs, False)
-        await self._set_bool("air_downstairs_humidifier_active", False)
-        await self._set_bool("air_upstairs_humidifier_active", False)
+            if isinstance(cfg, dict):
+                outputs.update(
+                    str(entity_id).strip()
+                    for entity_id in cfg.get("outputs", []) or []
+                    if str(entity_id).strip()
+                )
+        return outputs
+
+    def _configured_non_humidifier_outputs(self) -> set[str]:
+        outputs: set[str] = set()
+        for section in (self.zones, self.aq):
+            for cfg in section.values():
+                if isinstance(cfg, dict):
+                    outputs.update(
+                        str(entity_id).strip()
+                        for entity_id in cfg.get("outputs", []) or []
+                        if str(entity_id).strip()
+                    )
+        for alert in self.alerts:
+            if not isinstance(alert, dict):
+                continue
+            power_entity = str(alert.get("power_entity") or "").strip()
+            if power_entity:
+                outputs.add(power_entity)
+        return outputs
+
+    def _notify_other_humidifier_engines(self) -> None:
+        domain_data = self.hass.data.get(DOMAIN, {})
+        if not isinstance(domain_data, dict):
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        for runtime_data in domain_data.values():
+            if not isinstance(runtime_data, dict):
+                continue
+            engine = runtime_data.get("automation_engine")
+            if (
+                isinstance(engine, HIAutomationEngine)
+                and engine is not self
+                and not engine._stopped
+            ):
+                loop.create_task(engine.async_request_evaluate())
+
+    def _new_humidifier_output_record(self) -> Dict[str, Any]:
+        return {
+            "desired_on": None,
+            "owners": [],
+            "configured_owners": [],
+            "domain": None,
+            "observed": "missing",
+            "platform_action": "not_exposed",
+            "generation": 0,
+            "on_attempts": 0,
+            "off_attempts": 0,
+            "settling_until": 0.0,
+            "next_allowed_at": 0.0,
+            "mismatch_started": None,
+            "last_command_intent": "none",
+            "last_dispatch_result": "not_requested",
+            "last_dispatch_utc": None,
+            "failure_category": None,
+            "fault_latched": False,
+            "ownership_conflict": None,
+            "reconciliation": "matched_off",
+            "history": [],
+            "scheduled_for": None,
+        }
+
+    def _set_humidifier_reconciliation_state(
+        self,
+        record: Dict[str, Any],
+        state: str,
+        event: Optional[str] = None,
+    ) -> None:
+        previous = record.get("reconciliation")
+        record["reconciliation"] = state
+        if previous != state:
+            self._record_humidifier_transition(
+                record,
+                event or f"state_{state}",
+            )
+            if state in {"degraded", "fault_latched"}:
+                _LOGGER.warning(
+                    "HI humidifier reconciliation entered %s: entry=%s domain=%s owners=%s failure=%s",
+                    state,
+                    self.entry.entry_id,
+                    record.get("domain") or "unknown",
+                    ",".join(record.get("configured_owners") or []) or "none",
+                    record.get("failure_category") or "unknown",
+                )
+
+    def _record_humidifier_transition(
+        self,
+        record: Dict[str, Any],
+        event: str,
+    ) -> None:
+        history = record.setdefault("history", [])
+        history.append(
+            {
+                "event": str(event),
+                "desired": "on" if record.get("desired_on") else "off",
+                "observed": str(record.get("observed") or "missing"),
+                "attempts": int(
+                    record.get(
+                        "on_attempts" if record.get("desired_on") else "off_attempts",
+                        0,
+                    )
+                ),
+            }
+        )
+        del history[:-HUMIDIFIER_RECONCILE_HISTORY_LIMIT]
+
+    def _schedule_humidifier_retry(self, entity_id: str, when: float) -> None:
+        if self._stopped:
+            return
+        record = self._humidifier_output_records.get(entity_id)
+        existing = self._humidifier_retry_tasks.get(entity_id)
+        if (
+            existing
+            and not existing.done()
+            and record
+            and record.get("scheduled_for") == when
+        ):
+            return
+        self._cancel_humidifier_retry(entity_id)
+        if record is not None:
+            record["scheduled_for"] = when
+
+        async def _wake() -> None:
+            try:
+                delay = max(0.0, when - self._monotonic())
+                await asyncio.sleep(delay)
+                if not self._stopped:
+                    await self.async_request_evaluate()
+            except asyncio.CancelledError:
+                return
+            finally:
+                current = self._humidifier_retry_tasks.get(entity_id)
+                if current is asyncio.current_task():
+                    self._humidifier_retry_tasks.pop(entity_id, None)
+                current_record = self._humidifier_output_records.get(entity_id)
+                if current_record and current_record.get("scheduled_for") == when:
+                    current_record["scheduled_for"] = None
+
+        self._humidifier_retry_tasks[entity_id] = asyncio.create_task(_wake())
+
+    def _cancel_humidifier_retry(self, entity_id: str) -> None:
+        task = self._humidifier_retry_tasks.pop(entity_id, None)
+        if (
+            task
+            and not task.done()
+            and task is not asyncio.current_task()
+        ):
+            task.cancel()
+        record = self._humidifier_output_records.get(entity_id)
+        if record is not None:
+            record["scheduled_for"] = None
+
+    def _monotonic(self) -> float:
+        return time.monotonic()
+
+    def _humidifier_output_status(
+        self,
+        record: Dict[str, Any],
+        now: float,
+    ) -> Dict[str, Any]:
+        mismatch_started = record.get("mismatch_started")
+        mismatch_age = None
+        if isinstance(mismatch_started, (int, float)):
+            mismatch_age = max(0, int(now - mismatch_started))
+        attempts_key = "on_attempts" if record.get("desired_on") else "off_attempts"
+        return {
+            "domain": record.get("domain"),
+            "owners": list(record.get("owners") or []),
+            "configured_owners": list(record.get("configured_owners") or []),
+            "desired": "on" if record.get("desired_on") else "off",
+            "observed": record.get("observed"),
+            "platform_action": record.get("platform_action"),
+            "reconciliation": record.get("reconciliation"),
+            "dispatch_result": record.get("last_dispatch_result"),
+            "last_command_intent": record.get("last_command_intent"),
+            "last_dispatch_utc": record.get("last_dispatch_utc"),
+            "attempts": int(record.get(attempts_key, 0)),
+            "maximum_attempts": HUMIDIFIER_RECONCILE_MAX_ATTEMPTS,
+            "mismatch_age_seconds": mismatch_age,
+            "failure_category": record.get("failure_category"),
+            "fault_latched": bool(record.get("fault_latched")),
+            "ownership_conflict": record.get("ownership_conflict"),
+            "history": [dict(item) for item in record.get("history", [])],
+        }
+
+    def _apply_humidifier_output_truth_to_lanes(
+        self,
+        lane_details: Dict[str, Dict[str, Any]],
+        output_status: Dict[str, Dict[str, Any]],
+    ) -> None:
+        priority = {
+            "fault_latched": 0,
+            "degraded": 1,
+            "unknown": 2,
+            "isolated": 3,
+            "retrying": 4,
+            "stopping": 5,
+            "requested": 6,
+            "platform_idle": 7,
+            "output_on": 8,
+            "matched_off": 9,
+        }
+        for detail in lane_details.values():
+            outputs = detail.get("outputs", []) or []
+            statuses = [
+                output_status[entity_id]
+                for entity_id in outputs
+                if entity_id in output_status
+            ]
+            if not statuses:
+                detail.setdefault("reconciliation", "inactive")
+                detail.setdefault("observed", "missing" if outputs else "not_configured")
+                detail.setdefault("platform_action", "not_exposed")
+                continue
+
+            lane_truth_is_degraded = detail.get("reconciliation") in {
+                "degraded",
+                "unknown",
+            }
+            if not lane_truth_is_degraded:
+                if not detail.get("demand") and any(
+                    status.get("desired") == "on" for status in statuses
+                ):
+                    detail["reconciliation"] = "inactive_shared_output"
+                else:
+                    detail["reconciliation"] = min(
+                        (
+                            str(status.get("reconciliation") or "degraded")
+                            for status in statuses
+                        ),
+                        key=lambda value: priority.get(value, 1),
+                    )
+            detail["observed"] = _aggregate_humidifier_status_value(
+                statuses,
+                "observed",
+            )
+            detail["platform_action"] = _aggregate_humidifier_status_value(
+                statuses,
+                "platform_action",
+            )
+
+    def _publish_humidifier_truth(
+        self,
+        lane_details: Dict[str, Dict[str, Any]],
+        output_status: Dict[str, Dict[str, Any]],
+    ) -> None:
+        runtime_data = self.hass.data.setdefault(DOMAIN, {}).setdefault(
+            self.entry.entry_id,
+            {},
+        )
+        public_lanes: Dict[str, Dict[str, Any]] = {}
+        for level in ("level1", "level2"):
+            detail = lane_details.get(level)
+            if not isinstance(detail, dict):
+                continue
+            public_lanes[level] = {
+                "demand": "requested" if detail.get("demand") else "inactive",
+                "environmental_state": detail.get("environmental_state", "inactive"),
+                "reconciliation": detail.get("reconciliation", "inactive"),
+                "observed": detail.get("observed", "not_configured"),
+                "platform_action": detail.get("platform_action", "not_exposed"),
+                "output_count": len(detail.get("outputs", []) or []),
+                "failure_category": detail.get("failure_category"),
+            }
+
+        active_states = [
+            str(lane.get("reconciliation") or "inactive")
+            for lane in public_lanes.values()
+            if lane.get("demand") == "requested"
+            or lane.get("reconciliation") in {"stopping", "fault_latched", "degraded", "unknown"}
+        ]
+        overall_priority = (
+            "fault_latched",
+            "degraded",
+            "unknown",
+            "isolated",
+            "retrying",
+            "stopping",
+            "requested",
+            "platform_idle",
+            "output_on",
+        )
+        overall = "inactive"
+        for candidate in overall_priority:
+            if candidate in active_states:
+                overall = candidate
+                break
+
+        runtime_data["humidifier_status"] = {
+            "schema": 1,
+            "overall": overall,
+            "lanes": public_lanes,
+        }
+
+        public_outputs: Dict[str, Dict[str, Any]] = {}
+        for index, entity_id in enumerate(sorted(output_status), start=1):
+            public_outputs[f"output_{index}"] = dict(output_status[entity_id])
+        runtime_data["humidifier_reconciliation"] = {
+            "schema": 1,
+            "summary": {
+                "requested_lanes": sum(
+                    lane.get("demand") == "requested"
+                    for lane in public_lanes.values()
+                ),
+                "degraded_lanes": sum(
+                    lane.get("reconciliation") == "degraded"
+                    for lane in public_lanes.values()
+                ),
+                "unknown_lanes": sum(
+                    lane.get("environmental_state") == "unknown"
+                    or lane.get("reconciliation") == "unknown"
+                    for lane in public_lanes.values()
+                ),
+                "matched_outputs": sum(
+                    output.get("reconciliation") in {"output_on", "platform_idle", "matched_off"}
+                    for output in public_outputs.values()
+                ),
+                "retrying_outputs": sum(
+                    output.get("reconciliation") in {"requested", "retrying", "stopping"}
+                    for output in public_outputs.values()
+                ),
+                "faulted_outputs": sum(
+                    output.get("reconciliation") == "fault_latched"
+                    for output in public_outputs.values()
+                ),
+                "degraded_outputs": sum(
+                    output.get("reconciliation") == "degraded"
+                    for output in public_outputs.values()
+                ),
+                "unknown_outputs": sum(
+                    output.get("reconciliation") == "unknown"
+                    for output in public_outputs.values()
+                ),
+                "isolated_outputs": sum(
+                    output.get("reconciliation") == "isolated"
+                    for output in public_outputs.values()
+                ),
+                "ownership_conflicts": sum(
+                    bool(output.get("ownership_conflict"))
+                    for output in public_outputs.values()
+                ),
+            },
+            "outputs": public_outputs,
+        }
 
     async def _deactivate_aq_activity(
         self,
@@ -1504,12 +2276,22 @@ class HIAutomationEngine:
         else:
             house_humidity = self._level_avg("humidity", None)
             if house_humidity is not None:
+                lane_text = (
+                    "no ventilation lane currently needs to run"
+                    if humidifier_details
+                    else "no lane currently needs to run"
+                )
                 base_reason = (
                     "System is armed and monitoring telemetry. "
-                    f"Current house humidity is {house_humidity:.1f}% and no lane currently needs to run."
+                    f"Current house humidity is {house_humidity:.1f}% and {lane_text}."
                 )
             else:
-                base_reason = "System is armed and monitoring telemetry. No automation lane currently needs to run."
+                lane_text = (
+                    "No ventilation lane currently needs to run."
+                    if humidifier_details
+                    else "No automation lane currently needs to run."
+                )
+                base_reason = f"System is armed and monitoring telemetry. {lane_text}"
 
         notices: List[str] = []
         humidifier_reason = self._format_humidifier_detail(humidifier_details) if humidifier_details else ""
@@ -1642,16 +2424,17 @@ class HIAutomationEngine:
         if not details:
             return ""
 
-        active = [item for item in details if item.get("status") in {"active", "recovering"}]
+        active = [item for item in details if item.get("demand")]
         if not active:
             return ""
 
         if len(active) >= 2:
-            segments: List[str] = ["Humidifier: downstairs and upstairs lanes are active."]
+            segments: List[str] = [
+                "Humidifier demand is requested for downstairs and upstairs."
+            ]
         else:
             lane = "downstairs" if active[0].get("level") == "level1" else "upstairs"
-            status = "recovering" if str(active[0].get("status") or "") == "recovering" else "running"
-            segments = [f"Humidifier: {lane} lane is {status}."]
+            segments = [f"Humidifier demand is requested for {lane}."]
 
         for item in active:
             level = "Downstairs" if item.get("level") == "level1" else "Upstairs"
@@ -1659,21 +2442,59 @@ class HIAutomationEngine:
             low = _to_float(item.get("low"))
             high = _to_float(item.get("high"))
             recovery_off = _to_float(item.get("recovery_off"))
-            status = str(item.get("status") or "active")
+            environmental_state = str(item.get("environmental_state") or "start")
+            reconciliation = str(item.get("reconciliation") or "degraded")
+            platform_action = str(item.get("platform_action") or "not_exposed")
 
             if humidity is None or low is None or high is None or recovery_off is None:
                 segments.append(f"{level}: humidity data is unavailable.")
                 continue
 
-            if status == "recovering":
+            if environmental_state == "recovering":
                 segments.append(
                     f"{level}: {humidity:.1f}% (target {low:.1f}-{high:.1f}%). "
-                    f"Holding on until {recovery_off:.1f}% to avoid short-cycling."
+                    f"Demand remains requested until {recovery_off:.1f}% to avoid short-cycling."
                 )
             else:
                 segments.append(
                     f"{level}: {humidity:.1f}% is at or below the {low:.1f}% start point "
                     f"(target {low:.1f}-{high:.1f}%). It will stop at {recovery_off:.1f}%."
+                )
+
+            if reconciliation == "output_on":
+                segments.append(
+                    f"{level}: Home Assistant reports the configured output on. "
+                    "Physical moisture production is not independently verified."
+                )
+            elif reconciliation == "platform_idle":
+                segments.append(
+                    f"{level}: Home Assistant reports the output on and the humidifier action idle. "
+                    "Physical moisture production is not confirmed."
+                )
+            elif reconciliation == "requested":
+                segments.append(
+                    f"{level}: an output command was requested and remains unconfirmed."
+                )
+            elif reconciliation == "retrying":
+                segments.append(
+                    f"{level}: the output remains off and bounded reconciliation is retrying."
+                )
+            elif reconciliation == "isolated":
+                segments.append(
+                    f"{level}: humidifier-output isolation is suppressing commands."
+                )
+            elif reconciliation in {"unknown", "degraded"}:
+                segments.append(
+                    f"{level}: output state is unknown or degraded, so HI is not claiming activity."
+                )
+            elif reconciliation == "fault_latched":
+                segments.append(
+                    f"{level}: reconciliation attempts are exhausted and a fault is latched for this demand period."
+                )
+            if platform_action == "humidifying":
+                segments.append(
+                    f"{level}: the Home Assistant humidifier action reports humidifying; "
+                    "this is platform-reported action, not measured moisture output."
                 )
         return " ".join(segments)
 
@@ -1796,11 +2617,6 @@ class HIAutomationEngine:
         if self._fan_outputs_isolated():
             return
         await _set_fan_auto(self.hass, outputs)
-
-    async def _set_humidifier_outputs_state(self, outputs: List[str], on: bool) -> None:
-        if self._humidifier_outputs_isolated():
-            return
-        await _set_humidifier_state(self.hass, outputs, on)
 
     def _aq_outputs_reserved_by_other_levels(self, level: str) -> set[str]:
         reserved: set[str] = set()
@@ -2276,21 +3092,6 @@ async def _set_fan_auto(hass: HomeAssistant, entities: List[str]) -> None:
                 _LOGGER.exception("Failed to turn off switch %s", entity_id)
 
 
-async def _set_humidifier_state(hass: HomeAssistant, entities: List[str], on: bool) -> None:
-    for entity_id in entities:
-        domain = entity_id.split(".")[0]
-        service = "turn_on" if on else "turn_off"
-        if not hass.services.has_service(domain, service):
-            continue
-        state = hass.states.get(entity_id)
-        if state and ((on and state.state == "on") or ((not on) and state.state == "off")):
-            continue
-        try:
-            await hass.services.async_call(domain, service, {"entity_id": entity_id}, blocking=False)
-        except Exception:
-            _LOGGER.exception("Failed to call %s.%s for %s", domain, service, entity_id)
-
-
 def _bounded_int(value: Any, min_value: int, max_value: int, fallback: int) -> int:
     try:
         parsed = int(value)
@@ -2304,6 +3105,21 @@ def _to_float(value: Any) -> Optional[float]:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _aggregate_humidifier_status_value(
+    statuses: List[Dict[str, Any]],
+    key: str,
+) -> str:
+    values = {
+        str(status.get(key) or "unknown")
+        for status in statuses
+    }
+    if not values:
+        return "unknown"
+    if len(values) == 1:
+        return next(iter(values))
+    return "mixed"
 
 
 def _safe_alert_threshold(trigger_type: str, value: Any, fallback: float) -> float:

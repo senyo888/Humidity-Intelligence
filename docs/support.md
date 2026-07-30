@@ -25,6 +25,9 @@ Please review the bundle before attaching if you are concerned about privacy. Th
 - current runtime mode/lane and reason availability/truncation
 - gate states
 - output state summary
+- sanitized humidifier demand/output reconciliation, including desired and observed
+  categories, dispatch result, retry/fault state, mismatch age, and bounded history
+  without configured humidifier output entity IDs
 - active alert resolution
 - compact local HI-only snapshot status
 - house humidity drift 7d statistics dependency status, including helper readiness
@@ -55,6 +58,33 @@ Native diagnostics prefer structure, counts, and statuses over raw entity IDs, r
 names, Area names, Label names, entity maps, and state dumps. Selected mapping and
 local-name evidence is generally reduced, but user-configured display and level labels may remain.
 Review the complete file before uploading it to a public issue.
+
+## Humidifier Demand/Output Troubleshooting
+
+The humidifier-active helper and V2 `Requested` chip mean HI currently has effective
+humidification demand. They do not mean a command completed or a device is physically
+producing moisture.
+
+Use the V2 chip/reason state and native diagnostics together:
+
+- `Output on`: Home Assistant reports the configured output `on`
+- `Idle`: Home Assistant reports `on`, but a humidifier action attribute reports idle
+- `Retrying` or `Stopping`: HI dispatched a command and is waiting or retrying within
+  the bounded schedule
+- `Isolated`: demand remains visible but humidifier output service calls are
+  intentionally suppressed
+- `Unknown` or `Degraded`: state/service/domain/ownership evidence is not safe enough
+  for a normal reconciliation claim
+- `Fault`: HI exhausted its bounded confirmation attempts; inspect the device,
+  water/safety state, vendor integration, and Home Assistant entity before recovery
+
+HI does not bypass a device-local target, idle mode, empty-water protection, safety
+timeout, or vendor fault. A later output state change, unavailable-to-available
+recovery, demand transition, integration reload, or Home Assistant restart triggers
+fresh evaluation; toggling helpers or repeatedly calling services is not the
+recommended recovery path. If the output is `on` but no moisture is produced, inspect
+the physical device and vendor integration because Home Assistant output state alone
+cannot establish physical actuation.
 
 ## Optional Public Inspector Preflight
 

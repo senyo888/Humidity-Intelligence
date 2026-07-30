@@ -709,12 +709,18 @@ class _CoreComputations:
         reason = data.get("runtime_reason")
         full_reason = data.get("runtime_reason_full")
         truncated = bool(data.get("runtime_reason_truncated"))
+        humidifier_status = data.get("humidifier_status")
         if isinstance(reason, str) and reason.strip():
             attrs: Dict[str, Any] = {"truncated": truncated}
             if isinstance(full_reason, str) and full_reason.strip():
                 attrs["full_reason"] = full_reason.strip()
+            if isinstance(humidifier_status, dict):
+                attrs["humidifier_status"] = _sanitize_json(humidifier_status)
             return reason.strip(), attrs
-        return "System is armed and monitoring sensors. No action is needed right now.", {}
+        attrs = {}
+        if isinstance(humidifier_status, dict):
+            attrs["humidifier_status"] = _sanitize_json(humidifier_status)
+        return "System is armed and monitoring sensors. No action is needed right now.", attrs
 
     def _compute_active_alert_context(self) -> Tuple[str, Dict[str, Any]]:
         data = self.hass.data.get(DOMAIN, {}).get(self.entry.entry_id, {})

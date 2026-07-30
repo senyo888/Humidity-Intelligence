@@ -51,7 +51,7 @@ refresh_ui:
         text: {}
 dump_diagnostics:
   name: Dump Diagnostics
-  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Write sanitized diagnostics (configuration counts, active target profile, alert resolution status, visual alert counts, house humidity drift dependency, unavailable counts, cards) to a JSON file under the owned Home Assistant config/humidity_intelligence/exports directory.
+  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Write sanitized diagnostics (configuration counts, active target profile, alert resolution status, humidifier demand/output reconciliation, visual alert counts, house humidity drift dependency, unavailable counts, cards) to a JSON file under the owned Home Assistant config/humidity_intelligence/exports directory. Humidifier output state is Home Assistant evidence and does not prove physical moisture production.
   fields:
     entry_id:
       name: Entry ID
@@ -65,7 +65,7 @@ dump_diagnostics:
         text: {}
 self_check:
   name: Self Check
-  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Validate entity mapping, generated-card entity references, frontend dependencies, house humidity drift dependency, PM2.5 aggregate normalization status, local HI-only snapshot status, and telemetry setup, then write the fixed entity-bearing report to Home Assistant config/humidity_intelligence/exports/humidity_intelligence_self_check.json. Treat the report as local/private.
+  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Validate entity mapping, generated-card entity references, frontend dependencies, humidifier demand/output reconciliation reporting, house humidity drift dependency, PM2.5 aggregate normalization status, local HI-only snapshot status, and telemetry setup, then write the fixed entity-bearing report to Home Assistant config/humidity_intelligence/exports/humidity_intelligence_self_check.json. Treat the report as local/private.
   fields:
     entry_id:
       name: Entry ID
@@ -74,7 +74,7 @@ self_check:
         text: {}
 v205_release_check:
   name: Release Check
-  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Run a runtime/device-read-only v2.0.5-v2.0.9 validation check and write its report under the owned Home Assistant config/humidity_intelligence/exports directory.
+  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Run a runtime/device-read-only v2.0.5-v2.0.10 validation check, including sanitized humidifier demand/output reconciliation truth, and write its report under the owned Home Assistant config/humidity_intelligence/exports directory. It cannot prove physical moisture production.
   fields:
     entry_id:
       name: Entry ID

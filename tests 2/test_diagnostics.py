@@ -377,6 +377,98 @@ def test_native_diagnostics_uses_sanitized_counts_status_not_raw_private_ids():
     assert "humidity danger in kitchen" not in json.dumps(mapped, sort_keys=True).lower()
 
 
+def test_native_diagnostics_reports_humidifier_reconciliation_without_output_ids():
+    diagnostics = _load_diagnostics_module()
+    hass = _sample_hass()
+    hass.data["humidity_intelligence"]["entry123"]["humidifier_reconciliation"] = {
+        "schema": 1,
+        "summary": {
+            "requested_lanes": 1,
+            "degraded_lanes": 0,
+            "unknown_lanes": 0,
+            "matched_outputs": 0,
+            "retrying_outputs": 1,
+            "faulted_outputs": 0,
+            "degraded_outputs": 0,
+            "unknown_outputs": 0,
+            "isolated_outputs": 0,
+            "ownership_conflicts": 0,
+        },
+        "outputs": {
+            "output_1": {
+                "domain": "humidifier",
+                "owners": ["level1"],
+                "configured_owners": ["level1"],
+                "desired": "on",
+                "observed": "off",
+                "platform_action": "not_exposed",
+                "reconciliation": "retrying",
+                "dispatch_result": "dispatched_unconfirmed",
+                "last_command_intent": "turn_on",
+                "last_dispatch_utc": "2026-07-30T12:00:00+00:00",
+                "attempts": 2,
+                "maximum_attempts": 3,
+                "mismatch_age_seconds": 45,
+                "failure_category": "confirmation_pending",
+                "fault_latched": False,
+                "ownership_conflict": None,
+                "history": [
+                    {
+                        "event": "dispatched_unconfirmed",
+                        "desired": "on",
+                        "observed": "off",
+                        "attempts": 2,
+                    }
+                ],
+            },
+            "humidifier.private_bedroom": {
+                "desired": "on",
+                "observed": "off",
+            },
+        },
+    }
+
+    payload = asyncio.run(
+        diagnostics.async_get_config_entry_diagnostics(hass, _sample_entry())
+    )
+    rendered = json.dumps(payload, sort_keys=True)
+    reconciliation = payload["runtime"]["humidifier_reconciliation"]
+
+    assert reconciliation["summary"]["retrying_outputs"] == 1
+    assert reconciliation["outputs"]["output_1"]["attempts"] == 2
+    assert "physical moisture production" in reconciliation["truth_boundary"]
+    assert "humidifier.private_bedroom" not in rendered
+    assert payload["diagnostics_summary"]["humidifier_reconciliation"] == reconciliation
+
+
+def test_native_diagnostics_warns_when_enabled_humidifier_truth_is_not_available():
+    diagnostics = _load_diagnostics_module()
+    entry = _sample_entry()
+    entry.data = copy.deepcopy(entry.data)
+    entry.data["humidifiers"] = {
+        "level1": {
+            "enabled": True,
+            "outputs": ["switch.private_humidifier"],
+            "band_adjust": 0,
+        }
+    }
+    hass = _sample_hass()
+    runtime = hass.data["humidity_intelligence"][entry.entry_id]
+    runtime["config"] = entry.data
+    runtime.pop("humidifier_reconciliation", None)
+
+    payload = asyncio.run(
+        diagnostics.async_get_config_entry_diagnostics(hass, entry)
+    )
+    reconciliation = payload["runtime"]["humidifier_reconciliation"]
+
+    assert reconciliation["status"] == "not_available"
+    assert any(
+        "runtime demand/output reconciliation truth is not available yet" in warning
+        for warning in payload["diagnostics_summary"]["warnings"]
+    )
+
+
 def test_native_diagnostics_sanitizes_duplicate_zone_mapping_evidence():
     diagnostics = _load_diagnostics_module()
     entry = _sample_entry()

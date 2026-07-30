@@ -75,6 +75,16 @@ house-agent, and explicit maintainer gates are complete. CodeRabbit must then fi
 an exact-head review; actionable feedback must be fixed through a prerequisite PR or
 explicitly recorded as not applicable before promotion can continue.
 
+For the targeted v2.0.10 beta humidifier reconciliation slice, implementation on
+`senyo888-patch-1` does not itself authorize a manifest bump, HA Lab/stable-instance
+mutation, branch promotion, tag, GitHub Release, HACS publication, or deployment.
+Beta evidence must cover restored demand, long-demand device stops, output
+availability recovery, all supported output domains, isolation/gate interactions,
+shared-output aggregation, bounded retry/fault behavior, generated V2 truth,
+diagnostics redaction, and unchanged deterministic ventilation ordering. HA Lab
+evidence is advisory; stable-instance authority and release promotion remain
+separate maintainer gates.
+
 For v2.0.9 owned-artifact namespace validation, the release packet must separately
 record:
 

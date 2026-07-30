@@ -125,7 +125,7 @@ _OWNED_REPORT_FILENAME_PREFIX = "humidity_intelligence_"
 _OWNED_REPORT_FILENAME_SUFFIX = ".json"
 _SAFE_DASHBOARD_PATH_RE = re.compile(r"^[a-z0-9_-]{1,64}$")
 _RELEASE_CHECK_MANIFEST_VERSION_RE = re.compile(
-    r"^2\.0\.(?:5|[6-9](?:-(?:beta|rc)\.[1-9]\d*)?)$"
+    r"^2\.0\.(?:5|(?:[6-9]|10)(?:-(?:beta|rc)\.[1-9]\d*)?)$"
 )
 _SENSITIVE_ATTR_EXACT = {
     "access_token",
@@ -1241,6 +1241,9 @@ def _support_safe_diagnostics_summary(summary: dict) -> dict:
             ),
         },
         "humidity_drift_7d": summary.get("humidity_drift_7d", {}),
+        "humidifier_reconciliation": _support_humidifier_reconciliation_summary(
+            summary.get("humidifier_reconciliation") or {}
+        ),
         "pm25_entity_id_normalization": _support_pm25_normalization_summary(
             summary.get("pm25_entity_id_normalization") or {}
         ),
@@ -1251,6 +1254,101 @@ def _support_safe_diagnostics_summary(summary: dict) -> dict:
         "unavailable_or_unknown_entities": _support_unavailable_summary(unavailable),
         "warnings": list(summary.get("warnings") or []),
     }
+
+
+def _support_humidifier_reconciliation_summary(value: dict) -> dict:
+    """Return a bounded, entity-id-free humidifier reconciliation summary."""
+    if not isinstance(value, dict):
+        value = {}
+    status = value.get("status")
+    if status not in {"reported", "not_available"}:
+        status = (
+            "reported"
+            if any(key in value for key in ("schema", "summary", "outputs"))
+            else "not_available"
+        )
+    raw_summary = value.get("summary") if isinstance(value.get("summary"), dict) else {}
+    summary_keys = (
+        "requested_lanes",
+        "degraded_lanes",
+        "unknown_lanes",
+        "matched_outputs",
+        "retrying_outputs",
+        "faulted_outputs",
+        "degraded_outputs",
+        "unknown_outputs",
+        "isolated_outputs",
+        "ownership_conflicts",
+    )
+    summary = {
+        key: _support_nonnegative_int(raw_summary.get(key, 0))
+        for key in summary_keys
+    }
+    outputs = {}
+    raw_outputs = value.get("outputs") if isinstance(value.get("outputs"), dict) else {}
+    for slot, row in sorted(raw_outputs.items()):
+        if not str(slot).startswith("output_") or not isinstance(row, dict):
+            continue
+        outputs[str(slot)] = {
+            "domain": row.get("domain"),
+            "owners": [
+                str(owner)
+                for owner in row.get("owners", [])
+                if str(owner) in {"level1", "level2"}
+            ],
+            "configured_owners": [
+                str(owner)
+                for owner in row.get("configured_owners", [])
+                if str(owner) in {"level1", "level2"}
+            ],
+            "desired": row.get("desired"),
+            "observed": row.get("observed"),
+            "platform_action": row.get("platform_action"),
+            "reconciliation": row.get("reconciliation"),
+            "dispatch_result": row.get("dispatch_result"),
+            "last_command_intent": row.get("last_command_intent"),
+            "last_dispatch_utc": row.get("last_dispatch_utc"),
+            "attempts": _support_nonnegative_int(row.get("attempts", 0)),
+            "maximum_attempts": _support_nonnegative_int(row.get("maximum_attempts", 0)),
+            "mismatch_age_seconds": (
+                _support_nonnegative_int(row["mismatch_age_seconds"])
+                if isinstance(row.get("mismatch_age_seconds"), (int, float))
+                else None
+            ),
+            "failure_category": row.get("failure_category"),
+            "fault_latched": bool(row.get("fault_latched")),
+            "ownership_conflict": row.get("ownership_conflict"),
+        }
+    return {
+        "schema": 1,
+        "status": status,
+        "summary": summary,
+        "outputs": outputs,
+        "truth_boundary": (
+            "Observed output state and optional platform action are Home Assistant evidence only; "
+            "they do not prove physical moisture production."
+        ),
+    }
+
+
+def _support_nonnegative_int(value: Any) -> int:
+    try:
+        return max(0, int(value or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _enabled_humidifier_lane_count(config: dict) -> int:
+    """Return enabled humidifier lanes that can participate in runtime control."""
+    if not isinstance(config, dict) or config.get("alert_only_mode"):
+        return 0
+    humidifiers = config.get("humidifiers")
+    if not isinstance(humidifiers, dict):
+        return 0
+    return sum(
+        isinstance(row, dict) and row.get("enabled", True)
+        for row in humidifiers.values()
+    )
 
 
 def _support_pm25_normalization_summary(value: dict) -> dict:
@@ -1338,6 +1436,26 @@ def _build_diagnostics_summary(
         warnings.append("No telemetry sensors are configured.")
     if not zones and not effective.get("alert_only_mode"):
         warnings.append("No control zones are configured.")
+    humidifier_reconciliation = _support_humidifier_reconciliation_summary(
+        runtime_data.get("humidifier_reconciliation") or {}
+    )
+    humidifier_summary = humidifier_reconciliation.get("summary", {})
+    humidifier_truth_missing = (
+        _enabled_humidifier_lane_count(effective) > 0
+        and humidifier_reconciliation.get("status") != "reported"
+    )
+    if humidifier_truth_missing:
+        warnings.append(
+            "Humidifier lanes are enabled, but runtime demand/output reconciliation truth is not available yet."
+        )
+    if humidifier_summary.get("faulted_outputs"):
+        warnings.append("One or more humidifier outputs have a latched reconciliation fault.")
+    if humidifier_summary.get("degraded_outputs") or humidifier_summary.get("unknown_outputs"):
+        warnings.append("One or more humidifier outputs have degraded or unknown reconciliation truth.")
+    if humidifier_summary.get("degraded_lanes") or humidifier_summary.get("unknown_lanes"):
+        warnings.append("One or more humidifier lanes have degraded or unknown demand truth.")
+    if humidifier_summary.get("ownership_conflicts"):
+        warnings.append("One or more humidifier outputs have a conflicting configured output owner.")
 
     summary = {
         "target_profile": {
@@ -1368,6 +1486,7 @@ def _build_diagnostics_summary(
         "active_alert_resolution": runtime_data.get("alert_telemetry", []),
         "visual_alerts": _visual_alert_summary(alerts),
         "humidity_drift_7d": drift_dependency,
+        "humidifier_reconciliation": humidifier_reconciliation,
         "pm25_entity_id_normalization": pm25_normalization,
         "local_version_preservation": local_version_status or cached_local_version_status(hass),
         "unavailable_or_unknown_entities": unavailable,
@@ -1534,6 +1653,53 @@ def _build_v205_release_check_entry_report(
         pm25_normalization,
     )
 
+    humidifier_reconciliation = _support_humidifier_reconciliation_summary(
+        runtime_data.get("humidifier_reconciliation") or {}
+    )
+    humidifier_summary = humidifier_reconciliation.get("summary", {})
+    enabled_humidifier_lanes = _enabled_humidifier_lane_count(effective)
+    humidifier_truth_missing = (
+        enabled_humidifier_lanes > 0
+        and humidifier_reconciliation.get("status") != "reported"
+    )
+    humidifier_issue = humidifier_truth_missing or any(
+        humidifier_summary.get(key)
+        for key in (
+            "faulted_outputs",
+            "degraded_outputs",
+            "unknown_outputs",
+            "degraded_lanes",
+            "unknown_lanes",
+            "ownership_conflicts",
+        )
+    )
+    if humidifier_truth_missing:
+        humidifier_message = (
+            "Humidifier lanes are enabled, but runtime demand/output reconciliation "
+            "truth is not available yet."
+        )
+    elif humidifier_issue:
+        humidifier_message = (
+            "Humidifier demand/output reconciliation reports a fault or ownership "
+            "conflict. Observed state remains Home Assistant evidence only."
+        )
+    elif humidifier_reconciliation.get("status") == "reported":
+        humidifier_message = (
+            "Humidifier demand/output reconciliation is reported; observed state "
+            "does not prove physical moisture production."
+        )
+    else:
+        humidifier_message = (
+            "No enabled humidifier lane requires a runtime reconciliation report."
+        )
+    _add_check(
+        checks,
+        "humidifier_reconciliation_truth",
+        "warn" if humidifier_issue else "pass",
+        humidifier_message,
+        humidifier_reconciliation,
+    )
+
     local_snapshot_status, local_snapshot_message, local_snapshot_details = _local_snapshot_release_check(
         local_version_status or cached_local_version_status(hass),
         require_local_hi_snapshot=require_local_hi_snapshot,
@@ -1568,11 +1734,11 @@ def _release_check_manifest_status(manifest_version: Optional[str]) -> Tuple[str
     if manifest_version and _RELEASE_CHECK_MANIFEST_VERSION_RE.fullmatch(manifest_version):
         return (
             "pass",
-            f"Manifest version is {version}; release-check contract is valid for the v2.0.5-v2.0.9 line.",
+            f"Manifest version is {version}; release-check contract is valid for the v2.0.5-v2.0.10 line.",
         )
     return (
         "fail",
-        f"Manifest version is {version}; expected v2.0.5 or a v2.0.6-v2.0.9 beta/rc/stable version.",
+        f"Manifest version is {version}; expected v2.0.5 or a v2.0.6-v2.0.10 beta/rc/stable version.",
     )
 
 

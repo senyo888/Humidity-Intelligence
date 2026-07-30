@@ -50,6 +50,7 @@ OUTPUT_DETAILS_SURFACES = (
     ROOT / "ui-gallery" / "default-v2-mobile-aq" / "card.yaml",
     ROOT / "ui-gallery" / "default-v2-tablet-zone-2" / "card.yaml",
 )
+V2_REASON_SURFACES = OUTPUT_DETAILS_SURFACES
 
 OUTPUT_EXPANDER_TOGGLE_ACTION = """      tap_action:
         action: call-service
@@ -829,6 +830,37 @@ def _base_entry_data():
                 "duration": 10,
             }
         ],
+    }
+
+
+def _reported_idle_humidifier_truth():
+    return {
+        "schema": 1,
+        "summary": {
+            "requested_lanes": 0,
+            "degraded_lanes": 0,
+            "unknown_lanes": 0,
+            "matched_outputs": 1,
+            "retrying_outputs": 0,
+            "faulted_outputs": 0,
+            "degraded_outputs": 0,
+            "unknown_outputs": 0,
+            "isolated_outputs": 0,
+            "ownership_conflicts": 0,
+        },
+        "outputs": {
+            "output_1": {
+                "domain": "humidifier",
+                "owners": [],
+                "configured_owners": ["level1"],
+                "desired": "off",
+                "observed": "off",
+                "platform_action": "not_exposed",
+                "reconciliation": "matched_off",
+                "attempts": 0,
+                "maximum_attempts": 3,
+            }
+        },
     }
 
 
@@ -2114,7 +2146,8 @@ async def _run_runtime_assertions(engine_mod) -> None:
         for domain, service, data, _ in hass_shared_aq.services.calls
     )
 
-    # Shared humidifier output follows last trigger transition while lanes remain independent.
+    # Shared humidifier output follows aggregate demand; one recovering lane
+    # cannot turn it off while another lane still requests humidification.
     entry_shared_humid_data = _base_entry_data()
     entry_shared_humid_data["zones"]["zone1"]["enabled"] = False
     entry_shared_humid_data["zones"]["zone2"]["enabled"] = False
@@ -2136,23 +2169,39 @@ async def _run_runtime_assertions(engine_mod) -> None:
             "sensor.bed_t": _FakeState(21),
             "sensor.l1_iaq": _FakeState(90),
             "sensor.co_val": _FakeState(4),
+            "humidifier.shared": _FakeState("off"),
         },
     )
     engine_shared_humid = HIAutomationEngine(hass_shared_humid, entry_shared_humid)
     await engine_shared_humid._evaluate()
     assert hass_shared_humid.data["humidity_intelligence"][ENTRY_ID]["hi_input_booleans"]["air_downstairs_humidifier_active"].is_on
     assert hass_shared_humid.data["humidity_intelligence"][ENTRY_ID]["hi_input_booleans"]["air_upstairs_humidifier_active"].is_on
-    humid_reason = hass_shared_humid.data["humidity_intelligence"][ENTRY_ID].get("runtime_reason", "")
-    assert "Humidifier:" in humid_reason
+    humid_reason = (
+        hass_shared_humid.data["humidity_intelligence"][ENTRY_ID].get(
+            "runtime_reason_full"
+        )
+        or hass_shared_humid.data["humidity_intelligence"][ENTRY_ID].get(
+            "runtime_reason",
+            "",
+        )
+    )
+    assert "Humidifier demand is requested" in humid_reason
     assert "status=" not in humid_reason
     assert "action=" not in humid_reason
     assert "Trigger:" not in humid_reason
     assert "Recovery:" not in humid_reason
-    # Level1 recovers: its off transition becomes the newest command on shared output.
+    assert sum(
+        domain == "humidifier"
+        and service == "turn_on"
+        and data.get("entity_id") == "humidifier.shared"
+        for domain, service, data, _ in hass_shared_humid.services.calls
+    ) == 1
+    hass_shared_humid.states._values["humidifier.shared"] = _FakeState("on")
+    # Level1 recovers while Level2 still owns demand.
     hass_shared_humid.states._values["sensor.kitchen_h"] = _FakeState(55)
     hass_shared_humid.states._values["sensor.hall_h"] = _FakeState(55)
     await engine_shared_humid._evaluate()
-    assert any(
+    assert not any(
         domain == "humidifier"
         and service == "turn_off"
         and data.get("entity_id") == "humidifier.shared"
@@ -2390,6 +2439,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
             "sensor.bed_t": _FakeState(21),
             "sensor.l1_iaq": _FakeState(85),
             "sensor.co_val": _FakeState(4),
+            "humidifier.l1": _FakeState("on"),
         },
     )
     hass_humid.data["humidity_intelligence"][ENTRY_ID]["hi_input_booleans"]["air_downstairs_humidifier_active"].is_on = True
@@ -2420,6 +2470,7 @@ async def _run_runtime_assertions(engine_mod) -> None:
             "sensor.bed_t": _FakeState(21),
             "sensor.l1_iaq": _FakeState(85),
             "sensor.co_val": _FakeState(4),
+            "humidifier.l1": _FakeState("on"),
         },
     )
     # Simulate humidifier already running; at 50% in winter, it should now shut off at low+4.
@@ -3335,6 +3386,20 @@ def test_output_details_header_uses_v207_expander_toggle_action():
     assert missing == []
 
 
+def test_v2_reason_panels_prefer_full_reason_before_state_fallback():
+    missing = []
+    for path in V2_REASON_SURFACES:
+        source = path.read_text(encoding="utf-8")
+        full_reason_index = source.find("reasonState?.attributes?.full_reason")
+        state_index = source.find("reasonState?.state", full_reason_index)
+        if full_reason_index == -1 or state_index == -1:
+            missing.append(f"{path.relative_to(ROOT)}: missing full_reason fallback")
+        elif full_reason_index > state_index:
+            missing.append(f"{path.relative_to(ROOT)}: state precedes full_reason")
+
+    assert missing == []
+
+
 def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pause_tile():
     default_surfaces = (
         ROOT / "ui" / "cards" / "v2_mobile.yaml",
@@ -4014,6 +4079,7 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
         "entity_map": {"runtime_mode": "sensor.hi_runtime_mode"},
         "cards": cards,
         "unresolved_placeholders_by_card": {},
+        "humidifier_reconciliation": _reported_idle_humidifier_truth(),
     }
 
     report = services_mod._build_v205_release_check_entry_report(
@@ -4045,6 +4111,10 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
     assert checks["dump_cards_scoped_export_single_layout"]["status"] == "pass"
     assert checks["generated_cards_text_sanity"]["status"] == "pass"
     assert checks["frontend_dependencies_reported"]["status"] == "pass"
+    assert checks["humidifier_reconciliation_truth"]["status"] == "pass"
+    assert "does not prove physical moisture production" in checks[
+        "humidifier_reconciliation_truth"
+    ]["message"]
 
     beta_report = services_mod._build_v205_release_check_entry_report(
         hass,
@@ -4068,8 +4138,21 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
         frontend_dependencies={"status": "not_inspectable"},
     )
     future_checks = {check["id"]: check for check in future_report["checks"]}
-    assert future_report["status"] == "fail"
-    assert future_checks["manifest_version"]["status"] == "fail"
+    assert future_report["status"] == "pass"
+    assert future_checks["manifest_version"]["status"] == "pass"
+
+    out_of_range_report = services_mod._build_v205_release_check_entry_report(
+        hass,
+        entry,
+        runtime_data,
+        manifest_version="2.0.11-beta.1",
+        frontend_dependencies={"status": "not_inspectable"},
+    )
+    out_of_range_checks = {
+        check["id"]: check for check in out_of_range_report["checks"]
+    }
+    assert out_of_range_report["status"] == "fail"
+    assert out_of_range_checks["manifest_version"]["status"] == "fail"
 
     failed_report = services_mod._build_v205_release_check_entry_report(
         hass,
@@ -5275,6 +5358,7 @@ def test_frontend_dependency_status_is_non_blocking_for_release_contract_checks(
             "view_cards_button": "type: button\nname: View cards\n",
         },
         "unresolved_placeholders_by_card": {},
+        "humidifier_reconciliation": _reported_idle_humidifier_truth(),
     }
 
     report = services_mod._build_v205_release_check_entry_report(
@@ -5524,8 +5608,8 @@ def test_v205_release_check_service_is_documented_and_registered():
     assert "handle_v205_release_check" in services_source
     assert "SERVICE_V205_RELEASE_CHECK" in services_source.split("async_unregister_services", 1)[1]
     assert "v205_release_check:" in services_yaml
-    assert "v2.0.5-v2.0.9" in services_yaml
-    assert "v2.0.5-v2.0.9" in readme_source
+    assert "v2.0.5-v2.0.10" in services_yaml
+    assert "v2.0.5-v2.0.10" in readme_source
     assert "write_test_exports" in services_yaml
     assert "humidity_intelligence.v205_release_check" in readme_source
     assert "humidity_intelligence_v205_release_check.json" in readme_source
@@ -5595,6 +5679,7 @@ def test_v205_release_check_only_fails_local_snapshot_when_required():
             "view_cards_button": "type: button\nname: View cards\n",
         },
         "unresolved_placeholders_by_card": {},
+        "humidifier_reconciliation": _reported_idle_humidifier_truth(),
     }
 
     optional_report = services_mod._build_v205_release_check_entry_report(

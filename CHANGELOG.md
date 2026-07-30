@@ -8,7 +8,37 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
-No unreleased changes.
+- Separated humidifier demand from command dispatch and Home Assistant-observed
+  output state. The existing humidifier-active helpers now mean effective demand
+  after normal runtime gates and before humidifier-output isolation; they no longer
+  imply that a device is physically producing moisture.
+- Added deterministic per-output reconciliation for configured `humidifier`, `fan`,
+  and `switch` outputs. Demand-active/output-off mismatches receive one immediate
+  command and at most two delayed retries, with confirmation windows, bounded
+  backoff, fault latching, recovery on later observed-state changes, and no blind
+  turn-on while an output is missing, unknown, or unavailable.
+- Added configured humidifier outputs as evaluation sources so output state changes
+  request prompt coalesced reevaluation. The normal engine interval remains the
+  periodic safety net after missed events, restart, reload, or availability recovery.
+- Aggregated shared humidifier outputs before dispatch so two lanes produce at most
+  one non-conflicting output write per cycle and one recovering lane cannot turn off
+  an output still demanded by the other. Cross-family or active cross-entry output
+  ownership is suppressed and reported as degraded.
+- Added sanitized runtime, native-diagnostics, diagnostics-sensor, self-check, and
+  release-check reconciliation truth: desired/observed categories, last command
+  intent/result/time, attempt state, mismatch age, fault category, and bounded
+  history without configured output entity IDs. These surfaces can prove HI demand,
+  dispatch intent, and Home Assistant-observed state; they cannot prove physical
+  moisture production.
+- Updated generated V2 Mobile and Tablet chips/reason text plus the canonical gallery
+  YAML examples to distinguish Requested, Output on, Idle, Isolated, Retrying,
+  Stopping, Unknown, Degraded, and Fault states. V1 Mobile is unchanged. Existing
+  pasted Manual cards must be re-exported and re-copied to receive the new display
+  contract.
+- Extended the backward-compatible `v205_release_check` service contract through
+  the v2.0.10 beta/rc/stable line without renaming the service. No config/options
+  schema, stored-data migration, entity creation, or manifest version change is part
+  of this unreleased implementation slice.
 
 ## 2.0.9 - 2026-07-28
 

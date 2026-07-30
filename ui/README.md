@@ -215,6 +215,19 @@ If mismatch occurs:
 
 ## Versioned UI Contract Notes
 
+### Unreleased v2.0.10 Beta Contract
+
+- V2 Mobile and Tablet consume the backend `humidifier_status` attribute on the
+  existing Air Control Reason entity; they do not calculate control demand.
+- Humidifier chips distinguish Requested, Output on, Idle, Isolated, Retrying,
+  Stopping, Unknown, Degraded, and Fault. `Output on` is Home Assistant-observed
+  state, not proof of physical moisture production.
+- The existing humidifier-active helpers are fallback demand truth for older rendered
+  cards and no longer justify a “running” claim.
+- Already-pasted Manual cards are static and require a fresh `refresh_ui` plus
+  `dump_cards`/`view_cards` export and paste to receive this contract.
+- V1 Mobile behavior and public entities are unchanged.
+
 ### v2.0.9 Current Contract
 
 - V1 Mobile remains exportable through the v2.0.9 line but is deprecated for new

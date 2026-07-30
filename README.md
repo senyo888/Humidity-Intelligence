@@ -346,6 +346,31 @@ Boost settings should normally be higher than the standard zone fan level. Zone 
 
 Humidifier lanes operate independently where safe.
 
+Humidifier demand and output truth are intentionally separate. The existing
+downstairs/upstairs humidifier-active helpers mean HI is requesting humidification
+after global, pause, presence/time, telemetry, manual-override, and alert gates have
+been applied. Humidifier-output isolation is evaluated after demand, so testing can
+show truthful requested demand while suppressing service calls.
+
+For each configured `humidifier`, `fan`, or `switch` output, HI compares aggregated
+lane demand with the Home Assistant-observed state. An off output during active
+demand receives one immediate turn-on request and at most two delayed retries; an
+output still mismatched after the final confirmation window is fault-latched instead
+of being hammered. Output state events request coalesced reevaluation, and the normal
+engine interval is the periodic safety net. Shared outputs use OR ownership, so one
+lane recovering cannot turn off an output still demanded by another lane.
+
+Using a blocking Home Assistant service call would only wait for the service handler;
+it would not confirm device actuation or moisture output. HI therefore keeps dispatch
+non-blocking and establishes truth from later observed state with bounded retries.
+
+`NORMAL` remains a valid ventilation mode while humidifier demand is active: it means
+no ventilation lane won the deterministic ventilation hierarchy. V2 chips, reason
+text, and diagnostics separately report humidifier Requested, Output on, Idle,
+Isolated, Retrying, Stopping, Unknown, Degraded, or Fault truth. A generic output
+`on` state—and any optional vendor/platform action attribute—is Home Assistant
+evidence only and does not prove physical moisture production.
+
 Each evaluation cycle:
 
 1. global gates evaluated
@@ -431,8 +456,10 @@ must be reviewable from tracked repository files.
 - local issue-triage private report writing is confined through the private atomic
   writer, keeping public issue/support flows separate from local report output
 - the tracked secret scan now fails closed when no tracked files are selected
-- `v205_release_check` preserves its service name while accepting the v2.0.9
-  beta/rc/stable line for generated-card and release-validation support checks
+- `v205_release_check` preserves its service name; the unreleased implementation
+  extends its generated-card, humidifier-reconciliation, and release-validation
+  contract through the v2.0.10 beta/rc/stable line without changing current stable
+  `2.0.9` manifest metadata
 - Home Assistant Area/Label setup assistance can suggest defaults from registry
   metadata, but saved HI telemetry, zone, AQ, humidifier, and alert mappings remain
   the only runtime truth
@@ -864,8 +891,8 @@ Notes:
   or legacy root files. When a multi-entry installation returns to one entry, the
   remaining entry is re-exported with unqualified names; its superseded qualified
   files stay externally readable until an exact previewed purge.
-- `v205_release_check` is the backward-compatible validation service name. In v2.0.8
-  and v2.0.9 it accepts the v2.0.5-v2.0.9 beta/rc/stable line and is runtime/device
+- `v205_release_check` is the backward-compatible validation service name. It accepts
+  the v2.0.5-v2.0.10 beta/rc/stable line and is runtime/device
   read-only: it writes its validation report, and `write_test_exports: true`
   additionally writes card-export test files.
 - `dump_diagnostics` and native diagnostics are support surfaces; support exports are
@@ -906,7 +933,7 @@ Common service groups:
 | `flash_lights` | admin-only test of configured visual alert behavior; runtime alerts use the trusted engine path |
 | `pause_control` / `resume_control` | admin-only pause or resume for one supplied entry or all entries |
 | `self_check` | admin-only fixed export of mapping, generated-card entity, telemetry, drift-helper, and frontend-dependency checks |
-| `v205_release_check` | admin-only runtime-safe v2.0.5-v2.0.9 generated-card and release-validation support checks |
+| `v205_release_check` | admin-only runtime-safe v2.0.5-v2.0.10 generated-card, humidifier-reconciliation, and release-validation support checks |
 | `create_local_backup` | admin-only creation of a package-local HI snapshot for advanced validation |
 | `list_saved_versions` | admin-only, read-only inspection of package-local HI snapshot metadata |
 | `dump_diagnostics` | admin-only export of fuller local diagnostics for maintainer/debug workflows |

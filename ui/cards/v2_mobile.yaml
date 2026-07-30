@@ -602,8 +602,24 @@ card:
             const coE  = states['input_boolean.air_co_emergency_active']?.state === 'on';
             const aqU  = states['input_boolean.air_aq_upstairs_active']?.state === 'on';
             const aqD  = states['input_boolean.air_aq_downstairs_active']?.state === 'on';
-            const dHum = states['input_boolean.air_downstairs_humidifier_active']?.state === 'on';
-            const uHum = states['input_boolean.air_upstairs_humidifier_active']?.state === 'on';
+            const dHumHelper = states['input_boolean.air_downstairs_humidifier_active']?.state === 'on';
+            const uHumHelper = states['input_boolean.air_upstairs_humidifier_active']?.state === 'on';
+            const humidifierTruth =
+              states['sensor.air_control_reason']?.attributes?.humidifier_status || {};
+            const humidifierLanes =
+              humidifierTruth && typeof humidifierTruth.lanes === 'object'
+                ? humidifierTruth.lanes
+                : {};
+            const humidifierLane = (level, helperRequested) => {
+              const row = humidifierLanes[level];
+              if (row && typeof row === 'object') return row;
+              return {
+                demand: helperRequested ? 'requested' : 'inactive',
+                reconciliation: helperRequested ? 'requested' : 'inactive',
+              };
+            };
+            const dHum = humidifierLane('level1', dHumHelper);
+            const uHum = humidifierLane('level2', uHumHelper);
             const fanIso = states['input_boolean.air_isolate_fan_outputs']?.state === 'on';
             const humIso = states['input_boolean.air_isolate_humidifier_outputs']?.state === 'on';
             const isAlertActiveEntity = (id) => {
@@ -642,6 +658,41 @@ card:
               `<span class="cv-chip ${glow ? 'glow' : ''}" style="--cv:${c}; border-color: color-mix(in srgb, var(--cv) 55%, rgba(148,163,184,0.18));">
                 <span class="t">${escapeHtml(t)}</span>
               </span>`;
+            const humidifierChip = (label, row) => {
+              const status = String(row?.reconciliation || 'unknown');
+              const requested = row?.demand === 'requested';
+              const visibleWithoutDemand = new Set(['stopping', 'fault_latched', 'degraded', 'unknown']);
+              if (!requested && !visibleWithoutDemand.has(status)) return '';
+              const labels = {
+                output_on: 'Output on',
+                platform_idle: 'Idle',
+                requested: 'Requested',
+                retrying: 'Retrying',
+                stopping: 'Stopping',
+                isolated: 'Isolated',
+                fault_latched: 'Fault',
+                degraded: 'Degraded',
+                unknown: 'Unknown',
+              };
+              const colors = {
+                output_on: '#22c55e',
+                platform_idle: '#f59e0b',
+                requested: '#38bdf8',
+                retrying: '#f59e0b',
+                stopping: '#f59e0b',
+                isolated: '#f59e0b',
+                fault_latched: '#ef4444',
+                degraded: '#ef4444',
+                unknown: '#94a3b8',
+              };
+              const text = labels[status] || (requested ? 'Requested' : 'Unknown');
+              const color = colors[status] || '#94a3b8';
+              return chip(
+                `Humidifier ${label} · ${text}`,
+                color,
+                ['retrying', 'fault_latched', 'degraded'].includes(status)
+              );
+            };
 
             const cMode = (() => {
               if (mode === 'telemetry_unavailable') return '#f59e0b';
@@ -684,8 +735,10 @@ card:
             }
             if (timeGateActive) out.push(chip('Time Gate', '#f59e0b'));
             if (presenceGateActive) out.push(chip('Presence Gate', '#f59e0b'));
-            if (dHum) out.push(chip('Humidifier Downstairs', '#38bdf8'));
-            if (uHum) out.push(chip('Humidifier Upstairs', '#38bdf8'));
+            const dHumChip = humidifierChip('Downstairs', dHum);
+            const uHumChip = humidifierChip('Upstairs', uHum);
+            if (dHumChip) out.push(dHumChip);
+            if (uHumChip) out.push(uHumChip);
             if (fanIso) out.push(chip('FAN OUTPUTS ISOLATED', '#f59e0b', true));
             if (humIso) out.push(chip('HUMIDIFIER OUTPUTS ISOLATED', '#f59e0b', true));
 
@@ -795,9 +848,33 @@ card:
                 tActive('timer.air_aq_upstairs_run') ||
                 tActive('timer.air_aq_downstairs_run');
 
-              const humidifying =
+              const reasonState = states['sensor.air_control_reason'];
+              const humidifierTruth = reasonState?.attributes?.humidifier_status || {};
+              const humidifierLanes =
+                humidifierTruth && typeof humidifierTruth.lanes === 'object'
+                  ? Object.values(humidifierTruth.lanes)
+                  : [];
+              const helperHumidifierRequested =
                 on('input_boolean.air_downstairs_humidifier_active') ||
                 on('input_boolean.air_upstairs_humidifier_active');
+              const humidifierRequested = humidifierLanes.length
+                ? humidifierLanes.some((lane) => lane?.demand === 'requested')
+                : helperHumidifierRequested;
+              const humidifierOverall = String(
+                humidifierTruth.overall ||
+                (humidifierRequested ? 'requested' : 'inactive')
+              );
+              const humidifierAttention = new Set([
+                'requested',
+                'retrying',
+                'stopping',
+                'isolated',
+                'fault_latched',
+                'degraded',
+                'unknown',
+                'platform_idle',
+                'output_on',
+              ]).has(humidifierOverall);
               const fanIso = on('input_boolean.air_isolate_fan_outputs');
               const humIso = on('input_boolean.air_isolate_humidifier_outputs');
               const alertOnlyUi =
@@ -805,7 +882,11 @@ card:
                 !states['input_boolean.air_control_output_expanded'] &&
                 !states['timer.air_control_pause'];
 
-              let r = (states['sensor.air_control_reason']?.state || '').trim();
+              let r = String(
+                reasonState?.attributes?.full_reason ||
+                reasonState?.state ||
+                ''
+              ).trim();
               const greenNoise = /\b(normal|all clear|idle|default|ok|okay|comfortable)\b/i.test(r);
               if (greenNoise && !danger && !modeAlert && !hasTemp && !alertOnlyUi) r = '';
 
@@ -815,7 +896,8 @@ card:
                 condAlert ||
                 mouldAlert ||
                 hasTemp ||
-                humidifying ||
+                humidifierRequested ||
+                humidifierAttention ||
                 fanIso ||
                 humIso ||
                 modeUnavailable ||
@@ -848,8 +930,20 @@ card:
                 lines.push('Stage: Bathroom moisture stabilization.');
               } else if (mode === 'air_quality' || on('input_boolean.air_aq_upstairs_active') || on('input_boolean.air_aq_downstairs_active')) {
                 lines.push('Stage: Air-quality assist running.');
-              } else if (humidifying) {
-                lines.push('Stage: Humidifier assist running.');
+              } else if (humidifierOverall === 'fault_latched') {
+                lines.push('Stage: Humidifier reconciliation fault; demand and Home Assistant output truth disagree.');
+              } else if (humidifierOverall === 'degraded' || humidifierOverall === 'unknown') {
+                lines.push('Stage: Humidifier demand/output state degraded or unknown.');
+              } else if (humidifierOverall === 'isolated') {
+                lines.push('Stage: Humidifier demand requested; output dispatch isolated for testing.');
+              } else if (humidifierOverall === 'retrying' || humidifierOverall === 'requested') {
+                lines.push('Stage: Humidifier demand requested; output confirmation pending.');
+              } else if (humidifierOverall === 'stopping') {
+                lines.push('Stage: Humidifier demand cleared; output stop confirmation pending.');
+              } else if (humidifierOverall === 'platform_idle') {
+                lines.push('Stage: Humidifier demand requested; Home Assistant reports output on but platform action idle.');
+              } else if (humidifierOverall === 'output_on') {
+                lines.push('Stage: Humidifier demand requested; Home Assistant reports the configured output on.');
               } else if (alertOnlyUi) {
                 lines.push('Stage: Monitor + alerts only (no automation output controls configured).');
               } else if (mode === 'away') {

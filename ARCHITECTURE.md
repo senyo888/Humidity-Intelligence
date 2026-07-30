@@ -42,6 +42,29 @@ surface degraded context, and continue explainably.
 
 Humidifier lanes remain independent from ventilation lane resolution.
 
+Humidifier control has separate truth layers:
+
+- effective lane demand after runtime gates and before humidifier-output isolation
+- command intent and dispatch result
+- Home Assistant-observed output state
+- optional platform action when the entity domain exposes it
+- isolated, retrying, degraded, unknown, or fault-latched reconciliation state
+
+The existing humidifier-active helper entities represent effective demand only.
+They do not prove command completion, an `on` output, or physical moisture
+production. Configured humidifier outputs are observed directly and are aggregated
+before writes; when both humidifier lanes share an output, demand is OR-owned and the
+engine emits at most one non-conflicting command for that output per evaluation.
+
+Output state-change events request coalesced evaluation and the configured engine
+interval remains the periodic reconciliation safety net. Reconciliation is bounded:
+one immediate dispatch, two delayed retries, then a visible fault latch until demand
+changes or observed output truth recovers. Missing, unknown, unavailable, unsupported,
+isolated, cross-family-owned, or active cross-entry-owned outputs suppress blind
+turn-on behavior. A generic Home Assistant `on` state is only observed output truth;
+even an optional humidifier action attribute is platform-reported evidence, not proof
+of physical moisture production.
+
 ## Season-Aware Targets
 
 Humidity danger and comfort interpretation are profile-relative. Runtime thresholds

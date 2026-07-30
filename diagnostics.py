@@ -260,6 +260,7 @@ def _runtime_summary(
         "active_lane": runtime_data.get("runtime_mode"),
         "active_mode": runtime_data.get("runtime_mode_display"),
         "active_alert_resolution": _alert_resolution_summary(runtime_data.get("alert_telemetry", [])),
+        "humidifier_reconciliation": _humidifier_reconciliation_summary(runtime_data),
         "gate_states": _gate_states(hass, config, runtime_data),
         "output_states": _output_states(hass, config),
         "mapped_runtime_entities": _mapped_entity_states(hass, entity_map),
@@ -421,6 +422,24 @@ def _diagnostics_summary(
         warnings.append("No telemetry sensors are configured.")
     if not zones and not config.get("alert_only_mode"):
         warnings.append("No control zones are configured.")
+    humidifier_reconciliation = _humidifier_reconciliation_summary(runtime_data)
+    humidifier_summary = _dict(humidifier_reconciliation.get("summary"))
+    humidifier_truth_missing = (
+        _configuration_summary(config).get("humidifier_lane_count", 0) > 0
+        and humidifier_reconciliation.get("status") != "reported"
+    )
+    if humidifier_truth_missing:
+        warnings.append(
+            "Humidifier lanes are enabled, but runtime demand/output reconciliation truth is not available yet."
+        )
+    if humidifier_summary.get("faulted_outputs"):
+        warnings.append("One or more humidifier outputs have a latched reconciliation fault.")
+    if humidifier_summary.get("degraded_outputs") or humidifier_summary.get("unknown_outputs"):
+        warnings.append("One or more humidifier outputs have degraded or unknown reconciliation truth.")
+    if humidifier_summary.get("degraded_lanes") or humidifier_summary.get("unknown_lanes"):
+        warnings.append("One or more humidifier lanes have degraded or unknown demand truth.")
+    if humidifier_summary.get("ownership_conflicts"):
+        warnings.append("One or more humidifier outputs have a conflicting configured output owner.")
 
     return {
         "target_profile": {
@@ -453,10 +472,95 @@ def _diagnostics_summary(
         "humidity_drift_7d": drift_dependency,
         "setup_assist": setup_assist,
         "pm25_entity_id_normalization": pm25_normalization,
+        "humidifier_reconciliation": humidifier_reconciliation,
         "frontend_dependency_resources": frontend_dependencies,
         "local_version_preservation": local_version_status or cached_local_version_status(hass),
         "unavailable_or_unknown_entities": _unavailable_entity_summary(unavailable),
         "warnings": warnings,
+    }
+
+
+def _humidifier_reconciliation_summary(runtime_data: dict[str, Any]) -> dict[str, Any]:
+    """Return bounded humidifier truth without configured entity identifiers."""
+    raw = _dict(runtime_data.get("humidifier_reconciliation"))
+    status = (
+        "reported"
+        if any(key in raw for key in ("schema", "summary", "outputs"))
+        else "not_available"
+    )
+    raw_summary = _dict(raw.get("summary"))
+    summary_keys = (
+        "requested_lanes",
+        "degraded_lanes",
+        "unknown_lanes",
+        "matched_outputs",
+        "retrying_outputs",
+        "faulted_outputs",
+        "degraded_outputs",
+        "unknown_outputs",
+        "isolated_outputs",
+        "ownership_conflicts",
+    )
+    summary = {
+        key: _nonnegative_int(raw_summary.get(key, 0))
+        for key in summary_keys
+    }
+    outputs = {}
+    for slot, value in sorted(_dict(raw.get("outputs")).items()):
+        if not str(slot).startswith("output_") or not isinstance(value, dict):
+            continue
+        history = []
+        for item in _list(value.get("history"))[-8:]:
+            if not isinstance(item, dict):
+                continue
+            history.append(
+                {
+                    "event": str(item.get("event") or "unknown"),
+                    "desired": str(item.get("desired") or "unknown"),
+                    "observed": str(item.get("observed") or "unknown"),
+                    "attempts": _nonnegative_int(item.get("attempts", 0)),
+                }
+            )
+        outputs[str(slot)] = {
+            "domain": value.get("domain"),
+            "owners": [
+                str(owner)
+                for owner in _list(value.get("owners"))
+                if str(owner) in {"level1", "level2"}
+            ],
+            "configured_owners": [
+                str(owner)
+                for owner in _list(value.get("configured_owners"))
+                if str(owner) in {"level1", "level2"}
+            ],
+            "desired": value.get("desired"),
+            "observed": value.get("observed"),
+            "platform_action": value.get("platform_action"),
+            "reconciliation": value.get("reconciliation"),
+            "dispatch_result": value.get("dispatch_result"),
+            "last_command_intent": value.get("last_command_intent"),
+            "last_dispatch_utc": value.get("last_dispatch_utc"),
+            "attempts": _nonnegative_int(value.get("attempts", 0)),
+            "maximum_attempts": _nonnegative_int(value.get("maximum_attempts", 0)),
+            "mismatch_age_seconds": (
+                _nonnegative_int(value["mismatch_age_seconds"])
+                if isinstance(value.get("mismatch_age_seconds"), (int, float))
+                else None
+            ),
+            "failure_category": value.get("failure_category"),
+            "fault_latched": bool(value.get("fault_latched")),
+            "ownership_conflict": value.get("ownership_conflict"),
+            "history": history,
+        }
+    return {
+        "schema": 1,
+        "status": status,
+        "summary": summary,
+        "outputs": outputs,
+        "truth_boundary": (
+            "Observed output state and optional platform action are Home Assistant evidence only; "
+            "they do not prove physical moisture production."
+        ),
     }
 
 
@@ -636,6 +740,13 @@ def _count_by(rows: list[dict[str, Any]], key: str) -> dict[str, int]:
         value = str(row.get(key) or "unknown")
         counts[value] = counts.get(value, 0) + 1
     return counts
+
+
+def _nonnegative_int(value: Any) -> int:
+    try:
+        return max(0, int(value or 0))
+    except (TypeError, ValueError):
+        return 0
 
 
 def _timer_state(timer: Any) -> Any:
