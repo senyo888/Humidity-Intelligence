@@ -9,7 +9,7 @@ title: Humidity Intelligence Reason Field Humanisation
 created: 2026-08-01
 category: runtime-ui-contract
 target_version: v2.0.10
-implementation_version: 2.0.10-beta.3
+implementation_version: 2.0.10-beta.4
 authority_status: implementation_authorized
 state: REVIEW
 owner: Jules
@@ -76,11 +76,21 @@ aetherbite_beta3_review: approved
 bella_beta3_review: approved
 aetherwing_beta3_review: approved
 aethercore_beta3_review: approved
+beta3_ha_lab_status: exact_candidate_deployed_soak_in_progress
+beta4_amendment: alert-lane-headlines-and-severity-language
+beta4_implementation_status: local_implementation_validated
+beta4_implemented_diff_review: approved_all_four_roles
+aetherbite_beta4_review: approve_beta4_copy
+bella_beta4_review: approve_beta4_local_commit
+aetherwing_beta4_review: approve_beta4_local_commit
+aethercore_beta4_review: no_governance_objection_appropriately_bounded
+beta4_ha_lab_status: not_deployed
+beta4_exact_head_validation: required
 phase3_review_candidate_tracked_patch_sha256: ced86d8d377ad64a2e4f427d5341d55591fb0f8ea5ec55c030de0f97642b2869
 phase3_review_candidate_untracked_tar_sha256: 45f1dcc62bec051b9a61e1a001d3bb019cb56febb1ab2c7f743897cea2bd3039
 phase3_post_candidate_edits: validation-status-record-plus-ignored-service-field-copy
 registered_dashboard_validation: deferred_unsupported_path_removed
-ha_lab_validated: not_run
+ha_lab_validated: beta3_soak_in_progress_beta4_not_run
 release_candidate_validated: not_run
 implemented_in: null
 entity_contract_changed: true
@@ -102,7 +112,7 @@ breaking_reason_state_replacement: deferred_requires_separate_v2_1_proposal
 
 **Verdict: feasible with low control risk and low residual UI-truth risk after the
 atomic card cutover.** The additive backend-owned `display_reason` attribute is now
-implemented on the existing reason sensor for `2.0.10-beta.3`; the technical state is
+implemented on the existing reason sensor for `2.0.10-beta.4`; the technical state is
 retained as a compatibility and diagnostic surface, and the new attribute is the
 only normal V2 reason-area authority across all four reviewed V2 card surfaces.
 
@@ -119,13 +129,15 @@ house-agent review. The split keeps rollback evidence clear and prevents runtime
 frontend truth changes from being reviewed as one opaque patch.
 
 **Status: `REVIEW_REQUIRED`.** Phase 1, Phase 2, and the bounded Phase 3 dashboard
-compatibility fail-safe are approved historical implementation slices. The beta.3
-package-layout, CodeRabbit configuration, and reason-copy slices reached remote commit
-`50cf630`. Exact-head HACS validation then exposed the missing component-local brand
-path; this proposal now includes the bounded local repair and its regression coverage.
-The repair remains unpushed, and a fresh exact-head HACS result is still required.
-Supported-HA loading and HA Lab playback, further push, PR reply or creation, re-review
-request, promotion, tag, and release remain separate later authorities.
+compatibility fail-safe are approved historical implementation slices. Beta.3
+established the conventional package boundary, CodeRabbit configuration,
+self-contained humidifier wording, and component-local brand repair. Its exact
+candidate is already deployed to HA Lab and has its own in-progress soak evidence.
+Beta.4 is a new presentation-only candidate for alert-lane headings and
+severity-aware visible prose; beta.3 validation and soak evidence do not transfer to
+its new commit. Supported-HA loading and HA Lab playback, further push, PR reply or
+creation, re-review request, promotion, tag, and release remain separate later
+authorities.
 
 ## Beta.3 Approved Amendment
 
@@ -179,10 +191,50 @@ dispatch is presented as `blocked`; missing, unknown, or unavailable output-stat
 evidence is `unavailable`. Both state plainly that HI did not send the request.
 
 The incomplete beta.2 soak for exact commit `0d942efe` is preserved as historical
-beta.2 evidence and marked superseded, not failed or transferred. Beta.3 requires a
-fresh deployment, T+0, and validation campaign only after separate HA Lab authority.
-No release, push, PR reply, re-review request, Home Assistant mutation, or HA Lab
-action is authorized by this amendment.
+beta.2 evidence and marked superseded, not failed or transferred. Beta.3 later
+received separate HA Lab deployment/restart authority and now has its own exact
+in-progress soak record. That evidence remains bound to beta.3. No release, PR reply,
+re-review request, or promotion is authorized by this amendment.
+
+## Beta.4 Alert-Language Amendment
+
+The maintainer approved a bounded catalogue refinement after beta.3 entered HA Lab
+soak. A selected lane must be explicit in the headline, while the first explanation
+sentence must identify the alert classification in plain language:
+
+- zone and air-quality headlines use `{friendly label} response lane selected` and
+  `Air quality response lane selected`;
+- humidity uses `High humidity alert lane selected`, followed by `Danger alert:` and
+  the active seasonal high-risk threshold;
+- mould uses `Mould alert lane selected`, followed by `Risk alert:` or `Danger alert:`;
+- condensation uses `Condensation alert lane selected`, followed by `Risk alert:` or
+  `Danger alert:`; and
+- CO keeps its unsoftened safety identity as `Carbon monoxide emergency lane selected`.
+
+Room, zone, level, and output names remain backend-resolved, sanitized labels. Visible
+mould prose translates the internal ordinal into Normal, Watch, Risk, or Danger. It
+does not expose phrases such as `level is 2`; the existing bounded numeric
+`measured`/`threshold` arguments remain unchanged for deterministic traceability and
+future localisation. Watch is descriptive environmental context only and does not
+add or reorder an alert lane. Alert source, selected-output, held-selection,
+conflict-resolution, unmapped, degraded, and isolation lines use the same calm,
+direct voice without weakening safety truth.
+
+For high humidity, threshold resolution retains the target-profile label as one
+private presentation fact on the same internal alert snapshot. The presenter does not
+resolve the profile again after awaited output work, and the private fact is filtered
+before `alert_telemetry` publication; profile wording therefore cannot cross a month
+boundary or widen the public telemetry shape.
+
+This amendment changes only backend presentation strings, the manifest beta identity,
+documentation, and exact regression fixtures. It does not change `hi.reason.v1`,
+reason entity state, `full_reason`, alert thresholds, risk calculation, lane
+resolution, output selection, or service dispatch. Entity identity, state, schema,
+and structured truth semantics are unchanged; backend presentation text changes
+intentionally. Card YAML, config, and stored data remain unchanged. Beta.3 remains an
+immutable deployed evidence identity; beta.4
+requires fresh exact-head CI and separately authorized HA Lab playback before any
+promotion.
 
 ## Decision
 
@@ -204,7 +256,7 @@ The maintainer approved:
 - configured HI label, Home Assistant friendly-name, then generic-label precedence;
 - no raw entity IDs in the new contract;
 - a visible calm/neutral explanation;
-- no technical-details expander in beta.3;
+- no technical-details expander through beta.4;
 - explicit user replacement of the complete YAML inside an existing HI Manual card;
   registered/YAML-mode dashboard documents remain Home Assistant-managed and unchanged;
 - a distinct degraded `presence_unavailable` presentation while preserving the
@@ -322,13 +374,17 @@ or predictive exit wording without evidence supporting that exact meaning.
 | Presence away | `Presence gate away (system disarmed)` | **Presence gate active.** “All configured presence sources explicitly report away.” Do not say disarmed unless that is an owned backend state. |
 | Presence unavailable | Often collapses into away wording | **Presence status unavailable.** “All configured presence sources are unknown or unavailable.” “Occupancy cannot be confirmed.” |
 | Required telemetry | Technical unavailable list | **Required telemetry unavailable.** “Required humidity telemetry is unavailable.” “HI did not continue with zone, alert, air-quality, or humidifier decisions.” |
-| Zone 1/2 | `Trigger detail: Humidity delta 8.2% >= threshold 6%` | **Zone 1 response selected.** “Humidity is 8.2 percentage points above the home average; response starts at a difference of 6 percentage points.” “Output selection: 66% for Kitchen Extractor.” |
-| AQ trigger | `Stage: Air-quality assist running` plus operators | **Air quality response selected.** “Downstairs: PM2.5 is 48 µg/m³, at or above the 25 µg/m³ threshold.” “Downstairs output selection: 66% for the configured air-quality ventilation output.” |
-| AQ run window | Same as an active trigger | **Air quality response selected.** “Downstairs AQ run window remains active after the latest trigger.” Do not claim the trigger is still active. |
-| Actionable alert | `Stage: Alert lane active` plus source IDs/details | **Humidity danger selected.** “The selected reading is 68.0%, at or above the active 66% threshold.” “Output selection: 100% for the configured alert ventilation output.” |
-| Alert conflict/hold | Internal priority detail | “Selection followed deterministic alert and zone priority.” or “The existing actionable alert remains selected until it clears.” |
-| Unmapped/degraded alert | Long degraded notice, sometimes repeated | **Monitoring with limited alert response** (`attention: degraded`). “Another active alert could not be mapped to a configured zone output; automatic boost was not selected for it.” |
-| CO emergency | “forced to 100%” even when isolation can suppress calls | **Carbon monoxide emergency selected.** State the highest reading and threshold; then `selected`, `blocked`, or `unmapped` output truth. State the two-minute below-clear-threshold hold. |
+| Zone 1/2 | `Trigger detail: Humidity delta 8.2% >= threshold 6%` | **Bathroom response lane selected.** “Humidity is 8.2 percentage points above the home average; response starts at a difference of 6 percentage points.” The leading text is the configured friendly zone label, not a hard-coded room. |
+| AQ trigger | `Stage: Air-quality assist running` plus operators | **Air quality response lane selected.** “Downstairs: PM2.5 is 48 µg/m³, at or above the 25 µg/m³ threshold.” |
+| AQ run window | Same as an active trigger | **Air quality response lane selected.** “Downstairs AQ run window remains active after the latest trigger.” Do not claim the trigger is still active. |
+| High humidity alert | `Stage: Alert lane active` plus source IDs/details | **High humidity alert lane selected.** “Danger alert: humidity in Bathroom is 68.0%, at or above the high-risk threshold of 66% for the active Summer profile.” “Bathroom is assigned to Zone 2 for this response.” |
+| Mould risk alert | `Mould risk level is 2, at or above the 2 risk threshold` | **Mould alert lane selected.** “Risk alert: mould conditions in Bathroom have reached the Risk range for the Summer profile.” |
+| Mould risk crossed into danger | Numeric ordinal comparison | **Mould alert lane selected.** “Risk alert: mould conditions in Bathroom are in the Danger range for the Summer profile; this response starts at Risk.” |
+| Mould danger alert | Numeric ordinal comparison | **Mould alert lane selected.** “Danger alert: mould conditions in Bathroom have reached the Danger range for the Summer profile.” |
+| Condensation risk/danger | Raw spread and internal lane terms | **Condensation alert lane selected.** “Risk alert: the dew-point gap in Bathroom is 3.0°C, at or below the Summer Risk point of 4°C.” Use `Danger alert:` and `Danger point` for the danger lane. |
+| Alert conflict/hold | Internal priority detail | “HI selected this alert using the fixed alert and zone priority order.” or “This alert remains selected until it clears.” |
+| Unmapped/degraded alert | Long degraded notice, sometimes repeated | **Monitoring with limited alert response** (`attention: degraded`). “Another active alert has no usable zone-output mapping, so HI did not select an automatic boost for it.” |
+| CO emergency | “forced to 100%” even when isolation can suppress calls | **Carbon monoxide emergency lane selected.** State the highest reading and threshold; then `selected`, `blocked`, or `unmapped` output truth. State the two-minute below-clear-threshold hold. |
 | Fan isolation | Repeated suffix and card stage | “Fan-output isolation is active; fan service calls are suppressed.” Once only. |
 | Humidifier demand | Demand and device action can blur | “Humidifier response — Upstairs: Winter profile: demand is active at 51.4%; start 54.0%, stop 55.0%.” |
 | Humidifier dispatch | Often described as output activity | “Humidifier response — Upstairs: HI sent the output-on request to Home Assistant; confirmation is pending.” `requested` means proved HA service-layer dispatch only. |
@@ -362,7 +418,7 @@ display_reason:
   variant: humidity_delta
   attention: active
   truncated: false
-  headline: Zone 1 response selected
+  headline: Zone 1 response lane selected
   lines:
     - role: why
       scope: ventilation
@@ -414,7 +470,7 @@ and observation truth before secondary explanation and set `truncated: true`.
 
 ## Presence Unavailable Policy
 
-The current fail-closed control effect is preserved in beta.3, but unavailable-only
+The current fail-closed control effect is preserved through beta.4, but unavailable-only
 evidence must not be presented as confirmed absence:
 
 - any configured source reports present: the gate passes;
@@ -425,7 +481,7 @@ evidence must not be presented as confirmed absence:
 - CO emergency continues to bypass the gate.
 
 No cached last-known presence state or new configurable unknown policy is introduced
-in beta.3.
+in beta.4.
 
 ## Runtime Boundary
 
@@ -504,7 +560,26 @@ copy rendered text or label-bearing arguments.
 
 ## Exact Implementation Scope
 
-Essential beta.3 scope, including the completed beta.2 reason slices:
+Essential beta.4 scope, including the completed beta.2 and beta.3 reason slices:
+
+Beta.4-only tracked delta:
+
+- [automations/engine.py](../../custom_components/humidity_intelligence/automations/engine.py): presentation-only family headlines, severity-first alert
+  prose, human mould ranges, sanitized bounded labels, exact threshold-profile
+  provenance, and no shared alert-telemetry shape change;
+- [manifest.json](../../custom_components/humidity_intelligence/manifest.json),
+  [CHANGELOG.md](../../CHANGELOG.md), [README.md](../../README.md),
+  [release-governance.md](../release-governance.md), and this proposal: beta.4
+  identity, restart/cache/migration truth, evidence reset, rollback, and wording
+  catalogue; and
+- the air-control, runtime-card, humidifier, reason-contract, diagnostics, and
+  JavaScript renderer fixtures: exact family/severity/Watch/fallback/label/privacy and
+  invariance coverage.
+
+There is no beta.4 card YAML, gallery, sensor, diagnostics-schema, service,
+config-flow, translation, configuration, or stored-data change. The remaining list
+below preserves the cumulative reason-experience implementation history rather than
+claiming those historical files changed again in beta.4.
 
 - [custom_components/humidity_intelligence/helpers/reason_presentation.py](../../custom_components/humidity_intelligence/helpers/reason_presentation.py):
   frozen fact/line types, exact schema builder,
@@ -538,7 +613,7 @@ Essential beta.3 scope, including the completed beta.2 reason slices:
 - `tests 2/test_reason_card_renderer.mjs`: execute valid, malformed, future-schema,
   Unicode-boundary, raw-ID, HTML-escaping, size-bound, and atomic-fallback behavior
   across all four V2 renderers. Run with
-  `node "tests 2/test_reason_card_renderer.mjs"`; this command is a beta.3 release
+  `node "tests 2/test_reason_card_renderer.mjs"`; this command is a beta.4 release
   gate even before it is wired into repository CI.
 - `custom_components/humidity_intelligence/manifest.json`,
   [CHANGELOG.md](../../CHANGELOG.md), [README.md](../../README.md),
@@ -559,7 +634,7 @@ Essential beta.3 scope, including the completed beta.2 reason slices:
   authorization-before-guidance, zero dashboard side effects, legacy-token continuity,
   dashboard retention during cleanup, and removal of unsupported API references.
 
-Worthwhile follow-ons, explicitly outside beta.3: localisation resources, a technical
+Worthwhile follow-ons, explicitly outside beta.4: localisation resources, a technical
 details surface, any supported registered-dashboard document/registration lifecycle,
 new presence policy configuration, or a breaking state replacement.
 
@@ -655,22 +730,27 @@ path -> Home Assistant dashboard UI -> Manual card.
    structure, exact-path discovery, cache-only refresh, compatibility-service zero-
    side-effect failure, legacy-token continuity, and file-only cleanup passed.
    Registered or YAML-mode dashboards remain unchanged and their lifecycle is deferred.
-4. **Beta.3 package/copy/config amendment — local implementation complete; cumulative
-   review pending.** The package commit moves the exact component and proves parity;
+4. **Beta.3 package/copy/config amendment — complete and separately deployed.** The
+   package commit moves the exact component and proves parity;
    the config-only commit disables the generic CodeRabbit docstring check; the final
    reason commit makes humidifier response lines self-contained without changing
    cards, control, entities, or stored data.
-5. **Exact-commit supported-HA and HA Lab validation — pending and not authorized.**
-   After separate authority, load the committed beta.3 package in the supported Home
+5. **Beta.4 alert-language amendment — local implementation and review.** Apply the
+   explicit response-lane headlines, family alert headlines, severity-first visible
+   prose, human mould ranges, source/action/hold/conflict wording, beta identity,
+   proposal, changelog, and exact regression fixtures without changing the schema or
+   control behavior.
+6. **Exact-commit supported-HA and HA Lab validation — pending and not authorized.**
+   After separate authority, load the committed beta.4 package in the supported Home
    Assistant harness, restart, parse/save/load the Manual card, verify service guidance
    and frontend cache behavior, and run advisory playback from a fresh T+0. Do not
-   reuse beta.1 or beta.2 acceptance.
-6. **Promotion review — pending.** Bella, Aetherwing, AetherCore, maintainer README approval,
+   reuse beta.1, beta.2, or beta.3 acceptance.
+7. **Promotion review — pending.** Bella, Aetherwing, AetherCore, maintainer README approval,
    and exact-head release sanity remain mandatory before RC or stable promotion.
 
 Each phase is independently reviewable and rollback-safe. Phase 1 acceptance was the
 gate for Phase 2; Phase 3 offline export/fail-safe evidence must not be inferred from
-static gallery captures. Phase 4 is a new local candidate boundary and Phase 5
+static gallery captures. Each beta amendment remains an exact candidate boundary and
 exact-commit HA Lab playback remains separate.
 
 ## Validation Gates
@@ -695,10 +775,10 @@ Implementation acceptance requires:
   `/config/dashboards/` writes;
 - compile/import, runtime/card, diagnostics, HACS layout, JSON/YAML, version
   governance, diff, and secret scans; and
-- separately authorized HA Lab beta.3 playback against the exact commit/version.
+- separately authorized HA Lab beta.4 playback against the exact commit/version.
 
-Beta.1 and beta.2 evidence remain historical evidence for their exact commits. They
-are not acceptance evidence for the beta.3 package/copy candidate.
+Beta.1, beta.2, and beta.3 evidence remain historical evidence for their exact
+commits. They are not acceptance evidence for the beta.4 alert-language candidate.
 
 ## Phase 2 Validation Record
 
@@ -791,14 +871,32 @@ relocated UI README previews resolve to tracked assets. Proposal phase/status wo
 was also made commit-local and internally consistent.
 
 Official results at `50cf630`: version governance and Hassfest passed; HACS failed its
-brands check. Not run and not claimed for the repaired exact head: fresh GitHub
-HACS/Hassfest/version-governance Actions, supported Home Assistant loading,
-install/upgrade playback, frontend save/load, HA Lab deployment or runtime playback,
-restart, new T+0, soak, push, PR activity, tag, or release.
+brands check. The bounded brand repair subsequently reached pushed exact beta.3 commit
+`85ab542`; beta.3 was separately deployed/restarted in HA Lab and began a fresh exact
+soak. That operational evidence is beta.3-only and remains in progress; it does not
+validate the beta.4 wording candidate. No PR reply, re-review request, tag, or release
+is claimed here.
+
+## Beta.4 Local Validation Record
+
+The local beta.4 wording candidate passed 387 tracked pytest checks plus 123 subtests,
+excluding only `test_hi_memory_usage_auditor.py` because its intentionally ignored
+local helper is absent from this checkout. The run includes every environmental alert
+family, explicit Risk/Danger copy, Danger-range evidence on a selected Risk mould
+alert, bounded long labels, retained numeric mould arguments, CO emergency, configured
+zone labels, runtime invariance, diagnostics, cards, package/version governance, and
+documentation. All 27 executable JavaScript checks passed, including the seven V2
+reason-renderer cases and 20 Inspector cases. Component compilation and
+`git diff --check` also passed.
+
+Not run or claimed for beta.4: GitHub Actions, supported-HA install/upgrade, frontend
+save/load, HA Lab deployment/restart/playback, a new T+0/soak, push, PR activity, tag,
+or release. The final review verdicts and exact local commit are recorded separately
+after the read-only house-agent review.
 
 ## Home Assistant Lab Playback Expectations
 
-Against the exact beta.3 commit/version, capture sanitized evidence for calm normal,
+Against the exact beta.4 commit/version, capture sanitized evidence for calm normal,
 disabled, manual, pause, time gate, confirmed-away presence, unavailable presence,
 telemetry loss/recovery, Zone 1/2, AQ trigger and retained run window, actionable and
 unmapped/degraded alerts, alert conflict/hold, CO trigger and clear hold, fan and
@@ -818,13 +916,14 @@ promotion, tag, or release.
 
 ## Release And Version Recommendation
 
-Use `2.0.10-beta.3`. Beta.2 established the additive reason contract and V2 card
-cutover, but the conventional HACS package boundary and self-contained humidifier
-response wording change the exact candidate and invalidate transfer of beta.2 package,
-copy, and soak acceptance. A new beta makes that evidence reset explicit without
-turning a compatible presentation/package correction into a breaking release.
+Use `2.0.10-beta.4`. Beta.3 established the conventional HACS package boundary,
+self-contained humidifier wording, brand repair, and an exact deployed soak identity.
+The alert catalogue changes backend-visible copy at a new exact commit, so beta.3
+copy, playback, and soak acceptance cannot transfer. A new beta makes that evidence
+reset explicit without turning a compatible presentation correction into a breaking
+release.
 
-Do not move this to v2.1 merely because presentation is substantial: beta.3 keeps the
+Do not move this to v2.1 merely because presentation is substantial: beta.4 keeps the
 existing state contract. Reserve v2.1 for the future breaking replacement, removal,
 or reinterpretation of that state and its migration path. Use v2.0.11 only if the
 2.0.10 line is promoted before this complete change can be validated; that is a
@@ -936,11 +1035,45 @@ Beta.3 received a fresh cumulative review against the exact staged reason tree:
   changes only `display_reason`; the three-commit topology and external boundaries
   are proven.
 
+Beta.4 received a fresh role-separated review against the final local wording tree:
+
+- **Aetherbite — `APPROVE_BETA4_COPY`.** Challenged the technical tone of `response
+  lane selected` and tested Bella's concern that generic family headlines could hide
+  severity. Resolution: the maintainer's selected catalogue remains authoritative;
+  `Risk alert:` or `Danger alert:` is the first readable body text in the existing
+  scroll window. Aetherbite's clearer crossed-range wording—`this response starts at
+  Risk`—was adopted.
+- **Bella — `APPROVE_BETA4_LOCAL_COMMIT`.** Challenged malformed mould thresholds,
+  duplicate label resolution, generic-headline specificity, and profile provenance.
+  Resolution: Watch/Risk/Danger/fractional paths have exact tests; one bounded room
+  label is reused; crossed-range copy separates selected response from observed
+  conditions; and the exact threshold profile is retained privately then excluded
+  from public telemetry.
+- **Aetherwing — `APPROVE_BETA4_LOCAL_COMMIT`.** Found and blocked an initial public
+  humidity `profile_label` leak, then challenged separate profile resolution across a
+  month boundary. Resolution: the label comes from the exact profile object that
+  calculates the threshold, the presenter does not resolve it again, public
+  `alert_telemetry` filters the private fact, and regression proves both provenance
+  and unchanged public shape. No lane, threshold, dispatch, output, timer, config,
+  stored-data, card, restart/cache, or migration drift remains.
+- **AetherCore — `NO_GOVERNANCE_OBJECTION — APPROPRIATELY_BOUNDED_FOR_LOCAL_COMMIT`.**
+  Challenged stale lifecycle truth, missing Watch coverage, over-broad entity claims,
+  cumulative-versus-beta.4 scope, and rollback evidence continuity. Resolution: local
+  planning truth is current; exact delta and tests are recorded; presentation changes
+  are distinguished from stable structured semantics; and rollback requires a fresh
+  soak re-anchor.
+
+No disagreement remains unresolved. Aetherbite still prefers `ventilation lane` as a
+future domestic alternative to `response lane`, but explicitly approved retaining the
+maintainer-selected wording in this bounded beta.4 catalogue. Bella's concern about
+generic alert-family headlines is reconciled by the maintainer's explicit direction
+and the mandatory severity-first first line.
+
 The first cumulative review also found stale relocated preview links and proposal
 lifecycle wording; both were corrected before commit-specific approval. There is no
 unresolved product, runtime, packaging, privacy, or governance disagreement.
 
-All four approvals cover the reviewed tree plus this mechanical verdict/status
+All four beta.4 approvals cover the reviewed tree plus this mechanical verdict/status
 bookkeeping. Any later behavioral change requires renewed review.
 
 There is no unresolved product or runtime disagreement. The accepted density trade-off is
@@ -948,7 +1081,7 @@ that a long action sentence can begin below the tablet's initial 60-pixel fold; 
 remains keyboard/touch scrollable and the UI does not summarize or reconstruct it.
 Phase 3 registered/YAML-mode dashboard mutation is explicitly deferred, not treated as
 successful validation. Separately authorized exact-commit HA Lab playback remains
-required before beta.3 can be considered for release.
+required before beta.4 can be considered for release.
 
 ## Maintainer Decisions
 
@@ -957,18 +1090,22 @@ Jules has approved every design decision needed to begin implementation:
 - additive `display_reason` authority and exact schema/bounds;
 - `requested` service-layer definition;
 - label precedence and absolute raw-ID prohibition;
-- calm neutral visibility and no beta.3 technical expander;
+- calm neutral visibility and no beta.4 technical expander;
 - HA-managed dashboard creation plus whole-card replacement for existing HI Manual
   cards, with registered/YAML-mode dashboard lifecycle deferred;
 - degraded fail-closed unavailable-presence presentation; and
-- beta.3 placement with v2.1 reserved for a breaking reason-state replacement;
+- beta.4 placement with v2.1 reserved for a breaking reason-state replacement;
 - a backend-owned, self-contained `Humidifier response — {resolved label}:` prefix
   instead of a card-authored or standalone second heading;
-- conventional HACS packaging for the active repository-admission requirement; and
-- disabling only CodeRabbit's generic docstring-coverage pre-merge check.
+- conventional HACS packaging for the active repository-admission requirement;
+- disabling only CodeRabbit's generic docstring-coverage pre-merge check; and
+- family-level alert-lane headlines with Risk/Danger stated in the first visible
+  sentence, `High humidity` naming, and human mould ranges without removing numeric
+  structured arguments.
 
 No additional product decision is required for Phase 1, Phase 2, the bounded Phase 3
-compatibility amendment, or the beta.3 package/copy/config amendments. Local
+compatibility amendment, the beta.3 package/copy/config amendments, or the beta.4
+alert-language amendment. Local
 implementation, validation, house-agent review, and local commits are authorized.
 HA Lab playback, Home Assistant restart or mutation, push, PR reply, re-review request,
 promotion, tag, and release remain separate authorities. Before release promotion, Jules must
@@ -984,12 +1121,17 @@ Rollback remains migration-free:
   reason; and
 - no entity, registry, stored-data, or service cleanup is required.
 
-Before any beta.3 package is distributed, a full beta.3 rollback may restore the exact
-beta.2 tree and identity because beta.3 has not been deployed or published. Once a
-beta.3 package has been deployed or distributed, do not silently reuse beta.2 or
-beta.1 identity; prepare a newly governed build or an explicitly documented rollback
+Beta.3 is already an exact deployed evidence identity. Beta.4 can be rolled back by
+restoring that exact beta.3 package and identity before beta.4 deployment; do not
+rewrite beta.3 history or attach beta.4 evidence to it. Once beta.4 has been deployed
+or distributed, prepare a newly governed build or an explicitly documented rollback
 package. The conventional component layout should remain unless a separately reviewed
 HACS-admission strategy replaces it.
+
+Rollback restores package identity only, not soak continuity. Any beta.4 deployment
+interrupts the earlier beta.3 observation window; returning to beta.3 requires an
+explicit re-anchor or fresh T+0 under the HA Lab cadence rules rather than silently
+resuming the old soak sample sequence.
 
 The dashboard compatibility fail-safe is not reverted independently with reason
 humanisation. Restoring the former beta.1 tree wholesale would re-enable unsupported
@@ -1015,13 +1157,12 @@ requires a separately approved proposal and migration contract.
 
 ## Final Status
 
-`REVIEW_REQUIRED — BETA3_LOCAL_BRAND_REPAIR_COMPLETE / EXACT_HEAD_EXTERNAL_VALIDATION_REQUIRED`
+`REVIEW_REQUIRED — BETA4_LOCAL_IMPLEMENTATION_AND_HOUSE_REVIEW_APPROVED / EXACT_HEAD_EXTERNAL_VALIDATION_REQUIRED`
 
 Phase 1, Phase 2, and Phase 3 remain approved historical implementation slices.
-Beta.3's conventional package move, CodeRabbit configuration, and self-contained
-humidifier-response copy reached remote commit `50cf630`. The subsequent component-
-local brand repair is implemented, locally validated, and approved as a separate
-bounded commit, but its fresh exact-head HACS/Hassfest/version-governance results
-remain outstanding. Supported-HA and HA Lab playback remain required before any
-release decision. HA Lab deployment/playback, further push, PR reply, re-review
-request, PR creation, tag, and release promotion are not authorized.
+Beta.3's package, configuration, reason, and brand corrections remain its immutable
+deployed soak identity. Beta.4's alert-language amendment is locally implemented and
+validated but not deployed. Fresh exact-head external CI, supported-HA playback, and
+separately authorized HA Lab deployment/restart/playback are required before any
+beta.4 release decision. Push, PR reply, re-review request, PR creation, tag, and
+release promotion are not authorized.

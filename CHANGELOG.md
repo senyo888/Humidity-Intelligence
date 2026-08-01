@@ -8,6 +8,24 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+- Advanced the implementation identity to `2.0.10-beta.4` and completed the
+  backend-owned alert-lane wording catalogue. Zone and air-quality headlines now
+  explicitly say `response lane selected`; alert headlines use `High humidity alert
+  lane selected`, `Mould alert lane selected`, or `Condensation alert lane selected`,
+  with the first explanation sentence stating the selected Danger or Risk alert.
+  Visible mould prose translates internal ordinal levels into Normal, Watch, Risk,
+  or Danger ranges while bounded numeric values remain available in structured
+  `display_reason` arguments for deterministic traceability and future localisation.
+  Friendly room/zone/output names remain resolved, sanitized labels with generic
+  fallbacks, and raw entity IDs remain prohibited. This is presentation-only: lane
+  priority, thresholds, output selection, and service dispatch are unchanged. Entity
+  identity, state, schema, and structured truth semantics are unchanged; backend
+  presentation text changes intentionally. Card YAML, configuration, and stored data
+  are unchanged. The humidity profile label is retained only as a private presentation
+  fact from the exact profile used to calculate that alert threshold, so no public
+  alert-telemetry key is added and the label cannot drift from its threshold. A full
+  Home Assistant restart is required to load beta.4 Python;
+  no card replacement, frontend-cache refresh, or migration is required.
 - Moved the exact 52-file installable integration payload into the conventional
   `custom_components/humidity_intelligence/` layout and removed HACS
   `content_in_root`. HACS, Hassfest, release checks, tests, scripts, and documentation

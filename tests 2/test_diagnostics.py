@@ -260,7 +260,7 @@ def _sample_hass():
             "variant": "humidity_danger",
             "attention": "critical",
             "truncated": False,
-            "headline": "Humidity danger selected",
+            "headline": "High humidity alert lane selected",
             "lines": [
                 {
                     "role": "why",

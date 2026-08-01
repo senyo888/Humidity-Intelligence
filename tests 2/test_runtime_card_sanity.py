@@ -1971,6 +1971,10 @@ async def _run_runtime_assertions(engine_mod) -> None:
 
     assert hass_label.data["humidity_intelligence"][ENTRY_ID].get("runtime_mode") == "cooking"
     assert hass_label.data["humidity_intelligence"][ENTRY_ID].get("runtime_mode_display") == "Kitchen Extract"
+    assert (
+        hass_label.data["humidity_intelligence"][ENTRY_ID]["runtime_display_reason"]["headline"]
+        == "Kitchen Extract response lane selected"
+    )
     assert any(
         domain == "fan"
         and service == "set_percentage"
@@ -5692,7 +5696,7 @@ def test_v205_release_check_service_is_documented_and_registered():
     assert "write_test_exports" in services_yaml
     assert "humidity_intelligence.v205_release_check" in readme_source
     assert "humidity_intelligence_v205_release_check.json" in readme_source
-    assert manifest["version"] == "2.0.10-beta.3"
+    assert manifest["version"] == "2.0.10-beta.4"
 
 
 def test_owned_ui_path_discovery_and_legacy_cleanup_guidance_is_explicit():

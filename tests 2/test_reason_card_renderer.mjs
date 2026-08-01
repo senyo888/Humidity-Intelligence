@@ -127,7 +127,7 @@ test('calm neutral and benign dotted tokens are never suppressed', () => {
   const contract = baseContract();
   contract.family = 'air_quality';
   contract.variant = 'pm25_high';
-  contract.headline = 'Air quality response selected';
+  contract.headline = 'Air quality response lane selected';
   contract.lines[0].text = 'PM2.5 is 48 µg/m³; HI v2.0.10 selected the configured response.';
   const output = assertIdentical(renderAll(contract));
   assert.match(output, /PM2\.5 is 48 µg\/m³/);

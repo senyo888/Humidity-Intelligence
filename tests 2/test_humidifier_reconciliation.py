@@ -900,7 +900,7 @@ def test_concurrent_aq_keeps_its_headline_and_self_contained_humidifier_response
         ],
         humidifier_details=[_active_humidifier_detail()],
     )
-    assert facts.headline == "Air quality response selected"
+    assert facts.headline == "Air quality response lane selected"
     humidifier_lines = [line for line in facts.lines if line.scope == "humidifier"]
     assert humidifier_lines
     assert all(

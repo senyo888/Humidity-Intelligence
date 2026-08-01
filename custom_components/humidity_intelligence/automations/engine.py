@@ -59,6 +59,11 @@ CO_EMERGENCY_START = 15
 CO_EMERGENCY_CLEAR = 10
 CO_EMERGENCY_CLEAR_HOLD = timedelta(minutes=2)
 _RISK_ORDER = {"OK": 0, "Watch": 1, "Risk": 2, "Danger": 3, "Unknown": -1}
+_RISK_DISPLAY_BY_LEVEL = {
+    rank: "Normal" if label == "OK" else label
+    for label, rank in _RISK_ORDER.items()
+    if label != "Unknown"
+}
 _ALERT_PRIORITY = {
     "humidity_danger": 10,
     "mould_danger": 20,
@@ -822,6 +827,7 @@ class HIAutomationEngine:
                 detail["measured_unit"] = "%"
                 detail["threshold"] = threshold
                 detail["comparison"] = "at_or_above"
+                detail["_display_profile_label"] = profile.label
                 detail["threshold_source"] = f"active profile ({profile.label})"
                 detail["source_summary"] = _alert_source_summary(
                     trigger_type=ttype,
@@ -937,7 +943,14 @@ class HIAutomationEngine:
             return
         selected = details[0]
         data["active_alert_context"] = selected.get("source_summary") or selected.get("companion") or selected.get("label") or "Alert"
-        data["alert_telemetry"] = details
+        data["alert_telemetry"] = [
+            {
+                key: value
+                for key, value in detail.items()
+                if key != "_display_profile_label"
+            }
+            for detail in details
+        ]
         _LOGGER.debug(
             "HI alert resolved for entry %s: selected=%s; source=%s; sensor=%s; room=%s; zone=%s; outputs=%s; boost=%s",
             self.entry.entry_id,
@@ -1178,6 +1191,7 @@ class HIAutomationEngine:
                             threshold=threshold_val,
                             unit="risk_level",
                             comparison="at_or_above",
+                            profile_label=profile.label,
                         )
                     )
         return selected_level, trigger_details, tuple(trigger_facts)
@@ -2795,7 +2809,7 @@ class HIAutomationEngine:
                     "safety",
                     "co.output_level_selected",
                     "selected",
-                    f"Output selection: 100% for {output_summary}.",
+                    f"HI selected 100% for {output_summary}.",
                     {"level": 100, "output_count": len(outputs)},
                 )
             )
@@ -2818,7 +2832,7 @@ class HIAutomationEngine:
             "co_emergency",
             "threshold_active",
             "critical",
-            "Carbon monoxide emergency selected",
+            "Carbon monoxide emergency lane selected",
             lines,
         )
 
@@ -2843,7 +2857,7 @@ class HIAutomationEngine:
                 zone_detail.get("ui_label"),
                 "Configured zone",
             )
-            headline = f"{zone_label} response selected"
+            headline = f"{zone_label} response lane selected"
             lines = self._zone_display_lines(zone_detail)
         elif runtime_mode == "air_quality" and aq_details:
             family = "air_quality"
@@ -2853,7 +2867,7 @@ class HIAutomationEngine:
                 if any(detail.get("trigger_active") for detail in aq_details)
                 else "run_window_active"
             )
-            headline = "Air quality response selected"
+            headline = "Air quality response lane selected"
             lines = self._aq_display_lines(aq_details)
         elif self.alert_only_mode:
             family = "normal"
@@ -2904,8 +2918,8 @@ class HIAutomationEngine:
                     "alert.degraded_candidate_not_selected",
                     "unmapped",
                     (
-                        "Another active alert could not be mapped to a configured zone "
-                        "output; automatic boost was not selected for it."
+                        "Another active alert has no usable zone-output mapping, so HI "
+                        "did not select an automatic boost for it."
                     ),
                     {"candidate_count": len(degraded)},
                 )
@@ -3023,33 +3037,59 @@ class HIAutomationEngine:
         alert_type = str(selected.get("alert_type") or "alert")
         severity = str(selected.get("severity") or "active")
         variant = str(selected.get("trigger_type") or "selected")
-        headline = f"{alert_type.title()} {severity.lower()} selected"
+        if variant.startswith("humidity_"):
+            headline = "High humidity alert lane selected"
+        elif variant.startswith("mould_"):
+            headline = "Mould alert lane selected"
+        elif variant.startswith("condensation_"):
+            headline = "Condensation alert lane selected"
+        else:
+            headline = f"{alert_type.title()} alert lane selected"
         lines: List[ReasonLine] = []
         measured = _to_float(selected.get("measured_value"))
         threshold = _to_float(selected.get("threshold"))
+        room = self._presentation_label(
+            selected.get("room"),
+            "",
+            maximum=40,
+        )
+        measurement_room = room or "the affected room"
         if measured is not None and threshold is not None:
+            profile_value = selected.get("profile_label") or selected.get(
+                "_display_profile_label"
+            )
             profile = self._presentation_label(
-                selected.get("profile_label"),
-                "active profile",
+                profile_value,
+                "current",
+                maximum=32,
             )
             if variant.startswith("condensation_"):
                 measurement_text = (
-                    f"Dew-point spread is {measured:.1f}°C, at or below the "
-                    f"{threshold:g}°C {profile} {severity.lower()} point."
+                    f"{severity} alert: the dew-point gap in {measurement_room} is {measured:.1f}°C, "
+                    f"at or below the {profile} {severity} point of {threshold:g}°C."
                 )
                 unit = "degC"
                 measurement_code = "alert.measurement_at_or_below_threshold"
             elif variant.startswith("mould_"):
-                measurement_text = (
-                    f"Mould risk level is {measured:g}, at or above the {threshold:g} "
-                    f"{severity.lower()} threshold for the {profile} profile."
-                )
+                measured_range = _risk_range_label(measured)
+                threshold_range = _risk_range_label(threshold, fallback=severity)
+                if measured > threshold:
+                    measurement_text = (
+                        f"{severity} alert: mould conditions in {measurement_room} are in the "
+                        f"{measured_range} range for the {profile} profile; this "
+                        f"response starts at {threshold_range}."
+                    )
+                else:
+                    measurement_text = (
+                        f"{severity} alert: mould conditions in {measurement_room} have reached "
+                        f"the {measured_range} range for the {profile} profile."
+                    )
                 unit = "risk_level"
                 measurement_code = "alert.measurement_at_or_above_threshold"
             else:
                 measurement_text = (
-                    f"The selected reading is {measured:.1f}%, at or above the "
-                    f"active {threshold:g}% threshold."
+                    f"Danger alert: humidity in {measurement_room} is {measured:.1f}%, at or above "
+                    f"the high-risk threshold of {threshold:g}% for the active {profile} profile."
                 )
                 unit = "%"
                 measurement_code = "alert.measurement_at_or_above_threshold"
@@ -3068,15 +3108,14 @@ class HIAutomationEngine:
                     },
                 )
             )
-        room = self._presentation_label(selected.get("room"), "")
-        zone = self._presentation_label(selected.get("zone"), "")
+        zone = self._presentation_label(selected.get("zone"), "", maximum=40)
         if room or zone:
             if room and zone:
-                source_text = f"The alert comes from {room} and maps to {zone}."
+                source_text = f"{room} is assigned to {zone} for this response."
             elif room:
-                source_text = f"The alert comes from {room}."
+                source_text = f"This alert comes from {room}."
             else:
-                source_text = f"The alert maps to {zone}."
+                source_text = f"This alert is assigned to {zone}."
             lines.append(
                 ReasonLine(
                     "why",
@@ -3098,7 +3137,7 @@ class HIAutomationEngine:
                 truth = "blocked"
                 code = "alert.output_isolated"
             else:
-                text = f"Output selection: {level} for {output_summary}."
+                text = f"HI selected {level} for {output_summary}."
                 truth = "selected"
                 code = "alert.output_level_selected"
             lines.append(
@@ -3118,7 +3157,10 @@ class HIAutomationEngine:
                     "ventilation",
                     "alert.output_unmapped",
                     "unmapped",
-                    "No automatic alert boost was selected because no actionable zone-output mapping is available.",
+                    (
+                        "HI could not select an automatic alert boost because no usable "
+                        "zone-output mapping is available."
+                    ),
                 )
             )
         if selected.get("held_until_clear"):
@@ -3128,7 +3170,7 @@ class HIAutomationEngine:
                     "safety",
                     "alert.existing_selection_held",
                     "selected",
-                    "The existing actionable alert remains selected until it clears.",
+                    "This alert remains selected until it clears.",
                 )
             )
         elif len(details) > 1:
@@ -3138,7 +3180,7 @@ class HIAutomationEngine:
                     "safety",
                     "alert.conflict_resolved",
                     "selected",
-                    "Selection followed deterministic alert and zone priority.",
+                    "HI selected this alert using the fixed alert and zone priority order.",
                     {"candidate_count": len(details)},
                 )
             )
@@ -3158,10 +3200,31 @@ class HIAutomationEngine:
                 f"{fact.threshold:g}°C {profile} risk point."
             )
         elif fact.code == "mould_risk":
-            text = (
-                f"Mould risk level is {fact.measured:g}, at or above the "
-                f"{fact.threshold:g} threshold."
-            )
+            profile = self._presentation_label(fact.profile_label, "active profile")
+            measured_range = _risk_range_label(fact.measured)
+            threshold_range = _risk_range_label(fact.threshold, fallback="")
+            if fact.measured > fact.threshold:
+                if threshold_range:
+                    text = (
+                        f"Mould conditions are in the {measured_range} range, above the "
+                        f"configured {threshold_range} response point for the {profile} profile."
+                    )
+                else:
+                    text = (
+                        f"Mould conditions are in the {measured_range} range, above the "
+                        f"configured mould response point for the {profile} profile."
+                    )
+            else:
+                if threshold_range:
+                    text = (
+                        f"Mould conditions have reached the configured {threshold_range} "
+                        f"response point for the {profile} profile."
+                    )
+                else:
+                    text = (
+                        "Mould conditions have reached the configured mould response "
+                        f"point for the {profile} profile."
+                    )
         elif fact.code == "pm25_high":
             text = (
                 f"PM2.5 is {fact.measured:g} µg/m³, at or above the "
@@ -3574,8 +3637,14 @@ class HIAutomationEngine:
                 )
         return lines
 
-    def _presentation_label(self, value: Any, generic: str) -> str:
-        return sanitize_display_label(value) or generic
+    def _presentation_label(
+        self,
+        value: Any,
+        generic: str,
+        *,
+        maximum: int = 64,
+    ) -> str:
+        return sanitize_display_label(value, maximum=maximum) or generic
 
     def _presentation_level_label(self, level: Any) -> str:
         key = str(level or "").strip()
@@ -4329,6 +4398,17 @@ def _alert_kind_and_severity(trigger_type: str) -> Tuple[str, str]:
     else:
         severity = "Active"
     return kind, severity
+
+
+def _risk_range_label(value: Any, *, fallback: str = "active") -> str:
+    """Translate an internal ordinal risk value into bounded display wording."""
+    numeric = _to_float(value)
+    if numeric is None:
+        return fallback
+    rounded = int(round(numeric))
+    if abs(numeric - rounded) > 0.001:
+        return fallback
+    return _RISK_DISPLAY_BY_LEVEL.get(rounded, fallback)
 
 
 def _alert_companion_label(

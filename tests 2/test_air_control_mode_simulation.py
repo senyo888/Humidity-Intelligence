@@ -110,7 +110,7 @@ def test_zone_pressure_uses_distinct_room_and_house_values_to_select_zone1():
     assert result.lower_lane_trace == ["_handle_alerts", "_handle_humidifiers", "_handle_zone_by_key:zone1"]
     display = result.reason_sensor_attrs["display_reason"]
     assert display["family"] == "zone"
-    assert display["headline"] == "Zone 1 response selected"
+    assert display["headline"] == "Zone 1 response lane selected"
     text = " ".join(line["text"] for line in display["lines"])
     assert "percentage points above the home average" in text
     assert "difference of 5 percentage points" in text
@@ -295,7 +295,7 @@ def test_unmapped_active_alert_elevates_normal_presentation_to_degraded():
     assert display["attention"] == "degraded"
     assert display["headline"] == "Monitoring with limited alert response"
     text = " ".join(line["text"] for line in display["lines"])
-    assert "could not be mapped to a configured zone output" in text
+    assert "has no usable zone-output mapping" in text
 
 
 def test_output_summary_uses_exact_singular_plural_and_friendly_name_copy():
@@ -354,14 +354,29 @@ def test_every_environmental_alert_family_keeps_structured_reason_truth():
     )
     engine = engine_mod.HIAutomationEngine(hass, entry)
     expected = {
-        "humidity_danger": ("at or above", "% threshold"),
-        "condensation_danger": ("at or below", "°C Winter danger point"),
-        "condensation_risk": ("at or below", "°C Winter risk point"),
-        "mould_danger": ("at or above", "danger threshold for the Winter profile"),
-        "mould_risk": ("at or above", "risk threshold for the Winter profile"),
+        "humidity_danger": (
+            "High humidity alert lane selected",
+            ("Danger alert:", "high-risk threshold", "active Winter profile"),
+        ),
+        "condensation_danger": (
+            "Condensation alert lane selected",
+            ("Danger alert:", "Winter Danger point"),
+        ),
+        "condensation_risk": (
+            "Condensation alert lane selected",
+            ("Risk alert:", "Winter Risk point"),
+        ),
+        "mould_danger": (
+            "Mould alert lane selected",
+            ("Danger alert:", "Danger range", "Winter profile"),
+        ),
+        "mould_risk": (
+            "Mould alert lane selected",
+            ("Risk alert:", "Danger range", "Winter profile", "response starts at Risk"),
+        ),
     }
 
-    for trigger_type, phrases in expected.items():
+    for trigger_type, (expected_headline, phrases) in expected.items():
         detail = engine._alert_detail(
             0,
             {
@@ -374,7 +389,16 @@ def test_every_environmental_alert_family_keeps_structured_reason_truth():
         assert detail is not None, trigger_type
         assert detail["measured_value"] is not None, trigger_type
         assert detail["threshold"] is not None, trigger_type
-        headline, variant, lines = engine._alert_display_content([detail])
+        original_profile_resolver = engine._active_target_profile
+        if trigger_type == "humidity_danger":
+            def _unexpected_profile_reresolution():
+                raise AssertionError("presentation must use the cycle-captured profile")
+
+            engine._active_target_profile = _unexpected_profile_reresolution
+        try:
+            headline, variant, lines = engine._alert_display_content([detail])
+        finally:
+            engine._active_target_profile = original_profile_resolver
         contract = engine_mod.build_display_reason(
             engine._make_reason_facts(
                 "alert",
@@ -384,13 +408,108 @@ def test_every_environmental_alert_family_keeps_structured_reason_truth():
                 lines,
             )
         )
+        assert headline == expected_headline, trigger_type
         text = " ".join(line["text"] for line in contract["lines"])
         for phrase in phrases:
             assert phrase in text, (trigger_type, phrase, text)
-        assert "The alert comes from Kitchen and maps to Zone 1." in text
+        assert "Kitchen is assigned to Zone 1 for this response." in text
         assert "source room" not in text
         assert "resolved scope" not in text
         assert "sensor." not in text, trigger_type
+        if trigger_type.startswith("mould_"):
+            assert "Mould risk level" not in text
+            assert "level is 2" not in text
+            assert contract["lines"][0]["args"]["measured"] == detail["measured_value"]
+            assert contract["lines"][0]["args"]["threshold"] == detail["threshold"]
+        if trigger_type == "humidity_danger":
+            assert "profile_label" not in detail
+            assert detail["_display_profile_label"] == "Winter"
+            engine._record_alert_resolution([detail])
+            public_detail = hass.data["humidity_intelligence"][RUNTIME_ENTRY_ID][
+                "alert_telemetry"
+            ][0]
+            assert "profile_label" not in public_detail
+            assert "_display_profile_label" not in public_detail
+
+
+def test_alert_copy_bounds_long_dynamic_labels_without_losing_severity_truth():
+    engine_mod, _register_mod = _load_target_modules()
+    entry = SimpleNamespace(
+        entry_id=RUNTIME_ENTRY_ID,
+        data=_base_entry_data(),
+        options={},
+    )
+    engine = engine_mod.HIAutomationEngine(_FakeHass(entry, {}), entry)
+    detail = {
+        "alert_type": "Mould",
+        "severity": "Risk",
+        "trigger_type": "mould_risk",
+        "measured_value": 3,
+        "threshold": 2,
+        "profile_label": "Seasonal profile " + ("P" * 100),
+        "room": "Configured room " + ("R" * 100),
+        "zone": "Configured zone " + ("Z" * 100),
+        "outputs": [],
+        "boost_level": None,
+    }
+
+    headline, variant, lines = engine._alert_display_content([detail])
+    contract = engine_mod.build_display_reason(
+        engine._make_reason_facts("alert", variant, "critical", headline, lines)
+    )
+
+    assert contract["headline"] == "Mould alert lane selected"
+    assert contract["lines"][0]["text"].startswith("Risk alert:")
+    assert "Danger range" in contract["lines"][0]["text"]
+    assert all(
+        len(line["text"]) <= engine_mod.DISPLAY_REASON_MAX_LINE_TEXT
+        for line in contract["lines"]
+    )
+
+
+def test_zone_mould_copy_names_watch_risk_and_danger_with_safe_fallback():
+    engine_mod, _register_mod = _load_target_modules()
+    entry = SimpleNamespace(
+        entry_id=RUNTIME_ENTRY_ID,
+        data=_base_entry_data(),
+        options={},
+    )
+    engine = engine_mod.HIAutomationEngine(_FakeHass(entry, {}), entry)
+
+    cases = (
+        (1.0, 1.0, "configured Watch response point"),
+        (2.0, 2.0, "configured Risk response point"),
+        (3.0, 2.0, "Danger range, above the configured Risk response point"),
+        (2.0, 1.5, "configured mould response point"),
+    )
+    for measured, threshold, expected in cases:
+        fact = engine_mod._TriggerFact(
+            code="mould_risk",
+            measured=measured,
+            threshold=threshold,
+            unit="risk_level",
+            comparison="at_or_above",
+            profile_label="Winter",
+        )
+        facts = engine._runtime_display_facts(
+            runtime_mode="cooking",
+            alert_details=[],
+            zone_detail={
+                "zone_key": "zone1",
+                "ui_label": "Kitchen",
+                "trigger_facts": (fact,),
+                "outputs": [],
+                "output_level": "boost",
+            },
+            aq_details=[],
+            humidifier_details=[],
+        )
+        contract = engine_mod.build_display_reason(facts)
+        assert contract["headline"] == "Kitchen response lane selected"
+        assert expected in contract["lines"][0]["text"]
+        assert "configured configured" not in contract["lines"][0]["text"]
+        assert contract["lines"][0]["args"]["measured"] == measured
+        assert contract["lines"][0]["args"]["threshold"] == threshold
 
 
 def test_presence_unavailable_is_degraded_fail_closed_without_claiming_away():
@@ -564,6 +683,7 @@ def test_co_emergency_pressure_is_opt_in_and_overrides_manual_gate():
     display = result.reason_sensor_attrs["display_reason"]
     assert display["family"] == "co_emergency"
     assert display["attention"] == "critical"
+    assert display["headline"] == "Carbon monoxide emergency lane selected"
     text = " ".join(line["text"] for line in display["lines"])
     assert "at or above the 15 ppm threshold" in text
     assert "must remain below 10 ppm for two minutes" in text

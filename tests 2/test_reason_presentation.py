@@ -36,7 +36,7 @@ def _facts(**overrides):
         "family": "zone",
         "variant": "humidity_delta",
         "attention": "active",
-        "headline": "Zone 1 response selected",
+        "headline": "Zone 1 response lane selected",
         "lines": (
             rp.ReasonLine(
                 role="why",
