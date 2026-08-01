@@ -496,6 +496,11 @@ unchanged. Create or open a dashboard through Home Assistant, then add a Manual 
 or replace the complete YAML of an existing HI Manual card. Running `refresh_ui`
 alone updates only the in-memory cache. Users retaining V1 Mobile must
 also re-export and re-copy that card to receive the v2.0.9 HTML-escaping fix.
+Beta.3's self-contained `Humidifier response — {resolved label}:` wording is authored
+entirely by the backend, so an already-pasted V2 card that consumes `display_reason`
+does not need replacement and no frontend cache refresh is required for this copy
+amendment. A full Home Assistant restart is still required to load the updated Python
+package.
 
 ---
 

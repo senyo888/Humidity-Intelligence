@@ -15,6 +15,15 @@ This project follows a practical changelog format for Home Assistant and HACS us
   package. The installed Home Assistant path is unchanged, repository-only material
   is excluded from the HACS payload, and no config, entity, or stored-data migration
   is required. A full Home Assistant restart remains required after updating code.
+- Made every material humidifier explanation independently recognizable as
+  `Humidifier response — {resolved label}: ...`. Demand thresholds, Home Assistant
+  dispatch evidence, observed output state, retry/fault/isolation truth, and the
+  physical-moisture caveat remain distinct; long configured labels split into two
+  self-contained bounded lines. Known unavailable service/entity evidence now states
+  that no request was sent, and inactive isolation remains visible exactly once on
+  gate and CO paths. This changes backend presentation text only, requires no
+  generated/Manual-card replacement or frontend cache refresh, and does not change
+  control, entity state, configuration, or deterministic lane ordering.
 - Added the versioned backend-owned `hi.reason.v1` presentation contract as the
   `display_reason` attribute on the existing Air Control Reason entity. The existing
   state, `full_reason`, truncation behavior, and `humidifier_status` remain backward

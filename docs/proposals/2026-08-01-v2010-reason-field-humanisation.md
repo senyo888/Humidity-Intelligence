@@ -58,14 +58,19 @@ bella_phase3_review: approved
 aetherwing_phase3_review: approved
 aethercore_phase3_review: approved
 phase3_local_commit_status: committed_historical
-beta3_amendment_status: package_layout_implemented_reason_and_config_pending
-beta3_local_commit_status: pending
+beta3_amendment_status: local_implementation_approved_all_four_roles
+beta3_local_commit_status: three_local_commits_complete
 beta3_package_layout: custom_components/humidity_intelligence
 beta3_hacs_content_in_root: removed
-beta3_humidifier_response_model: approved_pending_implementation
-beta3_coderabbit_docstring_check: approved_pending_config
+beta3_humidifier_response_model: self_contained_backend_lines
+beta3_coderabbit_docstring_check: disabled_config_only
 beta2_soak_status: superseded_incomplete_historical_evidence
 external_actions_authorized: false
+beta3_implemented_diff_review: approved_all_four_roles
+aetherbite_beta3_review: approved
+bella_beta3_review: approved
+aetherwing_beta3_review: approved
+aethercore_beta3_review: approved
 phase3_review_candidate_tracked_patch_sha256: ced86d8d377ad64a2e4f427d5341d55591fb0f8ea5ec55c030de0f97642b2869
 phase3_review_candidate_untracked_tar_sha256: 45f1dcc62bec051b9a61e1a001d3bb019cb56febb1ab2c7f743897cea2bd3039
 phase3_post_candidate_edits: validation-status-record-plus-ignored-service-field-copy
@@ -110,9 +115,9 @@ frontend truth changes from being reviewed as one opaque patch.
 
 **Status: `REVIEW_REQUIRED`.** Phase 1, Phase 2, and the bounded Phase 3 dashboard
 compatibility fail-safe are approved historical implementation slices. The beta.3
-package-layout slice is implemented and approved for a local commit. The reason-copy
-and CodeRabbit configuration slices remain authorized but absent from this commit;
-they retain separate cached review and local-commit gates.
+package-layout and CodeRabbit configuration slices are locally committed. The
+reason-copy slice is implemented, validated, approved by all four house-agent roles,
+and completed as the third bounded local commit.
 Exact-commit supported-HA loading and HA Lab playback, push, PR reply or creation,
 re-review request, promotion, tag, and release remain separate later authorities.
 
@@ -151,6 +156,9 @@ dispatch evidence proves that HI handed the service request to Home Assistant wi
 an immediate exception. Failed or absent dispatch must never say `HI sent`. Observed
 on/platform-idle copy folds the physical-moisture caveat into the same response line;
 inactive isolation continues to use the single existing global isolation notice.
+Existing reconciliation evidence that proves an unsupported/missing service blocks
+dispatch is presented as `blocked`; missing, unknown, or unavailable output-state
+evidence is `unavailable`. Both state plainly that HI did not send the request.
 
 The incomplete beta.2 soak for exact commit `0d942efe` is preserved as historical
 beta.2 evidence and marked superseded, not failed or transferred. Beta.3 requires a
@@ -629,11 +637,11 @@ path -> Home Assistant dashboard UI -> Manual card.
    structure, exact-path discovery, cache-only refresh, compatibility-service zero-
    side-effect failure, legacy-token continuity, and file-only cleanup passed.
    Registered or YAML-mode dashboards remain unchanged and their lifecycle is deferred.
-4. **Beta.3 package/copy/config amendment — package-layout slice implemented; reason
-   and config slices pending.** The cached package commit moves the exact component
-   and validates package parity. Separate later commits disable only the generic
-   CodeRabbit docstring check and make humidifier response lines self-contained without
-   changing cards, control, entities, or stored data.
+4. **Beta.3 package/copy/config amendment — local implementation complete; cumulative
+   review pending.** The package commit moves the exact component and proves parity;
+   the config-only commit disables the generic CodeRabbit docstring check; the final
+   reason commit makes humidifier response lines self-contained without changing
+   cards, control, entities, or stored data.
 5. **Exact-commit supported-HA and HA Lab validation — pending and not authorized.**
    After separate authority, load the committed beta.3 package in the supported Home
    Assistant harness, restart, parse/save/load the Manual card, verify service guidance
@@ -737,6 +745,35 @@ validation/status record and the four ignored-field descriptions in `services.ya
 they change no runtime code, schema acceptance, renderer, export, or cleanup behavior.
 The final staged tree receives a separate post-review hash outside the self-referential
 proposal content.
+
+## Beta.3 Cumulative Validation Record
+
+The locally implemented beta.3 tree passed:
+
+- 384 tracked pytest checks plus 123 subtests, excluding only
+  `test_hi_memory_usage_auditor.py` because its intentionally ignored local helper is
+  absent from this worktree;
+- all 33 humidifier reconciliation scenarios, including every material reconciliation
+  state, unavailable/blocked dispatch evidence, configured-label bounds, deterministic
+  line splitting, concurrent AQ, and exact-once gate/CO isolation truth;
+- all seven executable V2 reason-renderer cases;
+- component compilation, version governance for `2.0.10-beta.3`, workflow and
+  CodeRabbit YAML parsing, Inspector fixture freshness, proposal links, documentation
+  previews, and diff whitespace checks;
+- exact 52-file beta.2-to-beta.3 package inventory parity, with the engine proven
+  byte-identical in the package-only commit; and
+- 90 ignored-local HA Lab tooling tests plus offline 52-file assembly for both the
+  conventional beta.3 package and explicit legacy-root beta.2 rollback package.
+
+The first cumulative review found and corrected three material truth issues: known
+service unavailability now says no request was sent and uses `blocked`; inactive
+humidifier isolation remains visible exactly once through gate and CO early exits; and
+relocated UI README previews resolve to tracked assets. Proposal phase/status wording
+was also made commit-local and internally consistent.
+
+Not run and not claimed: official beta.3 GitHub HACS/Hassfest Actions, supported Home
+Assistant loading, install/upgrade playback, frontend save/load, HA Lab deployment or
+runtime playback, restart, new T+0, soak, push, PR activity, tag, or release.
 
 ## Home Assistant Lab Playback Expectations
 
@@ -857,6 +894,31 @@ Fresh final implemented-diff verdicts are recorded:
   passing live proposal-link gate, explicit post-candidate provenance, validation
   exclusions, rollback safety, and local-commit-only authority.
 
+Beta.3 received a fresh cumulative review against the exact staged reason tree:
+
+- **Aetherbite — `APPROVE_REASON_COMMIT_FINAL`.** Challenged every not-attempted
+  dispatch category, mixed-output ambiguity, inactive-isolation ownership, long-label
+  splitting, and scroll density. Resolution: capability failures are `blocked`,
+  missing/unavailable state evidence is `unavailable`, no skipped request says
+  `HI sent`, and every retained line remains independently labelled and bounded.
+- **Bella — `APPROVE`.** Challenged reliance on lane-level failure state and the
+  possibility that producer deduplication could hide isolation truth. Resolution:
+  presentation reads matching output ownership, intent, and dispatch evidence; gate
+  and CO early exits retain exactly one backend-owned humidifier-isolation notice.
+- **Aetherwing — `APPROVED_FOR_LOCAL_COMMIT`.** Challenged shared-output wording,
+  evidence precedence, maximum line length, and hidden runtime drift. Resolution:
+  known exceptions outrank requested evidence, the longest reviewed line remains
+  below 200 characters, and dispatch/retry/lane-order traces remain unchanged.
+- **AetherCore — `APPROVE_BETA3_CUMULATIVE_LOCAL_WITH_MECHANICAL_CLOSEOUT`.**
+  Challenged whether refined `blocked`/`unavailable` truth or gate/CO notices exceeded
+  presentation scope. Resolution: the new helper is read-only, service-free, and
+  changes only `display_reason`; the three-commit topology and external boundaries
+  are proven.
+
+The first cumulative review also found stale relocated preview links and proposal
+lifecycle wording; both were corrected before commit-specific approval. There is no
+unresolved product, runtime, packaging, privacy, or governance disagreement.
+
 All four approvals cover the reviewed tree plus this mechanical verdict/status
 bookkeeping. Any later behavioral change requires renewed review.
 
@@ -932,11 +994,11 @@ requires a separately approved proposal and migration contract.
 
 ## Final Status
 
-`REVIEW_REQUIRED — BETA3_PACKAGE_COMMIT_READY / REASON_AND_CONFIG_PENDING / HA_LAB_NOT_AUTHORIZED`
+`REVIEW_REQUIRED — BETA3_LOCAL_COMMITS_COMPLETE / HA_LAB_AND_EXTERNAL_ACTIONS_NOT_AUTHORIZED`
 
 Phase 1, Phase 2, and Phase 3 remain approved historical implementation slices.
-Beta.3's conventional package move is implemented and cached for local commit after
-package-specific review. The CodeRabbit configuration and self-contained
-humidifier-response copy remain approved but are intentionally absent from this
-commit and require their own cached proofs. HA Lab playback, push, PR reply, re-review
-request, PR creation, tag, and release promotion are not authorized by this phase.
+Beta.3's conventional package move, CodeRabbit configuration, and self-contained
+humidifier-response copy are implemented, validated, approved by all four roles, and
+separated into three local commits. Exact-commit supported-HA and HA Lab playback
+remain required before any release decision. HA Lab deployment/playback, push, PR
+reply, re-review request, PR creation, tag, and release promotion are not authorized.

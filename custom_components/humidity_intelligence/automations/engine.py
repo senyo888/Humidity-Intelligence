@@ -40,6 +40,7 @@ from ..services import async_flash_lights_for_alert
 from ..helpers.level_labels import resolve_level_labels
 from ..helpers.parsing import hass_temperature_unit, parse_numeric, parse_temperature
 from ..helpers.reason_presentation import (
+    DISPLAY_REASON_MAX_LINE_TEXT,
     DISPLAY_REASON_MAX_LINES,
     DISPLAY_REASON_TARGET_LINES,
     ReasonFacts,
@@ -2673,6 +2674,7 @@ class HIAutomationEngine:
             )
         )
         lines.extend(self._humidifier_display_lines([]))
+        lines.extend(self._isolation_display_lines(include_fan=False))
         return self._make_reason_facts(
             "gate",
             variant,
@@ -2811,6 +2813,7 @@ class HIAutomationEngine:
             )
         )
         lines.extend(self._humidifier_display_lines([]))
+        lines.extend(self._isolation_display_lines(include_fan=False))
         return self._make_reason_facts(
             "co_emergency",
             "threshold_active",
@@ -3201,6 +3204,8 @@ class HIAutomationEngine:
         self,
         active_details: List[Dict[str, Any]],
     ) -> List[ReasonLine]:
+        """Return self-contained backend-authored humidifier response lines."""
+
         runtime_data = self.hass.data.get(DOMAIN, {}).get(self.entry.entry_id, {})
         status = runtime_data.get("humidifier_status")
         if not isinstance(status, dict):
@@ -3214,8 +3219,6 @@ class HIAutomationEngine:
             if isinstance(detail, dict) and detail.get("level")
         }
         lines: List[ReasonLine] = []
-        physical_caveat = False
-        platform_humidifying = False
         for level in ("level1", "level2"):
             lane = lanes.get(level)
             if not isinstance(lane, dict):
@@ -3227,6 +3230,13 @@ class HIAutomationEngine:
             failure_category = str(lane.get("failure_category") or "")
             on_dispatch = self._humidifier_lane_dispatch_evidence(level, "turn_on")
             off_dispatch = self._humidifier_lane_dispatch_evidence(level, "turn_off")
+            not_attempted = self._humidifier_lane_not_attempted_evidence(
+                level,
+                "turn_on" if demand == "requested" else "turn_off",
+            )
+            if reconciliation == "isolated" and demand != "requested":
+                # Preserve the single existing global notice for inactive isolation.
+                continue
             relevant = demand == "requested" or reconciliation in {
                 "degraded",
                 "fault_latched",
@@ -3242,156 +3252,236 @@ class HIAutomationEngine:
             if not relevant:
                 continue
             label = self._presentation_level_label(level)
+            line_prefix = f"Humidifier response — {label}: "
             detail = active_by_level.get(level, {})
             humidity = _to_float(detail.get("humidity"))
             start = _to_float(detail.get("low"))
             stop = _to_float(detail.get("recovery_off"))
             environment = str(detail.get("environmental_state") or lane.get("environmental_state") or "inactive")
+            environment_text: Optional[str]
             if demand == "requested" and humidity is not None and start is not None and stop is not None:
+                season = sanitize_display_label(detail.get("season"), maximum=32)
+                profile_prefix = f"{season} profile: " if season else ""
                 if environment == "recovering":
-                    prefix = (
-                        f"{label}: {humidity:.1f}%; recovery hold continues to "
-                        f"{stop:.1f}%."
+                    environment_text = (
+                        f"{profile_prefix}demand remains active at {humidity:.1f}%; "
+                        f"start {start:.1f}%, stop {stop:.1f}%."
                     )
                 else:
-                    prefix = (
-                        f"{label}: {humidity:.1f}% is at or below the {start:.1f}% "
-                        "start threshold; demand is active."
+                    environment_text = (
+                        f"{profile_prefix}demand is active at {humidity:.1f}%; "
+                        f"start {start:.1f}%, stop {stop:.1f}%."
                     )
             elif demand == "requested":
-                prefix = f"{label}: humidification demand is active."
+                environment_text = "Humidification demand is active."
             else:
-                prefix = f"{label}: humidification demand is inactive."
+                environment_text = "Humidification demand is inactive."
 
             if reconciliation == "output_on":
-                suffix = " Output observed on."
+                if platform_action == "humidifying":
+                    response_text = (
+                        "Home Assistant reports the output on and humidifying; "
+                        "moisture output is not measured."
+                    )
+                else:
+                    response_text = (
+                        "Home Assistant reports the output on; moisture output is not measured."
+                    )
                 truth = "observed"
-                physical_caveat = True
             elif reconciliation == "platform_idle":
-                suffix = " Output observed on; platform action idle."
+                response_text = (
+                    "Home Assistant reports the output on but its humidifier action is idle; "
+                    "moisture output is not measured."
+                )
                 truth = "observed"
-                physical_caveat = True
             elif reconciliation == "requested":
                 if on_dispatch == "requested":
-                    suffix = (
-                        " HI sent the output-on request to Home Assistant; confirmation "
+                    response_text = (
+                        "HI sent the output-on request to Home Assistant; confirmation "
                         "is pending."
                     )
                     truth = "requested"
                 else:
-                    suffix = " Output-on confirmation is pending; dispatch is not confirmed."
+                    response_text = "Output-on confirmation is pending; dispatch is not confirmed."
                     truth = "not_confirmed"
             elif reconciliation == "retrying":
                 if on_dispatch == "failed":
-                    suffix = (
-                        " A Home Assistant output-on service call failed; bounded "
-                        "reconciliation retry is active."
+                    response_text = (
+                        "A Home Assistant output-on service call failed; a bounded retry is active."
                     )
                     truth = "failed"
                 elif on_dispatch == "requested":
-                    suffix = (
-                        " HI sent an output-on request to Home Assistant; confirmation "
-                        "is pending and bounded reconciliation remains active."
+                    response_text = (
+                        "HI sent an output-on retry to Home Assistant; confirmation is pending."
                     )
                     truth = "requested"
                 else:
-                    suffix = " Output-on mismatch remains; bounded reconciliation retry is active."
+                    response_text = (
+                        "Output-on mismatch remains; a bounded retry is active, but dispatch "
+                        "is not confirmed."
+                    )
                     truth = "not_confirmed"
             elif reconciliation == "stopping":
                 if off_dispatch == "failed":
-                    suffix = (
-                        " A Home Assistant output-off service call failed; bounded "
-                        "reconciliation remains active."
+                    response_text = (
+                        "A Home Assistant output-off service call failed; HI is still checking "
+                        "within its attempt limit."
                     )
                     truth = "failed"
                 elif off_dispatch == "requested":
-                    suffix = (
-                        " HI sent the output-off request to Home Assistant; output-off "
-                        "confirmation is pending."
+                    response_text = (
+                        "HI sent the output-off request to Home Assistant; confirmation is pending."
                     )
                     truth = "requested"
                 else:
-                    suffix = " Output-off confirmation is pending; dispatch is not confirmed."
+                    response_text = "Output-off confirmation is pending; dispatch is not confirmed."
                     truth = "not_confirmed"
             elif reconciliation == "isolated":
-                suffix = " Command suppressed by humidifier-output isolation."
+                response_text = (
+                    "Humidifier-output isolation prevents Home Assistant service calls."
+                )
                 truth = "blocked"
             elif reconciliation == "unknown":
-                suffix = " Output state unavailable; activity is not confirmed."
+                response_text = "Output state is unavailable; activity is not confirmed."
                 truth = "unavailable"
             elif reconciliation == "degraded":
                 if failure_category == "telemetry_unavailable":
-                    prefix = (
-                        f"{label}: humidity data is unavailable, so HI cannot assess "
-                        "humidifier demand."
+                    environment_text = None
+                    response_text = (
+                        "Humidity data is unavailable, so HI cannot assess humidifier demand."
                     )
-                    suffix = ""
                     truth = "unavailable"
                 elif failure_category == "no_outputs":
-                    prefix = (
-                        f"{label}: no humidifier output is configured, so no command "
-                        "was sent."
+                    environment_text = None
+                    response_text = (
+                        "No humidifier output is configured, so no command was sent."
                     )
-                    suffix = ""
                     truth = "blocked"
+                elif not_attempted == "unsupported_domain":
+                    response_text = (
+                        "A configured humidifier output uses an unsupported entity type, "
+                        "so HI did not send that request."
+                    )
+                    truth = "blocked"
+                elif not_attempted == "service_unavailable":
+                    intent_label = (
+                        "output-on" if demand == "requested" else "output-off"
+                    )
+                    response_text = (
+                        f"A required Home Assistant {intent_label} service is unavailable, "
+                        "so HI did not send that request."
+                    )
+                    truth = "blocked"
+                elif not_attempted == "missing":
+                    response_text = (
+                        "A configured humidifier output is not available in Home Assistant, "
+                        "so HI did not send that request."
+                    )
+                    truth = "unavailable"
+                elif not_attempted in {"unknown", "unavailable"}:
+                    response_text = (
+                        "A required humidifier output state is unavailable, so HI did not "
+                        "send that request."
+                    )
+                    truth = "unavailable"
                 else:
-                    suffix = (
-                        " Output reconciliation is degraded; activity is not confirmed."
+                    response_text = (
+                        "HI cannot confirm how the humidifier output responded."
                     )
                     truth = "not_confirmed"
             elif reconciliation == "fault_latched":
-                suffix = " Reconciliation fault is latched after bounded attempts."
+                response_text = (
+                    "HI exhausted its bounded confirmation attempts; output activity is not "
+                    "confirmed."
+                )
                 truth = "failed"
             elif reconciliation == "inactive_shared_output":
-                suffix = (
-                    " A shared output remains selected because another humidifier lane "
-                    "still has active demand."
+                response_text = (
+                    "Demand is inactive here, but another humidifier area still needs the "
+                    "shared output."
                 )
+                environment_text = None
                 truth = "selected"
             else:
-                suffix = ""
+                response_text = ""
                 truth = "selected"
-            lines.append(
-                ReasonLine(
-                    "notice",
-                    "humidifier",
-                    f"humidifier.{reconciliation}",
-                    truth,
-                    prefix + suffix,
-                    {
-                        "demand_active": demand == "requested",
-                        "dispatch_evidence": (
-                            off_dispatch if reconciliation == "stopping" else on_dispatch
-                        ),
-                        "environmental_state": environment,
-                        "lane": level,
-                        "observed": observed,
-                        "reconciliation": reconciliation,
-                    },
-                )
-            )
-            platform_humidifying = platform_humidifying or platform_action == "humidifying"
-        if platform_humidifying:
-            lines.append(
-                ReasonLine(
-                    "notice",
-                    "humidifier",
-                    "humidifier.platform_action_caveat",
-                    "observed",
-                    "Platform action reports humidifying; physical moisture output is not measured.",
-                )
-            )
-        elif physical_caveat:
-            lines.append(
-                ReasonLine(
-                    "notice",
-                    "humidifier",
-                    "humidifier.physical_output_not_confirmed",
-                    "not_confirmed",
-                    "Physical moisture output is not independently confirmed.",
+            args = {
+                "demand_active": demand == "requested",
+                "dispatch_evidence": (
+                    off_dispatch if reconciliation == "stopping" else on_dispatch
+                ),
+                "environmental_state": environment,
+                "lane": level,
+                "observed": observed,
+                "reconciliation": reconciliation,
+            }
+            lines.extend(
+                self._bounded_humidifier_response_lines(
+                    line_prefix=line_prefix,
+                    environment_text=environment_text,
+                    response_text=response_text,
+                    reconciliation=reconciliation,
+                    truth=truth,
+                    args=args,
                 )
             )
         return lines
+
+    @staticmethod
+    def _bounded_humidifier_response_lines(
+        *,
+        line_prefix: str,
+        environment_text: Optional[str],
+        response_text: str,
+        reconciliation: str,
+        truth: str,
+        args: Dict[str, Any],
+    ) -> List[ReasonLine]:
+        """Combine or split one lane response while preserving the line limit."""
+
+        code = f"humidifier.{reconciliation}"
+        if environment_text and response_text:
+            combined = f"{line_prefix}{environment_text} {response_text}"
+            if len(combined) <= DISPLAY_REASON_MAX_LINE_TEXT:
+                return [
+                    ReasonLine(
+                        "notice",
+                        "humidifier",
+                        code,
+                        truth,
+                        combined,
+                        args,
+                    )
+                ]
+            return [
+                ReasonLine(
+                    "notice",
+                    "humidifier",
+                    "humidifier.environment",
+                    "selected",
+                    f"{line_prefix}{environment_text}",
+                    args,
+                ),
+                ReasonLine(
+                    "notice",
+                    "humidifier",
+                    code,
+                    truth,
+                    f"{line_prefix}{response_text}",
+                    args,
+                ),
+            ]
+        text = environment_text or response_text
+        return [
+            ReasonLine(
+                "notice",
+                "humidifier",
+                code,
+                truth,
+                f"{line_prefix}{text}",
+                args,
+            )
+        ]
 
     def _humidifier_lane_dispatch_evidence(self, level: str, intent: str) -> str:
         runtime_data = self.hass.data.get(DOMAIN, {}).get(self.entry.entry_id, {})
@@ -3417,6 +3507,41 @@ class HIAutomationEngine:
             return "requested"
         return "not_confirmed"
 
+    def _humidifier_lane_not_attempted_evidence(
+        self,
+        level: str,
+        intent: str,
+    ) -> Optional[str]:
+        """Return existing output evidence that explains why dispatch was skipped."""
+
+        runtime_data = self.hass.data.get(DOMAIN, {}).get(self.entry.entry_id, {})
+        reconciliation = runtime_data.get("humidifier_reconciliation")
+        if not isinstance(reconciliation, dict):
+            return None
+        outputs = reconciliation.get("outputs")
+        if not isinstance(outputs, dict):
+            return None
+        results: set[str] = set()
+        for output in outputs.values():
+            if not isinstance(output, dict):
+                continue
+            owners = set(output.get("owners") or ()) | set(
+                output.get("configured_owners") or ()
+            )
+            if level not in owners or output.get("last_command_intent") != intent:
+                continue
+            results.add(str(output.get("dispatch_result") or ""))
+        for result in (
+            "unsupported_domain",
+            "service_unavailable",
+            "missing",
+            "unavailable",
+            "unknown",
+        ):
+            if result in results:
+                return result
+        return None
+
     def _isolation_display_lines(self, *, include_fan: bool = True) -> List[ReasonLine]:
         lines: List[ReasonLine] = []
         if include_fan and self._fan_outputs_isolated():
@@ -3434,7 +3559,10 @@ class HIAutomationEngine:
                 "humidifier_status",
                 {},
             )
-            if not isinstance(status, dict) or status.get("overall") == "inactive":
+            if (
+                not isinstance(status, dict)
+                or status.get("overall") in {None, "inactive"}
+            ):
                 lines.append(
                     ReasonLine(
                         "notice",
