@@ -167,8 +167,8 @@ The v2.0.9 path change is non-destructive. Existing report and card files in the
 config root are not moved, copied, symlinked, dual-written, or deleted. The fixed
 self-check report now lives at
 `<config>/humidity_intelligence/exports/humidity_intelligence_self_check.json`;
-generated card YAML lives under `<config>/humidity_intelligence/ui/`. Registered
-dashboard YAML remains at `<config>/dashboards/<url_path>.yaml`.
+generated Manual-card YAML lives under `<config>/humidity_intelligence/ui/`. Those
+exports are card fragments and must not be copied to `<config>/dashboards/`.
 
 Update file sensors, shell commands, support tools, or other consumers from
 `<config>/<report filename>` to
@@ -184,7 +184,7 @@ HI no longer refreshes superseded owned-UI files, but external consumers can sti
 read their stale content. Do not treat an older inferred filename as current truth;
 follow the newest notification and remove stale defaults through an explicit
 previewed purge when desired. Config-entry removal deletes only the removed entry's
-exact default/release-test UI exports and registered dashboard. It retains reports,
+exact default/release-test UI exports. It retains Home Assistant dashboards, reports,
 custom card exports, legacy root files, and the remaining entry's superseded
 qualified files after a multi-entry installation returns to one entry.
 
@@ -203,7 +203,7 @@ For an artifact that exact purge intentionally retains:
 3. delete only the confirmed regular file through File Editor, Studio Code Server,
    Samba, or SSH
 4. do not delete an owned directory, use a wildcard, follow a symlink/non-regular
-   object, or manually remove registered dashboard YAML
+   object, or overwrite a dashboard file with a Manual-card fragment
 5. confirm the active owned-directory artifact and Manual card remain correct
 
 Manual deletion of an unused retained file does not itself require a Home Assistant

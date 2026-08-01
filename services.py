@@ -20,7 +20,6 @@ from .helpers.cleanup import (
     RELEASE_CHECK_CARD_BASE,
     build_generated_card_filename,
     list_owned_ui_filenames,
-    remove_dashboard,
 )
 from .helpers.drift import humidity_drift_dependency_status, humidity_drift_warning
 from .helpers.diagnostics_redaction import redact_diagnostics_payload
@@ -123,7 +122,6 @@ _GENERATED_CARD_ENTITY_RE = re.compile(
 _SAFE_FILENAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 _OWNED_REPORT_FILENAME_PREFIX = "humidity_intelligence_"
 _OWNED_REPORT_FILENAME_SUFFIX = ".json"
-_SAFE_DASHBOARD_PATH_RE = re.compile(r"^[a-z0-9_-]{1,64}$")
 _RELEASE_CHECK_MANIFEST_VERSION_RE = re.compile(
     r"^2\.0\.(?:5|(?:[6-9]|10)(?:-(?:beta|rc)\.[1-9]\d*)?)$"
 )
@@ -211,15 +209,6 @@ def _validate_owned_report_filename(value: str) -> str:
     return text
 
 
-def _validate_dashboard_url_path(value: str) -> str:
-    text = str(value).strip().lower()
-    if not _SAFE_DASHBOARD_PATH_RE.fullmatch(text):
-        raise vol.Invalid(
-            "Dashboard URL path must use only lowercase letters, numbers, '_' or '-'"
-        )
-    return text
-
-
 def _validate_rgb_color(value) -> List[int]:
     """Accept service/YAML RGB colors and normalize them to a plain list."""
     if isinstance(value, tuple):
@@ -301,9 +290,9 @@ SERVICE_DUMP_CARDS_SCHEMA = vol.Schema({
 })
 SERVICE_CREATE_DASHBOARD_SCHEMA = vol.Schema({
     vol.Optional("entry_id"): cv.string,
-    vol.Optional("layout", default="v2_mobile"): _validate_layout,
+    vol.Optional("layout", default="v2_mobile"): cv.string,
     vol.Optional("title", default="Humidity Intelligence"): cv.string,
-    vol.Optional("url_path", default="humidity-intelligence"): _validate_dashboard_url_path,
+    vol.Optional("url_path", default="humidity-intelligence"): cv.string,
 })
 SERVICE_VIEW_CARDS_SCHEMA = vol.Schema({
     vol.Optional("entry_id"): cv.string,
@@ -341,55 +330,18 @@ async def async_create_dashboard_for_entry(
     title: str,
     url_path: str,
 ) -> bool:
-    """Render and create one dashboard for a trusted config entry."""
-    try:
-        url_path = _validate_dashboard_url_path(url_path)
-    except vol.Invalid as err:
-        raise HomeAssistantError(str(err)) from err
-
-    from homeassistant.components.lovelace import dashboard as lovelace_dashboard
-
-    from .ui.register import async_build_entity_mapping, async_register_cards
-
-    mapping = await async_build_entity_mapping(hass, entry.entry_id)
-    cards = await async_register_cards(hass, entry.entry_id, mapping=mapping)
-    yaml_str = cards.get(layout)
-    if not yaml_str:
-        raise HomeAssistantError(
-            f"Dashboard layout {layout!r} is not available for this config entry"
-        )
-
-    filename = f"dashboards/{url_path}.yaml"
-    path = hass.config.path(filename)
-    try:
-        await hass.async_add_executor_job(_write_text, path, yaml_str)
-    except Exception as err:
-        _LOGGER.exception("Unable to write dashboard YAML to %s", filename)
-        raise HomeAssistantError(
-            f"Dashboard YAML could not be written to /config/{filename}"
-        ) from err
-
-    try:
-        await lovelace_dashboard.async_create_dashboard(
-            hass,
-            dashboard_id=url_path,
-            title=title,
-            mode="yaml",
-            filename=filename,
-            icon="mdi:water-percent",
-            show_in_sidebar=True,
-            require_admin=False,
-        )
-    except Exception as err:
-        _LOGGER.exception(
-            "Unable to create dashboard after writing YAML to %s",
-            filename,
-        )
-        raise HomeAssistantError(
-            "Dashboard registration failed after YAML was written to "
-            f"/config/{filename}; check the Home Assistant log"
-        ) from err
-    return True
+    """Return deterministic Manual-card guidance without dashboard mutation."""
+    del hass, entry, layout, title, url_path
+    raise HomeAssistantError(
+        "Humidity Intelligence cannot create or register a Home Assistant dashboard "
+        "automatically. No file or dashboard was changed. Run "
+        "humidity_intelligence.refresh_ui, then humidity_intelligence.view_cards "
+        "with the intended entry_id and layout. Open the exact "
+        "/config/humidity_intelligence/ui/... path from the notification. In Home "
+        "Assistant, create or open a dashboard, choose Edit dashboard, then add or "
+        "edit a Manual card and paste the full exported YAML. The export is a card "
+        "fragment; do not copy it to /config/dashboards/."
+    )
 
 
 async def async_flash_lights_for_alert(
@@ -804,26 +756,12 @@ async def async_register_services(hass: HomeAssistant) -> None:
 
     async def handle_create_dashboard(call: ServiceCall) -> None:
         await _async_require_admin_user(hass, call, SERVICE_CREATE_DASHBOARD)
-        entry_id = call.data.get("entry_id")
-        layout = call.data.get("layout", "v2_mobile")
-        title = call.data.get("title", "Humidity Intelligence")
-        url_path = call.data.get("url_path", "humidity-intelligence")
-
-        entry = None
-        if entry_id:
-            entry = hass.config_entries.async_get_entry(entry_id)
-        if entry is None:
-            entries = hass.config_entries.async_entries(DOMAIN)
-            entry = entries[0] if entries else None
-        if entry is None:
-            raise HomeAssistantError("No Humidity Intelligence config entry found")
-
         await async_create_dashboard_for_entry(
             hass,
-            entry,
-            layout=layout,
-            title=title,
-            url_path=url_path,
+            None,
+            layout=call.data.get("layout", "v2_mobile"),
+            title=call.data.get("title", "Humidity Intelligence"),
+            url_path=call.data.get("url_path", "humidity-intelligence"),
         )
 
     hass.services.async_register(
@@ -908,37 +846,19 @@ async def async_register_services(hass: HomeAssistant) -> None:
                 raise HomeAssistantError(f"Cleanup plan rejected: {err}") from err
         report_files = [plan.relative_path for plan, _remover in report_plans]
 
-        dashboards = []
-        for entry in entries:
-            dashboard_id = entry.data.get("ui_dashboard_id")
-            if dashboard_id and dashboard_id not in dashboards:
-                dashboards.append(dashboard_id)
-        invalid_dashboards = [
-            dashboard_id
-            for dashboard_id in dashboards
-            if (
-                not isinstance(dashboard_id, str)
-                or not _SAFE_DASHBOARD_PATH_RE.fullmatch(dashboard_id)
-            )
-        ]
-        if invalid_dashboards:
-            raise HomeAssistantError(
-                "Cleanup plan rejected invalid dashboard identifier(s): "
-                + ", ".join(str(item) for item in invalid_dashboards)
-            )
-        dashboards.sort()
-
         message_lines = [f"/config/{f}" for f in files]
         message_lines.extend(
             f"Home Assistant config/{name}" for name in report_files
         )
-        for dash in dashboards:
-            message_lines.append(f"Dashboard: {dash}")
         preview_message = (
             "The following generated artifacts will be removed:\n"
             + "\n".join(message_lines)
             if message_lines
-            else "No generated files or dashboards were found."
+            else "No generated files were found."
+        )
+        preview_message += (
+            "\n\nHome Assistant dashboards are user-managed and are not removed by "
+            "Humidity Intelligence."
         )
         await hass.services.async_call(
             "persistent_notification",
@@ -980,20 +900,11 @@ async def async_register_services(hass: HomeAssistant) -> None:
                     err,
                 )
                 failed_report_files.append(report_plan.relative_path)
-        failed_dashboards = []
-        for dashboard_id in dashboards:
-            if not await remove_dashboard(hass, dashboard_id):
-                failed_dashboards.append(dashboard_id)
-
-        if failed_files or failed_report_files or failed_dashboards:
+        if failed_files or failed_report_files:
             failure_lines = [f"/config/{name}" for name in failed_files]
             failure_lines.extend(
                 f"Home Assistant config/{name}"
                 for name in failed_report_files
-            )
-            failure_lines.extend(
-                f"Dashboard: {dashboard_id}"
-                for dashboard_id in failed_dashboards
             )
             await hass.services.async_call(
                 "persistent_notification",
@@ -1012,8 +923,6 @@ async def async_register_services(hass: HomeAssistant) -> None:
                 details.append("files: " + ", ".join(failed_files))
             if failed_report_files:
                 details.append("reports: " + ", ".join(failed_report_files))
-            if failed_dashboards:
-                details.append("dashboards: " + ", ".join(failed_dashboards))
             raise HomeAssistantError("Purge incomplete: " + "; ".join(details))
 
     hass.services.async_register(DOMAIN, SERVICE_PURGE_FILES, handle_purge_files, schema=SERVICE_PURGE_FILES_SCHEMA)
@@ -1110,13 +1019,6 @@ async def async_unregister_services(hass: HomeAssistant) -> None:
         hass.services.async_remove(DOMAIN, SERVICE_CREATE_LOCAL_BACKUP)
     if hass.services.has_service(DOMAIN, SERVICE_LIST_SAVED_VERSIONS):
         hass.services.async_remove(DOMAIN, SERVICE_LIST_SAVED_VERSIONS)
-
-def _write_text(path: str, payload: str) -> None:
-    from pathlib import Path
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(payload)
-
 
 async def _async_read_manifest_version(hass: HomeAssistant) -> Optional[str]:
     def _read_version() -> Optional[str]:

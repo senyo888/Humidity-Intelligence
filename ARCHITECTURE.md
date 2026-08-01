@@ -95,6 +95,26 @@ alter lane decisions. Red control-row styling is reserved for selected alert or 
 runtime truth; environmental risk readings may still show risk colors in telemetry
 chips without implying a selected command lane.
 
+The existing Current Air Control Reason entity may expose the additive
+`display_reason` attribute using the exact `hi.reason.v1` schema. That object is the
+backend-owned V2 reason-presentation authority and is built only after authoritative
+lane, gate, timer, helper, reconciliation, and output-selection work. Its presenter is
+pure, bounded to 4 KiB, and failure-isolated: invalid or failed presentation is
+omitted while the existing technical state, `full_reason`, truncation behavior, and
+`humidifier_status` remain available as the compatibility fallback.
+
+Schema-1 cards render final backend-authored headline and line text. They may validate
+schema support, escape text, and fall back atomically, but must not reconstruct prose
+from codes/arguments or add independent Stage, risk, timer, isolation, or Engine
+explanations. Ventilation output wording must remain selection truth unless dispatch
+and observation are separately proven. Humidifier wording may use its stronger
+reconciliation evidence while preserving the physical-moisture caveat.
+
+Unavailable-only presence evidence is presented as degraded
+`presence_unavailable`, not confirmed absence. The v2.0.10 contract preserves the
+existing fail-closed gate effect and CO bypass; changing presence unknown-policy is a
+separate runtime decision.
+
 ## Safe Degradation
 
 Unknown, unavailable, incomplete, or unmapped inputs must degrade safely and
@@ -117,25 +137,26 @@ Contextless background automation/script calls are intentionally rejected. Suppo
 external use originates from an authenticated admin UI or API session; any future
 automated trusted route requires separate design approval.
 
-First-run dashboard creation may use a trusted internal setup helper only after the
-user explicitly selects dashboard creation in config flow. First-run card export,
-option-triggered regeneration, and release-check test exports use a separate trusted
-internal card exporter so admin-gating the public `dump_cards` and `view_cards`
-handlers does not break integration-owned continuity. Startup refresh remains
-cache-only and does not claim a filesystem export. Neither helper is exposed as a
-contextless service bypass. The config entry records a dashboard identifier only
-after registration succeeds. Dashboard creation authorization is separate from later
-dashboard visibility.
+`create_dashboard` is retained as an admin-gated compatibility service but is a
+guidance-only fail-safe: after authorization it raises deterministic `refresh_ui`,
+`view_cards`, and Manual-card instructions before mapping, rendering, filesystem
+access, or Lovelace imports. First-run card export, option-triggered regeneration, and
+release-check test exports use the trusted internal card exporter so admin-gating the
+public `dump_cards` and `view_cards` handlers does not break integration-owned
+continuity. Startup refresh remains cache-only and does not claim a filesystem export.
+New setup does not offer dashboard creation. Legacy `create_dashboard` selections and
+`ui_dashboard_id` values are inert compatibility data and require no migration.
 
 Runtime-owned visual alerts call a separate trusted internal flashing helper after
 the deterministic engine has selected an alert lane. The public `flash_lights`
 service is admin-gated and is not the engine's control path; it cannot create,
 reorder, or override a lane decision.
 
-Generated-artifact purge must validate its full fixed target set before mutation,
-show the exact existing file and configured dashboard targets in a completed blocking
-notification before deletion, reject paths outside the direct owned basename set and
-non-regular filesystem objects, and report partial failures truthfully.
+Generated-artifact purge must validate its full fixed file target set before mutation,
+show the exact existing files in a completed blocking notification before deletion,
+reject paths outside the direct owned basename set and non-regular filesystem objects,
+and report partial failures truthfully. Home Assistant dashboards are user-managed and
+must never be inferred as HI-owned, previewed, or deleted from legacy stored IDs.
 
 Caller-selectable diagnostics and release-check report basenames must match
 `humidity_intelligence_*.json` and are written only inside the owned
@@ -150,7 +171,7 @@ destination. Entry-scoped purge owns no export report. Only an unscoped all-entr
 purge may remove the exact default diagnostics and fixed self-check exports;
 release-check, custom, and legacy config-root reports remain retained.
 
-Generated card YAML is written only inside
+Generated Manual-card YAML fragments are written only inside
 `<config>/humidity_intelligence/ui/`. Directory verification, creation, temporary
 writes, atomic replacement, and cleanup are descriptor-relative and no-follow,
 reject symlink and non-regular targets, revalidate directory/file identity, and fail
@@ -162,12 +183,12 @@ Adding a second entry re-exports every loaded entry with qualified names; removi
 back to one entry re-exports the remaining entry with unqualified names. Superseded
 owned-UI names are retained non-destructively, are no longer refreshed by HI, and
 remain externally readable until an exact purge. Config-entry removal owns only the
-removed entry's exact default/release-test UI exports and registered dashboard; it
-does not own reports, custom card exports, or legacy root files. When removal returns
+removed entry's exact default/release-test UI exports; it does not own Home Assistant
+dashboards, reports, custom card exports, or legacy root files. When removal returns
 a multi-entry installation to one entry, the remaining entry's qualified files stay
-retained while fresh unqualified exports are written.
-Registered Lovelace dashboard YAML remains separately owned at
-`<config>/dashboards/<url_path>.yaml`.
+retained while fresh unqualified exports are written. Card exports are not complete
+dashboard documents and must not be written to `<config>/dashboards/`; dashboard
+creation, registration, editing, and deletion stay within Home Assistant's UI.
 
 Dynamic state or attribute text rendered through generated-card HTML must be escaped
 at the HTML sink. The V1 Mobile presentation remains available but deprecated through

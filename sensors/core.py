@@ -31,6 +31,10 @@ from ..helpers.drift import (
     humidity_drift_dependency_status,
 )
 from ..helpers.parsing import format_temperature, hass_temperature_unit, parse_numeric, parse_temperature
+from ..helpers.reason_presentation import (
+    ReasonPresentationError,
+    validate_display_reason,
+)
 from ..helpers.seasonal import (
     condensation_risk as seasonal_condensation_risk,
     humidity_state as seasonal_humidity_state,
@@ -710,16 +714,25 @@ class _CoreComputations:
         full_reason = data.get("runtime_reason_full")
         truncated = bool(data.get("runtime_reason_truncated"))
         humidifier_status = data.get("humidifier_status")
+        display_reason = data.get("runtime_display_reason")
         if isinstance(reason, str) and reason.strip():
             attrs: Dict[str, Any] = {"truncated": truncated}
             if isinstance(full_reason, str) and full_reason.strip():
                 attrs["full_reason"] = full_reason.strip()
             if isinstance(humidifier_status, dict):
                 attrs["humidifier_status"] = _sanitize_json(humidifier_status)
+            try:
+                attrs["display_reason"] = validate_display_reason(display_reason)
+            except ReasonPresentationError:
+                pass
             return reason.strip(), attrs
         attrs = {}
         if isinstance(humidifier_status, dict):
             attrs["humidifier_status"] = _sanitize_json(humidifier_status)
+        try:
+            attrs["display_reason"] = validate_display_reason(display_reason)
+        except ReasonPresentationError:
+            pass
         return "System is armed and monitoring sensors. No action is needed right now.", attrs
 
     def _compute_active_alert_context(self) -> Tuple[str, Dict[str, Any]]:

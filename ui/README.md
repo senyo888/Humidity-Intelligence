@@ -82,7 +82,6 @@ The UI maps directly to your configuration, and HI notifies you where generated 
 
 Use:
 
-- `humidity_intelligence.create_dashboard`
 - `humidity_intelligence.view_cards`
 - `humidity_intelligence.dump_cards`
 
@@ -93,13 +92,13 @@ token to each filename. Adding a second entry re-exports all loaded entries with
 qualified names; removing back to one re-exports the remaining entry with unqualified
 names. HI no longer refreshes superseded owned-UI names, but external consumers can
 still read their stale content until exact purge. Config-entry removal deletes only
-the removed entry's exact default/release-test UI exports and registered dashboard;
+the removed entry's exact default/release-test UI exports; Home Assistant dashboards,
 reports, custom exports, legacy root files, and remaining-entry superseded qualified
 files are retained. Trusted first-run, options, and release-check regeneration uses
 the same internal exporter without routing through the public service handler.
-Startup refresh remains cache-only.
-Registered dashboard YAML remains under
-`/config/dashboards/<url_path>.yaml`.
+Startup refresh remains cache-only. `humidity_intelligence.create_dashboard` remains
+registered for compatibility, but performs no writes and returns the supported
+Manual-card steps after admin authorization.
 
 `dump_cards` writes files without a completion path notification. Open
 `/config/humidity_intelligence/ui/` in File Editor after the action, or use
@@ -111,8 +110,8 @@ If upgrading from the config-root writer, do not copy a retained file such as
 `/config/humidity_intelligence_cards_v2_mobile.yaml`; HI no longer refreshes it.
 Refresh File Editor and use the new owned-directory file. Before manually deleting a
 retained root or custom export, back up and disable every consumer, then delete only
-that exact regular file. Never delete the whole owned directory or registered
-dashboard YAML by hand.
+that exact regular file. Never delete the whole owned directory or overwrite a
+dashboard file with a Manual-card fragment.
 
 Avoid manual YAML drift.
 
@@ -203,6 +202,13 @@ The panel must:
 - render backend `telemetry_unavailable` as degraded UI truth, not as normal/ready or unknown frontend failure
 - treat missing, unavailable, or unrecognized Air Control Mode telemetry as `UNKNOWN` without inventing a normal lane
 - show readable reason text
+- treat exact `hi.reason.v1` as the sole normal V2 reason authority: render only its
+  escaped headline and ordered backend-authored line text
+- reject an absent, malformed, unsupported-locale, or future reason contract as a
+  whole and fall back to escaped `full_reason`, usable state, then `Reason
+  unavailable.` without partial rendering
+- preserve the 60-pixel keyboard/touch scroll region and keep calm neutral reasons
+  visible
 - stay synced with real hardware behavior
 
 If mismatch occurs:
@@ -217,6 +223,13 @@ If mismatch occurs:
 
 ### Unreleased v2.0.10 Beta Contract
 
+- V2 Mobile and Tablet use one strict mechanical `hi.reason.v1` consumer. They do not
+  infer reason prose from mode, alerts, risks, timers, helpers, isolation, or
+  humidifier attributes, and they do not add `Stage:` or `Engine:` text.
+- The reason headline and every ordered line are escaped independently at the HTML
+  sink. Invalid or future contracts fall back atomically; card code never renders a
+  valid-looking subset of malformed data or reconstructs from `code`, `args`,
+  `family`, `variant`, or `truth`.
 - V2 Mobile and Tablet consume the backend `humidifier_status` attribute on the
   existing Air Control Reason entity; they do not calculate control demand.
 - Humidifier chips distinguish Requested, Output on, Idle, Isolated, Retrying,
@@ -226,6 +239,10 @@ If mismatch occurs:
   cards and no longer justify a “running” claim.
 - Already-pasted Manual cards are static and require a fresh `refresh_ui` plus
   `dump_cards`/`view_cards` export and paste to receive this contract.
+- HI exports Manual-card fragments, not complete dashboard documents. Leave existing
+  registered or YAML-mode dashboard files unchanged. Create or open a dashboard
+  through Home Assistant and add a Manual card, or replace the complete YAML of an
+  existing HI Manual card; `refresh_ui` remains cache-only.
 - V1 Mobile behavior and public entities are unchanged.
 
 ### v2.0.9 Current Contract

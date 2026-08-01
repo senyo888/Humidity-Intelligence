@@ -1611,6 +1611,8 @@ def test_v1_mobile_is_deprecated_but_available_through_v209():
         in config_source
     )
     assert 'vol.Optional("ui_layouts", default=["v2_tablet"])' in config_source
+    assert "Create Dashboard Automatically" not in config_source
+    assert 'value="create_dashboard"' not in config_source
 
     for payload in (strings, translations):
         description = payload["config"]["step"]["ui_install"]["description"]
@@ -1618,6 +1620,9 @@ def test_v1_mobile_is_deprecated_but_available_through_v209():
         assert "remains available through the v2.0.9 line" in description
         assert "Use V2 Mobile for new dashboards" in description
         assert "planned V1 removal is v2.1" in description
+        assert "Manual-card layouts" in description
+        assert "does not create, register, replace, or delete" in description
+        assert "card fragment" in description
 
 
 if __name__ == "__main__":

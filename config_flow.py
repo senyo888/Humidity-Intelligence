@@ -1454,7 +1454,6 @@ class HumidityIntelligenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             SelectOptionDict(value="v2_tablet", label="V2 Tablet"),
             SelectOptionDict(value="v1_mobile", label="V1 Mobile (deprecated - use V2 Mobile)"),
             SelectOptionDict(value="view_cards_button", label="View Cards Button"),
-            SelectOptionDict(value="create_dashboard", label="Create Dashboard Automatically"),
         ]
         schema = vol.Schema({
             vol.Optional("ui_layouts", default=["v2_tablet"]): selector.SelectSelector(

@@ -252,6 +252,24 @@ def _sample_hass():
         "runtime_reason": "Humidity danger in Kitchen.",
         "runtime_reason_full": None,
         "runtime_reason_truncated": False,
+        "runtime_display_reason": {
+            "schema": "hi.reason.v1",
+            "locale": "en",
+            "family": "alert",
+            "variant": "humidity_danger",
+            "attention": "critical",
+            "truncated": False,
+            "headline": "Humidity danger selected",
+            "lines": [
+                {
+                    "role": "why",
+                    "scope": "safety",
+                    "code": "alert.humidity_danger_selected",
+                    "truth": "selected",
+                    "text": "A configured humidity danger alert is selected.",
+                }
+            ],
+        },
         "alert_telemetry": [
             {
                 "trigger_type": "humidity_danger",
@@ -288,6 +306,16 @@ def test_native_diagnostics_payload_contains_support_sections():
     assert payload["configuration"]["selected_entity_summary"]["telemetry"]["count"] == 1
     assert payload["configuration"]["enabled_feature_areas"]["zone_control"] is True
     assert payload["runtime"]["active_lane"] == "alert"
+    assert payload["runtime"]["current_state"]["display_reason"] == {
+        "status": "valid",
+        "schema": "hi.reason.v1",
+        "family": "alert",
+        "variant": "humidity_danger",
+        "attention": "critical",
+        "truncated": False,
+        "line_count": 1,
+    }
+    assert "headline" not in payload["runtime"]["current_state"]["display_reason"]
     assert payload["runtime"]["gate_states"]["presence_gate"]["entity_status"]["by_status"]["unknown"] == 1
     assert payload["runtime"]["output_states"]["fan_outputs"]["by_status"]["unavailable"] == 1
     assert payload["frontend"]["dependency_status"]

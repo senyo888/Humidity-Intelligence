@@ -30,6 +30,7 @@ from .helpers.frontend_dependencies import (
 )
 from .helpers.level_labels import resolve_level_label_details
 from .helpers.local_versions import async_local_version_status, cached_local_version_status
+from .helpers.reason_presentation import display_reason_metadata
 from .helpers.seasonal import resolve_target_profile, resolve_temperature_comfort_profile
 from .helpers.setup_assist import (
     diagnostics_setup_assist_summary,
@@ -256,6 +257,9 @@ def _runtime_summary(
             "runtime_mode_display": runtime_data.get("runtime_mode_display"),
             "reason_available": bool(runtime_data.get("runtime_reason_full") or runtime_data.get("runtime_reason")),
             "reason_truncated": bool(runtime_data.get("runtime_reason_truncated")),
+            "display_reason": display_reason_metadata(
+                runtime_data.get("runtime_display_reason")
+            ),
         },
         "active_lane": runtime_data.get("runtime_mode"),
         "active_mode": runtime_data.get("runtime_mode_display"),

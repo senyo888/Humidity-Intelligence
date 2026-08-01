@@ -6,12 +6,13 @@ Reusable Lovelace examples built on the Humidity Intelligence V2 generated card 
 
 These examples are public documentation artifacts. They should demonstrate safe, canonical UI patterns without exposing private Home Assistant entity IDs, addresses, screenshots, or personal data.
 
-The V2 example YAML follows the backend humidifier demand/output truth contract:
+The V2 example YAML follows the backend-owned `hi.reason.v1` reason contract and the
+humidifier demand/output truth contract. The reason panel renders the escaped backend
+headline and ordered line text without card-authored `Stage:` or `Engine:` prose.
 Requested, Output on, Idle, Isolated, Retrying, Stopping, Unknown, Degraded, and
-Fault are separate presentation states. The examples do not infer physical moisture
-production from a generic output `on` state. Existing AQ/Zone preview images do not
-depict humidifier activity, so no preview-image replacement is required for this
-text/state-contract update.
+Fault remain separate presentation states, and the examples do not infer physical
+moisture production from a generic output `on` state. The AQ and Zone preview images
+show the same humanised reason authority as their canonical YAML.
 
 The browseable UI Gallery lives in the GitHub Wiki:
 

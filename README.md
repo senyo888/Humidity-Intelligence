@@ -57,7 +57,7 @@ It gives you:
 - native Home Assistant diagnostics for support and triage
 - services for dashboard export, self-check, diagnostics, pause/resume, and release validation
 
-Current manifest version: **v2.0.10-beta.1**.
+Current manifest version: **v2.0.10-beta.2**.
 
 For publication status, installed packages, and release tags, use
 [GitHub Releases](https://github.com/senyo888/Humidity-Intelligence/releases) and
@@ -394,6 +394,15 @@ This layer makes the engine understandable. It reflects runtime truth:
 
 The engine decides; the UI renders.
 
+The existing Air Control Reason entity now carries an additive, versioned
+`display_reason` attribute using the backend-owned `hi.reason.v1` contract. It keeps
+the legacy state, `full_reason`, truncation, and `humidifier_status` surfaces for
+mixed-version cards and existing consumers. Presentation text distinguishes selected
+ventilation intent from humidifier service dispatch, Home Assistant-observed state,
+and unverified physical output. Unknown or unavailable evidence is never translated
+into a healthy or all-clear claim, and the new presentation contract never falls back
+to raw entity IDs.
+
 Generated V2 control-row colours separate selected command lanes from environmental risk: red row styling is reserved for selected alert/CO runtime truth. Degraded or unmapped alert candidates remain visible in reason text instead of occupying primary Current Air Control chip-row space.
 
 ## Public Architecture Contract
@@ -443,9 +452,10 @@ must be reviewable from tracked repository files.
   cycle for current/complete states
 - every `pause_control` / `resume_control` call now requires admin user context;
   `entry_id` still limits the action to the supplied config entry
-- explicit `create_dashboard` and `purge_files` service calls now require admin user
-  context; first-run dashboard setup uses a trusted internal path, and purge presents
-  an exact blocking target preview before deletion and reports partial failures
+- explicit `create_dashboard` and `purge_files` service calls require admin user
+  context. `create_dashboard` is retained as a compatibility-only guidance action and
+  performs no file or dashboard writes; purge previews and removes only owned files,
+  never Home Assistant dashboards
 - the V1 Mobile skin remains available through the v2.0.9 line but is deprecated for
   new dashboards; its dynamic room/risk/profile HTML is escaped, and V2 Mobile is the
   recommended replacement ahead of a separately reviewed v2.1 removal
@@ -459,7 +469,7 @@ must be reviewable from tracked repository files.
 - `v205_release_check` preserves its service name; the unreleased implementation
   extends its generated-card, humidifier-reconciliation, and release-validation
   contract through the v2.0.10 beta/rc/stable line and carries explicit
-  `2.0.10-beta.1` manifest metadata for HA Lab beta validation
+  `2.0.10-beta.2` manifest metadata for renewed HA Lab beta validation
 - Home Assistant Area/Label setup assistance can suggest defaults from registry
   metadata, but saved HI telemetry, zone, AQ, humidifier, and alert mappings remain
   the only runtime truth
@@ -477,8 +487,14 @@ config-entry reload after option changes once the updated code is already loaded
 Run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual
 cards if you use generated Current Air Control cards, the default V2 control row, or
 output-detail surfaces; already-pasted Manual cards are static and do not inherit
-backend template changes automatically. Users retaining V1 Mobile must also re-export
-and re-copy that card to receive the v2.0.9 HTML-escaping fix.
+backend template changes automatically. The beta.2 V2 reason area consumes the
+backend-owned `display_reason` contract and no longer composes `Stage:`, risk, timer,
+isolation, or `Engine:` explanations in the card. HI exports card fragments, not
+complete dashboard documents: leave registered or YAML-mode dashboard files
+unchanged. Create or open a dashboard through Home Assistant, then add a Manual card
+or replace the complete YAML of an existing HI Manual card. Running `refresh_ui`
+alone updates only the in-memory cache. Users retaining V1 Mobile must
+also re-export and re-copy that card to receive the v2.0.9 HTML-escaping fix.
 
 ---
 
@@ -837,8 +853,8 @@ Notes:
 - `entry_id` is optional for most services. If omitted, HI uses all entries or first valid entry based on service behavior.
 - `dump_diagnostics`, `self_check`, and `v205_release_check` JSON is written under
   `<config>/humidity_intelligence/exports/`. Generated card YAML is written under
-  `<config>/humidity_intelligence/ui/`. Registered dashboard YAML remains under
-  `<config>/dashboards/<url_path>.yaml`.
+  `<config>/humidity_intelligence/ui/`. These exports are Manual-card fragments, not
+  complete dashboard YAML, and must not be copied into `<config>/dashboards/`.
 - Single-entry card exports retain unqualified names such as
   `humidity_intelligence_cards_v2_mobile.yaml`. Multi-entry installations add an
   entry-qualified token before the layout to prevent one entry overwriting another.
@@ -846,9 +862,10 @@ Notes:
   back to one re-exports the remaining entry with unqualified names. HI no longer
   refreshes superseded owned-UI names, but external consumers can still read their
   stale content. Follow the latest notification rather than inferring a path.
-- Default generated V2 dashboards are read-only status surfaces. Runtime-changing
-  actions such as pause/resume, dashboard creation, and file cleanup belong in
-  Home Assistant service/admin workflows. System and Manual buttons keep the
+- Default generated V2 cards are read-only status surfaces. Runtime-changing actions
+  such as pause/resume and file cleanup belong in Home Assistant service/admin
+  workflows. Dashboard creation and editing remain in Home Assistant's dashboard UI.
+  System and Manual buttons keep the
   v2.0.7 helper-toggle behavior.
 - The generated V2 control row uses a passive Stability preview badge instead of
   a Pause LIVE control tile. It reflects future v2.1 diagnostics when available
@@ -860,9 +877,11 @@ Notes:
   `user_id` are intentionally rejected, even when configured by an admin. Invoke
   these services from an authenticated admin UI or API session.
 - Explicit `create_dashboard` and `purge_files` calls require an admin user context.
-  First-run dashboard creation remains available only through the trusted setup path.
-  A created dashboard is still registered with its normal non-admin viewing setting;
-  the new gate controls creation, not later visibility.
+  `create_dashboard` remains registered for call compatibility but fails safely with
+  `refresh_ui`, `view_cards`, and Manual-card guidance before mapping, rendering,
+  filesystem access, or Lovelace imports. First-run setup exports selected cards and
+  does not create or register a dashboard. Older stored `create_dashboard` selections
+  are ignored without migration or retry loops.
 - Every external `dump_diagnostics`, `self_check`, `v205_release_check`, `dump_cards`,
   and `view_cards` call also requires an admin user context. Contextless background
   automations/scripts cannot invoke these writers; use an authenticated admin UI,
@@ -877,17 +896,18 @@ Notes:
   exposes package-local snapshot metadata. Runtime-owned visual alerts use a separate
   trusted internal helper after the engine selects an alert lane, so this permission
   boundary does not change deterministic lane resolution or active-alert continuity.
-- `purge_files` validates the complete fixed HI-generated target set, posts the exact
-  existing-file/dashboard preview with a blocking notification, then deletes. Any
-  file or dashboard deletion failure is surfaced as an incomplete purge instead of
-  being silently treated as success. An `entry_id`-scoped purge does not remove
+- `purge_files` validates the complete fixed HI-generated file set, posts the exact
+  existing-file preview with a blocking notification, then deletes. Any file deletion
+  failure is surfaced as an incomplete purge instead of being silently treated as
+  success. Home Assistant dashboards are user-managed and are never listed or removed,
+  even when legacy config-entry data contains `ui_dashboard_id`. An `entry_id`-scoped purge does not remove
   report exports. Only an unscoped all-entry purge may remove the exact default
   diagnostics and fixed self-check reports. Exact default/per-entry card and
-  release-test card exports plus registered dashboards are purge-owned. Custom card
+  release-test card exports are purge-owned. Custom card
   exports, custom reports, release-check reports, and all legacy config-root JSON/YAML
   remain retained.
 - Config-entry removal separately removes that entry's exact default/release-test card
-  exports and registered dashboard, but does not remove reports, custom card exports,
+  exports, but does not remove Home Assistant dashboards, reports, custom card exports,
   or legacy root files. When a multi-entry installation returns to one entry, the
   remaining entry is re-exported with unqualified names; its superseded qualified
   files stay externally readable until an exact previewed purge.
@@ -929,7 +949,7 @@ Common service groups:
 | `dump_cards` | admin-only export of generated card YAML for static Manual dashboards |
 | `refresh_ui` | rebuild placeholder mappings and refresh cached rendered UI output |
 | `view_cards` | admin-only render/export plus an exact file-path notification |
-| `create_dashboard` | admin-only creation of a Lovelace dashboard from a rendered HI layout |
+| `create_dashboard` | compatibility-only admin action that performs no writes and returns supported Manual-card setup guidance |
 | `flash_lights` | admin-only test of configured visual alert behavior; runtime alerts use the trusted engine path |
 | `pause_control` / `resume_control` | admin-only pause or resume for one supplied entry or all entries |
 | `self_check` | admin-only fixed export of mapping, generated-card entity, telemetry, drift-helper, and frontend-dependency checks |
@@ -1002,9 +1022,10 @@ still uses it:
 5. Refresh the file view and confirm that the new owned-directory artifact and active
    Manual card remain correct.
 
-Do not manually delete registered dashboard YAML from
-`<config>/dashboards/<url_path>.yaml`; use the previewed HI cleanup path or Home
-Assistant dashboard management so registration state and the file stay aligned.
+Manage dashboard creation, editing, and deletion through Home Assistant's dashboard
+UI. HI does not own or purge registered dashboards, and a legacy `ui_dashboard_id`
+value is not evidence of ownership. Never overwrite a dashboard file with an HI
+Manual-card export because the export is only a card fragment.
 Deleting an unused retained artifact alone does not require a Home Assistant restart.
 Changing a consumer may require that consumer's normal reload.
 

@@ -19,12 +19,11 @@ from .const import (
 )
 from .services import (
     SERVICE_REFRESH_UI,
-    async_create_dashboard_for_entry,
     async_export_cards_to_owned_ui,
     async_register_services,
     async_unregister_services,
 )
-from .helpers.cleanup import list_owned_ui_filenames, remove_dashboard
+from .helpers.cleanup import list_owned_ui_filenames
 from .helpers.report_exports import (
     ReportExportError,
     plan_owned_ui_export_removal,
@@ -126,7 +125,6 @@ async def _async_install_selected_ui(
     if not ui_layouts or entry.data.get("ui_install_done"):
         return
 
-    dashboard_created = False
     written_cards = []
     card_export_error = None
     multi_entry_export = False
@@ -146,39 +144,13 @@ async def _async_install_selected_ui(
             "First-run generated card export failed for HI entry %s",
             entry.entry_id,
         )
-    dashboard_id = "humidity-intelligence"
-    if "create_dashboard" in ui_layouts:
-        try:
-            dashboard_created = await async_create_dashboard_for_entry(
-                hass,
-                entry,
-                layout="v2_mobile" if "v2_mobile" in ui_layouts else "v2_tablet",
-                title="Humidity Intelligence",
-                url_path=dashboard_id,
-            )
-        except Exception:
-            _LOGGER.exception(
-                "First-run dashboard creation failed for HI entry %s; "
-                "generated card export remains available",
-                entry.entry_id,
-            )
-            await hass.services.async_call(
-                "persistent_notification",
-                "create",
-                {
-                    "title": "Humidity Intelligence Dashboard Creation Incomplete",
-                    "message": (
-                        "The dashboard could not be registered. A generated YAML file may remain at "
-                        "/config/dashboards/humidity-intelligence.yaml. HI backend setup and card "
-                        "exports remain available. Retry humidity_intelligence.create_dashboard "
-                        "from an authenticated admin UI or API session."
-                    ),
-                    "notification_id": (
-                        f"humidity_intelligence_dashboard_creation_incomplete_{entry.entry_id}"
-                    ),
-                },
-                blocking=False,
-            )
+    legacy_dashboard_selection = "create_dashboard" in ui_layouts
+    if legacy_dashboard_selection:
+        _LOGGER.info(
+            "Ignoring legacy create_dashboard UI selection for HI entry %s; "
+            "Manual-card exports remain available",
+            entry.entry_id,
+        )
     if card_export_error is not None:
         card_title = "Humidity Intelligence UI Card Export Incomplete"
         card_message = (
@@ -190,10 +162,14 @@ async def _async_install_selected_ui(
     elif written_cards:
         card_title = "Humidity Intelligence UI Cards"
         card_message = (
-            "Cards written:\n"
+            "Manual-card YAML written:\n"
             + "\n".join(written_cards)
-            + "\n\nOpen a file in File Editor, copy the YAML, and paste it into a "
-            "Manual card."
+            + "\n\nOpen the required file in File Editor and copy the complete YAML. "
+            "For a new dashboard, create it through Home Assistant, open Edit "
+            "dashboard, choose Add card -> Manual, and paste the YAML. For an "
+            "existing HI Manual card, edit that card and replace its complete YAML. "
+            "HI does not create or replace dashboards automatically. These exports "
+            "are card fragments; do not copy them to /config/dashboards/."
             "\n\nSince v2.0.9, generated card files live under "
             "/config/humidity_intelligence/ui/. Older generated card files in the "
             "/config root are retained but are no longer refreshed. Use only the "
@@ -219,8 +195,6 @@ async def _async_install_selected_ui(
     )
     data = dict(entry.data)
     data["ui_install_done"] = True
-    if dashboard_created:
-        data["ui_dashboard_id"] = dashboard_id
     hass.config_entries.async_update_entry(entry, data=data)
 
 
@@ -273,14 +247,15 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
             entry.entry_id,
             err,
         )
-    dashboard_id = entry.data.get("ui_dashboard_id")
     message_lines = [f"/config/{plan.relative_path}" for plan in ui_plans]
-    if dashboard_id:
-        message_lines.append(f"Dashboard: {dashboard_id}")
     cleanup_message = (
         "Removing generated artifacts:\n" + "\n".join(message_lines)
         if message_lines
-        else "No existing generated UI files or registered dashboard were found."
+        else "No existing generated UI files were found."
+    )
+    cleanup_message += (
+        "\n\nHome Assistant dashboards are user-managed and are not removed by "
+        "Humidity Intelligence."
     )
     await hass.services.async_call(
         "persistent_notification",
@@ -304,8 +279,6 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
                 "Unable to remove generated UI export %s during entry removal",
                 plan.relative_path,
             )
-    if not await remove_dashboard(hass, dashboard_id):
-        cleanup_failures.append(f"Dashboard: {dashboard_id}")
     remaining_written = []
     if len(remaining_entries) == 1:
         try:

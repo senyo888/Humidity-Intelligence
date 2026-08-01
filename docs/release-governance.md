@@ -75,30 +75,36 @@ house-agent, and explicit maintainer gates are complete. CodeRabbit must then fi
 an exact-head review; actionable feedback must be fixed through a prerequisite PR or
 explicitly recorded as not applicable before promotion can continue.
 
-For the targeted v2.0.10 beta humidifier reconciliation slice, implementation on
-`senyo888-patch-1` carries manifest identity `2.0.10-beta.1`. That beta identity
+For the broadened v2.0.10 beta humidifier reconciliation and reason-presentation
+slice, implementation targets manifest identity `2.0.10-beta.2`. That beta identity
 does not authorize HA Lab/stable-instance mutation, branch promotion, tag, GitHub
 Release, HACS publication, or deployment.
 Beta evidence must cover restored demand, long-demand device stops, output
 availability recovery, all supported output domains, isolation/gate interactions,
 shared-output aggregation, bounded retry/fault behavior, generated V2 truth,
-diagnostics redaction, and unchanged deterministic ventilation ordering. HA Lab
+diagnostics redaction, the complete `hi.reason.v1` runtime-family matrix,
+presenter-failure invariance, mixed-version fallback, line/size bounds, raw-ID and HTML
+privacy checks, and unchanged deterministic ventilation ordering. Beta.1 evidence is
+historical evidence for its exact humidifier-only commit and cannot approve beta.2.
+HA Lab
 evidence is advisory; stable-instance authority and release promotion remain
 separate maintainer gates.
 
 For v2.0.9 owned-artifact namespace validation, the release packet must separately
 record:
 
-- exact diagnostics, self-check, release-check, generated-card, and registered
-  dashboard paths;
+- exact diagnostics, self-check, release-check, and generated-card paths, plus proof
+  that card fragments are not treated as registered dashboard documents;
 - admin rejection before work for external `dump_diagnostics`, `self_check`,
   `v205_release_check`, `dump_cards`, `view_cards`, `flash_lights`,
   `create_local_backup`, `list_saved_versions`, `pause_control`, `resume_control`,
-  `create_dashboard`, and `purge_files`; continuity of trusted
+  `create_dashboard`, and `purge_files`; deterministic guidance-only failure for
+  `create_dashboard`; continuity of trusted
   setup/options/release-test exports and engine-owned visual alerts; and truthful
   cache-only startup refresh;
-- single-entry and entry-qualified multi-entry filenames, exact purge preview/removal
-  ownership, and retention of custom and legacy root artifacts;
+- single-entry and entry-qualified multi-entry filenames, exact file-only purge
+  preview/removal ownership, dashboard retention, and retention of custom and legacy
+  root artifacts;
 - descriptor-relative no-follow atomic writer tests, including concurrent writes,
   directory creation/permissions, symlink, non-regular target, and directory
   substitution rejection;

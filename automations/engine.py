@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 import logging
 import time
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
@@ -36,7 +37,16 @@ from ..const import (
     ZONE_OUTPUT_LEVEL_MIN,
 )
 from ..services import async_flash_lights_for_alert
+from ..helpers.level_labels import resolve_level_labels
 from ..helpers.parsing import hass_temperature_unit, parse_numeric, parse_temperature
+from ..helpers.reason_presentation import (
+    DISPLAY_REASON_MAX_LINES,
+    DISPLAY_REASON_TARGET_LINES,
+    ReasonFacts,
+    ReasonLine,
+    build_display_reason,
+    sanitize_display_label,
+)
 from ..helpers.seasonal import (
     condensation_risk as seasonal_condensation_risk,
     humidity_state as seasonal_humidity_state,
@@ -82,6 +92,41 @@ _TRUNCATION_SUFFIX = " [full in attribute]"
 _HUMIDIFIER_OUTPUT_DOMAINS = {"humidifier", "fan", "switch"}
 
 
+@dataclass(frozen=True)
+class _GateStatus:
+    allowed: bool
+    kind: Optional[str] = None
+    technical_reason: Optional[str] = None
+    presentation_variant: Optional[str] = None
+    configured_count: int = 0
+    unavailable_count: int = 0
+    away_count: int = 0
+    other_count: int = 0
+    window_start: Optional[str] = None
+    window_end: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class _TriggerFact:
+    code: str
+    measured: float
+    threshold: float
+    unit: str
+    comparison: str
+    profile_label: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class _AlertMatch:
+    room: str
+    sensor: Optional[str]
+    measured: float
+    threshold: float
+    unit: str
+    comparison: str
+    profile_label: str
+
+
 class HIAutomationEngine:
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         self.hass = hass
@@ -93,6 +138,7 @@ class HIAutomationEngine:
         self.humidifiers = self._cfg("humidifiers", {})
         self.aq = self._cfg("aq", {})
         self.alerts = self._cfg("alerts", [])
+        self._level_labels = resolve_level_labels(entry.data, entry.options)
         self.alert_handling_enabled = bool(
             self._cfg(CONF_ALERT_HANDLING_ENABLED, DEFAULT_ALERT_HANDLING_ENABLED)
         )
@@ -263,20 +309,26 @@ class HIAutomationEngine:
                 await self._set_runtime_reason(
                     self._with_isolation_notice(
                         "CO emergency protection is active, so all configured ventilation outputs are forced to 100%."
-                    )
+                    ),
+                    display_facts_factory=self._co_display_facts,
                 )
                 return
             await self._set_bool("air_co_emergency_active", self._co_emergency_active)
 
-            control_lock_reason = self._control_lock_reason()
+            control_lock_kind, control_lock_reason = self._control_lock_status()
             if control_lock_reason:
                 await self._sync_visual_alert_tasks([])
                 await self._return_to_normal()
-                await self._set_runtime_reason(self._with_isolation_notice(control_lock_reason))
+                await self._set_runtime_reason(
+                    self._with_isolation_notice(control_lock_reason),
+                    display_facts_factory=lambda: self._control_lock_display_facts(
+                        control_lock_kind or "disabled"
+                    ),
+                )
                 return
 
-            gates_ok, gate_reason = self._gate_status()
-            if not gates_ok:
+            gate_status = self._gate_evaluation()
+            if not gate_status.allowed:
                 await self._sync_visual_alert_tasks([])
                 action = self.time_gate.get("outside_action", "safe_state")
                 if action == "safe_state":
@@ -284,18 +336,24 @@ class HIAutomationEngine:
                     await self._set_runtime_mode("global_gate", "GLOBAL GATE")
                     await self._set_runtime_reason(
                         self._with_isolation_notice(
-                            gate_reason
+                            gate_status.technical_reason
                             or "Global gate is blocking automation, so outputs were moved to a safe state."
-                        )
+                        ),
+                        display_facts_factory=lambda: self._gate_display_facts(
+                            gate_status, action="safe_state"
+                        ),
                     )
                 else:
                     await self._clear_alert_runtime_state()
                     await self._set_runtime_mode("global_gate", "GLOBAL GATE")
                     await self._set_runtime_reason(
                         self._with_isolation_notice(
-                            gate_reason
+                            gate_status.technical_reason
                             or "Global gate is blocking automation; no output changes were applied."
-                        )
+                        ),
+                        display_facts_factory=lambda: self._gate_display_facts(
+                            gate_status, action="no_change"
+                        ),
                     )
                 return
             if self._pause_active():
@@ -304,7 +362,8 @@ class HIAutomationEngine:
                 await self._set_runtime_reason(
                     self._with_isolation_notice(
                         "Pause is active, so automation is temporarily standing down."
-                    )
+                    ),
+                    display_facts_factory=self._pause_display_facts,
                 )
                 return
             missing_required_telemetry = self._missing_required_telemetry(house_humidity)
@@ -317,7 +376,10 @@ class HIAutomationEngine:
                 await self._set_runtime_reason(
                     self._with_isolation_notice(
                         f"Required {telemetry_label} telemetry {telemetry_verb} unavailable, so automation is standing down instead of running zone, alert, AQ, or humidifier lanes."
-                    )
+                    ),
+                    display_facts_factory=lambda: self._telemetry_display_facts(
+                        missing_required_telemetry
+                    ),
                 )
                 return
 
@@ -343,7 +405,14 @@ class HIAutomationEngine:
                             aq_details=[],
                             humidifier_details=[],
                         )
-                    )
+                    ),
+                    display_facts_factory=lambda: self._runtime_display_facts(
+                        runtime_mode="alert",
+                        alert_details=alert_details,
+                        zone_detail=None,
+                        aq_details=[],
+                        humidifier_details=[],
+                    ),
                 )
                 return
 
@@ -403,23 +472,37 @@ class HIAutomationEngine:
                         aq_details=aq_details,
                         humidifier_details=humidifier_details,
                     )
-                )
+                ),
+                display_facts_factory=lambda: self._runtime_display_facts(
+                    runtime_mode=runtime_mode,
+                    alert_details=alert_details,
+                    zone_detail=zone1_detail if zone1_active else zone2_detail,
+                    aq_details=aq_details,
+                    humidifier_details=humidifier_details,
+                ),
             )
         except Exception:
             _LOGGER.exception("Unhandled error in HI automation evaluation cycle")
         finally:
             self._refresh_core_entities()
 
-    def _control_lock_reason(self) -> Optional[str]:
+    def _control_lock_status(self) -> Tuple[Optional[str], Optional[str]]:
         data = self.hass.data.get(DOMAIN, {}).get(self.entry.entry_id, {})
         booleans = data.get("hi_input_booleans", {})
         if booleans.get("air_control_enabled") and not booleans["air_control_enabled"].is_on:
-            return "System control is disabled, so all automation lanes are idle."
+            return "disabled", "System control is disabled, so all automation lanes are idle."
         if booleans.get("air_control_manual_override") and booleans["air_control_manual_override"].is_on:
-            return "Manual override is enabled, so HI automation is standing down."
-        return None
+            return "manual_override", "Manual override is enabled, so HI automation is standing down."
+        return None, None
+
+    def _control_lock_reason(self) -> Optional[str]:
+        return self._control_lock_status()[1]
 
     def _gate_status(self) -> Tuple[bool, Optional[str]]:
+        status = self._gate_evaluation()
+        return status.allowed, status.technical_reason
+
+    def _gate_evaluation(self) -> _GateStatus:
         if self.time_gate.get("enabled"):
             now = datetime.now().time()
             start = _parse_time(self.time_gate.get("start"))
@@ -429,29 +512,57 @@ class HIAutomationEngine:
                 if not in_window:
                     action = self.time_gate.get("outside_action", "no_action")
                     if action == "no_action":
-                        return True, None
-                    return (
-                        False,
-                        f"Time gate is outside {start.strftime('%H:%M')} - {end.strftime('%H:%M')}; action '{action}' is active.",
+                        return _GateStatus(allowed=True)
+                    return _GateStatus(
+                        allowed=False,
+                        kind="time",
+                        technical_reason=(
+                            f"Time gate is outside {start.strftime('%H:%M')} - "
+                            f"{end.strftime('%H:%M')}; action '{action}' is active."
+                        ),
+                        presentation_variant="time_outside_window",
+                        window_start=start.strftime("%H:%M"),
+                        window_end=end.strftime("%H:%M"),
                     )
         if self.presence_gate.get("enabled"):
             entities = self.presence_gate.get("entities", [])
             present_states = set(self.presence_gate.get("present_states", []))
             away_states = set(self.presence_gate.get("away_states", []))
             if entities and present_states:
+                unavailable_count = 0
+                away_count = 0
+                other_count = 0
                 for entity_id in entities:
                     state = self.hass.states.get(entity_id)
-                    if not state:
+                    state_text = str(getattr(state, "state", "") or "").strip()
+                    if not state or state_text.lower() in {"unknown", "unavailable"}:
+                        unavailable_count += 1
                         continue
-                    if state.state in present_states:
-                        return True, None
-                    if away_states and state.state in away_states:
+                    if state_text in present_states:
+                        return _GateStatus(allowed=True)
+                    if away_states and state_text in away_states:
+                        away_count += 1
                         continue
-                return (
-                    False,
-                    f"Presence gate is active (no entity in present states). Snapshot: {self._presence_snapshot(entities)}.",
+                    other_count += 1
+                variant = (
+                    "presence_unavailable"
+                    if unavailable_count or other_count
+                    else "presence_away"
                 )
-        return True, None
+                return _GateStatus(
+                    allowed=False,
+                    kind="presence",
+                    technical_reason=(
+                        "Presence gate is active (no entity in present states). "
+                        f"Snapshot: {self._presence_snapshot(entities)}."
+                    ),
+                    presentation_variant=variant,
+                    configured_count=len(entities),
+                    unavailable_count=unavailable_count,
+                    away_count=away_count,
+                    other_count=other_count,
+                )
+        return _GateStatus(allowed=True)
 
     def _presence_snapshot(self, entities: List[str]) -> str:
         parts: List[str] = []
@@ -679,24 +790,24 @@ class HIAutomationEngine:
         ttype = alert.get("trigger_type")
         room_scope = self._alert_room_scope(alert)
         if ttype == "condensation_danger":
-            room, sensor = self._matching_condensation_room("Danger", room_scope)
-            if room:
-                return self._build_alert_detail(idx, alert, sensor=sensor, room=room)
+            match = self._matching_condensation_room("Danger", room_scope)
+            if match:
+                return self._build_environmental_alert_detail(idx, alert, match)
             return None
         if ttype == "condensation_risk":
-            room, sensor = self._matching_condensation_room("Risk", room_scope)
-            if room:
-                return self._build_alert_detail(idx, alert, sensor=sensor, room=room)
+            match = self._matching_condensation_room("Risk", room_scope)
+            if match:
+                return self._build_environmental_alert_detail(idx, alert, match)
             return None
         if ttype == "mould_danger":
-            room, sensor = self._matching_mould_room("Danger", room_scope)
-            if room:
-                return self._build_alert_detail(idx, alert, sensor=sensor, room=room)
+            match = self._matching_mould_room("Danger", room_scope)
+            if match:
+                return self._build_environmental_alert_detail(idx, alert, match)
             return None
         if ttype == "mould_risk":
-            room, sensor = self._matching_mould_room("Risk", room_scope)
-            if room:
-                return self._build_alert_detail(idx, alert, sensor=sensor, room=room)
+            match = self._matching_mould_room("Risk", room_scope)
+            if match:
+                return self._build_environmental_alert_detail(idx, alert, match)
             return None
         if ttype == "humidity_danger":
             profile = self._active_target_profile()
@@ -706,7 +817,10 @@ class HIAutomationEngine:
                 sensor, room, value = match
                 detail = self._build_alert_detail(idx, alert, sensor=sensor, room=room)
                 detail["measured"] = f"{value:.1f}% >= active {profile.label} high-risk threshold {threshold:g}%"
+                detail["measured_value"] = value
+                detail["measured_unit"] = "%"
                 detail["threshold"] = threshold
+                detail["comparison"] = "at_or_above"
                 detail["threshold_source"] = f"active profile ({profile.label})"
                 detail["source_summary"] = _alert_source_summary(
                     trigger_type=ttype,
@@ -723,6 +837,29 @@ class HIAutomationEngine:
             if any(val >= threshold for val in values):
                 return self._build_alert_detail(idx, alert, sensor=None, room=None)
         return None
+
+    def _build_environmental_alert_detail(
+        self,
+        idx: int,
+        alert: Dict[str, Any],
+        match: _AlertMatch,
+    ) -> Dict[str, Any]:
+        detail = self._build_alert_detail(
+            idx,
+            alert,
+            sensor=match.sensor,
+            room=match.room,
+        )
+        detail.update(
+            {
+                "measured_value": match.measured,
+                "measured_unit": match.unit,
+                "threshold": match.threshold,
+                "comparison": match.comparison,
+                "profile_label": match.profile_label,
+            }
+        )
+        return detail
 
     def _build_alert_detail(
         self,
@@ -917,7 +1054,11 @@ class HIAutomationEngine:
         if not triggers or not outputs:
             return False, None, None
 
-        run_level, trigger_details = self._zone_trigger_level(triggers, zone, level)
+        run_level, trigger_details, trigger_facts = self._zone_trigger_level(
+            triggers,
+            zone,
+            level,
+        )
         if not run_level:
             return False, None, None
 
@@ -932,10 +1073,16 @@ class HIAutomationEngine:
                 "outputs": outputs,
                 "output_level": run_level,
                 "triggers": trigger_details,
+                "trigger_facts": trigger_facts,
             },
         )
 
-    def _zone_trigger_level(self, triggers: List[str], zone: Dict[str, Any], level: Optional[str]) -> Tuple[Optional[str], List[str]]:
+    def _zone_trigger_level(
+        self,
+        triggers: List[str],
+        zone: Dict[str, Any],
+        level: Optional[str],
+    ) -> Tuple[Optional[str], List[str], Tuple[_TriggerFact, ...]]:
         profile = self._active_target_profile()
         normal_level = _normalize_fan_level(
             zone.get("output_level", ZONE_OUTPUT_LEVEL_DEFAULT),
@@ -949,6 +1096,7 @@ class HIAutomationEngine:
             boost_level = normal_level
         selected_level: Optional[str] = None
         trigger_details: List[str] = []
+        trigger_facts: List[_TriggerFact] = []
         for trig in triggers:
             threshold = zone.get("thresholds", {}).get(trig)
             if trig == "humidity_high":
@@ -966,12 +1114,30 @@ class HIAutomationEngine:
                         trigger_details.append(
                             f"Humidity delta {delta:.1f}% >= threshold {threshold_val:g}%"
                         )
+                        trigger_facts.append(
+                            _TriggerFact(
+                                code="humidity_delta",
+                                measured=round(delta, 1),
+                                threshold=threshold_val,
+                                unit="percentage_points",
+                                comparison="at_or_above",
+                            )
+                        )
             elif trig == "air_quality_bad":
                 iaq = self._level_avg("iaq", level)
                 threshold_val = _to_float(threshold)
                 if iaq is not None and threshold_val is not None and iaq <= threshold_val:
                     selected_level = _max_fan_level(selected_level, normal_level)
                     trigger_details.append(f"IAQ {iaq:.1f} <= threshold {threshold_val:g}")
+                    trigger_facts.append(
+                        _TriggerFact(
+                            code="iaq_bad",
+                            measured=iaq,
+                            threshold=threshold_val,
+                            unit="index",
+                            comparison="at_or_below",
+                        )
+                    )
             elif trig == "condensation_risk":
                 spread = self._worst_spread()
                 threshold_val = _to_float(threshold)
@@ -986,6 +1152,16 @@ class HIAutomationEngine:
                         f"{spread:.1f} degC <= seasonal threshold {adjusted_threshold:g} degC "
                         f"(profile {profile.label}, user baseline {threshold_val:g} degC)"
                     )
+                    trigger_facts.append(
+                        _TriggerFact(
+                            code="condensation_risk",
+                            measured=round(spread, 1),
+                            threshold=adjusted_threshold,
+                            unit="degC",
+                            comparison="at_or_below",
+                            profile_label=profile.label,
+                        )
+                    )
             elif trig == "mould_risk":
                 risk_level = self._worst_mould_level()
                 threshold_val = _to_float(threshold)
@@ -994,7 +1170,16 @@ class HIAutomationEngine:
                     trigger_details.append(
                         f"Mould risk level {risk_level} >= threshold {threshold_val:g}"
                     )
-        return selected_level, trigger_details
+                    trigger_facts.append(
+                        _TriggerFact(
+                            code="mould_risk",
+                            measured=float(risk_level),
+                            threshold=threshold_val,
+                            unit="risk_level",
+                            comparison="at_or_above",
+                        )
+                    )
+        return selected_level, trigger_details, tuple(trigger_facts)
 
     async def _handle_aq(self) -> Tuple[bool, List[Dict[str, Any]]]:
         active = False
@@ -1024,7 +1209,7 @@ class HIAutomationEngine:
                 continue
             task = self._aq_tasks.get(level)
             running = bool(task and not task.done())
-            trigger_details = self._aq_trigger_details(level, cfg)
+            trigger_details, trigger_facts = self._aq_trigger_evaluation(level, cfg)
             triggered = bool(trigger_details)
             previously_triggered = self._aq_trigger_active.get(level, False)
             if triggered:
@@ -1047,13 +1232,21 @@ class HIAutomationEngine:
                         ZONE_OUTPUT_LEVEL_DEFAULT,
                     ),
                     "run_duration": _bounded_int(cfg.get("run_duration", 30), 1, 24 * 60, 30),
+                    "trigger_active": triggered,
+                    "run_window_active": running,
+                    "trigger_facts": trigger_facts,
                     "triggers": trigger_details
                     or ["AQ run window is still active from a recent trigger."],
                 })
         return active, active_details
 
-    def _aq_trigger_details(self, level: str, cfg: Dict[str, Any]) -> List[str]:
+    def _aq_trigger_evaluation(
+        self,
+        level: str,
+        cfg: Dict[str, Any],
+    ) -> Tuple[List[str], Tuple[_TriggerFact, ...]]:
         details: List[str] = []
+        facts: List[_TriggerFact] = []
         triggers = cfg.get("triggers", [])
         thresholds = cfg.get("thresholds", {})
         for trig in triggers:
@@ -1063,27 +1256,45 @@ class HIAutomationEngine:
                 threshold_val = _to_float(threshold)
                 if val is not None and threshold_val is not None and val <= threshold_val:
                     details.append(f"IAQ {val:.1f} <= threshold {threshold_val:g}")
+                    facts.append(
+                        _TriggerFact("iaq_bad", val, threshold_val, "index", "at_or_below")
+                    )
             if trig == "pm25_high":
                 val = self._level_avg("pm25", level)
                 threshold_val = _to_float(threshold)
                 if val is not None and threshold_val is not None and val >= threshold_val:
                     details.append(f"PM2.5 {val:.1f} >= threshold {threshold_val:g}")
+                    facts.append(
+                        _TriggerFact("pm25_high", val, threshold_val, "ug_m3", "at_or_above")
+                    )
             if trig == "voc_bad":
                 val = self._level_avg("voc", level)
                 threshold_val = _to_float(threshold)
                 if val is not None and threshold_val is not None and val >= threshold_val:
                     details.append(f"VOC {val:.1f} >= threshold {threshold_val:g}")
+                    facts.append(
+                        _TriggerFact("voc_bad", val, threshold_val, "index", "at_or_above")
+                    )
             if trig == "co2_high":
                 val = self._level_avg("co2", level)
                 threshold_val = _to_float(threshold)
                 if val is not None and threshold_val is not None and val >= threshold_val:
                     details.append(f"CO2 {val:.1f} >= threshold {threshold_val:g}")
+                    facts.append(
+                        _TriggerFact("co2_high", val, threshold_val, "ppm", "at_or_above")
+                    )
             if trig == "co_warning":
                 val = self._level_avg("co", level)
                 threshold_val = _to_float(threshold)
                 if val is not None and threshold_val is not None and val >= threshold_val:
                     details.append(f"CO {val:.1f} >= threshold {threshold_val:g}")
-        return details
+                    facts.append(
+                        _TriggerFact("co_warning", val, threshold_val, "ppm", "at_or_above")
+                    )
+        return details, tuple(facts)
+
+    def _aq_trigger_details(self, level: str, cfg: Dict[str, Any]) -> List[str]:
+        return self._aq_trigger_evaluation(level, cfg)[0]
 
     async def _start_aq(self, level: str, cfg: Dict[str, Any]) -> None:
         outputs = cfg.get("outputs", [])
@@ -2162,10 +2373,15 @@ class HIAutomationEngine:
         self,
         severity: str,
         room_scope: Optional[str],
-    ) -> Tuple[Optional[str], Optional[str]]:
+    ) -> Optional[_AlertMatch]:
         profile = self._active_target_profile()
         target_rank = _RISK_ORDER.get(severity, 2)
-        candidates: List[Tuple[int, float, str, Optional[str]]] = []
+        threshold = (
+            profile.condensation_danger_spread
+            if severity == "Danger"
+            else profile.condensation_risk_spread
+        )
+        candidates: List[Tuple[int, float, str, Optional[str], float]] = []
         for room, sensors in _room_map(self.telemetry).items():
             if room_scope and room.lower().strip() != room_scope.lower().strip():
                 continue
@@ -2184,17 +2400,30 @@ class HIAutomationEngine:
             risk = seasonal_condensation_risk(spread, profile)
             rank = _RISK_ORDER.get(risk, -1)
             if rank >= target_rank:
-                candidates.append((rank, -spread, room, sensors.get("humidity")))
+                candidates.append(
+                    (rank, -spread, room, sensors.get("humidity"), spread)
+                )
         if not candidates:
-            return None, None
-        _rank, _spread, room, sensor = max(candidates, key=lambda item: (item[0], item[1]))
-        return room, sensor
+            return None
+        _rank, _spread_rank, room, sensor, spread = max(
+            candidates,
+            key=lambda item: (item[0], item[1]),
+        )
+        return _AlertMatch(
+            room=room,
+            sensor=sensor,
+            measured=round(spread, 1),
+            threshold=threshold,
+            unit="degC",
+            comparison="at_or_below",
+            profile_label=profile.label,
+        )
 
     def _matching_mould_room(
         self,
         severity: str,
         room_scope: Optional[str],
-    ) -> Tuple[Optional[str], Optional[str]]:
+    ) -> Optional[_AlertMatch]:
         profile = self._active_target_profile()
         target_rank = _RISK_ORDER.get(severity, 2)
         candidates: List[Tuple[int, float, str, Optional[str]]] = []
@@ -2217,9 +2446,17 @@ class HIAutomationEngine:
             if risk >= target_rank:
                 candidates.append((risk, rh, room, sensors.get("humidity")))
         if not candidates:
-            return None, None
-        _rank, _rh, room, sensor = max(candidates, key=lambda item: (item[0], item[1]))
-        return room, sensor
+            return None
+        risk, _rh, room, sensor = max(candidates, key=lambda item: (item[0], item[1]))
+        return _AlertMatch(
+            room=room,
+            sensor=sensor,
+            measured=float(risk),
+            threshold=float(target_rank),
+            unit="risk_level",
+            comparison="at_or_above",
+            profile_label=profile.label,
+        )
 
     def _zone_for_room(self, room: Optional[str]) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
         if not room:
@@ -2304,6 +2541,991 @@ class HIAutomationEngine:
         if notices:
             return f"{base_reason} {' '.join(notices)}".strip()
         return base_reason
+
+    def _control_lock_display_facts(self, kind: str) -> ReasonFacts:
+        if kind == "manual_override":
+            headline = "Manual override active"
+            family = "manual"
+            variant = "manual_override"
+            lines = [
+                ReasonLine(
+                    "why",
+                    "system",
+                    "control.manual_override_active",
+                    "blocked",
+                    "HI is not making automatic control decisions.",
+                ),
+            ]
+        else:
+            headline = "Automatic control disabled"
+            family = "disabled"
+            variant = "control_disabled"
+            lines = [
+                ReasonLine(
+                    "why",
+                    "system",
+                    "control.automatic_disabled",
+                    "blocked",
+                    "HI is not making automatic control decisions.",
+                ),
+            ]
+        lines.extend(self._humidifier_display_lines([]))
+        lines.extend(self._isolation_display_lines())
+        return self._make_reason_facts(
+            family,
+            variant,
+            "hold",
+            headline,
+            lines,
+        )
+
+    def _gate_display_facts(self, status: _GateStatus, *, action: str) -> ReasonFacts:
+        lines: List[ReasonLine] = []
+        attention = "hold"
+        variant = status.presentation_variant or "global_gate"
+        if status.kind == "time":
+            headline = "Time gate active"
+            window = f"{status.window_start or 'configured start'}–{status.window_end or 'configured end'}"
+            lines.append(
+                ReasonLine(
+                    "why",
+                    "system",
+                    "gate.time_outside_window",
+                    "observed",
+                    f"The current time is outside the configured {window} window.",
+                    {
+                        "start": status.window_start or "configured",
+                        "end": status.window_end or "configured",
+                    },
+                )
+            )
+        elif status.presentation_variant == "presence_unavailable":
+            headline = "Presence status unavailable"
+            attention = "degraded"
+            if status.unavailable_count == status.configured_count:
+                why = "All configured presence sources are unknown or unavailable."
+            else:
+                why = (
+                    "No configured presence source currently reports present, and the "
+                    "available evidence is incomplete."
+                )
+            lines.extend(
+                [
+                    ReasonLine(
+                        "why",
+                        "system",
+                        "gate.presence_unavailable",
+                        "unavailable",
+                        why,
+                        {
+                            "configured_count": status.configured_count,
+                            "unavailable_count": status.unavailable_count,
+                            "unrecognized_count": status.other_count,
+                        },
+                    ),
+                    ReasonLine(
+                        "notice",
+                        "system",
+                        "gate.occupancy_not_confirmed",
+                        "not_confirmed",
+                        "Occupancy cannot be confirmed.",
+                    ),
+                ]
+            )
+        else:
+            headline = "Presence gate active"
+            lines.append(
+                ReasonLine(
+                    "why",
+                    "system",
+                    "gate.presence_no_present_source",
+                    "observed",
+                    "All configured presence sources explicitly report away.",
+                    {"configured_count": status.configured_count},
+                )
+            )
+
+        if action == "safe_state":
+            if self._fan_outputs_isolated() or self._humidifier_outputs_isolated():
+                action_text = (
+                    "Automatic control is blocked. Output isolation is on, so HI did "
+                    "not send the affected reset commands."
+                )
+                action_truth = "blocked"
+            else:
+                action_text = (
+                    "Automatic control is blocked; HI selected the configured gate "
+                    "output reset."
+                )
+                action_truth = "selected"
+            action_code = "gate.output_reset_selected"
+        else:
+            action_text = "The gate path made no new output changes."
+            action_truth = "blocked"
+            action_code = "gate.no_output_change"
+        lines.append(
+            ReasonLine(
+                "action",
+                "ventilation",
+                action_code,
+                action_truth,
+                action_text,
+            )
+        )
+        lines.extend(self._humidifier_display_lines([]))
+        return self._make_reason_facts(
+            "gate",
+            variant,
+            attention,
+            headline,
+            lines,
+        )
+
+    def _pause_display_facts(self) -> ReasonFacts:
+        lines = [
+            ReasonLine(
+                "why",
+                "system",
+                    "pause.automatic_control_paused",
+                    "blocked",
+                    "Automatic control is paused.",
+            ),
+            ReasonLine(
+                "next",
+                "system",
+                "pause.timer_end_reassessment",
+                "blocked",
+                "Pause remains active until the pause timer ends.",
+            ),
+        ]
+        lines.extend(self._humidifier_display_lines([]))
+        lines.extend(self._isolation_display_lines())
+        return self._make_reason_facts(
+            "pause",
+            "active",
+            "hold",
+            "Automatic control paused",
+            lines,
+        )
+
+    def _telemetry_display_facts(self, missing: List[str]) -> ReasonFacts:
+        labels = [sanitize_display_label(item) for item in missing]
+        labels = [item for item in labels if item]
+        missing_text = " and ".join(labels) or "required"
+        lines = [
+            ReasonLine(
+                "why",
+                "system",
+                "telemetry.required_unavailable",
+                "unavailable",
+                f"Required {missing_text} telemetry is unavailable.",
+                {"missing_count": len(missing)},
+            ),
+            ReasonLine(
+                "action",
+                "system",
+                "telemetry.lower_lanes_not_evaluated",
+                "blocked",
+                "HI did not continue with zone, alert, air-quality, or humidifier decisions.",
+            ),
+        ]
+        lines.extend(self._humidifier_display_lines([]))
+        lines.extend(self._isolation_display_lines())
+        return self._make_reason_facts(
+            "telemetry",
+            "required_unavailable",
+            "degraded",
+            "Required telemetry unavailable",
+            lines,
+        )
+
+    def _co_display_facts(self) -> ReasonFacts:
+        start_threshold, clear_threshold, outputs = self._co_emergency_settings()
+        co_values = self._collect_values("co")
+        lines: List[ReasonLine] = []
+        if co_values:
+            maximum = max(co_values)
+            lines.append(
+                ReasonLine(
+                    "why",
+                    "safety",
+                    "co.reading_above_threshold",
+                    "observed",
+                    (
+                        f"The highest configured CO reading is {maximum:g} ppm, at or "
+                        f"above the {start_threshold:g} ppm threshold."
+                    ),
+                    {
+                        "measured": maximum,
+                        "threshold": start_threshold,
+                        "unit": "ppm",
+                    },
+                )
+            )
+        output_summary = self._presentation_output_summary(
+            outputs,
+            generic="configured emergency ventilation output",
+        )
+        if self._fan_outputs_isolated():
+            lines.append(
+                ReasonLine(
+                    "action",
+                    "safety",
+                    "co.output_isolated",
+                    "blocked",
+                    "Fan-output isolation is active; emergency ventilation service calls are suppressed.",
+                )
+            )
+        elif not outputs:
+            lines.append(
+                ReasonLine(
+                    "action",
+                    "safety",
+                    "co.output_unmapped",
+                    "unmapped",
+                    "No configured emergency ventilation output is available for selection.",
+                )
+            )
+        else:
+            lines.append(
+                ReasonLine(
+                    "action",
+                    "safety",
+                    "co.output_level_selected",
+                    "selected",
+                    f"Output selection: 100% for {output_summary}.",
+                    {"level": 100, "output_count": len(outputs)},
+                )
+            )
+        lines.append(
+            ReasonLine(
+                "next",
+                "safety",
+                "co.clear_hold",
+                "selected",
+                (
+                    f"Valid CO readings must remain below {clear_threshold:g} ppm for "
+                    "two minutes before HI clears this response."
+                ),
+                {"clear_threshold": clear_threshold, "hold_minutes": 2},
+            )
+        )
+        lines.extend(self._humidifier_display_lines([]))
+        return self._make_reason_facts(
+            "co_emergency",
+            "threshold_active",
+            "critical",
+            "Carbon monoxide emergency selected",
+            lines,
+        )
+
+    def _runtime_display_facts(
+        self,
+        *,
+        runtime_mode: str,
+        alert_details: List[Any],
+        zone_detail: Optional[Dict[str, Any]],
+        aq_details: List[Dict[str, Any]],
+        humidifier_details: List[Dict[str, Any]],
+    ) -> ReasonFacts:
+        if runtime_mode == "alert" and alert_details:
+            family = "alert"
+            attention = "critical"
+            headline, variant, lines = self._alert_display_content(alert_details)
+        elif runtime_mode in {"cooking", "bathroom", "zone"} and zone_detail:
+            family = "zone"
+            attention = "active"
+            variant = str(zone_detail.get("zone_key") or "selected")
+            zone_label = self._presentation_label(
+                zone_detail.get("ui_label"),
+                "Configured zone",
+            )
+            headline = f"{zone_label} response selected"
+            lines = self._zone_display_lines(zone_detail)
+        elif runtime_mode == "air_quality" and aq_details:
+            family = "air_quality"
+            attention = "active"
+            variant = (
+                "trigger_active"
+                if any(detail.get("trigger_active") for detail in aq_details)
+                else "run_window_active"
+            )
+            headline = "Air quality response selected"
+            lines = self._aq_display_lines(aq_details)
+        elif self.alert_only_mode:
+            family = "normal"
+            attention = "neutral"
+            variant = "alert_only_monitoring"
+            headline = "Monitoring alerts"
+            lines = [
+                ReasonLine(
+                    "why",
+                    "system",
+                    "normal.alert_only_monitoring",
+                    "selected",
+                    (
+                        "Monitor + Alerts Only mode is active; HI is monitoring alerts "
+                        "without automatic zone, air-quality, or humidifier output control."
+                    ),
+                )
+            ]
+        else:
+            family = "normal"
+            attention = "neutral"
+            variant = "monitoring"
+            headline = "Monitoring"
+            lines = [
+                ReasonLine(
+                    "why",
+                    "system",
+                    "normal.no_higher_priority_lane",
+                    "selected",
+                    "HI is monitoring; no ventilation response is selected.",
+                )
+            ]
+
+        degraded = [
+            item
+            for item in alert_details
+            if isinstance(item, dict) and not _alert_can_control(item)
+        ]
+        if degraded:
+            if attention == "neutral":
+                attention = "degraded"
+                variant = "monitoring_with_degraded_alert"
+                headline = "Monitoring with limited alert response"
+            lines.append(
+                ReasonLine(
+                    "notice",
+                    "safety",
+                    "alert.degraded_candidate_not_selected",
+                    "unmapped",
+                    (
+                        "Another active alert could not be mapped to a configured zone "
+                        "output; automatic boost was not selected for it."
+                    ),
+                    {"candidate_count": len(degraded)},
+                )
+            )
+        lines.extend(self._humidifier_display_lines(humidifier_details))
+        lines.extend(self._isolation_display_lines(include_fan=family == "normal"))
+        return self._make_reason_facts(
+            family,
+            variant,
+            attention,
+            headline,
+            lines,
+        )
+
+    def _zone_display_lines(self, detail: Dict[str, Any]) -> List[ReasonLine]:
+        lines = [
+            self._trigger_display_line("zone", fact)
+            for fact in tuple(detail.get("trigger_facts") or ())[:2]
+            if isinstance(fact, _TriggerFact)
+        ]
+        output_level = _fan_level_text(detail.get("output_level"))
+        outputs = list(detail.get("outputs") or [])
+        output_summary = self._presentation_output_summary(
+            outputs,
+            generic="configured zone ventilation output",
+        )
+        if self._fan_outputs_isolated():
+            lines.append(
+                ReasonLine(
+                    "action",
+                    "ventilation",
+                    "zone.output_isolated",
+                    "blocked",
+                    "Fan-output isolation is active; zone ventilation service calls are suppressed.",
+                )
+            )
+        else:
+            lines.append(
+                ReasonLine(
+                    "action",
+                    "ventilation",
+                    "zone.output_level_selected",
+                    "selected",
+                    f"Output selection: {output_level} for {output_summary}.",
+                    {"output_count": len(outputs), "output_level": output_level},
+                )
+            )
+        return lines
+
+    def _aq_display_lines(self, details: List[Dict[str, Any]]) -> List[ReasonLine]:
+        lines: List[ReasonLine] = []
+        for detail in details[:2]:
+            level_label = self._presentation_level_label(detail.get("level"))
+            facts = [
+                fact
+                for fact in tuple(detail.get("trigger_facts") or ())
+                if isinstance(fact, _TriggerFact)
+            ]
+            if facts:
+                line = self._trigger_display_line("air_quality", facts[0])
+                lines.append(
+                    ReasonLine(
+                        line.role,
+                        line.scope,
+                        line.code,
+                        line.truth,
+                        f"{level_label}: {line.text}",
+                        line.args,
+                    )
+                )
+            else:
+                lines.append(
+                    ReasonLine(
+                        "why",
+                        "ventilation",
+                        "air_quality.run_window_active",
+                        "selected",
+                        f"{level_label} AQ run window remains active after the latest trigger.",
+                    )
+                )
+            outputs = list(detail.get("outputs") or [])
+            output_level = _fan_level_text(detail.get("output_level"))
+            output_summary = self._presentation_output_summary(
+                outputs,
+                generic="configured air-quality ventilation output",
+            )
+            if self._fan_outputs_isolated():
+                action_text = (
+                    f"{level_label}: fan-output isolation suppresses air-quality "
+                    "service calls."
+                )
+                truth = "blocked"
+                code = "air_quality.output_isolated"
+            else:
+                action_text = f"{level_label} output selection: {output_level} for {output_summary}."
+                truth = "selected"
+                code = "air_quality.output_level_selected"
+            lines.append(
+                ReasonLine(
+                    "action",
+                    "ventilation",
+                    code,
+                    truth,
+                    action_text,
+                    {"output_count": len(outputs), "output_level": output_level},
+                )
+            )
+        return lines
+
+    def _alert_display_content(
+        self,
+        details: List[Any],
+    ) -> Tuple[str, str, List[ReasonLine]]:
+        selected = details[0] if details and isinstance(details[0], dict) else {}
+        alert_type = str(selected.get("alert_type") or "alert")
+        severity = str(selected.get("severity") or "active")
+        variant = str(selected.get("trigger_type") or "selected")
+        headline = f"{alert_type.title()} {severity.lower()} selected"
+        lines: List[ReasonLine] = []
+        measured = _to_float(selected.get("measured_value"))
+        threshold = _to_float(selected.get("threshold"))
+        if measured is not None and threshold is not None:
+            profile = self._presentation_label(
+                selected.get("profile_label"),
+                "active profile",
+            )
+            if variant.startswith("condensation_"):
+                measurement_text = (
+                    f"Dew-point spread is {measured:.1f}°C, at or below the "
+                    f"{threshold:g}°C {profile} {severity.lower()} point."
+                )
+                unit = "degC"
+                measurement_code = "alert.measurement_at_or_below_threshold"
+            elif variant.startswith("mould_"):
+                measurement_text = (
+                    f"Mould risk level is {measured:g}, at or above the {threshold:g} "
+                    f"{severity.lower()} threshold for the {profile} profile."
+                )
+                unit = "risk_level"
+                measurement_code = "alert.measurement_at_or_above_threshold"
+            else:
+                measurement_text = (
+                    f"The selected reading is {measured:.1f}%, at or above the "
+                    f"active {threshold:g}% threshold."
+                )
+                unit = "%"
+                measurement_code = "alert.measurement_at_or_above_threshold"
+            lines.append(
+                ReasonLine(
+                    "why",
+                    "safety",
+                    measurement_code,
+                    "observed",
+                    measurement_text,
+                    {
+                        "comparison": selected.get("comparison") or "at_or_above",
+                        "measured": measured,
+                        "threshold": threshold,
+                        "unit": unit,
+                    },
+                )
+            )
+        room = self._presentation_label(selected.get("room"), "")
+        zone = self._presentation_label(selected.get("zone"), "")
+        if room or zone:
+            if room and zone:
+                source_text = f"The alert comes from {room} and maps to {zone}."
+            elif room:
+                source_text = f"The alert comes from {room}."
+            else:
+                source_text = f"The alert maps to {zone}."
+            lines.append(
+                ReasonLine(
+                    "why",
+                    "safety",
+                    "alert.source_resolved",
+                    "observed",
+                    source_text,
+                )
+            )
+        outputs = list(selected.get("outputs") or [])
+        if outputs and selected.get("boost_level"):
+            level = _fan_level_text(selected.get("boost_level"))
+            output_summary = self._presentation_output_summary(
+                outputs,
+                generic="configured alert ventilation output",
+            )
+            if self._fan_outputs_isolated():
+                text = "Fan-output isolation is active; alert ventilation service calls are suppressed."
+                truth = "blocked"
+                code = "alert.output_isolated"
+            else:
+                text = f"Output selection: {level} for {output_summary}."
+                truth = "selected"
+                code = "alert.output_level_selected"
+            lines.append(
+                ReasonLine(
+                    "action",
+                    "ventilation",
+                    code,
+                    truth,
+                    text,
+                    {"output_count": len(outputs), "output_level": level},
+                )
+            )
+        else:
+            lines.append(
+                ReasonLine(
+                    "action",
+                    "ventilation",
+                    "alert.output_unmapped",
+                    "unmapped",
+                    "No automatic alert boost was selected because no actionable zone-output mapping is available.",
+                )
+            )
+        if selected.get("held_until_clear"):
+            lines.append(
+                ReasonLine(
+                    "notice",
+                    "safety",
+                    "alert.existing_selection_held",
+                    "selected",
+                    "The existing actionable alert remains selected until it clears.",
+                )
+            )
+        elif len(details) > 1:
+            lines.append(
+                ReasonLine(
+                    "notice",
+                    "safety",
+                    "alert.conflict_resolved",
+                    "selected",
+                    "Selection followed deterministic alert and zone priority.",
+                    {"candidate_count": len(details)},
+                )
+            )
+        return headline, variant, lines
+
+    def _trigger_display_line(self, family: str, fact: _TriggerFact) -> ReasonLine:
+        if fact.code == "humidity_delta":
+            text = (
+                f"Humidity is {fact.measured:.1f} percentage points above the home "
+                f"average; response starts at a difference of {fact.threshold:g} "
+                "percentage points."
+            )
+        elif fact.code == "condensation_risk":
+            profile = self._presentation_label(fact.profile_label, "active profile")
+            text = (
+                f"Dew-point spread is {fact.measured:.1f}°C, at or below the "
+                f"{fact.threshold:g}°C {profile} risk point."
+            )
+        elif fact.code == "mould_risk":
+            text = (
+                f"Mould risk level is {fact.measured:g}, at or above the "
+                f"{fact.threshold:g} threshold."
+            )
+        elif fact.code == "pm25_high":
+            text = (
+                f"PM2.5 is {fact.measured:g} µg/m³, at or above the "
+                f"{fact.threshold:g} µg/m³ threshold."
+            )
+        elif fact.code == "co2_high":
+            text = (
+                f"CO2 is {fact.measured:g} ppm, at or above the "
+                f"{fact.threshold:g} ppm threshold."
+            )
+        elif fact.code == "co_warning":
+            text = (
+                f"CO is {fact.measured:g} ppm, at or above the "
+                f"{fact.threshold:g} ppm warning threshold."
+            )
+        elif fact.code == "iaq_bad":
+            text = (
+                f"IAQ is {fact.measured:g}, at or below the "
+                f"{fact.threshold:g} threshold."
+            )
+        else:
+            text = (
+                f"VOC is {fact.measured:g}, at or above the "
+                f"{fact.threshold:g} threshold."
+            )
+        return ReasonLine(
+            "why",
+            "ventilation",
+            f"{family}.{fact.code}",
+            "observed",
+            text,
+            {
+                "measured": fact.measured,
+                "threshold": fact.threshold,
+                "unit": fact.unit,
+            },
+        )
+
+    def _humidifier_display_lines(
+        self,
+        active_details: List[Dict[str, Any]],
+    ) -> List[ReasonLine]:
+        runtime_data = self.hass.data.get(DOMAIN, {}).get(self.entry.entry_id, {})
+        status = runtime_data.get("humidifier_status")
+        if not isinstance(status, dict):
+            return []
+        lanes = status.get("lanes")
+        if not isinstance(lanes, dict):
+            return []
+        active_by_level = {
+            str(detail.get("level")): detail
+            for detail in active_details
+            if isinstance(detail, dict) and detail.get("level")
+        }
+        lines: List[ReasonLine] = []
+        physical_caveat = False
+        platform_humidifying = False
+        for level in ("level1", "level2"):
+            lane = lanes.get(level)
+            if not isinstance(lane, dict):
+                continue
+            demand = str(lane.get("demand") or "inactive")
+            reconciliation = str(lane.get("reconciliation") or "inactive")
+            observed = str(lane.get("observed") or "not_configured")
+            platform_action = str(lane.get("platform_action") or "not_exposed")
+            failure_category = str(lane.get("failure_category") or "")
+            on_dispatch = self._humidifier_lane_dispatch_evidence(level, "turn_on")
+            off_dispatch = self._humidifier_lane_dispatch_evidence(level, "turn_off")
+            relevant = demand == "requested" or reconciliation in {
+                "degraded",
+                "fault_latched",
+                "inactive_shared_output",
+                "isolated",
+                "output_on",
+                "platform_idle",
+                "requested",
+                "retrying",
+                "stopping",
+                "unknown",
+            }
+            if not relevant:
+                continue
+            label = self._presentation_level_label(level)
+            detail = active_by_level.get(level, {})
+            humidity = _to_float(detail.get("humidity"))
+            start = _to_float(detail.get("low"))
+            stop = _to_float(detail.get("recovery_off"))
+            environment = str(detail.get("environmental_state") or lane.get("environmental_state") or "inactive")
+            if demand == "requested" and humidity is not None and start is not None and stop is not None:
+                if environment == "recovering":
+                    prefix = (
+                        f"{label}: {humidity:.1f}%; recovery hold continues to "
+                        f"{stop:.1f}%."
+                    )
+                else:
+                    prefix = (
+                        f"{label}: {humidity:.1f}% is at or below the {start:.1f}% "
+                        "start threshold; demand is active."
+                    )
+            elif demand == "requested":
+                prefix = f"{label}: humidification demand is active."
+            else:
+                prefix = f"{label}: humidification demand is inactive."
+
+            if reconciliation == "output_on":
+                suffix = " Output observed on."
+                truth = "observed"
+                physical_caveat = True
+            elif reconciliation == "platform_idle":
+                suffix = " Output observed on; platform action idle."
+                truth = "observed"
+                physical_caveat = True
+            elif reconciliation == "requested":
+                if on_dispatch == "requested":
+                    suffix = (
+                        " HI sent the output-on request to Home Assistant; confirmation "
+                        "is pending."
+                    )
+                    truth = "requested"
+                else:
+                    suffix = " Output-on confirmation is pending; dispatch is not confirmed."
+                    truth = "not_confirmed"
+            elif reconciliation == "retrying":
+                if on_dispatch == "failed":
+                    suffix = (
+                        " A Home Assistant output-on service call failed; bounded "
+                        "reconciliation retry is active."
+                    )
+                    truth = "failed"
+                elif on_dispatch == "requested":
+                    suffix = (
+                        " HI sent an output-on request to Home Assistant; confirmation "
+                        "is pending and bounded reconciliation remains active."
+                    )
+                    truth = "requested"
+                else:
+                    suffix = " Output-on mismatch remains; bounded reconciliation retry is active."
+                    truth = "not_confirmed"
+            elif reconciliation == "stopping":
+                if off_dispatch == "failed":
+                    suffix = (
+                        " A Home Assistant output-off service call failed; bounded "
+                        "reconciliation remains active."
+                    )
+                    truth = "failed"
+                elif off_dispatch == "requested":
+                    suffix = (
+                        " HI sent the output-off request to Home Assistant; output-off "
+                        "confirmation is pending."
+                    )
+                    truth = "requested"
+                else:
+                    suffix = " Output-off confirmation is pending; dispatch is not confirmed."
+                    truth = "not_confirmed"
+            elif reconciliation == "isolated":
+                suffix = " Command suppressed by humidifier-output isolation."
+                truth = "blocked"
+            elif reconciliation == "unknown":
+                suffix = " Output state unavailable; activity is not confirmed."
+                truth = "unavailable"
+            elif reconciliation == "degraded":
+                if failure_category == "telemetry_unavailable":
+                    prefix = (
+                        f"{label}: humidity data is unavailable, so HI cannot assess "
+                        "humidifier demand."
+                    )
+                    suffix = ""
+                    truth = "unavailable"
+                elif failure_category == "no_outputs":
+                    prefix = (
+                        f"{label}: no humidifier output is configured, so no command "
+                        "was sent."
+                    )
+                    suffix = ""
+                    truth = "blocked"
+                else:
+                    suffix = (
+                        " Output reconciliation is degraded; activity is not confirmed."
+                    )
+                    truth = "not_confirmed"
+            elif reconciliation == "fault_latched":
+                suffix = " Reconciliation fault is latched after bounded attempts."
+                truth = "failed"
+            elif reconciliation == "inactive_shared_output":
+                suffix = (
+                    " A shared output remains selected because another humidifier lane "
+                    "still has active demand."
+                )
+                truth = "selected"
+            else:
+                suffix = ""
+                truth = "selected"
+            lines.append(
+                ReasonLine(
+                    "notice",
+                    "humidifier",
+                    f"humidifier.{reconciliation}",
+                    truth,
+                    prefix + suffix,
+                    {
+                        "demand_active": demand == "requested",
+                        "dispatch_evidence": (
+                            off_dispatch if reconciliation == "stopping" else on_dispatch
+                        ),
+                        "environmental_state": environment,
+                        "lane": level,
+                        "observed": observed,
+                        "reconciliation": reconciliation,
+                    },
+                )
+            )
+            platform_humidifying = platform_humidifying or platform_action == "humidifying"
+        if platform_humidifying:
+            lines.append(
+                ReasonLine(
+                    "notice",
+                    "humidifier",
+                    "humidifier.platform_action_caveat",
+                    "observed",
+                    "Platform action reports humidifying; physical moisture output is not measured.",
+                )
+            )
+        elif physical_caveat:
+            lines.append(
+                ReasonLine(
+                    "notice",
+                    "humidifier",
+                    "humidifier.physical_output_not_confirmed",
+                    "not_confirmed",
+                    "Physical moisture output is not independently confirmed.",
+                )
+            )
+        return lines
+
+    def _humidifier_lane_dispatch_evidence(self, level: str, intent: str) -> str:
+        runtime_data = self.hass.data.get(DOMAIN, {}).get(self.entry.entry_id, {})
+        reconciliation = runtime_data.get("humidifier_reconciliation")
+        if not isinstance(reconciliation, dict):
+            return "not_confirmed"
+        outputs = reconciliation.get("outputs")
+        if not isinstance(outputs, dict):
+            return "not_confirmed"
+        results: List[str] = []
+        for output in outputs.values():
+            if not isinstance(output, dict):
+                continue
+            owners = set(output.get("owners") or ()) | set(
+                output.get("configured_owners") or ()
+            )
+            if level not in owners or output.get("last_command_intent") != intent:
+                continue
+            results.append(str(output.get("dispatch_result") or "not_confirmed"))
+        if "exception" in results:
+            return "failed"
+        if "dispatched_unconfirmed" in results:
+            return "requested"
+        return "not_confirmed"
+
+    def _isolation_display_lines(self, *, include_fan: bool = True) -> List[ReasonLine]:
+        lines: List[ReasonLine] = []
+        if include_fan and self._fan_outputs_isolated():
+            lines.append(
+                ReasonLine(
+                    "notice",
+                    "ventilation",
+                    "isolation.fan_outputs",
+                    "blocked",
+                    "Fan-output isolation is active; fan service calls are suppressed.",
+                )
+            )
+        if self._humidifier_outputs_isolated():
+            status = self.hass.data.get(DOMAIN, {}).get(self.entry.entry_id, {}).get(
+                "humidifier_status",
+                {},
+            )
+            if not isinstance(status, dict) or status.get("overall") == "inactive":
+                lines.append(
+                    ReasonLine(
+                        "notice",
+                        "humidifier",
+                        "isolation.humidifier_outputs",
+                        "blocked",
+                        "Humidifier-output isolation is active; humidifier service calls are suppressed.",
+                    )
+                )
+        return lines
+
+    def _presentation_label(self, value: Any, generic: str) -> str:
+        return sanitize_display_label(value) or generic
+
+    def _presentation_level_label(self, level: Any) -> str:
+        key = str(level or "").strip()
+        fallback = "Downstairs" if key == "level1" else "Upstairs" if key == "level2" else "Configured level"
+        return sanitize_display_label(self._level_labels.get(key)) or fallback
+
+    def _presentation_output_summary(self, outputs: List[str], *, generic: str) -> str:
+        entities = [str(entity_id).strip() for entity_id in outputs if str(entity_id).strip()]
+        labels: List[str] = []
+        for entity_id in entities:
+            state = self.hass.states.get(entity_id)
+            friendly_name = None
+            if state is not None:
+                friendly_name = getattr(state, "attributes", {}).get("friendly_name")
+            label = sanitize_display_label(friendly_name)
+            if label and label.lower() != entity_id.lower():
+                labels.append(label)
+        if labels and len(labels) == len(entities) and len(labels) <= 2:
+            return " and ".join(labels)
+        if len(entities) > 1:
+            return f"{len(entities)} {generic}s"
+        if len(entities) == 1:
+            return f"the {generic}"
+        return generic
+
+    def _make_reason_facts(
+        self,
+        family: str,
+        variant: str,
+        attention: str,
+        headline: str,
+        lines: List[ReasonLine],
+    ) -> ReasonFacts:
+        truncated = len(lines) > DISPLAY_REASON_MAX_LINES
+        if len(lines) <= DISPLAY_REASON_TARGET_LINES:
+            bounded_lines = lines
+        elif not truncated:
+            bounded_lines = lines
+        else:
+            retained = sorted(
+                range(len(lines)),
+                key=lambda index: (
+                    self._reason_line_retention_priority(lines[index]),
+                    index,
+                ),
+            )[:DISPLAY_REASON_MAX_LINES]
+            retained_indexes = set(retained)
+            bounded_lines = [
+                line for index, line in enumerate(lines) if index in retained_indexes
+            ]
+        return ReasonFacts(
+            family=family,
+            variant=variant,
+            attention=attention,
+            headline=headline,
+            lines=tuple(bounded_lines),
+            truncated=truncated,
+        )
+
+    @staticmethod
+    def _reason_line_retention_priority(line: ReasonLine) -> int:
+        if line.truth == "failed":
+            return 0
+        if line.scope == "safety":
+            return 1
+        if line.truth in {"unavailable", "unmapped", "not_confirmed"}:
+            return 2
+        if line.code.startswith("isolation."):
+            return 3
+        if line.role == "action":
+            return 4
+        if line.truth == "observed":
+            return 5
+        if line.scope == "humidifier":
+            return 6
+        if line.role == "why":
+            return 7
+        return 8
 
     def _format_zone_detail(self, detail: Dict[str, Any], zone_label: str) -> str:
         outputs = self._format_output_entities(detail.get("outputs", []))
@@ -2589,12 +3811,25 @@ class HIAutomationEngine:
         data["runtime_mode"] = mode
         data["runtime_mode_display"] = display or mode.replace("_", " ").upper()
 
-    async def _set_runtime_reason(self, reason: str) -> None:
+    async def _set_runtime_reason(
+        self,
+        reason: str,
+        *,
+        display_facts_factory: Optional[Callable[[], ReasonFacts]] = None,
+    ) -> None:
         data = self.hass.data.setdefault(DOMAIN, {}).setdefault(self.entry.entry_id, {})
         safe_reason, full_reason = _state_safe_reason(reason)
         data["runtime_reason"] = safe_reason
         data["runtime_reason_full"] = full_reason
         data["runtime_reason_truncated"] = bool(full_reason)
+        data.pop("runtime_display_reason", None)
+        if display_facts_factory is None:
+            return
+        try:
+            display_facts = display_facts_factory()
+            data["runtime_display_reason"] = build_display_reason(display_facts)
+        except Exception:
+            _LOGGER.exception("HI display-reason presentation failed")
 
     def _bool_is_on(self, key: str) -> bool:
         data = self.hass.data.get(DOMAIN, {}).get(self.entry.entry_id, {})

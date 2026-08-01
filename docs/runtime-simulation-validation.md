@@ -31,6 +31,10 @@ It covers:
 - bounded 30-second/120-second retry timing, final confirmation, and fault latching
 - isolation release, shared-output OR ownership, and conflicting-output suppression
 - sanitized humidifier diagnostics plus V2 Mobile/Tablet and gallery truth strings
+- every `hi.reason.v1` runtime family, line/size/privacy bounds, and presentation
+  failure isolation from technical reason and service/lane truth
+- the strict V2 reason renderer's valid, malformed, future-schema, Unicode, escaping,
+  raw-ID, and atomic-fallback behavior
 
 ## Run
 
@@ -40,13 +44,17 @@ Assistant test dependencies:
 ```bash
 python3 "tests 2/test_air_control_mode_simulation.py"
 python3 "tests 2/test_humidifier_reconciliation.py"
+python3 "tests 2/test_reason_presentation.py"
+node "tests 2/test_reason_card_renderer.mjs"
 ```
 
 Expected local pass output:
 
 ```text
-10 air-control mode simulation checks passed.
-22 humidifier reconciliation checks passed.
+21 air-control mode simulation checks passed.
+26 humidifier reconciliation checks passed.
+14 reason-presentation contract checks passed.
+7 reason-card renderer checks passed.
 ```
 
 Where full test dependencies are available, this file can also be run through

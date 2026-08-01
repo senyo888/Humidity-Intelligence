@@ -3,14 +3,11 @@
 from __future__ import annotations
 
 import hashlib
-import logging
 import re
 from typing import Iterable, List
 
-from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 
-_LOGGER = logging.getLogger(__name__)
 _GENERATED_UI_LAYOUTS = (
     "v1_mobile",
     "v2_mobile",
@@ -118,16 +115,3 @@ def list_owned_ui_filenames(
                 )
             )
     return sorted(filenames)
-
-
-async def remove_dashboard(hass: HomeAssistant, dashboard_id: str | None) -> bool:
-    """Remove a dashboard and report whether the requested deletion succeeded."""
-    if not dashboard_id:
-        return True
-    try:
-        from homeassistant.components.lovelace import dashboard as lovelace_dashboard
-        await lovelace_dashboard.async_delete_dashboard(hass, dashboard_id=dashboard_id)
-    except Exception:
-        _LOGGER.exception("Unable to remove generated dashboard %s", dashboard_id)
-        return False
-    return True

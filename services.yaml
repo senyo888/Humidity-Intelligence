@@ -153,30 +153,30 @@ dump_cards:
       selector:
         text: {}
 create_dashboard:
-  name: Create Dashboard
-  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Render YAML and register a new Lovelace dashboard. Dashboard visibility still follows the registered dashboard settings after creation.
+  name: Dashboard Setup Guidance
+  description: Compatibility-only admin action. Humidity Intelligence exports Manual-card YAML but cannot safely create, register, replace, or delete a Home Assistant dashboard on supported versions. This action performs no file or dashboard writes and returns the supported refresh_ui, view_cards, and Manual-card steps.
   fields:
     entry_id:
-      name: Entry ID
-      description: Optional config entry ID to use; omit to use the first entry
+      name: Entry ID (compatibility only)
+      description: Retained for existing callers; ignored by this guidance-only action. Supply the intended entry ID when separately running refresh_ui and view_cards.
       selector:
         text: {}
     layout:
-      name: Layout
-      description: Card layout key (v2_mobile or v2_tablet)
+      name: Layout (compatibility only)
+      description: Retained for existing callers; ignored by this guidance-only action. Supply v2_mobile or v2_tablet when separately running view_cards.
       selector:
         select:
           options:
             - v2_mobile
             - v2_tablet
     title:
-      name: Dashboard title
-      description: Name shown in the sidebar
+      name: Dashboard title (compatibility only)
+      description: Retained for existing callers; ignored by this guidance-only action
       selector:
         text: {}
     url_path:
-      name: URL path
-      description: Sidebar URL path (lowercase letters/numbers/_/- only)
+      name: URL path (compatibility only)
+      description: Retained for existing callers; ignored by this guidance-only action
       selector:
         text: {}
 view_cards:
@@ -200,7 +200,7 @@ view_cards:
         text: {}
 purge_files:
   name: Purge Files
-  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Show the exact existing owned default/per-entry UI exports, release-check test-card exports, and registered dashboard targets in a blocking preview, then remove them. Entry-scoped calls remove no reports. An unscoped all-entry call may additionally remove only the fixed default diagnostics and self-check reports. Custom card exports, custom reports, release-check reports, and all legacy config-root artifacts are retained. Partial failures are reported and fail the service call.
+  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Show the exact existing owned default/per-entry UI exports and release-check test-card exports in a blocking preview, then remove them. Home Assistant dashboards are user-managed and are never listed or removed. Entry-scoped calls remove no reports. An unscoped all-entry call may additionally remove only the fixed default diagnostics and self-check reports. Custom card exports, custom reports, release-check reports, and all legacy config-root artifacts are retained. Partial failures are reported and fail the service call.
   fields:
     entry_id:
       name: Entry ID

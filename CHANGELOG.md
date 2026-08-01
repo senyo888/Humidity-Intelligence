@@ -8,6 +8,40 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+- Added the versioned backend-owned `hi.reason.v1` presentation contract as the
+  `display_reason` attribute on the existing Air Control Reason entity. The existing
+  state, `full_reason`, truncation behavior, and `humidifier_status` remain backward
+  compatible; invalid presentation data is omitted without interrupting control.
+- Humanised backend presentation for normal, disabled, manual, pause, time/presence
+  gates, unavailable presence, unavailable telemetry, zones, air quality, mapped and
+  degraded alerts, CO emergency, output isolation, and humidifier reconciliation.
+  Ventilation copy reports selected output intent because current fan writers do not
+  expose dispatch or observed-state confirmation; humidifier copy retains its stronger
+  requested/observed/physical-output distinctions.
+- Replaced the V2 Mobile, Tablet, and canonical gallery reason composers with one
+  strict `hi.reason.v1` consumer. The reason area now renders only the escaped
+  backend headline and ordered line text, always keeps calm neutral explanations
+  visible, and atomically falls back to escaped `full_reason`, state, or `Reason
+  unavailable.` for absent, malformed, or future contracts. The 60-pixel scrolling
+  viewport remains; V1 Mobile is unchanged.
+- Classified unavailable-only presence evidence as degraded `presence_unavailable`
+  presentation without changing the existing fail-closed gate effect. One present
+  source still allows control, and CO emergency continues to bypass gates.
+- Advanced the implementation identity to `2.0.10-beta.2`. Beta.1 evidence remains
+  historical evidence for its exact humidifier-only scope; beta.2 requires renewed
+  reason-contract, runtime-invariance, generated-UI, privacy, packaging, and HA Lab
+  evidence before promotion.
+- Converted the legacy `create_dashboard` service into an admin-gated,
+  compatibility-only guidance action. It now fails safely before mapping, rendering,
+  Lovelace imports, notifications, or filesystem writes and directs users through
+  `refresh_ui`, `view_cards`, and Home Assistant's Manual-card workflow. New setup no
+  longer offers automatic dashboard creation; older stored selections remain inert
+  without migration.
+- Removed dashboard ownership and unsupported dashboard-delete behavior from
+  `purge_files` and config-entry removal. HI-generated exports are explicitly
+  Manual-card fragments, not complete dashboard documents; Home Assistant dashboards
+  are retained and remain user-managed. A full Home Assistant restart is required to
+  load the changed Python service behavior.
 - Separated humidifier demand from command dispatch and Home Assistant-observed
   output state. The existing humidifier-active helpers now mean effective demand
   after normal runtime gates and before humidifier-output isolation; they no longer
@@ -37,7 +71,7 @@ This project follows a practical changelog format for Home Assistant and HACS us
   contract.
 - Extended the backward-compatible `v205_release_check` service contract through
   the v2.0.10 beta/rc/stable line without renaming the service. The branch now
-  carries explicit `2.0.10-beta.1` manifest identity for HA Lab beta validation.
+  carries explicit `2.0.10-beta.2` manifest identity for renewed HA Lab beta validation.
   No config/options schema, stored-data migration, or entity creation is part of
   this unreleased implementation slice.
 

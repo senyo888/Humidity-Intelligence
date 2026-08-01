@@ -71,6 +71,12 @@ def _output_details_block(source: str) -> str:
     return source[start:end]
 
 
+def _v2_reason_block(source: str) -> str:
+    start = source.index("        reason: |\n")
+    end = source.index("        aq: |\n", start)
+    return source[start:end]
+
+
 def _strip_allowed_output_expander_toggle(source: str) -> str:
     try:
         block = _output_details_block(source)
@@ -421,14 +427,12 @@ def _load_integration_init_module():
 
     services_mod = sys.modules[f"{PKG}.services"]
     services_mod.SERVICE_REFRESH_UI = "refresh_ui"
-    services_mod.async_create_dashboard_for_entry = async_noop
     services_mod.async_export_cards_to_owned_ui = async_noop
     services_mod.async_register_services = async_noop
     services_mod.async_unregister_services = async_noop
 
     cleanup_mod = types.ModuleType(f"{PKG}.helpers.cleanup")
     cleanup_mod.list_owned_ui_filenames = lambda *_args, **_kwargs: []
-    cleanup_mod.remove_dashboard = async_noop
     sys.modules[f"{PKG}.helpers.cleanup"] = cleanup_mod
     sys.modules[f"{PKG}.helpers"].cleanup = cleanup_mod
 
@@ -2711,8 +2715,8 @@ async def _run_card_assertions(register_mod) -> None:
     legacy = cards.get("v1_mobile", "")
 
     assert hass.data["humidity_intelligence"][ENTRY_ID].get("unresolved_placeholders_by_card", {}) == {}
-    assert mobile.startswith("# Humidity Intelligence V2 Mobile Dashboard YAML")
-    assert tablet.startswith("# Humidity Intelligence V2 Tablet Dashboard YAML")
+    assert mobile.startswith("# Humidity Intelligence V2 Mobile Manual-card YAML")
+    assert tablet.startswith("# Humidity Intelligence V2 Tablet Manual-card YAML")
     assert "const escapeHtml = " in legacy
     assert "${escapeHtml(item.label)}" in legacy
     assert "Target humidity (${escapeHtml(season)}):" in legacy
@@ -2724,6 +2728,36 @@ async def _run_card_assertions(register_mod) -> None:
         "level1": "Ground Floor",
         "level2": "Loft",
     }
+
+    # Phase 3: prove the real rendered cache survives the owned export byte-for-byte
+    # and remains one Manual-card fragment rather than a dashboard document.
+    services_mod = _load_services_module()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        export_hass = _DumpCardsHass(tmpdir, [entry], {ENTRY_ID: cards})
+        written = await services_mod.async_export_cards_to_owned_ui(
+            export_hass,
+            entry_id=ENTRY_ID,
+            filename=None,
+            layout="v2_mobile",
+        )
+        assert written == [
+            "/config/humidity_intelligence/ui/"
+            "humidity_intelligence_cards_v2_mobile.yaml"
+        ]
+        exported = (
+            pathlib.Path(tmpdir)
+            / "humidity_intelligence"
+            / "ui"
+            / "humidity_intelligence_cards_v2_mobile.yaml"
+        ).read_text(encoding="utf-8")
+        assert exported == mobile
+        first_yaml_line = next(
+            line for line in exported.splitlines() if line and not line.startswith("#")
+        )
+        assert first_yaml_line == "type: custom:mod-card"
+        assert not any(line.startswith("views:") for line in exported.splitlines())
+        assert "Stage:" not in _v2_reason_block(exported)
+        assert "Engine:" not in _v2_reason_block(exported)
 
     room_placeholders = [
         "sensor.bedroom_humidity",
@@ -2772,23 +2806,18 @@ async def _run_card_assertions(register_mod) -> None:
         assert "data-scroll-reset-delay-ms" in card
         assert "activeAlertNames.forEach" not in card
         assert "if (alertLaneActive && alertContext" in card
-        assert "const danger = alertLaneActive" in card
         assert "states['binary_sensor.humidity_danger']?.state === 'on'" not in card
         assert "states['binary_sensor.condensation_danger']?.state === 'on'" not in card
         assert "states['binary_sensor.mould_danger']?.state === 'on'" not in card
         assert "_humidity_danger']?.state === 'on'" not in card
         assert "_condensation_danger']?.state === 'on'" not in card
         assert "_mould_danger']?.state === 'on'" not in card
-        assert "alert_telemetry" in card
-        assert "degraded === true" in card
         assert "DEGRADED ALERT CONTEXT" not in card
         assert "Stage: Degraded alert context detected" not in card
-        assert "const degradedAlertItems" in card
-        assert "const degradedAlertLabel" in card
-        assert "const degradedAlertReason" in card
-        assert "if (degradedAlertContext && !alertLaneActive)" in card
-        assert "Alert: ${degradedAlertLabel} is active, but HI skipped alert automation because ${degradedAlertReason}." in card
-        assert card.index("Stage: Air-quality assist running.") < card.index("if (degradedAlertContext && !alertLaneActive)")
+        assert "displayReason.schema !== 'hi.reason.v1'" in card
+        assert "displayReason.lines.map((line) => escapeHtml(line.text))" in card
+        assert "Stage:" not in _v2_reason_block(card)
+        assert "Engine:" not in _v2_reason_block(card)
         assert "(!gateActive && anyAlertActive)" in card
         assert "states['sensor.air_control_mode']?.state || 'normal'" not in card
         assert "entity.state || 'normal'" not in card
@@ -2800,11 +2829,6 @@ async def _run_card_assertions(register_mod) -> None:
         assert "if (mode === 'telemetry_unavailable') return '#f59e0b';" in card
         assert "if (mode === 'telemetry_unavailable') return 'TELEMETRY UNAVAILABLE';" in card
         assert "mode === 'telemetry_unavailable'" in card
-        assert "mode === 'telemetry_unavailable' ||" in card
-        assert "const modeUnavailable = !modeKnown" in card
-        assert "modeUnavailable ||" in card
-        assert "Stage: Required telemetry unavailable; automation standing down until telemetry recovers." in card
-        assert "Stage: Air-control mode unavailable; UI waiting for backend telemetry." in card
         assert "if (mode === 'telemetry_unavailable') return '1px solid rgba(245,158,11" in card
         assert card.index("if (mode === 'telemetry_unavailable') return '#f59e0b';") < card.index("if (red || coE")
         assert card.index("if (!modeKnown) return '#94a3b8';") < card.index("if (red || coE")
@@ -2930,8 +2954,11 @@ async def _run_alert_only_card_assertions(register_mod) -> None:
     assert "entity: input_boolean.air_control_output_expanded" not in mobile
     assert "- entity: fan.kitchen_air" not in mobile
     assert "- entity: humidifier.downstairs_humidifier" not in mobile
-    assert "Monitor + alerts only (no automation output controls configured)." in mobile
-    assert "Monitor + alerts only (no automation output controls configured)." in tablet
+    for card in (mobile, tablet):
+        reason_block = _v2_reason_block(card)
+        assert "displayReason.schema !== 'hi.reason.v1'" in reason_block
+        assert "Monitor + alerts only (no automation output controls configured)." not in reason_block
+        assert "input_boolean.air_control_enabled" not in reason_block
     assert not _has_empty_cards_block(mobile)
     assert not _has_invalid_conditional_block(mobile)
 
@@ -3386,18 +3413,71 @@ def test_output_details_header_uses_v207_expander_toggle_action():
     assert missing == []
 
 
-def test_v2_reason_panels_prefer_full_reason_before_state_fallback():
-    missing = []
+def test_v2_reason_panels_use_backend_schema_with_atomic_escaped_fallback():
+    blocks = []
+    required = (
+        "states['sensor.air_control_reason']",
+        "reasonState?.attributes?.display_reason",
+        "displayReason.schema !== 'hi.reason.v1'",
+        "displayReason.locale !== 'en'",
+        "const hasExactKeys =",
+        "const codePointLength = (value) => Array.from(value).length",
+        "displayReason.lines.length > 8",
+        "keys.length > 6",
+        "new TextEncoder().encode(JSON.stringify(displayReason)).length <= 4096",
+        "displayReason.lines.map((line) => escapeHtml(line.text))",
+        "escapeHtml(displayReason.headline)",
+        "reasonState?.attributes?.full_reason",
+        "reasonState?.state",
+        "return 'Reason unavailable.'",
+        'role="region"',
+        'aria-label="Current Air Control reason"',
+        'tabindex="0"',
+    )
+    forbidden = (
+        "greenNoise",
+        "showReason",
+        "Stage:",
+        "Engine:",
+        "Risk:",
+        "Timer:",
+        "Testing safeguard:",
+        "Alert context active.",
+        "timer.air_",
+        "input_boolean.air_",
+        "sensor.worst_room_",
+        "alert_telemetry",
+        "humidifier_status",
+    )
+
     for path in V2_REASON_SURFACES:
         source = path.read_text(encoding="utf-8")
-        full_reason_index = source.find("reasonState?.attributes?.full_reason")
-        state_index = source.find("reasonState?.state", full_reason_index)
-        if full_reason_index == -1 or state_index == -1:
-            missing.append(f"{path.relative_to(ROOT)}: missing full_reason fallback")
-        elif full_reason_index > state_index:
-            missing.append(f"{path.relative_to(ROOT)}: state precedes full_reason")
+        block = _v2_reason_block(source)
+        blocks.append(block)
+        for marker in required:
+            assert marker in block, (path.relative_to(ROOT), marker)
+        for marker in forbidden:
+            assert marker not in block, (path.relative_to(ROOT), marker)
+        assert block.count("states[") == 1
+        assert block.index("reasonState?.attributes?.full_reason") < block.index(
+            "reasonState?.state"
+        )
+        assert "max-height: 60px" in source
+        assert "overflow-y: auto" in source
+        assert ".cv-reason:focus-visible" in source
+        assert ".cv-reason__headline" in source
 
-    assert missing == []
+    assert len(set(blocks)) == 1
+
+    v1_mobile = (ROOT / "ui" / "cards" / "v1_mobile.yaml").read_text(
+        encoding="utf-8"
+    )
+    v1_gallery = (
+        ROOT / "ui-gallery" / "default-v1-mobile" / "card.yaml"
+    ).read_text(encoding="utf-8")
+    for source in (v1_mobile, v1_gallery):
+        assert "display_reason" not in source
+        assert "hi.reason.v1" not in source
 
 
 def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pause_tile():
@@ -3518,16 +3598,12 @@ def test_public_v2_gallery_cards_preserve_air_control_mode_truth():
         assert "_mould_danger']?.state === 'on'" not in source
         assert "if (mode === 'telemetry_unavailable') return '#f59e0b';" in source
         assert "if (mode === 'telemetry_unavailable') return 'TELEMETRY UNAVAILABLE';" in source
-        assert "mode === 'telemetry_unavailable' ||" in source
-        assert "const modeUnavailable = !modeKnown" in source
-        assert "modeUnavailable ||" in source
-        assert "const danger = alertLaneActive" in source
-        assert "const degradedAlertItems" in source
-        assert "if (degradedAlertContext && !alertLaneActive)" in source
         assert "tempColor(tempValueC(entity))" in source
         assert "slopeEntityFor(item)" in source
-        assert "Stage: Required telemetry unavailable; automation standing down until telemetry recovers." in source
-        assert "Stage: Air-control mode unavailable; UI waiting for backend telemetry." in source
+        assert "displayReason.schema !== 'hi.reason.v1'" in source
+        assert "displayReason.lines.map((line) => escapeHtml(line.text))" in source
+        assert "Stage:" not in _v2_reason_block(source)
+        assert "Engine:" not in _v2_reason_block(source)
         assert "if (mode === 'telemetry_unavailable') return '1px solid rgba(245,158,11" in source
         assert source.index("if (mode === 'telemetry_unavailable') return '#f59e0b';") < source.index("if (red || coE")
         assert source.index("if (!modeKnown) return '#94a3b8';") < source.index("if (red || coE")
@@ -5134,7 +5210,9 @@ def test_generated_v2_cards_escape_dynamic_html_text():
     ):
         source = path.read_text(encoding="utf-8")
         assert "const escapeHtml = " in source, path
-        assert "lines.map(escapeHtml).join('<br>')" in source, path
+        assert "escapeHtml(displayReason.headline)" in source, path
+        assert "displayReason.lines.map((line) => escapeHtml(line.text))" in source, path
+        assert "wrapReason(escapeHtml(legacyReason()))" in source, path
         assert "${escapeHtml(k)}" in source, path
         assert "${escapeHtml(v === null ? '—' : `${v}${unit || ''}`)}" in source, path
 
@@ -5613,7 +5691,7 @@ def test_v205_release_check_service_is_documented_and_registered():
     assert "write_test_exports" in services_yaml
     assert "humidity_intelligence.v205_release_check" in readme_source
     assert "humidity_intelligence_v205_release_check.json" in readme_source
-    assert manifest["version"] == "2.0.10-beta.1"
+    assert manifest["version"] == "2.0.10-beta.2"
 
 
 def test_owned_ui_path_discovery_and_legacy_cleanup_guidance_is_explicit():
@@ -5633,7 +5711,11 @@ def test_owned_ui_path_discovery_and_legacy_cleanup_guidance_is_explicit():
         services_yaml
     )
     assert "Manually Removing Files Purge Intentionally Retains" in readme_source
-    assert "Do not manually delete registered dashboard YAML" in readme_source
+    assert "does not own or purge registered dashboards" in readme_source
+    assert "Never overwrite a dashboard file" in readme_source
+    assert "Dashboard Setup Guidance" in services_yaml
+    assert "performs no file or dashboard writes" in services_yaml
+    assert "dashboards are user-managed and are never listed or removed" in services_yaml
     assert "`dump_cards` writes under" in support_source
     assert "completion path notification" in support_source
     assert "does not write a file" in support_source
@@ -5645,6 +5727,8 @@ def test_owned_ui_path_discovery_and_legacy_cleanup_guidance_is_explicit():
         assert "retained legacy root file" in description
         assert "no longer refreshed" in description
         assert "refresh its file tree" in description
+        assert "card fragments" in description
+        assert "does not create, register, replace, or delete" in description
 
 
 def test_v205_release_check_only_fails_local_snapshot_when_required():
@@ -6045,46 +6129,13 @@ def test_v205_release_check_warns_on_blocked_pm25_normalization():
     assert any("PM25 aggregate entity ID normalization is blocked" in warning for warning in summary["warnings"])
 
 
-def _install_dashboard_test_dependencies(*, events, create_error=None, delete_error=None):
-    register_mod = types.ModuleType(f"{PKG}.ui.register")
-
-    async def async_build_entity_mapping(_hass, entry_id):
-        events.append(("mapping", entry_id))
-        return {"sensor.placeholder": "sensor.actual"}
-
-    async def async_register_cards(_hass, entry_id, *, mapping):
-        events.append(("cards", entry_id, dict(mapping)))
-        return {
-            "v2_mobile": "type: markdown\ncontent: Mobile ready\n",
-            "v2_tablet": "type: markdown\ncontent: Tablet ready\n",
-        }
-
-    async def async_create_dashboard(_hass, **kwargs):
-        events.append(("create_dashboard", dict(kwargs)))
-        if create_error is not None:
-            raise create_error
-
-    async def async_delete_dashboard(_hass, *, dashboard_id):
-        events.append(("delete_dashboard", dashboard_id))
-        if delete_error is not None:
-            raise delete_error
-
-    register_mod.async_build_entity_mapping = async_build_entity_mapping
-    register_mod.async_register_cards = async_register_cards
-    sys.modules[f"{PKG}.ui.register"] = register_mod
-    sys.modules["homeassistant.components.lovelace"].dashboard = SimpleNamespace(
-        async_create_dashboard=async_create_dashboard,
-        async_delete_dashboard=async_delete_dashboard,
-    )
-
-
 def _set_fake_config_path(hass, root):
     hass.config = SimpleNamespace(
         path=lambda *parts: str(pathlib.Path(root).joinpath(*parts)),
     )
 
 
-def test_create_dashboard_requires_admin_before_render_or_write():
+def test_create_dashboard_requires_admin_then_returns_guidance_without_side_effects():
     services_mod = _load_services_module()
     entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
     hass = _FakeHass(entry, {})
@@ -6095,9 +6146,6 @@ def test_create_dashboard_requires_admin_before_render_or_write():
             "viewer": SimpleNamespace(is_admin=False),
         }
     )
-    events = []
-    _install_dashboard_test_dependencies(events=events)
-
     with tempfile.TemporaryDirectory() as tmpdir:
         _set_fake_config_path(hass, tmpdir)
         asyncio.run(services_mod.async_register_services(hass))
@@ -6128,38 +6176,60 @@ def test_create_dashboard_requires_admin_before_render_or_write():
             else:
                 raise AssertionError("create_dashboard should require admin context")
 
-        assert events == []
         assert not (
             pathlib.Path(tmpdir) / "dashboards" / "humidity-intelligence.yaml"
         ).exists()
 
-        asyncio.run(
-            handler(
-                SimpleNamespace(
-                    data={
-                        "entry_id": ENTRY_ID,
-                        "layout": "v2_mobile",
-                        "title": "Humidity Intelligence",
-                        "url_path": "humidity-intelligence",
-                    },
-                    context=SimpleNamespace(user_id="admin"),
+        class RejectConfigEntries:
+            def __getattr__(self, name):
+                raise AssertionError(f"config-entry lookup must not run: {name}")
+
+        hass.config_entries = RejectConfigEntries()
+
+        try:
+            asyncio.run(
+                handler(
+                    SimpleNamespace(
+                        data={
+                            "entry_id": ENTRY_ID,
+                            "layout": "v2_mobile",
+                            "title": "Humidity Intelligence",
+                            "url_path": "humidity-intelligence",
+                        },
+                        context=SimpleNamespace(user_id="admin"),
+                    )
                 )
             )
-        )
-        assert [event[0] for event in events] == [
-            "mapping",
-            "cards",
-            "create_dashboard",
-        ]
-        assert events[-1][1]["require_admin"] is False
+        except services_mod.HomeAssistantError as err:
+            message = str(err)
+            assert "cannot create or register" in message
+            assert "No file or dashboard was changed" in message
+            assert "humidity_intelligence.refresh_ui" in message
+            assert "humidity_intelligence.view_cards" in message
+            assert "card fragment" in message
+            assert "/config/dashboards/" in message
+        else:
+            raise AssertionError("create_dashboard should return Manual-card guidance")
         assert (
             pathlib.Path(tmpdir) / "dashboards" / "humidity-intelligence.yaml"
-        ).read_text(encoding="utf-8") == "type: markdown\ncontent: Mobile ready\n"
+        ).exists() is False
+        assert hass.services.calls == []
 
 
-def test_create_dashboard_helper_rejects_unsafe_url_path_before_work():
+def test_create_dashboard_helper_returns_guidance_before_any_runtime_work():
     services_mod = _load_services_module()
     entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
+
+    compatibility_payload = services_mod.SERVICE_CREATE_DASHBOARD_SCHEMA(
+        {
+            "entry_id": ENTRY_ID,
+            "layout": "legacy-caller-value",
+            "title": "Legacy caller",
+            "url_path": "../legacy-caller-value",
+        }
+    )
+    assert compatibility_payload["layout"] == "legacy-caller-value"
+    assert compatibility_payload["url_path"] == "../legacy-caller-value"
 
     class RejectPathAccess:
         def path(self, *_parts):
@@ -6177,24 +6247,20 @@ def test_create_dashboard_helper_rejects_unsafe_url_path_before_work():
             )
         )
     except services_mod.HomeAssistantError as err:
-        assert "Dashboard URL path" in str(err)
+        assert "No file or dashboard was changed" in str(err)
+        assert "card fragment" in str(err)
     else:
-        raise AssertionError("unsafe dashboard path should be rejected")
+        raise AssertionError("dashboard helper should be guidance-only")
 
 
-def test_first_run_dashboard_creation_uses_trusted_helper():
+def test_first_run_legacy_dashboard_selection_is_ignored_export_only():
     integration_mod = _load_integration_init_module()
     service_calls = []
     updates = []
-    helper_calls = []
     card_export_calls = []
 
     async def async_call(domain, service, data=None, blocking=False):
         service_calls.append((domain, service, data or {}, blocking))
-
-    async def create_dashboard(_hass, entry, **kwargs):
-        helper_calls.append((entry.entry_id, kwargs))
-        return True
 
     async def export_cards(_hass, entry_id, filename, layout=None):
         card_export_calls.append((entry_id, filename, layout))
@@ -6203,7 +6269,6 @@ def test_first_run_dashboard_creation_uses_trusted_helper():
             "humidity_intelligence_cards_v2_mobile.yaml"
         ]
 
-    integration_mod.async_create_dashboard_for_entry = create_dashboard
     integration_mod.async_export_cards_to_owned_ui = export_cards
     hass = SimpleNamespace(
         services=SimpleNamespace(async_call=async_call),
@@ -6221,16 +6286,6 @@ def test_first_run_dashboard_creation_uses_trusted_helper():
 
     asyncio.run(integration_mod._async_install_selected_ui(hass, entry))
 
-    assert helper_calls == [
-        (
-            ENTRY_ID,
-            {
-                "layout": "v2_mobile",
-                "title": "Humidity Intelligence",
-                "url_path": "humidity-intelligence",
-            },
-        )
-    ]
     assert card_export_calls == [(ENTRY_ID, None, None)]
     assert all(
         call[0:2] != (integration_mod.DOMAIN, "dump_cards")
@@ -6247,6 +6302,10 @@ def test_first_run_dashboard_creation_uses_trusted_helper():
         if call[0:2] == ("persistent_notification", "create")
     ][0]
     assert "/config/humidity_intelligence/ui/" in card_notification
+    assert "Manual-card YAML written" in card_notification
+    assert "does not create or replace dashboards automatically" in card_notification
+    assert "card fragments" in card_notification
+    assert "do not copy them to /config/dashboards/" in card_notification
     assert "Older generated card files in the /config root" in card_notification
     assert "Use only the exact paths above" in card_notification
     assert updates == [
@@ -6255,7 +6314,6 @@ def test_first_run_dashboard_creation_uses_trusted_helper():
             {
                 "ui_layouts": ["v2_mobile", "create_dashboard"],
                 "ui_install_done": True,
-                "ui_dashboard_id": "humidity-intelligence",
             },
         )
     ]
@@ -6315,7 +6373,7 @@ def test_second_entry_first_run_reexports_all_entries_with_qualified_paths():
     assert updates[0][0] == "entry_two"
 
 
-def test_first_run_dashboard_failure_is_visible_and_retryable():
+def test_first_run_legacy_dashboard_selection_does_not_retry_or_loop():
     integration_mod = _load_integration_init_module()
     service_calls = []
     updates = []
@@ -6323,16 +6381,12 @@ def test_first_run_dashboard_failure_is_visible_and_retryable():
     async def async_call(domain, service, data=None, blocking=False):
         service_calls.append((domain, service, data or {}, blocking))
 
-    async def create_dashboard(_hass, _entry, **_kwargs):
-        raise RuntimeError("registration failed")
-
     async def export_cards(_hass, _entry_id, _filename, layout=None):
         return [
             "/config/humidity_intelligence/ui/"
             "humidity_intelligence_cards_v2_tablet.yaml"
         ]
 
-    integration_mod.async_create_dashboard_for_entry = create_dashboard
     integration_mod.async_export_cards_to_owned_ui = export_cards
     hass = SimpleNamespace(
         services=SimpleNamespace(async_call=async_call),
@@ -6356,13 +6410,11 @@ def test_first_run_dashboard_failure_is_visible_and_retryable():
         if call[0:2] == ("persistent_notification", "create")
     ]
     assert [call[2]["title"] for call in notifications] == [
-        "Humidity Intelligence Dashboard Creation Incomplete",
         "Humidity Intelligence UI Cards",
     ]
-    failure_message = notifications[0][2]["message"]
-    assert "YAML file may remain" in failure_message
-    assert "HI backend setup and card exports remain available" in failure_message
-    assert "authenticated admin UI or API session" in failure_message
+    assert "does not create or replace dashboards automatically" in (
+        notifications[0][2]["message"]
+    )
     assert updates == [
         (
             ENTRY_ID,
@@ -6379,7 +6431,6 @@ def test_config_entry_removal_uses_owned_ui_plans_without_report_or_legacy_clean
     planned_names = []
     removed_paths = []
     service_calls = []
-    dashboard_calls = []
     plan = SimpleNamespace(
         relative_path=(
             "humidity_intelligence/ui/"
@@ -6403,10 +6454,6 @@ def test_config_entry_removal_uses_owned_ui_plans_without_report_or_legacy_clean
         removed_paths.append((config_root, removal_plan.relative_path))
         return True
 
-    async def remove_dashboard(_hass, dashboard_id):
-        dashboard_calls.append(dashboard_id)
-        return True
-
     async def async_call(domain, service, data=None, blocking=False):
         service_calls.append((domain, service, data or {}, blocking))
 
@@ -6416,7 +6463,6 @@ def test_config_entry_removal_uses_owned_ui_plans_without_report_or_legacy_clean
     integration_mod.list_owned_ui_filenames = list_names
     integration_mod.plan_owned_ui_export_removal = plan_removal
     integration_mod.remove_owned_ui_export = remove_export
-    integration_mod.remove_dashboard = remove_dashboard
     entry = SimpleNamespace(
         entry_id=ENTRY_ID,
         data={"ui_dashboard_id": "humidity-intelligence"},
@@ -6442,11 +6488,12 @@ def test_config_entry_removal_uses_owned_ui_plans_without_report_or_legacy_clean
             "humidity_intelligence_cards_v2_mobile.yaml",
         )
     ]
-    assert dashboard_calls == ["humidity-intelligence"]
     message = service_calls[0][2]["message"]
     assert "/config/humidity_intelligence/ui/" in message
     assert "exports/" not in message
     assert "/config/humidity_intelligence_cards_" not in message
+    assert "dashboards are user-managed" in message
+    assert "Dashboard: humidity-intelligence" not in message
 
 
 def test_two_to_one_entry_removal_reexports_remaining_entry_and_owns_qualified_remnants():
@@ -6499,11 +6546,6 @@ def test_two_to_one_entry_removal_reexports_remaining_entry_and_owns_qualified_r
     integration_mod.list_owned_ui_filenames = list_names
     integration_mod.plan_owned_ui_export_removal = lambda *_args: []
     integration_mod.async_export_cards_to_owned_ui = export_cards
-    integration_mod.remove_dashboard = lambda *_args: _async_true()
-
-    async def _async_true():
-        return True
-
     hass = SimpleNamespace(
         config=SimpleNamespace(path=lambda *_parts: "/config"),
         config_entries=SimpleNamespace(
@@ -6536,48 +6578,18 @@ def test_two_to_one_entry_removal_reexports_remaining_entry_and_owns_qualified_r
     assert "humidity_intelligence_cards_v2_mobile.yaml" in updated[0][2]["message"]
 
 
-def test_create_dashboard_reports_partial_registration_failure():
-    services_mod = _load_services_module()
-    entry = SimpleNamespace(entry_id=ENTRY_ID, data=_base_entry_data(), options={})
-    hass = _FakeHass(entry, {})
-    hass.services = _FlashServiceRegistry(hass.states)
-    hass.auth = _FakeAuth({"admin": SimpleNamespace(is_admin=True)})
-    events = []
-    _install_dashboard_test_dependencies(
-        events=events,
-        create_error=RuntimeError("registration failed"),
+def test_dashboard_compatibility_path_contains_no_unsupported_lovelace_api():
+    source = (ROOT / "services.py").read_text(encoding="utf-8")
+    cleanup_source = (ROOT / "helpers" / "cleanup.py").read_text(encoding="utf-8")
+    integration_source = (ROOT / "__init__.py").read_text(encoding="utf-8")
+
+    assert "async_create_dashboard" not in source.replace(
+        "async_create_dashboard_for_entry", ""
     )
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        _set_fake_config_path(hass, tmpdir)
-        asyncio.run(services_mod.async_register_services(hass))
-        handler = hass.services.handlers[
-            (services_mod.DOMAIN, services_mod.SERVICE_CREATE_DASHBOARD)
-        ]
-        try:
-            asyncio.run(
-                handler(
-                    SimpleNamespace(
-                        data={
-                            "entry_id": ENTRY_ID,
-                            "layout": "v2_mobile",
-                            "title": "Humidity Intelligence",
-                            "url_path": "humidity-intelligence",
-                        },
-                        context=SimpleNamespace(user_id="admin"),
-                    )
-                )
-            )
-        except Exception as err:
-            message = str(err).lower()
-            assert "yaml" in message
-            assert "dashboard" in message
-        else:
-            raise AssertionError("dashboard registration failure should be reported")
-
-        assert (
-            pathlib.Path(tmpdir) / "dashboards" / "humidity-intelligence.yaml"
-        ).exists()
+    assert "async_delete_dashboard" not in cleanup_source
+    assert "remove_dashboard" not in cleanup_source
+    assert 'f"dashboards/{url_path}.yaml"' not in source
+    assert "ui_dashboard_id" not in integration_source
 
 
 def test_purge_validates_all_candidates_before_any_side_effect():
@@ -6588,9 +6600,6 @@ def test_purge_validates_all_candidates_before_any_side_effect():
     hass = _FakeHass(entry, {})
     hass.services = _FlashServiceRegistry(hass.states)
     hass.auth = _FakeAuth({"admin": SimpleNamespace(is_admin=True)})
-    events = []
-    _install_dashboard_test_dependencies(events=events)
-
     with tempfile.TemporaryDirectory() as tmpdir:
         _set_fake_config_path(hass, tmpdir)
         ui_dir = pathlib.Path(tmpdir) / "humidity_intelligence" / "ui"
@@ -6620,7 +6629,6 @@ def test_purge_validates_all_candidates_before_any_side_effect():
 
         assert safe_path.read_text(encoding="utf-8") == "safe"
         assert hass.services.calls == []
-        assert events == []
 
 
 def test_purge_requires_admin_and_uses_exact_blocking_preview():
@@ -6638,9 +6646,6 @@ def test_purge_requires_admin_and_uses_exact_blocking_preview():
             "viewer": SimpleNamespace(is_admin=False),
         }
     )
-    events = []
-    _install_dashboard_test_dependencies(events=events)
-
     with tempfile.TemporaryDirectory() as tmpdir:
         _set_fake_config_path(hass, tmpdir)
         ui_dir = pathlib.Path(tmpdir) / "humidity_intelligence" / "ui"
@@ -6679,7 +6684,6 @@ def test_purge_requires_admin_and_uses_exact_blocking_preview():
 
         assert generated.exists()
         assert hass.services.calls == []
-        assert events == []
 
         sequence = []
         original_async_call = hass.services.async_call
@@ -6719,7 +6723,8 @@ def test_purge_requires_admin_and_uses_exact_blocking_preview():
             "humidity_intelligence_cards_v2_mobile.yaml"
         ) in preview[2]["message"]
         assert "/config/humidity_intelligence_cards.yaml" not in preview[2]["message"]
-        assert "Dashboard: humidity-intelligence" in preview[2]["message"]
+        assert "Dashboard: humidity-intelligence" not in preview[2]["message"]
+        assert "dashboards are user-managed" in preview[2]["message"]
         assert "humidity_intelligence_diagnostics.json" not in preview[2]["message"]
         assert sequence.index(("notification", True)) < sequence.index(
             ("remove_owned_ui_export", None)
@@ -6727,7 +6732,6 @@ def test_purge_requires_admin_and_uses_exact_blocking_preview():
         assert not generated.exists()
         assert legacy_root.read_text(encoding="utf-8") == "legacy"
         assert (pathlib.Path(tmpdir) / owned_diagnostics).is_file()
-        assert ("delete_dashboard", "humidity-intelligence") in events
 
 
 def test_unscoped_purge_removes_only_fixed_owned_reports():
@@ -6876,7 +6880,7 @@ def test_unscoped_purge_reports_owned_diagnostics_changed_after_preview():
         )
 
 
-def test_purge_reports_file_and_dashboard_failures():
+def test_purge_reports_file_failures_without_dashboard_ownership():
     services_mod = _load_services_module()
     entry_data = _base_entry_data()
     entry_data["ui_dashboard_id"] = "humidity-intelligence"
@@ -6884,12 +6888,6 @@ def test_purge_reports_file_and_dashboard_failures():
     hass = _FakeHass(entry, {})
     hass.services = _FlashServiceRegistry(hass.states)
     hass.auth = _FakeAuth({"admin": SimpleNamespace(is_admin=True)})
-    events = []
-    _install_dashboard_test_dependencies(
-        events=events,
-        delete_error=RuntimeError("delete failed"),
-    )
-
     with tempfile.TemporaryDirectory() as tmpdir:
         _set_fake_config_path(hass, tmpdir)
         generated_name = "humidity_intelligence_cards_v2_mobile.yaml"
@@ -6926,7 +6924,7 @@ def test_purge_reports_file_and_dashboard_failures():
                 message = str(err)
                 assert "Purge incomplete" in message
                 assert generated_relative in message
-                assert "humidity-intelligence" in message
+                assert "dashboards:" not in message
             else:
                 raise AssertionError("partial purge failure should be reported")
         finally:
