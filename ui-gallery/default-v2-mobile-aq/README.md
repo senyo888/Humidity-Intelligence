@@ -3,7 +3,7 @@
 - Style: mobile-first V2 control surface with air-quality lane active state
 - Optimised for: phones and narrow dashboard panels
 - Author: @senyo888
-- Source template: `ui/cards/v2_mobile.yaml`
+- Source template: `custom_components/humidity_intelligence/ui/cards/v2_mobile.yaml`
 - Required custom cards: `card-mod`, `button-card`, `mod-card`, `apexcharts-card`
 
 [![Default V2 Mobile AQ preview](preview.png)](preview.png)

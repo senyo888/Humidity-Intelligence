@@ -45,19 +45,19 @@ Feature parity is maintained.
 ## UI Preview
 
 ### Canonical V2 Mobile Gate State
-<img src="../assets/v2_ui_gallery/v204_presence_gate_reason.png" width="320" alt="HI v2 mobile Current Air Control presence gate active preview">
+<img src="../../../assets/v2_ui_gallery/v204_presence_gate_reason.png" width="320" alt="HI v2 mobile Current Air Control presence gate active preview">
 
 <details>
 <summary>Additional layout previews</summary>
 
 ### v1 Mobile (Deprecated Legacy-Compatible Skin)
-<img src="../assets/readme/ui_v1_mobile.png" width="320" alt="HI v1 mobile UI preview">
+<img src="../../../assets/readme/ui_v1_mobile.png" width="320" alt="HI v1 mobile UI preview">
 
 ### v2 Mobile (AQ State Example)
-<img src="../assets/readme/ui_v2_mobile_aq.png" width="320" alt="HI v2 mobile AQ UI preview">
+<img src="../../../assets/readme/ui_v2_mobile_aq.png" width="320" alt="HI v2 mobile AQ UI preview">
 
 ### v2 Tablet (Zone State Example)
-<img src="../assets/readme/ui_v2_tablet_zone_2.png" width="320" alt="HI v2 tablet zone UI preview">
+<img src="../../../assets/readme/ui_v2_tablet_zone_2.png" width="320" alt="HI v2 tablet zone UI preview">
 
 </details>
 

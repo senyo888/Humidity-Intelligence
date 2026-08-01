@@ -3,7 +3,7 @@
 - Style: tablet-friendly V2 control surface with Zone 2 active state
 - Optimised for: tablets, wall panels, and wider dashboard views
 - Author: @senyo888
-- Source template: `ui/cards/v2_tablet.yaml`
+- Source template: `custom_components/humidity_intelligence/ui/cards/v2_tablet.yaml`
 - Required custom cards: `card-mod`, `button-card`, `mod-card`, `apexcharts-card`
 
 [![Default V2 Tablet Zone 2 preview](preview.png)](preview.png)

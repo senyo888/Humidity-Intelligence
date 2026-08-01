@@ -10,6 +10,7 @@ from types import SimpleNamespace
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+INTEGRATION_ROOT = ROOT / "custom_components" / "humidity_intelligence"
 PKG = "hi_slope_testpkg"
 
 
@@ -94,11 +95,11 @@ def _install_package_scaffold() -> None:
     sys.modules[PKG] = pkg
 
     sensors_pkg = types.ModuleType(f"{PKG}.sensors")
-    sensors_pkg.__path__ = [str(ROOT / "sensors")]
+    sensors_pkg.__path__ = [str(INTEGRATION_ROOT / "sensors")]
     sys.modules[f"{PKG}.sensors"] = sensors_pkg
 
     helpers_pkg = types.ModuleType(f"{PKG}.helpers")
-    helpers_pkg.__path__ = [str(ROOT / "helpers")]
+    helpers_pkg.__path__ = [str(INTEGRATION_ROOT / "helpers")]
     sys.modules[f"{PKG}.helpers"] = helpers_pkg
 
 
@@ -114,9 +115,9 @@ def _load_module(name: str, path: pathlib.Path):
 def _load_slope_module():
     _install_homeassistant_stubs()
     _install_package_scaffold()
-    _load_module(f"{PKG}.const", ROOT / "const.py")
-    _load_module(f"{PKG}.helpers.parsing", ROOT / "helpers" / "parsing.py")
-    return _load_module(f"{PKG}.sensors.slope", ROOT / "sensors" / "slope.py")
+    _load_module(f"{PKG}.const", INTEGRATION_ROOT / "const.py")
+    _load_module(f"{PKG}.helpers.parsing", INTEGRATION_ROOT / "helpers" / "parsing.py")
+    return _load_module(f"{PKG}.sensors.slope", INTEGRATION_ROOT / "sensors" / "slope.py")
 
 
 class _FakeState:

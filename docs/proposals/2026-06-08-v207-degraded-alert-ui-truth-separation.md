@@ -87,8 +87,11 @@ telemetry dumps, and machine-specific paths.
 The backend behavior is correct: degraded or unmapped alert candidates must remain
 visible in reason text and diagnostics, but must not blindly select an output lane.
 
-The UI issue is narrower. [ui/cards/v2_mobile.yaml](../../ui/cards/v2_mobile.yaml)
-and [ui/cards/v2_tablet.yaml](../../ui/cards/v2_tablet.yaml) already use backend
+The UI issue is narrower.
+[custom_components/humidity_intelligence/ui/cards/v2_mobile.yaml](../../custom_components/humidity_intelligence/ui/cards/v2_mobile.yaml)
+and
+[custom_components/humidity_intelligence/ui/cards/v2_tablet.yaml](../../custom_components/humidity_intelligence/ui/cards/v2_tablet.yaml)
+already use backend
 runtime mode and active alert switch/context logic for the main Current Air Control
 panel border, status chip, and alert-context chip. The separate `Ready / Zone 1 /
 Zone 2 / AQ` row still derives red styling from raw danger binary sensors:
@@ -98,7 +101,8 @@ Zone 2 / AQ` row still derives red styling from raw danger binary sensors:
 - `binary_sensor.mould_danger`
 - `input_boolean.air_co_emergency_active`
 
-[ui/register.py](../../ui/register.py) maps those canonical placeholders to generated
+[custom_components/humidity_intelligence/ui/register.py](../../custom_components/humidity_intelligence/ui/register.py)
+maps those canonical placeholders to generated
 HI binary sensors. That means environmental risk truth can make output-control lane
 buttons look like an active alert command even when `sensor.air_control_mode` is
 `normal`, `air_quality`, or another non-alert mode and the alert candidate was
@@ -183,17 +187,19 @@ danger sensors would weaken diagnostics and risk truth to solve a presentation p
 
 ## Files Likely Affected In A Future Implementation
 
-- [ui/cards/v2_mobile.yaml](../../ui/cards/v2_mobile.yaml)
-- [ui/cards/v2_tablet.yaml](../../ui/cards/v2_tablet.yaml)
+- [custom_components/humidity_intelligence/ui/cards/v2_mobile.yaml](../../custom_components/humidity_intelligence/ui/cards/v2_mobile.yaml)
+- [custom_components/humidity_intelligence/ui/cards/v2_tablet.yaml](../../custom_components/humidity_intelligence/ui/cards/v2_tablet.yaml)
 - [tests 2/test_runtime_card_sanity.py](<../../tests 2/test_runtime_card_sanity.py>)
 - [README.md](../../README.md), if user-facing generated-card refresh guidance or UI
   truth wording needs a release note
 - [ARCHITECTURE.md](../../ARCHITECTURE.md), only if the UI truth contract needs
   explicit control-row wording
-- [ui/register.py](../../ui/register.py), only if future review chooses a
+- [custom_components/humidity_intelligence/ui/register.py](../../custom_components/humidity_intelligence/ui/register.py),
+  only if future review chooses a
   backend-owned helper or mapping change; not expected for the preferred card-only
   approach
-- [services.py](../../services.py), only if generated-card validation or release-check
+- [custom_components/humidity_intelligence/services.py](../../custom_components/humidity_intelligence/services.py),
+  only if generated-card validation or release-check
   reporting for optional placeholders is separately corrected; not expected for the
   red-row fix
 
@@ -357,7 +363,9 @@ Docs to revisit if implementation proceeds:
 ### Aetherwing Findings
 
 Exact future implementation surfaces are the v2 mobile/tablet card templates and
-targeted card sanity tests. [ui/register.py](../../ui/register.py) already maps
+targeted card sanity tests.
+[custom_components/humidity_intelligence/ui/register.py](../../custom_components/humidity_intelligence/ui/register.py)
+already maps
 canonical placeholders to HI entities; that mapping explains the symptom while staying
 unchanged for the preferred approach.
 

@@ -70,19 +70,31 @@ jobs:
 
           hacs = json.loads(Path("hacs.json").read_text(encoding="utf-8"))
           required = {"domain", "documentation", "issue_tracker", "codeowners", "name", "version"}
+          integration = Path("custom_components/humidity_intelligence")
+          manifest = integration / "manifest.json"
 
-          if hacs.get("content_in_root"):
-              manifest = Path("manifest.json")
-          else:
-              integrations = [path for path in Path("custom_components").glob("*") if path.is_dir()]
-              if len(integrations) != 1:
-                  raise SystemExit("Expected exactly one integration under custom_components/ or content_in_root: true in hacs.json.")
-              manifest = integrations[0] / "manifest.json"
+          if "content_in_root" in hacs:
+              raise SystemExit("hacs.json must not declare content_in_root")
+          if Path("manifest.json").exists():
+              raise SystemExit("Root manifest.json is not allowed")
+          if not integration.is_dir():
+              raise SystemExit(f"Missing integration directory: {integration}")
+          integrations = sorted(
+              path
+              for path in Path("custom_components").iterdir()
+              if path.is_dir()
+          )
+          if integrations != [integration]:
+              raise SystemExit(
+                  "Expected exactly custom_components/humidity_intelligence"
+              )
 
-          if not manifest.exists():
+          if not manifest.is_file():
               raise SystemExit(f"Missing integration manifest: {manifest}")
 
           data = json.loads(manifest.read_text(encoding="utf-8"))
+          if data.get("domain") != "humidity_intelligence":
+              raise SystemExit("Integration manifest domain must be humidity_intelligence")
           missing = sorted(required - set(data))
           if missing:
               raise SystemExit(f"{manifest} is missing required keys: {', '.join(missing)}")
@@ -94,22 +106,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ -d custom_components ]; then
-            python -m compileall -q custom_components
-          else
-            python - <<'PY'
-          import json
-          from pathlib import Path
-
-          hacs = json.loads(Path("hacs.json").read_text(encoding="utf-8"))
-
-          if not hacs.get("content_in_root"):
-              raise SystemExit(
-                  "custom_components/ not found and hacs.json does not set content_in_root: true."
-              )
-          PY
-            python -m compileall -q .
-          fi
+          python -m compileall -q custom_components/humidity_intelligence
 
       - name: Validate JSON metadata
         shell: bash
@@ -119,12 +116,12 @@ jobs:
           import json
           from pathlib import Path
 
-          paths = [Path("hacs.json")]
-          paths += list(Path("custom_components").glob("*/manifest.json"))
-          if Path("manifest.json").exists():
-              paths.append(Path("manifest.json"))
+          paths = [
+              Path("hacs.json"),
+              Path("custom_components/humidity_intelligence/manifest.json"),
+          ]
 
-          for path in dict.fromkeys(paths):
+          for path in paths:
               if not path.exists():
                   raise SystemExit(f"Missing required file: {path}")
               json.loads(path.read_text(encoding="utf-8"))

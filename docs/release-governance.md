@@ -12,11 +12,13 @@ testing and validation branches.
   Published release status comes from release tags, GitHub release publication, and
   maintainer approval.
 
-The integration version in `manifest.json` is the source of truth for the installed
-Home Assistant package and integration metadata checks. When GitHub Releases are
-used, HACS derives published version state from the GitHub Release/tag; that state
-must remain aligned with the `manifest.json` version contained in the published
-GitHub Release/tag.
+The integration version in
+`custom_components/humidity_intelligence/manifest.json` is the source of truth for the
+installed Home Assistant package and integration metadata checks. When GitHub Releases
+are used, HACS derives published version state from the GitHub Release/tag; that state
+must remain aligned with the
+`custom_components/humidity_intelligence/manifest.json` version contained in the
+published GitHub Release/tag.
 
 The tracked source and release documentation identify stable `2.0.9`. A branch or
 merge containing stable metadata is not by itself a tag, GitHub Release, or HACS
@@ -75,8 +77,9 @@ house-agent, and explicit maintainer gates are complete. CodeRabbit must then fi
 an exact-head review; actionable feedback must be fixed through a prerequisite PR or
 explicitly recorded as not applicable before promotion can continue.
 
-For the broadened v2.0.10 beta humidifier reconciliation and reason-presentation
-slice, implementation targets manifest identity `2.0.10-beta.2`. That beta identity
+For the broadened v2.0.10 beta humidifier reconciliation, reason-presentation, and
+HACS package-layout slice, implementation targets manifest identity
+`2.0.10-beta.3`. That beta identity
 does not authorize HA Lab/stable-instance mutation, branch promotion, tag, GitHub
 Release, HACS publication, or deployment.
 Beta evidence must cover restored demand, long-demand device stops, output
@@ -84,9 +87,11 @@ availability recovery, all supported output domains, isolation/gate interactions
 shared-output aggregation, bounded retry/fault behavior, generated V2 truth,
 diagnostics redaction, the complete `hi.reason.v1` runtime-family matrix,
 presenter-failure invariance, mixed-version fallback, line/size bounds, raw-ID and HTML
-privacy checks, and unchanged deterministic ventilation ordering. Beta.1 evidence is
-historical evidence for its exact humidifier-only commit and cannot approve beta.2.
-HA Lab
+privacy checks, exact 52-file package parity, direct Hassfest/HACS validation, and
+unchanged deterministic ventilation ordering. Beta.1 and beta.2 evidence remain
+historical evidence for their exact commits and cannot approve beta.3. The incomplete
+beta.2 soak is superseded rather than failed and does not transfer sample numbering or
+acceptance. HA Lab
 evidence is advisory; stable-instance authority and release promotion remain
 separate maintainer gates.
 
@@ -201,7 +206,8 @@ Use it for:
 
 - HACS/install metadata validation
 - release packaging sanity
-- `manifest.json`, `hacs.json`, branding, workflow, and repository hygiene support
+- `custom_components/humidity_intelligence/manifest.json`, `hacs.json`, branding,
+  workflow, and repository hygiene support
 
 Do not treat it as a replacement for pytest, direct runtime/card sanity, Home Assistant
 runtime validation, Bella coherence review, Aetherwing validation, or version governance.

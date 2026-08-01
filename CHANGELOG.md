@@ -8,6 +8,13 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+- Moved the exact 52-file installable integration payload into the conventional
+  `custom_components/humidity_intelligence/` layout and removed HACS
+  `content_in_root`. HACS, Hassfest, release checks, tests, scripts, and documentation
+  now validate the tracked package directly instead of constructing a temporary CI
+  package. The installed Home Assistant path is unchanged, repository-only material
+  is excluded from the HACS payload, and no config, entity, or stored-data migration
+  is required. A full Home Assistant restart remains required after updating code.
 - Added the versioned backend-owned `hi.reason.v1` presentation contract as the
   `display_reason` attribute on the existing Air Control Reason entity. The existing
   state, `full_reason`, truncation behavior, and `humidifier_status` remain backward
@@ -27,10 +34,11 @@ This project follows a practical changelog format for Home Assistant and HACS us
 - Classified unavailable-only presence evidence as degraded `presence_unavailable`
   presentation without changing the existing fail-closed gate effect. One present
   source still allows control, and CO emergency continues to bypass gates.
-- Advanced the implementation identity to `2.0.10-beta.2`. Beta.1 evidence remains
-  historical evidence for its exact humidifier-only scope; beta.2 requires renewed
-  reason-contract, runtime-invariance, generated-UI, privacy, packaging, and HA Lab
-  evidence before promotion.
+- Advanced the implementation identity to `2.0.10-beta.3`. Beta.1 and beta.2 evidence
+  remain historical evidence for their exact commits; the incomplete beta.2 soak was
+  superseded rather than failed. Beta.3 requires renewed package-layout,
+  reason-contract, runtime-invariance, generated-UI, privacy, and HA Lab evidence
+  before promotion.
 - Converted the legacy `create_dashboard` service into an admin-gated,
   compatibility-only guidance action. It now fails safely before mapping, rendering,
   Lovelace imports, notifications, or filesystem writes and directs users through
@@ -71,7 +79,7 @@ This project follows a practical changelog format for Home Assistant and HACS us
   contract.
 - Extended the backward-compatible `v205_release_check` service contract through
   the v2.0.10 beta/rc/stable line without renaming the service. The branch now
-  carries explicit `2.0.10-beta.2` manifest identity for renewed HA Lab beta validation.
+  carries explicit `2.0.10-beta.3` manifest identity for renewed HA Lab beta validation.
   No config/options schema, stored-data migration, or entity creation is part of
   this unreleased implementation slice.
 

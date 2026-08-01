@@ -27,7 +27,7 @@ This repository directory remains the canonical source for gallery YAML, preview
 - Style: mobile-first V2 control surface with air-quality lane active state
 - Optimised for: phones and narrow dashboard panels
 - Author: @senyo888
-- Source template: `ui/cards/v2_mobile.yaml`
+- Source template: `custom_components/humidity_intelligence/ui/cards/v2_mobile.yaml`
 - Required custom cards: `card-mod`, `button-card`, `mod-card`, `apexcharts-card`
 
 [![Default V2 Mobile AQ preview](default-v2-mobile-aq/preview.png)](default-v2-mobile-aq/preview.png)
@@ -41,7 +41,7 @@ This repository directory remains the canonical source for gallery YAML, preview
 - Style: tablet-friendly V2 control surface with Zone 2 active state
 - Optimised for: tablets, wall panels, and wider dashboard views
 - Author: @senyo888
-- Source template: `ui/cards/v2_tablet.yaml`
+- Source template: `custom_components/humidity_intelligence/ui/cards/v2_tablet.yaml`
 - Required custom cards: `card-mod`, `button-card`, `mod-card`, `apexcharts-card`
 
 [![Default V2 Tablet Zone 2 preview](default-v2-tablet-zone-2/preview.png)](default-v2-tablet-zone-2/preview.png)
@@ -53,11 +53,12 @@ This repository directory remains the canonical source for gallery YAML, preview
 ### Default V1 Mobile (Deprecated)
 
 - Status: deprecated in v2.0.9; retained through the v2.0.9 line
-- Replacement: Default V2 Mobile AQ / `ui/cards/v2_mobile.yaml`
+- Replacement: Default V2 Mobile AQ /
+  `custom_components/humidity_intelligence/ui/cards/v2_mobile.yaml`
 - Style: legacy-compatible mobile layout with comfort band and humidity constellation
 - Optimised for: phones and users keeping a V1-style dashboard presentation
 - Author: @senyo888
-- Source template: `ui/cards/v1_mobile.yaml`
+- Source template: `custom_components/humidity_intelligence/ui/cards/v1_mobile.yaml`
 - Required custom cards: `card-mod`, `button-card`, `mod-card`, `apexcharts-card`
 
 [![Default V1 Mobile preview](default-v1-mobile/preview.png)](default-v1-mobile/preview.png)

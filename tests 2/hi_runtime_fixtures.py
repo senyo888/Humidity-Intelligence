@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+INTEGRATION_ROOT = ROOT / "custom_components" / "humidity_intelligence"
 ENTRY_ID = "entry123"
 PKG = "hi_air_control_mode_testpkg"
 DOMAIN = "humidity_intelligence"
@@ -248,7 +249,7 @@ def _install_package_scaffold() -> None:
 
     for sub in ("automations", "helpers", "sensors"):
         mod = types.ModuleType(f"{PKG}.{sub}")
-        mod.__path__ = [str(ROOT / sub)]
+        mod.__path__ = [str(INTEGRATION_ROOT / sub)]
         sys.modules[f"{PKG}.{sub}"] = mod
 
     services = types.ModuleType(f"{PKG}.services")
@@ -272,14 +273,14 @@ def _load_module(name: str, path: pathlib.Path):
 def _load_runtime_modules():
     _install_homeassistant_stubs()
     _install_package_scaffold()
-    _load_module(f"{PKG}.const", ROOT / "const.py")
-    _load_module(f"{PKG}.helpers.level_labels", ROOT / "helpers" / "level_labels.py")
-    _load_module(f"{PKG}.helpers.parsing", ROOT / "helpers" / "parsing.py")
-    _load_module(f"{PKG}.helpers.seasonal", ROOT / "helpers" / "seasonal.py")
-    _load_module(f"{PKG}.helpers.zone_validation", ROOT / "helpers" / "zone_validation.py")
-    _load_module(f"{PKG}.helpers.drift", ROOT / "helpers" / "drift.py")
-    engine_mod = _load_module(f"{PKG}.automations.engine", ROOT / "automations" / "engine.py")
-    core_mod = _load_module(f"{PKG}.sensors.core", ROOT / "sensors" / "core.py")
+    _load_module(f"{PKG}.const", INTEGRATION_ROOT / "const.py")
+    _load_module(f"{PKG}.helpers.level_labels", INTEGRATION_ROOT / "helpers" / "level_labels.py")
+    _load_module(f"{PKG}.helpers.parsing", INTEGRATION_ROOT / "helpers" / "parsing.py")
+    _load_module(f"{PKG}.helpers.seasonal", INTEGRATION_ROOT / "helpers" / "seasonal.py")
+    _load_module(f"{PKG}.helpers.zone_validation", INTEGRATION_ROOT / "helpers" / "zone_validation.py")
+    _load_module(f"{PKG}.helpers.drift", INTEGRATION_ROOT / "helpers" / "drift.py")
+    engine_mod = _load_module(f"{PKG}.automations.engine", INTEGRATION_ROOT / "automations" / "engine.py")
+    core_mod = _load_module(f"{PKG}.sensors.core", INTEGRATION_ROOT / "sensors" / "core.py")
     return engine_mod, core_mod
 
 

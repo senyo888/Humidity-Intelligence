@@ -16,10 +16,11 @@ from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
+INTEGRATION_ROOT = ROOT / "custom_components" / "humidity_intelligence"
 
 
 def _load_report_exports():
-    path = ROOT / "helpers" / "report_exports.py"
+    path = INTEGRATION_ROOT / "helpers" / "report_exports.py"
     spec = importlib.util.spec_from_file_location("hi_report_exports_test", path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)

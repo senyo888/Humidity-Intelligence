@@ -7,6 +7,7 @@ import importlib.util
 import io
 import pathlib
 import sys
+import tempfile
 import unittest
 from unittest import mock
 
@@ -36,6 +37,29 @@ class VersionGovernanceTests(unittest.TestCase):
                 with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
                     result = self.governance.main()
         return result, stdout.getvalue(), stderr.getvalue()
+
+    def test_manifest_path_targets_conventional_component(self) -> None:
+        self.assertEqual(
+            ROOT
+            / "custom_components"
+            / "humidity_intelligence"
+            / "manifest.json",
+            self.governance.MANIFEST_PATH,
+        )
+
+    def test_manifest_version_reads_nested_component_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manifest = (
+                pathlib.Path(tmpdir)
+                / "custom_components"
+                / "humidity_intelligence"
+                / "manifest.json"
+            )
+            manifest.parent.mkdir(parents=True)
+            manifest.write_text('{"version": "2.0.10-beta.3"}\n', encoding="utf-8")
+
+            with mock.patch.object(self.governance, "MANIFEST_PATH", manifest):
+                self.assertEqual("2.0.10-beta.3", self.governance._manifest_version())
 
     def test_exact_release_branch_may_carry_matching_stable_version(self) -> None:
         result, stdout, stderr = self._run_check(branch="v2.0.5", version="2.0.5")

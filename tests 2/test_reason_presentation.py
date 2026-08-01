@@ -12,7 +12,8 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE_PATH = ROOT / "helpers" / "reason_presentation.py"
+INTEGRATION_ROOT = ROOT / "custom_components" / "humidity_intelligence"
+MODULE_PATH = INTEGRATION_ROOT / "helpers" / "reason_presentation.py"
 
 
 def _load_module():

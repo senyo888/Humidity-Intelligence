@@ -34,6 +34,12 @@ TESTING_BRANCH_PREFIXES = (
 DEPENDENCY_MAINTENANCE_BRANCH_PREFIXES = ("dependabot/",)
 
 STABLE_ALLOWED_BRANCHES = {"senyo888-patch-1", "develop", "main"}
+MANIFEST_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "custom_components"
+    / "humidity_intelligence"
+    / "manifest.json"
+)
 
 
 def _git_branch() -> str:
@@ -58,10 +64,13 @@ def _active_branch() -> str:
 
 
 def _manifest_version() -> str:
-    data = json.loads(Path("manifest.json").read_text(encoding="utf-8"))
+    data = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     version = data.get("version")
     if not isinstance(version, str) or not version:
-        raise SystemExit("manifest.json must define a non-empty string version.")
+        raise SystemExit(
+            "custom_components/humidity_intelligence/manifest.json must define "
+            "a non-empty string version."
+        )
     return version
 
 

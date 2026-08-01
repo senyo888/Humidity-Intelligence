@@ -16,18 +16,19 @@ from types import MethodType, SimpleNamespace
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+INTEGRATION_ROOT = ROOT / "custom_components" / "humidity_intelligence"
 ENTRY_ID = "entry123"
 PKG = "hi_testpkg"
 
 PUBLIC_CARD_SURFACES = (
-    ROOT / "ui" / "cards" / "v2_mobile.yaml",
-    ROOT / "ui" / "cards" / "v2_tablet.yaml",
+    INTEGRATION_ROOT / "ui" / "cards" / "v2_mobile.yaml",
+    INTEGRATION_ROOT / "ui" / "cards" / "v2_tablet.yaml",
     ROOT / "ui-gallery" / "default-v2-mobile-aq" / "card.yaml",
     ROOT / "ui-gallery" / "default-v2-tablet-zone-2" / "card.yaml",
     ROOT / "tmp_out" / "v2_mobile.yaml",
     ROOT / "tmp_out" / "v2_tablet.yaml",
-    ROOT / "ui" / "_sensor_ids.txt",
-    ROOT / "ui" / "register.py",
+    INTEGRATION_ROOT / "ui" / "_sensor_ids.txt",
+    INTEGRATION_ROOT / "ui" / "register.py",
     ROOT / "tests 2" / "test_slope_sanity.py",
 )
 
@@ -45,8 +46,8 @@ PRIVATE_CARD_IDENTIFIERS = (
 )
 
 OUTPUT_DETAILS_SURFACES = (
-    ROOT / "ui" / "cards" / "v2_mobile.yaml",
-    ROOT / "ui" / "cards" / "v2_tablet.yaml",
+    INTEGRATION_ROOT / "ui" / "cards" / "v2_mobile.yaml",
+    INTEGRATION_ROOT / "ui" / "cards" / "v2_tablet.yaml",
     ROOT / "ui-gallery" / "default-v2-mobile-aq" / "card.yaml",
     ROOT / "ui-gallery" / "default-v2-tablet-zone-2" / "card.yaml",
 )
@@ -361,7 +362,7 @@ def _install_package_scaffold() -> None:
 
     for sub in ("automations", "ui", "helpers", "sensors"):
         mod = types.ModuleType(f"{PKG}.{sub}")
-        mod.__path__ = [str(ROOT / sub)]
+        mod.__path__ = [str(INTEGRATION_ROOT / sub)]
         sys.modules[f"{PKG}.{sub}"] = mod
 
     services = types.ModuleType(f"{PKG}.services")
@@ -386,34 +387,34 @@ def _load_target_modules():
     _install_homeassistant_stubs()
     _install_package_scaffold()
 
-    _load_module(f"{PKG}.const", ROOT / "const.py")
-    level_labels_path = ROOT / "helpers" / "level_labels.py"
+    _load_module(f"{PKG}.const", INTEGRATION_ROOT / "const.py")
+    level_labels_path = INTEGRATION_ROOT / "helpers" / "level_labels.py"
     if level_labels_path.exists():
         _load_module(f"{PKG}.helpers.level_labels", level_labels_path)
-    engine_mod = _load_module(f"{PKG}.automations.engine", ROOT / "automations" / "engine.py")
-    register_mod = _load_module(f"{PKG}.ui.register", ROOT / "ui" / "register.py")
+    engine_mod = _load_module(f"{PKG}.automations.engine", INTEGRATION_ROOT / "automations" / "engine.py")
+    register_mod = _load_module(f"{PKG}.ui.register", INTEGRATION_ROOT / "ui" / "register.py")
     return engine_mod, register_mod
 
 
 def _load_services_module():
     _install_homeassistant_stubs()
     _install_package_scaffold()
-    _load_module(f"{PKG}.const", ROOT / "const.py")
-    _load_module(f"{PKG}.helpers.cleanup", ROOT / "helpers" / "cleanup.py")
+    _load_module(f"{PKG}.const", INTEGRATION_ROOT / "const.py")
+    _load_module(f"{PKG}.helpers.cleanup", INTEGRATION_ROOT / "helpers" / "cleanup.py")
     _load_module(
         f"{PKG}.helpers.report_exports",
-        ROOT / "helpers" / "report_exports.py",
+        INTEGRATION_ROOT / "helpers" / "report_exports.py",
     )
-    level_labels_path = ROOT / "helpers" / "level_labels.py"
+    level_labels_path = INTEGRATION_ROOT / "helpers" / "level_labels.py"
     if level_labels_path.exists():
         _load_module(f"{PKG}.helpers.level_labels", level_labels_path)
-    return _load_module(f"{PKG}.services", ROOT / "services.py")
+    return _load_module(f"{PKG}.services", INTEGRATION_ROOT / "services.py")
 
 
 def _load_integration_init_module():
     _install_homeassistant_stubs()
     _install_package_scaffold()
-    _load_module(f"{PKG}.const", ROOT / "const.py")
+    _load_module(f"{PKG}.const", INTEGRATION_ROOT / "const.py")
 
     sys.modules[
         "homeassistant.helpers.config_validation"
@@ -465,40 +466,40 @@ def _load_integration_init_module():
     automations_mod.async_setup_entry = async_noop
     automations_mod.async_unload_entry = async_noop
 
-    return _load_module(f"{PKG}.integration_init", ROOT / "__init__.py")
+    return _load_module(f"{PKG}.integration_init", INTEGRATION_ROOT / "__init__.py")
 
 
 def _load_core_module():
     _install_homeassistant_stubs()
     _install_package_scaffold()
-    _load_module(f"{PKG}.const", ROOT / "const.py")
-    return _load_module(f"{PKG}.sensors.core", ROOT / "sensors" / "core.py")
+    _load_module(f"{PKG}.const", INTEGRATION_ROOT / "const.py")
+    return _load_module(f"{PKG}.sensors.core", INTEGRATION_ROOT / "sensors" / "core.py")
 
 
 def _load_core_module_without_unit_ratio():
     _install_homeassistant_stubs(include_unit_ratio=False)
     _install_package_scaffold()
-    _load_module(f"{PKG}.const", ROOT / "const.py")
-    return _load_module(f"{PKG}.sensors.core", ROOT / "sensors" / "core.py")
+    _load_module(f"{PKG}.const", INTEGRATION_ROOT / "const.py")
+    return _load_module(f"{PKG}.sensors.core", INTEGRATION_ROOT / "sensors" / "core.py")
 
 
 def _load_entity_registry_helper_module():
     _install_homeassistant_stubs()
     _install_package_scaffold()
-    _load_module(f"{PKG}.const", ROOT / "const.py")
+    _load_module(f"{PKG}.const", INTEGRATION_ROOT / "const.py")
     return _load_module(
         f"{PKG}.helpers.entity_registry",
-        ROOT / "helpers" / "entity_registry.py",
+        INTEGRATION_ROOT / "helpers" / "entity_registry.py",
     )
 
 
 def _load_frontend_dependencies_module():
     _install_homeassistant_stubs()
     _install_package_scaffold()
-    _load_module(f"{PKG}.const", ROOT / "const.py")
+    _load_module(f"{PKG}.const", INTEGRATION_ROOT / "const.py")
     return _load_module(
         f"{PKG}.helpers.frontend_dependencies",
-        ROOT / "helpers" / "frontend_dependencies.py",
+        INTEGRATION_ROOT / "helpers" / "frontend_dependencies.py",
     )
 
 
@@ -1196,11 +1197,11 @@ def test_drift_repair_issue_created_only_for_missing_helper():
     _install_homeassistant_stubs()
     _install_package_scaffold()
     _install_issue_registry_stub(events)
-    _load_module(f"{PKG}.const", ROOT / "const.py")
-    _load_module(f"{PKG}.helpers.drift", ROOT / "helpers" / "drift.py")
+    _load_module(f"{PKG}.const", INTEGRATION_ROOT / "const.py")
+    _load_module(f"{PKG}.helpers.drift", INTEGRATION_ROOT / "helpers" / "drift.py")
     repairs_mod = _load_module(
         f"{PKG}.helpers.drift_repairs",
-        ROOT / "helpers" / "drift_repairs.py",
+        INTEGRATION_ROOT / "helpers" / "drift_repairs.py",
     )
     entry = _minimal_humidity_entry()
     hass = _FakeHass(entry, {"sensor.kitchen_h": _FakeState(55)})
@@ -1219,11 +1220,11 @@ def test_drift_repair_issue_deleted_for_existing_not_ready_helper():
     _install_homeassistant_stubs()
     _install_package_scaffold()
     _install_issue_registry_stub(events)
-    _load_module(f"{PKG}.const", ROOT / "const.py")
-    _load_module(f"{PKG}.helpers.drift", ROOT / "helpers" / "drift.py")
+    _load_module(f"{PKG}.const", INTEGRATION_ROOT / "const.py")
+    _load_module(f"{PKG}.helpers.drift", INTEGRATION_ROOT / "helpers" / "drift.py")
     repairs_mod = _load_module(
         f"{PKG}.helpers.drift_repairs",
-        ROOT / "helpers" / "drift_repairs.py",
+        INTEGRATION_ROOT / "helpers" / "drift_repairs.py",
     )
     entry = _minimal_humidity_entry()
     hass = _FakeHass(
@@ -3354,9 +3355,9 @@ def test_public_card_surfaces_do_not_ship_private_entity_ids():
 
 def test_default_public_card_surfaces_block_unsafe_service_controls():
     default_surfaces = (
-        ROOT / "ui" / "cards" / "v2_mobile.yaml",
-        ROOT / "ui" / "cards" / "v2_tablet.yaml",
-        ROOT / "ui" / "cards" / "view_cards_button.yaml",
+        INTEGRATION_ROOT / "ui" / "cards" / "v2_mobile.yaml",
+        INTEGRATION_ROOT / "ui" / "cards" / "v2_tablet.yaml",
+        INTEGRATION_ROOT / "ui" / "cards" / "view_cards_button.yaml",
         ROOT / "ui-gallery" / "default-v2-mobile-aq" / "card.yaml",
         ROOT / "ui-gallery" / "default-v2-tablet-zone-2" / "card.yaml",
     )
@@ -3469,7 +3470,7 @@ def test_v2_reason_panels_use_backend_schema_with_atomic_escaped_fallback():
 
     assert len(set(blocks)) == 1
 
-    v1_mobile = (ROOT / "ui" / "cards" / "v1_mobile.yaml").read_text(
+    v1_mobile = (INTEGRATION_ROOT / "ui" / "cards" / "v1_mobile.yaml").read_text(
         encoding="utf-8"
     )
     v1_gallery = (
@@ -3482,8 +3483,8 @@ def test_v2_reason_panels_use_backend_schema_with_atomic_escaped_fallback():
 
 def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pause_tile():
     default_surfaces = (
-        ROOT / "ui" / "cards" / "v2_mobile.yaml",
-        ROOT / "ui" / "cards" / "v2_tablet.yaml",
+        INTEGRATION_ROOT / "ui" / "cards" / "v2_mobile.yaml",
+        INTEGRATION_ROOT / "ui" / "cards" / "v2_tablet.yaml",
         ROOT / "ui-gallery" / "default-v2-mobile-aq" / "card.yaml",
         ROOT / "ui-gallery" / "default-v2-tablet-zone-2" / "card.yaml",
     )
@@ -3616,11 +3617,11 @@ def test_public_v2_gallery_cards_preserve_air_control_mode_truth():
 
 
 def test_startup_ui_refresh_contract_is_wired():
-    init_source = (ROOT / "__init__.py").read_text()
-    const_source = (ROOT / "const.py").read_text()
-    config_source = (ROOT / "config_flow.py").read_text()
-    strings_source = (ROOT / "strings.json").read_text()
-    services_source = (ROOT / "services.yaml").read_text()
+    init_source = (INTEGRATION_ROOT / "__init__.py").read_text()
+    const_source = (INTEGRATION_ROOT / "const.py").read_text()
+    config_source = (INTEGRATION_ROOT / "config_flow.py").read_text()
+    strings_source = (INTEGRATION_ROOT / "strings.json").read_text()
+    services_source = (INTEGRATION_ROOT / "services.yaml").read_text()
 
     assert "EVENT_HOMEASSISTANT_STARTED" in init_source
     assert ".async_listen_once(" in init_source
@@ -3821,7 +3822,7 @@ def test_options_update_reports_export_failure_without_success_path():
 
 
 def test_options_gates_keeps_custom_targets_behind_advanced():
-    config_source = (ROOT / "config_flow.py").read_text()
+    config_source = (INTEGRATION_ROOT / "config_flow.py").read_text()
     method_source = config_source.split("async def async_step_options_gates", 1)[1].split(
         "async def async_step_options_presence_states", 1
     )[0]
@@ -3837,7 +3838,7 @@ def test_options_gates_keeps_custom_targets_behind_advanced():
 
 
 def test_options_thresholds_only_persists_real_zone_configs():
-    config_source = (ROOT / "config_flow.py").read_text()
+    config_source = (INTEGRATION_ROOT / "config_flow.py").read_text()
     method_source = config_source.split("async def async_step_options_thresholds", 1)[1].split(
         "async def async_step_options_sensors", 1
     )[0]
@@ -3849,7 +3850,7 @@ def test_options_thresholds_only_persists_real_zone_configs():
 
 
 def test_advanced_tuning_uses_collapsible_sections_not_submit_reveal():
-    config_source = (ROOT / "config_flow.py").read_text()
+    config_source = (INTEGRATION_ROOT / "config_flow.py").read_text()
 
     assert "from homeassistant.data_entry_flow import section" in config_source
     assert "def _advanced_section(" in config_source
@@ -4372,7 +4373,7 @@ def test_frontend_dependency_status_accepts_mod_card_from_card_mod_resource():
 
 
 def test_config_flow_dependency_pages_delegate_to_shared_frontend_helper():
-    config_source = (ROOT / "config_flow.py").read_text()
+    config_source = (INTEGRATION_ROOT / "config_flow.py").read_text()
     dependency_renderer = config_source.split("async def _render_dependency_status", 1)[1].split(
         "def _entry_section", 1
     )[0]
@@ -4385,9 +4386,9 @@ def test_config_flow_dependency_pages_delegate_to_shared_frontend_helper():
 
 
 def test_config_flow_dependency_pages_keep_drift_statistics_status_out_of_frontend_text():
-    config_source = (ROOT / "config_flow.py").read_text()
-    strings = json.loads((ROOT / "strings.json").read_text())
-    translations = json.loads((ROOT / "translations" / "en.json").read_text())
+    config_source = (INTEGRATION_ROOT / "config_flow.py").read_text()
+    strings = json.loads((INTEGRATION_ROOT / "strings.json").read_text())
+    translations = json.loads((INTEGRATION_ROOT / "translations" / "en.json").read_text())
 
     assert "drift_statistics" not in config_source
     assert "_render_drift_statistics_status" not in config_source
@@ -5203,8 +5204,8 @@ def test_dump_diagnostics_owned_export_redacts_sensitive_payload_before_write():
 
 def test_generated_v2_cards_escape_dynamic_html_text():
     for path in (
-        ROOT / "ui" / "cards" / "v2_mobile.yaml",
-        ROOT / "ui" / "cards" / "v2_tablet.yaml",
+        INTEGRATION_ROOT / "ui" / "cards" / "v2_mobile.yaml",
+        INTEGRATION_ROOT / "ui" / "cards" / "v2_tablet.yaml",
         ROOT / "ui-gallery" / "default-v2-mobile-aq" / "card.yaml",
         ROOT / "ui-gallery" / "default-v2-tablet-zone-2" / "card.yaml",
     ):
@@ -5676,10 +5677,10 @@ def test_v205_release_check_uses_card_scoped_unresolved_placeholders_when_availa
 
 
 def test_v205_release_check_service_is_documented_and_registered():
-    services_source = (ROOT / "services.py").read_text()
-    services_yaml = (ROOT / "services.yaml").read_text()
+    services_source = (INTEGRATION_ROOT / "services.py").read_text()
+    services_yaml = (INTEGRATION_ROOT / "services.yaml").read_text()
     readme_source = (ROOT / "README.md").read_text()
-    manifest = json.loads((ROOT / "manifest.json").read_text())
+    manifest = json.loads((INTEGRATION_ROOT / "manifest.json").read_text())
 
     assert 'SERVICE_V205_RELEASE_CHECK = "v205_release_check"' in services_source
     assert "SERVICE_V205_RELEASE_CHECK_SCHEMA" in services_source
@@ -5691,13 +5692,13 @@ def test_v205_release_check_service_is_documented_and_registered():
     assert "write_test_exports" in services_yaml
     assert "humidity_intelligence.v205_release_check" in readme_source
     assert "humidity_intelligence_v205_release_check.json" in readme_source
-    assert manifest["version"] == "2.0.10-beta.2"
+    assert manifest["version"] == "2.0.10-beta.3"
 
 
 def test_owned_ui_path_discovery_and_legacy_cleanup_guidance_is_explicit():
-    services_yaml = (ROOT / "services.yaml").read_text()
-    strings_data = json.loads((ROOT / "strings.json").read_text())
-    translations_data = json.loads((ROOT / "translations" / "en.json").read_text())
+    services_yaml = (INTEGRATION_ROOT / "services.yaml").read_text()
+    strings_data = json.loads((INTEGRATION_ROOT / "strings.json").read_text())
+    translations_data = json.loads((INTEGRATION_ROOT / "translations" / "en.json").read_text())
     readme_source = (ROOT / "README.md").read_text()
     support_source = (ROOT / "docs" / "support.md").read_text()
 
@@ -5822,11 +5823,11 @@ def test_v205_release_check_only_fails_local_snapshot_when_required():
 
 
 def test_alert_configuration_contract_uses_internal_sources():
-    const_source = (ROOT / "const.py").read_text()
-    config_source = (ROOT / "config_flow.py").read_text()
-    services_source = (ROOT / "services.py").read_text()
-    strings_source = (ROOT / "strings.json").read_text()
-    translation_source = (ROOT / "translations" / "en.json").read_text()
+    const_source = (INTEGRATION_ROOT / "const.py").read_text()
+    config_source = (INTEGRATION_ROOT / "config_flow.py").read_text()
+    services_source = (INTEGRATION_ROOT / "services.py").read_text()
+    strings_source = (INTEGRATION_ROOT / "strings.json").read_text()
+    translation_source = (INTEGRATION_ROOT / "translations" / "en.json").read_text()
 
     for source in (const_source, config_source, strings_source, translation_source):
         assert '"custom_binary"' not in source
@@ -5854,15 +5855,15 @@ def test_alert_configuration_contract_uses_internal_sources():
     assert "visual_alerts" in services_source
     assert "active_alert_resolution" in services_source
     assert "pm25_entity_id_normalization" in services_source
-    sensor_source = (ROOT / "sensor.py").read_text()
+    sensor_source = (INTEGRATION_ROOT / "sensor.py").read_text()
     assert '"config": _sanitize_json(config)' not in sensor_source
     assert '"entity_map": _sanitize_json(entity_map)' not in sensor_source
     assert '"alert_telemetry": _sanitize_json(alert_telemetry)' not in sensor_source
     assert "_compact_diagnostics_summary" in sensor_source
     assert "pm25_entity_id_normalization" in sensor_source
     assert "Use service humidity_intelligence.dump_diagnostics" in sensor_source
-    assert "HUMIDITY_ALERT_FLASH_COUNT = 10" in (ROOT / "automations" / "engine.py").read_text()
-    assert "HUMIDITY_ALERT_REPEAT_MINUTES = 30" in (ROOT / "automations" / "engine.py").read_text()
+    assert "HUMIDITY_ALERT_FLASH_COUNT = 10" in (INTEGRATION_ROOT / "automations" / "engine.py").read_text()
+    assert "HUMIDITY_ALERT_REPEAT_MINUTES = 30" in (INTEGRATION_ROOT / "automations" / "engine.py").read_text()
     assert "alert_remove" in config_source
     assert "options_alert_remove" in config_source
     assert "Remove alert visual rule" in strings_source
@@ -6579,9 +6580,9 @@ def test_two_to_one_entry_removal_reexports_remaining_entry_and_owns_qualified_r
 
 
 def test_dashboard_compatibility_path_contains_no_unsupported_lovelace_api():
-    source = (ROOT / "services.py").read_text(encoding="utf-8")
-    cleanup_source = (ROOT / "helpers" / "cleanup.py").read_text(encoding="utf-8")
-    integration_source = (ROOT / "__init__.py").read_text(encoding="utf-8")
+    source = (INTEGRATION_ROOT / "services.py").read_text(encoding="utf-8")
+    cleanup_source = (INTEGRATION_ROOT / "helpers" / "cleanup.py").read_text(encoding="utf-8")
+    integration_source = (INTEGRATION_ROOT / "__init__.py").read_text(encoding="utf-8")
 
     assert "async_create_dashboard" not in source.replace(
         "async_create_dashboard_for_entry", ""
@@ -6934,7 +6935,7 @@ def test_purge_reports_file_failures_without_dashboard_ownership():
 def test_generated_v1_cards_escape_dynamic_html_text():
     sources = []
     for path in (
-        ROOT / "ui" / "cards" / "v1_mobile.yaml",
+        INTEGRATION_ROOT / "ui" / "cards" / "v1_mobile.yaml",
         ROOT / "ui-gallery" / "default-v1-mobile" / "card.yaml",
     ):
         source = path.read_text(encoding="utf-8")

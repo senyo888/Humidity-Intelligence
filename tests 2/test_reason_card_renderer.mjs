@@ -6,8 +6,8 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SURFACES = [
-  'ui/cards/v2_mobile.yaml',
-  'ui/cards/v2_tablet.yaml',
+  'custom_components/humidity_intelligence/ui/cards/v2_mobile.yaml',
+  'custom_components/humidity_intelligence/ui/cards/v2_tablet.yaml',
   'ui-gallery/default-v2-mobile-aq/card.yaml',
   'ui-gallery/default-v2-tablet-zone-2/card.yaml',
 ];

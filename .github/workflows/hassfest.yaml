@@ -15,32 +15,7 @@ jobs:
     steps:
       - uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7
 
-      - name: Stage custom component layout
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p custom_components/humidity_intelligence
-          rsync -a \
-            __init__.py \
-            binary_sensor.py \
-            config_flow.py \
-            const.py \
-            manifest.json \
-            migration.py \
-            sensor.py \
-            services.py \
-            services.yaml \
-            strings.json \
-            switch.py \
-            translations \
-            automations \
-            helpers \
-            sensors \
-            ui \
-            custom_components/humidity_intelligence/
-          rm -f manifest.json
-
-      - name: Normalize staged Hassfest metadata
+      - name: Verify tracked Hassfest layout and metadata
         shell: bash
         run: |
           set -euo pipefail
@@ -49,50 +24,29 @@ jobs:
           from pathlib import Path
 
           base = Path("custom_components/humidity_intelligence")
+          hacs = json.loads(Path("hacs.json").read_text(encoding="utf-8"))
+          if "content_in_root" in hacs:
+              raise SystemExit("hacs.json must not declare content_in_root")
+          if Path("manifest.json").exists():
+              raise SystemExit("Root manifest.json is not allowed")
+          if not base.is_dir():
+              raise SystemExit(f"Missing integration directory: {base}")
+          integrations = sorted(
+              path
+              for path in Path("custom_components").iterdir()
+              if path.is_dir()
+          )
+          if integrations != [base]:
+              raise SystemExit(
+                  "Expected exactly custom_components/humidity_intelligence"
+              )
 
           manifest_path = base / "manifest.json"
+          if not manifest_path.is_file():
+              raise SystemExit(f"Missing integration manifest: {manifest_path}")
           manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-          ordered_manifest = {
-              "domain": manifest.pop("domain"),
-              "name": manifest.pop("name"),
-          }
-          for key in sorted(manifest):
-              ordered_manifest[key] = manifest[key]
-          manifest_path.write_text(
-              json.dumps(ordered_manifest, indent=2, ensure_ascii=False) + "\n",
-              encoding="utf-8",
-          )
-
-          for rel_path in ("strings.json", "translations/en.json"):
-              path = base / rel_path
-              data = json.loads(path.read_text(encoding="utf-8"))
-              for section in ("config", "options"):
-                  root = data.setdefault(section, {})
-                  shared_errors = dict(root.get("error", {}))
-                  for step in root.get("step", {}).values():
-                      if isinstance(step, dict):
-                          shared_errors.update(step.pop("errors", {}) or {})
-                  if shared_errors:
-                      root["error"] = shared_errors
-
-              text = json.dumps(data, indent=2, ensure_ascii=False)
-              text = text.replace(
-                  "humidity_intelligence_cards_<layout>.yaml",
-                  "humidity_intelligence_cards_layout.yaml",
-              )
-              path.write_text(text + "\n", encoding="utf-8")
-          PY
-
-      - name: Verify staged Hassfest metadata
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-
-          base = Path("custom_components/humidity_intelligence")
-          manifest = json.loads((base / "manifest.json").read_text(encoding="utf-8"))
+          if manifest.get("domain") != "humidity_intelligence":
+              raise SystemExit("Integration manifest domain must be humidity_intelligence")
           keys = list(manifest)
           expected = ["domain", "name"] + sorted(keys[2:])
           if keys != expected:
@@ -108,7 +62,7 @@ jobs:
                   for step_name, step in data.get(section, {}).get("step", {}).items():
                       if isinstance(step, dict) and "errors" in step:
                           raise SystemExit(f"{rel_path} has nested errors at {section}.{step_name}")
-          print("Staged Hassfest metadata is normalized.")
+          print("Tracked Hassfest layout and metadata are valid.")
           PY
 
       - uses: home-assistant/actions/hassfest@e3fb68ebda13d88a0d695082f471ba2c83d025fb # master

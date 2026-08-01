@@ -18,6 +18,7 @@ from test_runtime_card_sanity import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
+INTEGRATION_ROOT = ROOT / "custom_components" / "humidity_intelligence"
 
 
 def _entry_with_humidifiers(humidifiers):
@@ -1346,8 +1347,8 @@ def test_release_check_warns_when_enabled_humidifier_truth_is_not_available():
 
 def test_v2_templates_and_gallery_use_backend_humidifier_and_reason_truth():
     paths = (
-        ROOT / "ui" / "cards" / "v2_mobile.yaml",
-        ROOT / "ui" / "cards" / "v2_tablet.yaml",
+        INTEGRATION_ROOT / "ui" / "cards" / "v2_mobile.yaml",
+        INTEGRATION_ROOT / "ui" / "cards" / "v2_tablet.yaml",
         ROOT / "ui-gallery" / "default-v2-mobile-aq" / "card.yaml",
         ROOT / "ui-gallery" / "default-v2-tablet-zone-2" / "card.yaml",
     )

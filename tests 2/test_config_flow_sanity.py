@@ -12,6 +12,7 @@ from types import SimpleNamespace
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+INTEGRATION_ROOT = ROOT / "custom_components" / "humidity_intelligence"
 PKG = "hi_config_flow_testpkg"
 
 
@@ -176,7 +177,7 @@ def _install_package_scaffold() -> None:
     sys.modules[PKG] = pkg
 
     helpers = types.ModuleType(f"{PKG}.helpers")
-    helpers.__path__ = [str(ROOT / "helpers")]
+    helpers.__path__ = [str(INTEGRATION_ROOT / "helpers")]
     sys.modules[f"{PKG}.helpers"] = helpers
 
 
@@ -192,22 +193,22 @@ def _load_module(name: str, path: pathlib.Path):
 def _load_config_flow_module():
     _install_homeassistant_stubs()
     _install_package_scaffold()
-    _load_module(f"{PKG}.const", ROOT / "const.py")
-    level_labels_path = ROOT / "helpers" / "level_labels.py"
+    _load_module(f"{PKG}.const", INTEGRATION_ROOT / "const.py")
+    level_labels_path = INTEGRATION_ROOT / "helpers" / "level_labels.py"
     if level_labels_path.exists():
         _load_module(f"{PKG}.helpers.level_labels", level_labels_path)
-    _load_module(f"{PKG}.helpers.parsing", ROOT / "helpers" / "parsing.py")
-    _load_module(f"{PKG}.helpers.drift", ROOT / "helpers" / "drift.py")
-    _load_module(f"{PKG}.helpers.setup_assist", ROOT / "helpers" / "setup_assist.py")
+    _load_module(f"{PKG}.helpers.parsing", INTEGRATION_ROOT / "helpers" / "parsing.py")
+    _load_module(f"{PKG}.helpers.drift", INTEGRATION_ROOT / "helpers" / "drift.py")
+    _load_module(f"{PKG}.helpers.setup_assist", INTEGRATION_ROOT / "helpers" / "setup_assist.py")
     _load_module(
         f"{PKG}.helpers.frontend_dependencies",
-        ROOT / "helpers" / "frontend_dependencies.py",
+        INTEGRATION_ROOT / "helpers" / "frontend_dependencies.py",
     )
     _load_module(
         f"{PKG}.helpers.zone_validation",
-        ROOT / "helpers" / "zone_validation.py",
+        INTEGRATION_ROOT / "helpers" / "zone_validation.py",
     )
-    return _load_module(f"{PKG}.config_flow", ROOT / "config_flow.py")
+    return _load_module(f"{PKG}.config_flow", INTEGRATION_ROOT / "config_flow.py")
 
 
 def _schema_default(result: dict, field: str):
@@ -775,15 +776,15 @@ def test_options_new_zone2_defaults_to_level2_and_preserves_trigger_ownership():
 def test_frontend_dependency_page_excludes_drift_helper_status_and_keeps_card_deps_truthful():
     config_flow = _load_config_flow_module()
     const = sys.modules[f"{PKG}.const"]
-    strings = json.loads((ROOT / "strings.json").read_text())
-    translations = json.loads((ROOT / "translations" / "en.json").read_text())
+    strings = json.loads((INTEGRATION_ROOT / "strings.json").read_text())
+    translations = json.loads((INTEGRATION_ROOT / "translations" / "en.json").read_text())
 
-    dependency_source = (ROOT / "config_flow.py").read_text().split(
+    dependency_source = (INTEGRATION_ROOT / "config_flow.py").read_text().split(
         "async def _render_dependency_status", 1
     )[1].split("def _entry_section", 1)[0]
     dependency_names = [dependency["name"] for dependency in const.DEPENDENCIES]
     generated_card_text = "\n".join(
-        (ROOT / path).read_text()
+        (INTEGRATION_ROOT / path).read_text()
         for path in ("ui/cards/v1_mobile.yaml", "ui/cards/v2_mobile.yaml", "ui/cards/v2_tablet.yaml")
     )
 
@@ -877,9 +878,9 @@ def test_presence_states_schema_builder_preserves_defaults_and_options():
 
 
 def test_setup_surfaces_link_to_configuration_walkthrough():
-    config_source = (ROOT / "config_flow.py").read_text()
-    strings = json.loads((ROOT / "strings.json").read_text())
-    translations = json.loads((ROOT / "translations" / "en.json").read_text())
+    config_source = (INTEGRATION_ROOT / "config_flow.py").read_text()
+    strings = json.loads((INTEGRATION_ROOT / "strings.json").read_text())
+    translations = json.loads((INTEGRATION_ROOT / "translations" / "en.json").read_text())
     walkthrough_url = "https://github.com/senyo888/humidity-intelligence/wiki/Configuration-Walkthrough"
 
     for payload in (strings, translations):
@@ -906,8 +907,8 @@ def test_setup_surfaces_link_to_configuration_walkthrough():
 
 
 def test_welcome_and_telemetry_copy_support_staged_setup_method():
-    strings = json.loads((ROOT / "strings.json").read_text())
-    translations = json.loads((ROOT / "translations" / "en.json").read_text())
+    strings = json.loads((INTEGRATION_ROOT / "strings.json").read_text())
+    translations = json.loads((INTEGRATION_ROOT / "translations" / "en.json").read_text())
 
     for payload in (strings, translations):
         steps = payload["config"]["step"]
@@ -1599,10 +1600,10 @@ def test_alert_form_input_payload_helper_preserves_add_and_edit_semantics():
 
 
 def test_v1_mobile_is_deprecated_but_available_through_v209():
-    config_source = (ROOT / "config_flow.py").read_text(encoding="utf-8")
-    strings = json.loads((ROOT / "strings.json").read_text(encoding="utf-8"))
+    config_source = (INTEGRATION_ROOT / "config_flow.py").read_text(encoding="utf-8")
+    strings = json.loads((INTEGRATION_ROOT / "strings.json").read_text(encoding="utf-8"))
     translations = json.loads(
-        (ROOT / "translations" / "en.json").read_text(encoding="utf-8")
+        (INTEGRATION_ROOT / "translations" / "en.json").read_text(encoding="utf-8")
     )
 
     assert (

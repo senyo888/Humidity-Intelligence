@@ -202,7 +202,14 @@ versions.
 
 Avoid blocking filesystem, network, or slow I/O work in async Home Assistant paths.
 Keep service schemas explicit and error messages actionable. Keep `hacs.json` limited
-to HACS-supported keys and keep integration metadata in `manifest.json`.
+to HACS-supported keys and keep integration metadata in
+`custom_components/humidity_intelligence/manifest.json`.
+
+The installable integration package is tracked under
+`custom_components/humidity_intelligence/`, which is the conventional HACS integration
+layout. HACS must install that package only; repository documentation, tests, scripts,
+site files, legacy material, and `ui-gallery/` remain repository surfaces rather than
+Home Assistant runtime payload.
 
 ## Documentation And Release Boundaries
 

@@ -9,7 +9,7 @@
 [![Latest Release](https://img.shields.io/github/v/release/senyo888/Humidity-Intelligence?display_name=tag&sort=semver)](https://github.com/senyo888/Humidity-Intelligence/releases)
 [![Project Site](https://img.shields.io/badge/Project%20Site-GitHub%20Pages-5aa8d6)](https://senyo888.github.io/humidity-intelligence/)
 [![HACS](https://img.shields.io/badge/HACS-Custom%20Integration-orange)](https://hacs.xyz)
-[![Manifest Version](https://img.shields.io/badge/dynamic/json?label=Manifest%20Version&query=%24.version&url=https%3A%2F%2Fraw.githubusercontent.com%2Fsenyo888%2FHumidity-Intelligence%2Fmain%2Fmanifest.json&color=blue)](https://github.com/senyo888/Humidity-Intelligence/blob/main/manifest.json)
+[![Manifest Version](https://img.shields.io/badge/dynamic/json?label=Manifest%20Version&query=%24.version&url=https%3A%2F%2Fraw.githubusercontent.com%2Fsenyo888%2FHumidity-Intelligence%2Fmain%2Fcustom_components%2Fhumidity_intelligence%2Fmanifest.json&color=blue)](https://github.com/senyo888/Humidity-Intelligence/blob/main/custom_components/humidity_intelligence/manifest.json)
 [![License](https://img.shields.io/github/license/senyo888/Humidity-Intelligence)](LICENSE)
 [![Sponsor](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/senyo888)
 
@@ -57,7 +57,7 @@ It gives you:
 - native Home Assistant diagnostics for support and triage
 - services for dashboard export, self-check, diagnostics, pause/resume, and release validation
 
-Current manifest version: **v2.0.10-beta.2**.
+Current manifest version: **v2.0.10-beta.3**.
 
 For publication status, installed packages, and release tags, use
 [GitHub Releases](https://github.com/senyo888/Humidity-Intelligence/releases) and
@@ -116,7 +116,8 @@ Useful Wiki pages:
 
 The Wiki is support guidance. Runtime behavior, entity semantics, service schemas,
 generated dashboard logic, migration requirements, and release state stay owned by the
-repository source, release notes, GitHub releases, and `manifest.json`.
+repository source, release notes, GitHub releases, and
+`custom_components/humidity_intelligence/manifest.json`.
 
 ---
 
@@ -469,7 +470,7 @@ must be reviewable from tracked repository files.
 - `v205_release_check` preserves its service name; the unreleased implementation
   extends its generated-card, humidifier-reconciliation, and release-validation
   contract through the v2.0.10 beta/rc/stable line and carries explicit
-  `2.0.10-beta.2` manifest metadata for renewed HA Lab beta validation
+  `2.0.10-beta.3` manifest metadata for renewed HA Lab beta validation
 - Home Assistant Area/Label setup assistance can suggest defaults from registry
   metadata, but saved HI telemetry, zone, AQ, humidifier, and alert mappings remain
   the only runtime truth
@@ -487,7 +488,7 @@ config-entry reload after option changes once the updated code is already loaded
 Run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual
 cards if you use generated Current Air Control cards, the default V2 control row, or
 output-detail surfaces; already-pasted Manual cards are static and do not inherit
-backend template changes automatically. The beta.2 V2 reason area consumes the
+backend template changes automatically. The beta.3 V2 reason area consumes the
 backend-owned `display_reason` contract and no longer composes `Stage:`, risk, timer,
 isolation, or `Engine:` explanations in the card. HI exports card fragments, not
 complete dashboard documents: leave registered or YAML-mode dashboard files
@@ -503,6 +504,11 @@ also re-export and re-copy that card to receive the v2.0.9 HTML-escaping fix.
 ### Option A - HACS (Recommended)
 
 Requires Home Assistant **2026.5.1** or newer.
+
+The repository uses the conventional HACS integration layout under
+`custom_components/humidity_intelligence/`. HACS installs that package directory only;
+repository documentation, tests, scripts, site files, legacy material, and UI Gallery
+examples are not included in the Home Assistant integration payload.
 
 1. Add custom repository:
    `https://github.com/senyo888/Humidity-Intelligence`

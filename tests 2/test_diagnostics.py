@@ -13,6 +13,7 @@ from types import SimpleNamespace
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+INTEGRATION_ROOT = ROOT / "custom_components" / "humidity_intelligence"
 PKG = "hi_diag_testpkg"
 
 
@@ -100,7 +101,7 @@ def _install_package_scaffold() -> None:
 
     for sub in ("helpers",):
         mod = types.ModuleType(f"{PKG}.{sub}")
-        mod.__path__ = [str(ROOT / sub)]
+        mod.__path__ = [str(INTEGRATION_ROOT / sub)]
         sys.modules[f"{PKG}.{sub}"] = mod
 
 
@@ -116,15 +117,15 @@ def _load_module(name: str, path: pathlib.Path):
 def _load_diagnostics_module():
     _install_homeassistant_stubs()
     _install_package_scaffold()
-    _load_module(f"{PKG}.const", ROOT / "const.py")
-    level_labels_path = ROOT / "helpers" / "level_labels.py"
+    _load_module(f"{PKG}.const", INTEGRATION_ROOT / "const.py")
+    level_labels_path = INTEGRATION_ROOT / "helpers" / "level_labels.py"
     if level_labels_path.exists():
         _load_module(f"{PKG}.helpers.level_labels", level_labels_path)
-    _load_module(f"{PKG}.helpers.frontend_dependencies", ROOT / "helpers" / "frontend_dependencies.py")
-    _load_module(f"{PKG}.helpers.setup_assist", ROOT / "helpers" / "setup_assist.py")
-    _load_module(f"{PKG}.helpers.seasonal", ROOT / "helpers" / "seasonal.py")
-    _load_module(f"{PKG}.helpers.zone_validation", ROOT / "helpers" / "zone_validation.py")
-    return _load_module(f"{PKG}.diagnostics", ROOT / "diagnostics.py")
+    _load_module(f"{PKG}.helpers.frontend_dependencies", INTEGRATION_ROOT / "helpers" / "frontend_dependencies.py")
+    _load_module(f"{PKG}.helpers.setup_assist", INTEGRATION_ROOT / "helpers" / "setup_assist.py")
+    _load_module(f"{PKG}.helpers.seasonal", INTEGRATION_ROOT / "helpers" / "seasonal.py")
+    _load_module(f"{PKG}.helpers.zone_validation", INTEGRATION_ROOT / "helpers" / "zone_validation.py")
+    return _load_module(f"{PKG}.diagnostics", INTEGRATION_ROOT / "diagnostics.py")
 
 
 class _FakeState:
@@ -336,7 +337,7 @@ def test_entity_status_summary_treats_blank_state_as_unknown():
 
 
 def test_manifest_declares_diagnostics_component_for_native_support():
-    manifest = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads((INTEGRATION_ROOT / "manifest.json").read_text(encoding="utf-8"))
     declared = set(manifest.get("dependencies", [])) | set(
         manifest.get("after_dependencies", [])
     )
