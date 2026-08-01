@@ -87,8 +87,10 @@ availability recovery, all supported output domains, isolation/gate interactions
 shared-output aggregation, bounded retry/fault behavior, generated V2 truth,
 diagnostics redaction, the complete `hi.reason.v1` runtime-family matrix,
 presenter-failure invariance, mixed-version fallback, line/size bounds, raw-ID and HTML
-privacy checks, exact 52-file package parity, direct Hassfest/HACS validation, and
-unchanged deterministic ventilation ordering. Beta.1 and beta.2 evidence remain
+privacy checks, 52-file count/content parity with the approved brand-path relocation,
+the required component-local `brand/icon.png` and `brand/logo.png` paths, direct
+Hassfest/HACS validation, and unchanged deterministic ventilation ordering. Beta.1
+and beta.2 evidence remain
 historical evidence for their exact commits and cannot approve beta.3. The incomplete
 beta.2 soak is superseded rather than failed and does not transfer sample numbering or
 acceptance. HA Lab

@@ -209,7 +209,11 @@ The installable integration package is tracked under
 `custom_components/humidity_intelligence/`, which is the conventional HACS integration
 layout. HACS must install that package only; repository documentation, tests, scripts,
 site files, legacy material, and `ui-gallery/` remain repository surfaces rather than
-Home Assistant runtime payload.
+Home Assistant runtime payload. Custom-integration branding is packaged only as
+`custom_components/humidity_intelligence/brand/icon.png` and `brand/logo.png` inside
+that component. The repository-root `brand/` pair is the authoring source; the
+component pair is its byte-identical release/install mirror, not a second authoring
+location.
 
 ## Documentation And Release Boundaries
 

@@ -112,6 +112,43 @@ class WorkflowConfigurationTests(unittest.TestCase):
         )
         self.assertNotIn("python -m compileall -q .", workflow)
 
+    def test_component_brand_assets_use_home_assistant_local_brand_layout(self) -> None:
+        integration = ROOT / "custom_components" / "humidity_intelligence"
+        repository_brand = ROOT / "brand"
+
+        self.assertTrue((integration / "brand" / "icon.png").is_file())
+        self.assertTrue((integration / "brand" / "logo.png").is_file())
+        self.assertFalse((integration / "icon.png").exists())
+        self.assertFalse((integration / "logo.png").exists())
+        self.assertEqual(
+            (repository_brand / "icon.png").read_bytes(),
+            (integration / "brand" / "icon.png").read_bytes(),
+        )
+        self.assertEqual(
+            (repository_brand / "logo.png").read_bytes(),
+            (integration / "brand" / "logo.png").read_bytes(),
+        )
+        tracked_component_files = subprocess.check_output(
+            [
+                "git",
+                "ls-files",
+                "-z",
+                "--",
+                "custom_components/humidity_intelligence",
+            ],
+            cwd=ROOT,
+        ).split(b"\0")
+        self.assertEqual(52, len([path for path in tracked_component_files if path]))
+
+        for workflow_name in ("hassfest.yaml", "release.yml", "validate.yml"):
+            workflow = (
+                ROOT / ".github" / "workflows" / workflow_name
+            ).read_text(encoding="utf-8")
+            self.assertIn('("brand/icon.png", "brand/logo.png")', workflow)
+            self.assertIn('("icon.png", "logo.png")', workflow)
+            self.assertIn("Missing local integration brand asset", workflow)
+            self.assertIn("Repository and integration brand assets differ", workflow)
+
     def test_hassfest_validates_tracked_layout_without_staging(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "hassfest.yaml").read_text(
             encoding="utf-8"

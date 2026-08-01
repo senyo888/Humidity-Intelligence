@@ -42,6 +42,26 @@ jobs:
               )
           if not manifest.is_file():
               raise SystemExit(f"Missing integration manifest: {manifest}")
+          for rel_path in ("brand/icon.png", "brand/logo.png"):
+              brand_path = integration / rel_path
+              if not brand_path.is_file():
+                  raise SystemExit(f"Missing local integration brand asset: {brand_path}")
+              repository_brand_path = Path("brand") / brand_path.name
+              if not repository_brand_path.is_file():
+                  raise SystemExit(
+                      f"Missing repository brand source: {repository_brand_path}"
+                  )
+              if repository_brand_path.read_bytes() != brand_path.read_bytes():
+                  raise SystemExit(
+                      f"Repository and integration brand assets differ: {brand_path.name}"
+                  )
+          for rel_path in ("icon.png", "logo.png"):
+              misplaced_brand_path = integration / rel_path
+              if misplaced_brand_path.exists():
+                  raise SystemExit(
+                      f"Integration brand asset must be under {integration / 'brand'}: "
+                      f"{misplaced_brand_path}"
+                  )
 
           data = json.loads(manifest.read_text(encoding="utf-8"))
           if data.get("domain") != "humidity_intelligence":

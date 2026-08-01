@@ -26,6 +26,11 @@ conventional HACS integration layout. HACS, Hassfest, and repository validation 
 that tracked package directly; repository-only docs, tests, scripts, site files, legacy
 material, and Gallery examples stay outside the installed payload.
 
+Keep installable branding under
+`custom_components/humidity_intelligence/brand/`. If the repository-root `brand/`
+authoring source changes, update the component-local install mirror in the same change;
+CI requires the pairs to remain byte-identical.
+
 Do not add unrelated integrations to this repository. Keep `hacs.json`,
 `custom_components/humidity_intelligence/manifest.json`, README installation guidance,
 release notes, and CI packaging assumptions aligned with the current release layout.

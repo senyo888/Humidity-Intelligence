@@ -59,9 +59,14 @@ aetherwing_phase3_review: approved
 aethercore_phase3_review: approved
 phase3_local_commit_status: committed_historical
 beta3_amendment_status: local_implementation_approved_all_four_roles
-beta3_local_commit_status: three_local_commits_complete
+beta3_local_commit_series: package_layout_coderabbit_reason_copy_hacs_brand_repair
 beta3_package_layout: custom_components/humidity_intelligence
 beta3_hacs_content_in_root: removed
+beta3_hacs_brand_layout: custom_components/humidity_intelligence/brand
+beta3_hacs_brand_repair_review: approved_all_four_roles
+beta3_hacs_run_30712596944: failed_brand_path_at_50cf630
+beta3_hassfest_run_30712596947: passed_at_50cf630
+beta3_version_governance_run_30712596942: passed_at_50cf630
 beta3_humidifier_response_model: self_contained_backend_lines
 beta3_coderabbit_docstring_check: disabled_config_only
 beta2_soak_status: superseded_incomplete_historical_evidence
@@ -115,11 +120,12 @@ frontend truth changes from being reviewed as one opaque patch.
 
 **Status: `REVIEW_REQUIRED`.** Phase 1, Phase 2, and the bounded Phase 3 dashboard
 compatibility fail-safe are approved historical implementation slices. The beta.3
-package-layout and CodeRabbit configuration slices are locally committed. The
-reason-copy slice is implemented, validated, approved by all four house-agent roles,
-and completed as the third bounded local commit.
-Exact-commit supported-HA loading and HA Lab playback, push, PR reply or creation,
-re-review request, promotion, tag, and release remain separate later authorities.
+package-layout, CodeRabbit configuration, and reason-copy slices reached remote commit
+`50cf630`. Exact-head HACS validation then exposed the missing component-local brand
+path; this proposal now includes the bounded local repair and its regression coverage.
+The repair remains unpushed, and a fresh exact-head HACS result is still required.
+Supported-HA loading and HA Lab playback, further push, PR reply or creation, re-review
+request, promotion, tag, and release remain separate later authorities.
 
 ## Beta.3 Approved Amendment
 
@@ -140,7 +146,19 @@ review. It does not change the installed Home Assistant destination, integration
 domain, entity registry, config schema, stored data, service semantics, lane order,
 or generated-card bytes. The package contains the same 52 installable files; repo-only
 documentation, tests, scripts, gallery examples, site, and legacy material stay
-outside the installed component.
+outside the installed component. The two existing component-root brand images move,
+byte-for-byte, into Home Assistant's supported component-local `brand/` directory.
+This preserves the 52-file count and payload content but intentionally changes those
+two relative paths. The repository-root brand pair remains the authoring source, and
+the component pair is its parity-checked release/install mirror.
+
+At `50cf630`, version-governance run `30712596942` and Hassfest run `30712596947`
+passed, while HACS run `30712596944` failed only because
+`custom_components/humidity_intelligence/brand/icon.png` was absent. The house-agent
+cross-review rejected a 54-file duplicate component. Bella and Aetherbite preferred
+deleting the repository-root mirror; Aetherwing and AetherCore preferred retaining it
+for this bounded correction. The reconciled decision keeps it without treating it as
+installed truth and enforces byte parity in validation.
 
 The humidifier amendment is presentation-only. Configured HI level labels remain
 authoritative, with the existing safe fallback labels used only when no configured
@@ -697,8 +715,8 @@ The final Phase 2 working tree passed:
   governance, `git diff --check`, and the repository secret scan.
 
 The full direct test sweep also passed every other runnable suite. The tracked
-`test_hi_memory_usage_auditor.py` could not start because its ignored-local source
-`scripts/local/hi_memory_usage_auditor.py` is absent from this worktree. That known
+memory-auditor test could not start because its ignored-local helper source is absent
+from this worktree. That known
 local continuity boundary is unrelated to the Phase 2 diff and is recorded as an
 explicit exclusion, not reported as a pass.
 
@@ -727,8 +745,8 @@ The Phase 3 review candidate passed every runnable direct repository suite, incl
   layout/manifest keys, version governance, proposal links, `git diff --check`, the
   tracked Gitleaks scan, and a dashboard compatibility source guard.
 
-The tracked memory-auditor test remains non-runnable because its ignored-local source
-`scripts/local/hi_memory_usage_auditor.py` is absent from this worktree. This is an
+The tracked memory-auditor test remains non-runnable because its ignored-local helper
+source is absent from this worktree. This is an
 unchanged local continuity exclusion, not a Phase 3 pass. The local environment also
 lacks Home Assistant/PyYAML test dependencies, so supported-HA loader acceptance,
 frontend save/load, full restart, browser cache behavior, and live Manual-card
@@ -750,7 +768,7 @@ proposal content.
 
 The locally implemented beta.3 tree passed:
 
-- 384 tracked pytest checks plus 123 subtests, excluding only
+- 385 tracked pytest checks plus 123 subtests, excluding only
   `test_hi_memory_usage_auditor.py` because its intentionally ignored local helper is
   absent from this worktree;
 - all 33 humidifier reconciliation scenarios, including every material reconciliation
@@ -760,9 +778,10 @@ The locally implemented beta.3 tree passed:
 - component compilation, version governance for `2.0.10-beta.3`, workflow and
   CodeRabbit YAML parsing, Inspector fixture freshness, proposal links, documentation
   previews, and diff whitespace checks;
-- exact 52-file beta.2-to-beta.3 package inventory parity, with the engine proven
-  byte-identical in the package-only commit; and
-- 90 ignored-local HA Lab tooling tests plus offline 52-file assembly for both the
+- 52-file beta.2-to-beta.3 package count and content parity, with the engine proven
+  byte-identical in the package-only commit and the two existing brand assets moved
+  to the required component-local paths; and
+- 91 ignored-local HA Lab tooling tests plus offline 52-file assembly for both the
   conventional beta.3 package and explicit legacy-root beta.2 rollback package.
 
 The first cumulative review found and corrected three material truth issues: known
@@ -771,9 +790,11 @@ humidifier isolation remains visible exactly once through gate and CO early exit
 relocated UI README previews resolve to tracked assets. Proposal phase/status wording
 was also made commit-local and internally consistent.
 
-Not run and not claimed: official beta.3 GitHub HACS/Hassfest Actions, supported Home
-Assistant loading, install/upgrade playback, frontend save/load, HA Lab deployment or
-runtime playback, restart, new T+0, soak, push, PR activity, tag, or release.
+Official results at `50cf630`: version governance and Hassfest passed; HACS failed its
+brands check. Not run and not claimed for the repaired exact head: fresh GitHub
+HACS/Hassfest/version-governance Actions, supported Home Assistant loading,
+install/upgrade playback, frontend save/load, HA Lab deployment or runtime playback,
+restart, new T+0, soak, push, PR activity, tag, or release.
 
 ## Home Assistant Lab Playback Expectations
 
@@ -994,11 +1015,13 @@ requires a separately approved proposal and migration contract.
 
 ## Final Status
 
-`REVIEW_REQUIRED — BETA3_LOCAL_COMMITS_COMPLETE / HA_LAB_AND_EXTERNAL_ACTIONS_NOT_AUTHORIZED`
+`REVIEW_REQUIRED — BETA3_LOCAL_BRAND_REPAIR_COMPLETE / EXACT_HEAD_EXTERNAL_VALIDATION_REQUIRED`
 
 Phase 1, Phase 2, and Phase 3 remain approved historical implementation slices.
 Beta.3's conventional package move, CodeRabbit configuration, and self-contained
-humidifier-response copy are implemented, validated, approved by all four roles, and
-separated into three local commits. Exact-commit supported-HA and HA Lab playback
-remain required before any release decision. HA Lab deployment/playback, push, PR
-reply, re-review request, PR creation, tag, and release promotion are not authorized.
+humidifier-response copy reached remote commit `50cf630`. The subsequent component-
+local brand repair is implemented, locally validated, and approved as a separate
+bounded commit, but its fresh exact-head HACS/Hassfest/version-governance results
+remain outstanding. Supported-HA and HA Lab playback remain required before any
+release decision. HA Lab deployment/playback, further push, PR reply, re-review
+request, PR creation, tag, and release promotion are not authorized.

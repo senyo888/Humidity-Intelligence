@@ -12,9 +12,13 @@ This project follows a practical changelog format for Home Assistant and HACS us
   `custom_components/humidity_intelligence/` layout and removed HACS
   `content_in_root`. HACS, Hassfest, release checks, tests, scripts, and documentation
   now validate the tracked package directly instead of constructing a temporary CI
-  package. The installed Home Assistant path is unchanged, repository-only material
-  is excluded from the HACS payload, and no config, entity, or stored-data migration
-  is required. A full Home Assistant restart remains required after updating code.
+  package. The existing component icon and logo now live under the supported local
+  `brand/` subdirectory, as a byte-identical install mirror of the repository brand
+  source, so HACS and Home Assistant can discover them without increasing the package
+  count. The integration installation root is unchanged, although those two asset
+  paths move. This brand-only correction adds no restart or frontend-cache requirement;
+  a full Home Assistant restart remains required for the cumulative beta.3 code update.
+  No config, entity, or stored-data migration is required.
 - Made every material humidifier explanation independently recognizable as
   `Humidifier response — {resolved label}: ...`. Demand thresholds, Home Assistant
   dispatch evidence, observed output state, retry/fault/isolation truth, and the
