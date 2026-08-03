@@ -2809,6 +2809,17 @@ async def _run_card_assertions(register_mod) -> None:
         assert "states['sensor.hi_diagnostics']" in card
         assert "CHIPSET_SCROLL_RESET_DELAY_MS = 15000" in card
         assert "data-scroll-reset-delay-ms" in card
+        assert "output_on: 'On'" in card
+        assert "output_on: 'Output on'" not in card
+        assert "`${label} Humidifier · ${text}`" in card
+        assert "`Humidifier ${label} · ${text}`" not in card
+        assert ".replace(/\\s*·\\s*[^·]*\\s>=\\s.*$/, '')" in card
+        assert "const humidifierOut = [];" in card
+        assert "const splitHumidifierRow = (zone1 || zone2) && humidifierOut.length > 0;" in card
+        assert "scrollRow(out, 'Ventilation status')" in card
+        assert "scrollRow(humidifierOut, 'Humidifier status')" in card
+        assert "alertContext.startsWith('Humidity Danger · ')" in card
+        assert ".cv-chip-stack{" in card
         assert "activeAlertNames.forEach" not in card
         assert "if (alertLaneActive && alertContext" in card
         assert "states['binary_sensor.humidity_danger']?.state === 'on'" not in card
@@ -5696,7 +5707,7 @@ def test_v205_release_check_service_is_documented_and_registered():
     assert "write_test_exports" in services_yaml
     assert "humidity_intelligence.v205_release_check" in readme_source
     assert "humidity_intelligence_v205_release_check.json" in readme_source
-    assert manifest["version"] == "2.0.10-beta.4"
+    assert manifest["version"] == "2.0.10-beta.5"
 
 
 def test_owned_ui_path_discovery_and_legacy_cleanup_guidance_is_explicit():

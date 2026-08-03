@@ -67,7 +67,8 @@ producing moisture.
 
 Use the V2 chip/reason state and native diagnostics together:
 
-- `Output on`: Home Assistant reports the configured output `on`
+- `On`: concise V2 chip wording for backend `output_on`; Home Assistant reports the
+  configured output `on`
 - `Idle`: Home Assistant reports `on`, but a humidifier action attribute reports idle
 - `Retrying` or `Stopping`: HI dispatched a command and is waiting or retrying within
   the bounded schedule

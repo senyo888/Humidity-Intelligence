@@ -232,9 +232,19 @@ If mismatch occurs:
   `family`, `variant`, or `truth`.
 - V2 Mobile and Tablet consume the backend `humidifier_status` attribute on the
   existing Air Control Reason entity; they do not calculate control demand.
-- Humidifier chips distinguish Requested, Output on, Idle, Isolated, Retrying,
-  Stopping, Unknown, Degraded, and Fault. `Output on` is Home Assistant-observed
-  state, not proof of physical moisture production.
+- Humidifier chips use `Downstairs Humidifier` / `Upstairs Humidifier` ordering and
+  distinguish Requested, On, Idle, Isolated, Retrying, Stopping, Unknown, Degraded,
+  and Fault. `On` is the concise card label for backend reconciliation state
+  `output_on`: Home Assistant has observed the configured output on, but this does
+  not claim physical moisture production.
+- When a Zone 1 or Zone 2 ventilation lane and humidifier telemetry are both active,
+  V2 cards render the humidifier chips on a second, accessibility-labelled row.
+  Humidifier demand and reconciliation remain independent of ventilation lane
+  selection.
+- Humidity Danger chips show the concise backend context through the resolved zone
+  (`Humidity Danger · room · zone`). Measurements and thresholds remain available in
+  the backend alert context, structured alert telemetry, and reason explanation;
+  other alert contexts are not shortened.
 - The existing humidifier-active helpers are fallback demand truth for older rendered
   cards and no longer justify a “running” claim.
 - Already-pasted Manual cards are static and require a fresh `refresh_ui` plus

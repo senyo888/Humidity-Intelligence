@@ -29,8 +29,26 @@ function reasonBody(relativePath) {
     .join('\n');
 }
 
+function statusBody(relativePath) {
+  const source = fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
+  const start = source.indexOf('        status: |\n');
+  const end = source.indexOf('        reason: |\n', start);
+  assert.notEqual(start, -1, `${relativePath}: status block missing`);
+  assert.notEqual(end, -1, `${relativePath}: reason boundary missing`);
+  const lines = source.slice(start, end).split('\n');
+  const open = lines.indexOf('          [[[');
+  const close = lines.lastIndexOf('          ]]]');
+  assert.ok(open >= 0 && close > open, `${relativePath}: button-card wrapper missing`);
+  return lines
+    .slice(open + 1, close)
+    .map((line) => (line.startsWith('            ') ? line.slice(12) : line))
+    .join('\n');
+}
+
 const BODIES = SURFACES.map(reasonBody);
 const RENDERERS = BODIES.map((body) => new Function('states', body));
+const STATUS_BODIES = SURFACES.map(statusBody);
+const STATUS_RENDERERS = STATUS_BODIES.map((body) => new Function('states', body));
 
 function baseContract() {
   return {
@@ -95,6 +113,97 @@ function assertLegacyFallback(displayReason, options = {}) {
 
 test('all four V2 surfaces carry one identical reason renderer', () => {
   assert.equal(new Set(BODIES).size, 1);
+});
+
+test('all four V2 surfaces carry one identical status renderer', () => {
+  assert.equal(new Set(STATUS_BODIES).size, 1);
+});
+
+test('humidity danger chip stops after the resolved zone', () => {
+  const states = {
+    'sensor.air_control_mode': { state: 'alert', attributes: {} },
+    'sensor.active_alert_context': {
+      state: 'Humidity Danger · Bathroom · Zone 2 · 68.2% >= 68% threshold',
+      attributes: {},
+    },
+    'sensor.air_control_reason': { state: 'Danger alert active.', attributes: {} },
+  };
+  const output = assertIdentical(STATUS_RENDERERS.map((render) => render(states)));
+  assert.match(output, /Humidity Danger · Bathroom · Zone 2/);
+  assert.doesNotMatch(output, /68\.2%|68% threshold/);
+});
+
+test('unmapped humidity danger chip drops measurement without dropping room', () => {
+  const states = {
+    'sensor.air_control_mode': { state: 'alert', attributes: {} },
+    'sensor.active_alert_context': {
+      state: 'Humidity Danger · Conservatory · 72.1% >= 68% threshold',
+      attributes: {},
+    },
+    'sensor.air_control_reason': { state: 'Danger alert active.', attributes: {} },
+  };
+  const output = assertIdentical(STATUS_RENDERERS.map((render) => render(states)));
+  assert.match(output, /Humidity Danger · Conservatory/);
+  assert.doesNotMatch(output, /72\.1%|68% threshold/);
+});
+
+test('non-humidity alert context is never shortened by comparison syntax', () => {
+  const states = {
+    'sensor.air_control_mode': { state: 'alert', attributes: {} },
+    'sensor.active_alert_context': {
+      state: 'Mould Risk · Bathroom · Zone 2 · observed >= risk threshold',
+      attributes: {},
+    },
+    'sensor.air_control_reason': { state: 'Risk alert active.', attributes: {} },
+  };
+  const output = assertIdentical(STATUS_RENDERERS.map((render) => render(states)));
+  assert.match(output, /Mould Risk · Bathroom · Zone 2 · observed &gt;= risk threshold/);
+});
+
+test('active zone and humidifier render as two concise labelled rows', () => {
+  const states = {
+    'sensor.air_control_mode': { state: 'bathroom', attributes: {} },
+    'sensor.air_control_reason': {
+      state: 'Bathroom response selected.',
+      attributes: {
+        humidifier_status: {
+          lanes: {
+            level1: { demand: 'requested', reconciliation: 'output_on' },
+            level2: { demand: 'inactive', reconciliation: 'inactive' },
+          },
+        },
+      },
+    },
+  };
+  const output = assertIdentical(STATUS_RENDERERS.map((render) => render(states)));
+  assert.match(output, /class="cv-chip-stack"/);
+  assert.equal((output.match(/class="cv-scroll"/g) || []).length, 2);
+  assert.match(output, /aria-label="Ventilation status"/);
+  assert.match(output, /aria-label="Humidifier status"/);
+  assert.match(output, /ZONE 2/);
+  assert.match(output, /Downstairs Humidifier · On/);
+  assert.doesNotMatch(output, /Humidifier Downstairs|Output on/);
+});
+
+test('humidifier stays on the single status row outside an active zone lane', () => {
+  const states = {
+    'sensor.air_control_mode': { state: 'normal', attributes: {} },
+    'sensor.air_control_reason': {
+      state: 'Monitoring.',
+      attributes: {
+        humidifier_status: {
+          lanes: {
+            level1: { demand: 'requested', reconciliation: 'output_on' },
+          },
+        },
+      },
+    },
+  };
+  const output = assertIdentical(STATUS_RENDERERS.map((render) => render(states)));
+  assert.doesNotMatch(output, /class="cv-chip-stack"/);
+  assert.equal((output.match(/class="cv-scroll"/g) || []).length, 1);
+  assert.match(output, /aria-label="Current Air Control status"/);
+  assert.match(output, /Downstairs Humidifier · On/);
 });
 
 test('valid schema renders escaped headline and ordered backend text', () => {

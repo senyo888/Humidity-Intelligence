@@ -57,7 +57,7 @@ It gives you:
 - native Home Assistant diagnostics for support and triage
 - services for dashboard export, self-check, diagnostics, pause/resume, and release validation
 
-Current manifest version: **v2.0.10-beta.4**.
+Current manifest version: **v2.0.10-beta.5**.
 
 For publication status, installed packages, and release tags, use
 [GitHub Releases](https://github.com/senyo888/Humidity-Intelligence/releases) and
@@ -366,10 +366,11 @@ it would not confirm device actuation or moisture output. HI therefore keeps dis
 non-blocking and establishes truth from later observed state with bounded retries.
 
 `NORMAL` remains a valid ventilation mode while humidifier demand is active: it means
-no ventilation lane won the deterministic ventilation hierarchy. V2 chips, reason
-text, and diagnostics separately report humidifier Requested, Output on, Idle,
-Isolated, Retrying, Stopping, Unknown, Degraded, or Fault truth. A generic output
-`on` state—and any optional vendor/platform action attribute—is Home Assistant
+no ventilation lane won the deterministic ventilation hierarchy. V2 chips report
+humidifier Requested, On, Idle, Isolated, Retrying, Stopping, Unknown, Degraded, or
+Fault truth; reason text and diagnostics retain the full backend reconciliation
+detail. Chip label `On` is the concise presentation of backend `output_on`. A generic
+output `on` state—and any optional vendor/platform action attribute—is Home Assistant
 evidence only and does not prove physical moisture production.
 
 Each evaluation cycle:
@@ -470,7 +471,7 @@ must be reviewable from tracked repository files.
 - `v205_release_check` preserves its service name; the unreleased implementation
   extends its generated-card, humidifier-reconciliation, and release-validation
   contract through the v2.0.10 beta/rc/stable line and carries explicit
-  `2.0.10-beta.4` manifest metadata for renewed HA Lab beta validation
+  `2.0.10-beta.5` manifest metadata for renewed HA Lab beta validation
 - Home Assistant Area/Label setup assistance can suggest defaults from registry
   metadata, but saved HI telemetry, zone, AQ, humidifier, and alert mappings remain
   the only runtime truth

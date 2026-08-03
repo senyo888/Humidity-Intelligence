@@ -79,7 +79,7 @@ explicitly recorded as not applicable before promotion can continue.
 
 For the broadened v2.0.10 beta humidifier reconciliation, reason-presentation, and
 HACS package-layout slice, implementation targets manifest identity
-`2.0.10-beta.4`. That beta identity
+`2.0.10-beta.5`. That beta identity
 does not authorize HA Lab/stable-instance mutation, branch promotion, tag, GitHub
 Release, HACS publication, or deployment.
 Beta evidence must cover restored demand, long-demand device stops, output
@@ -89,11 +89,12 @@ diagnostics redaction, the complete `hi.reason.v1` runtime-family matrix,
 presenter-failure invariance, mixed-version fallback, line/size bounds, raw-ID and HTML
 privacy checks, 52-file count/content parity with the approved brand-path relocation,
 the required component-local `brand/icon.png` and `brand/logo.png` paths, direct
-Hassfest/HACS validation, and unchanged deterministic ventilation ordering. Beta.1,
-beta.2, and beta.3 evidence remain historical evidence for their exact commits and
-cannot approve beta.4. The incomplete beta.2 soak is superseded rather than failed;
-the separately deployed beta.3 soak is bound to beta.3. Neither transfers sample
-numbering or acceptance to beta.4. HA Lab
+Hassfest/HACS validation, and unchanged deterministic ventilation ordering. Beta.1
+through beta.4 evidence remain historical evidence for their exact commits and
+cannot approve beta.5. The incomplete beta.2 soak is superseded rather than failed;
+the separately deployed beta.3 soak is bound to beta.3, and beta.4 deployment and
+soak evidence remain beta.4-only. None transfers sample numbering or acceptance to
+beta.5. HA Lab
 evidence is advisory; stable-instance authority and release promotion remain
 separate maintainer gates.
 

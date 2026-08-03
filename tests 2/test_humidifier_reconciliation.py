@@ -2078,7 +2078,10 @@ def test_v2_templates_and_gallery_use_backend_humidifier_and_reason_truth():
     for path in paths:
         source = path.read_text()
         assert "attributes?.humidifier_status" in source
-        assert "Humidifier ${label} · ${text}" in source
+        assert "${label} Humidifier · ${text}" in source
+        assert "Humidifier ${label} · ${text}" not in source
+        assert "output_on: 'On'" in source
+        assert "output_on: 'Output on'" not in source
         assert "Humidifier assist running" not in source
         assert "reasonState?.attributes?.display_reason" in source
         assert "displayReason.schema !== 'hi.reason.v1'" in source

@@ -484,7 +484,7 @@ card:
               const visibleWithoutDemand = new Set(['stopping', 'fault_latched', 'degraded', 'unknown']);
               if (!requested && !visibleWithoutDemand.has(status)) return '';
               const labels = {
-                output_on: 'Output on',
+                output_on: 'On',
                 platform_idle: 'Idle',
                 requested: 'Requested',
                 retrying: 'Retrying',
@@ -508,7 +508,7 @@ card:
               const text = labels[status] || (requested ? 'Requested' : 'Unknown');
               const color = colors[status] || '#94a3b8';
               return chip(
-                `Humidifier ${label} · ${text}`,
+                `${label} Humidifier · ${text}`,
                 color,
                 ['retrying', 'fault_latched', 'degraded'].includes(status)
               );
@@ -551,18 +551,29 @@ card:
               Object.keys(states).find((id) => /^sensor\\..*active_alert_context$/.test(id));
             const alertContext = String(states[alertContextId]?.state || '').trim();
             if (alertLaneActive && alertContext && alertContext !== 'None' && alertContext !== 'unknown' && alertContext !== 'unavailable') {
-              out.push(chip(alertContext, '#ef4444', true));
+              const alertChipText = alertContext.startsWith('Humidity Danger · ')
+                ? (alertContext.replace(/\s*·\s*[^·]*\s>=\s.*$/, '').trim() || alertContext)
+                : alertContext;
+              out.push(chip(alertChipText, '#ef4444', true));
             }
             if (timeGateActive) out.push(chip('Time Gate', '#f59e0b'));
             if (presenceGateActive) out.push(chip('Presence Gate', '#f59e0b'));
+            const humidifierOut = [];
             const dHumChip = humidifierChip('Downstairs', dHum);
             const uHumChip = humidifierChip('Upstairs', uHum);
-            if (dHumChip) out.push(dHumChip);
-            if (uHumChip) out.push(uHumChip);
+            if (dHumChip) humidifierOut.push(dHumChip);
+            if (uHumChip) humidifierOut.push(uHumChip);
             if (fanIso) out.push(chip('FAN OUTPUTS ISOLATED', '#f59e0b', true));
-            if (humIso) out.push(chip('HUMIDIFIER OUTPUTS ISOLATED', '#f59e0b', true));
+            if (humIso) humidifierOut.push(chip('HUMIDIFIER OUTPUTS ISOLATED', '#f59e0b', true));
 
-            return `<div class="cv-scroll" data-scroll-reset-delay-ms="${CHIPSET_SCROLL_RESET_DELAY_MS}">${out.join('')}</div>`;
+            const scrollRow = (chips, label) =>
+              `<div class="cv-scroll" role="group" aria-label="${label}" data-scroll-reset-delay-ms="${CHIPSET_SCROLL_RESET_DELAY_MS}">${chips.join('')}</div>`;
+            const splitHumidifierRow = (zone1 || zone2) && humidifierOut.length > 0;
+            if (splitHumidifierRow) {
+              return `<div class="cv-chip-stack">${scrollRow(out, 'Ventilation status')}${scrollRow(humidifierOut, 'Humidifier status')}</div>`;
+            }
+            out.push(...humidifierOut);
+            return scrollRow(out, 'Current Air Control status');
           ]]]
         reason: |
           [[[
@@ -1136,6 +1147,12 @@ card:
       card_mod:
         style: >
           ha-card{ position:relative; }
+
+          .cv-chip-stack{
+            display:flex;
+            flex-direction:column;
+            gap:6px;
+          }
 
           .cv-scroll{
             display:flex;

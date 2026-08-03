@@ -8,6 +8,20 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+- Advanced the implementation identity to `2.0.10-beta.5` and tightened the V2
+  Current Air Control chip strip for mobile readability. Humidity
+  Danger chips now stop after the resolved alert type, room, and zone; measurements
+  and thresholds remain intact in backend alert telemetry and the humanised reason
+  explanation. Other alert contexts are not shortened.
+  Humidifier chips now read `Downstairs Humidifier` or `Upstairs Humidifier`, and the
+  Home Assistant-observed `output_on` state is presented as `On`. When Zone 1 or Zone
+  2 and a humidifier lane are active together, humidifier telemetry moves to a second
+  row so the independent control families remain visually distinct. V2
+  Mobile, V2 Tablet, and canonical gallery cards stay aligned. Existing pasted Manual
+  cards must be refreshed/exported and re-copied to receive this presentation-only
+  change. There is no Python runtime, entity/config migration, lane-order, or
+  output-behaviour change; a future versioned HACS package should still follow the
+  normal full-restart installation path.
 - Advanced the implementation identity to `2.0.10-beta.4` and completed the
   backend-owned alert-lane wording catalogue. Zone and air-quality headlines now
   explicitly say `response lane selected`; alert headlines use `High humidity alert
@@ -104,7 +118,7 @@ This project follows a practical changelog format for Home Assistant and HACS us
   dispatch intent, and Home Assistant-observed state; they cannot prove physical
   moisture production.
 - Updated generated V2 Mobile and Tablet chips/reason text plus the canonical gallery
-  YAML examples to distinguish Requested, Output on, Idle, Isolated, Retrying,
+  YAML examples to distinguish Requested, On, Idle, Isolated, Retrying,
   Stopping, Unknown, Degraded, and Fault states. V1 Mobile is unchanged. Existing
   pasted Manual cards must be re-exported and re-copied to receive the new display
   contract.
