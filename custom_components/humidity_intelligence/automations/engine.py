@@ -40,11 +40,13 @@ from ..services import async_flash_lights_for_alert
 from ..helpers.level_labels import resolve_level_labels
 from ..helpers.parsing import hass_temperature_unit, parse_numeric, parse_temperature
 from ..helpers.reason_presentation import (
+    DISPLAY_REASON_MAX_BYTES,
     DISPLAY_REASON_MAX_LINE_TEXT,
     DISPLAY_REASON_MAX_LINES,
     DISPLAY_REASON_TARGET_LINES,
     ReasonFacts,
     ReasonLine,
+    ReasonPresentationError,
     build_display_reason,
     sanitize_display_label,
 )
@@ -96,6 +98,7 @@ _LOGGER = logging.getLogger(__name__)
 _MAX_STATE_LENGTH = 255
 _TRUNCATION_SUFFIX = " [full in attribute]"
 _HUMIDIFIER_OUTPUT_DOMAINS = {"humidifier", "fan", "switch"}
+_DISPLAY_OUTPUT_SUMMARY_MAX_BYTES = 192
 
 
 @dataclass(frozen=True)
@@ -2789,7 +2792,10 @@ class HIAutomationEngine:
                     "safety",
                     "co.output_isolated",
                     "blocked",
-                    "Fan-output isolation is active; emergency ventilation service calls are suppressed.",
+                    (
+                        "Fan-output isolation is active, so HI is not sending emergency "
+                        "ventilation commands to Home Assistant."
+                    ),
                 )
             )
         elif not outputs:
@@ -2953,7 +2959,10 @@ class HIAutomationEngine:
                     "ventilation",
                     "zone.output_isolated",
                     "blocked",
-                    "Fan-output isolation is active; zone ventilation service calls are suppressed.",
+                    (
+                        "Fan-output isolation is active, so HI is not sending zone "
+                        "ventilation commands to Home Assistant."
+                    ),
                 )
             )
         else:
@@ -2971,7 +2980,14 @@ class HIAutomationEngine:
 
     def _aq_display_lines(self, details: List[Dict[str, Any]]) -> List[ReasonLine]:
         lines: List[ReasonLine] = []
-        for detail in details[:2]:
+        ordered_details = sorted(
+            details,
+            key=lambda detail: {
+                "level1": 0,
+                "level2": 1,
+            }.get(str(detail.get("level") or ""), 2),
+        )
+        for detail in ordered_details[:2]:
             level_label = self._presentation_level_label(detail.get("level"))
             facts = [
                 fact
@@ -2986,7 +3002,7 @@ class HIAutomationEngine:
                         line.scope,
                         line.code,
                         line.truth,
-                        f"{level_label}: {line.text}",
+                        f"{level_label} {line.text}",
                         line.args,
                     )
                 )
@@ -2997,7 +3013,10 @@ class HIAutomationEngine:
                         "ventilation",
                         "air_quality.run_window_active",
                         "selected",
-                        f"{level_label} AQ run window remains active after the latest trigger.",
+                        (
+                            f"{level_label} air-quality response remains selected while "
+                            "its run window is active."
+                        ),
                     )
                 )
             outputs = list(detail.get("outputs") or [])
@@ -3008,13 +3027,30 @@ class HIAutomationEngine:
             )
             if self._fan_outputs_isolated():
                 action_text = (
-                    f"{level_label}: fan-output isolation suppresses air-quality "
-                    "service calls."
+                    f"For {level_label}, fan-output isolation is preventing HI from "
+                    "changing the air-quality ventilation outputs."
                 )
                 truth = "blocked"
                 code = "air_quality.output_isolated"
             else:
-                action_text = f"{level_label} output selection: {output_level} for {output_summary}."
+                action_text = (
+                    f"For {level_label}, HI selected {output_level} for {output_summary}."
+                )
+                if len(action_text) > DISPLAY_REASON_MAX_LINE_TEXT:
+                    if len(outputs) > 1:
+                        output_summary = (
+                            f"{len(outputs)} configured air-quality ventilation outputs"
+                        )
+                    elif outputs:
+                        output_summary = (
+                            "the configured air-quality ventilation output"
+                        )
+                    else:
+                        output_summary = "configured air-quality ventilation output"
+                    action_text = (
+                        f"For {level_label}, HI selected {output_level} for "
+                        f"{output_summary}."
+                    )
                 truth = "selected"
                 code = "air_quality.output_level_selected"
             lines.append(
@@ -3133,7 +3169,10 @@ class HIAutomationEngine:
                 generic="configured alert ventilation output",
             )
             if self._fan_outputs_isolated():
-                text = "Fan-output isolation is active; alert ventilation service calls are suppressed."
+                text = (
+                    "Fan-output isolation is active, so HI is not sending alert "
+                    "ventilation commands to Home Assistant."
+                )
                 truth = "blocked"
                 code = "alert.output_isolated"
             else:
@@ -3228,27 +3267,27 @@ class HIAutomationEngine:
         elif fact.code == "pm25_high":
             text = (
                 f"PM2.5 is {fact.measured:g} µg/m³, at or above the "
-                f"{fact.threshold:g} µg/m³ threshold."
+                f"response point of {fact.threshold:g} µg/m³."
             )
         elif fact.code == "co2_high":
             text = (
                 f"CO2 is {fact.measured:g} ppm, at or above the "
-                f"{fact.threshold:g} ppm threshold."
+                f"response point of {fact.threshold:g} ppm."
             )
         elif fact.code == "co_warning":
             text = (
                 f"CO is {fact.measured:g} ppm, at or above the "
-                f"{fact.threshold:g} ppm warning threshold."
+                f"warning point of {fact.threshold:g} ppm."
             )
         elif fact.code == "iaq_bad":
             text = (
                 f"IAQ is {fact.measured:g}, at or below the "
-                f"{fact.threshold:g} threshold."
+                f"response point of {fact.threshold:g}."
             )
         else:
             text = (
                 f"VOC is {fact.measured:g}, at or above the "
-                f"{fact.threshold:g} threshold."
+                f"response point of {fact.threshold:g}."
             )
         return ReasonLine(
             "why",
@@ -3267,7 +3306,7 @@ class HIAutomationEngine:
         self,
         active_details: List[Dict[str, Any]],
     ) -> List[ReasonLine]:
-        """Return self-contained backend-authored humidifier response lines."""
+        """Return self-contained, plain-language humidifier response lines."""
 
         runtime_data = self.hass.data.get(DOMAIN, {}).get(self.entry.entry_id, {})
         status = runtime_data.get("humidifier_status")
@@ -3282,6 +3321,7 @@ class HIAutomationEngine:
             if isinstance(detail, dict) and detail.get("level")
         }
         lines: List[ReasonLine] = []
+        active_demand_seen = False
         for level in ("level1", "level2"):
             lane = lanes.get(level)
             if not isinstance(lane, dict):
@@ -3315,7 +3355,7 @@ class HIAutomationEngine:
             if not relevant:
                 continue
             label = self._presentation_level_label(level)
-            line_prefix = f"Humidifier response — {label}: "
+            first_response = not lines
             detail = active_by_level.get(level, {})
             humidity = _to_float(detail.get("humidity"))
             start = _to_float(detail.get("low"))
@@ -3324,37 +3364,46 @@ class HIAutomationEngine:
             environment_text: Optional[str]
             if demand == "requested" and humidity is not None and start is not None and stop is not None:
                 season = sanitize_display_label(detail.get("season"), maximum=32)
-                profile_prefix = f"{season} profile: " if season else ""
+                profile = season or "Current profile"
+                lead = "Separately, " if first_response else ""
                 if environment == "recovering":
                     environment_text = (
-                        f"{profile_prefix}demand remains active at {humidity:.1f}%; "
-                        f"start {start:.1f}%, stop {stop:.1f}%."
+                        f"{lead}{label} still needs humidification: {humidity:.1f}%; "
+                        f"{profile} demand starts at {start:.1f}% and remains active "
+                        f"until {stop:.1f}%."
                     )
                 else:
+                    connector = "needs" if not active_demand_seen else "also needs"
                     environment_text = (
-                        f"{profile_prefix}demand is active at {humidity:.1f}%; "
-                        f"start {start:.1f}%, stop {stop:.1f}%."
+                        f"{lead}{label} {connector} humidification: {humidity:.1f}%; "
+                        f"{profile} demand starts at {start:.1f}% and clears at "
+                        f"{stop:.1f}%."
                     )
             elif demand == "requested":
-                environment_text = "Humidification demand is active."
+                lead = "Separately, " if first_response else ""
+                connector = "needs" if not active_demand_seen else "also needs"
+                environment_text = f"{lead}{label} {connector} humidification."
             else:
-                environment_text = "Humidification demand is inactive."
+                lead = "Separately, " if first_response else ""
+                environment_text = f"{lead}{label} no longer needs humidification."
 
             if reconciliation == "output_on":
                 if platform_action == "humidifying":
                     response_text = (
-                        "Home Assistant reports the output on and humidifying; "
-                        "moisture output is not measured."
+                        "Home Assistant reports its output on and its humidifier action "
+                        "as humidifying; "
+                        "physical moisture output is not measured."
                     )
                 else:
                     response_text = (
-                        "Home Assistant reports the output on; moisture output is not measured."
+                        "Home Assistant reports its output on; physical moisture output "
+                        "is not measured."
                     )
                 truth = "observed"
             elif reconciliation == "platform_idle":
                 response_text = (
-                    "Home Assistant reports the output on but its humidifier action is idle; "
-                    "moisture output is not measured."
+                    "Home Assistant reports its output on, but its humidifier action is idle; "
+                    "physical moisture output is not measured."
                 )
                 truth = "observed"
             elif reconciliation == "requested":
@@ -3365,12 +3414,16 @@ class HIAutomationEngine:
                     )
                     truth = "requested"
                 else:
-                    response_text = "Output-on confirmation is pending; dispatch is not confirmed."
+                    response_text = (
+                        "HI is waiting for output-on confirmation, but cannot confirm "
+                        "that Home Assistant received a request."
+                    )
                     truth = "not_confirmed"
             elif reconciliation == "retrying":
                 if on_dispatch == "failed":
                     response_text = (
-                        "A Home Assistant output-on service call failed; a bounded retry is active."
+                        "A Home Assistant output-on request failed, so HI is "
+                        "retrying within its configured limit."
                     )
                     truth = "failed"
                 elif on_dispatch == "requested":
@@ -3380,15 +3433,16 @@ class HIAutomationEngine:
                     truth = "requested"
                 else:
                     response_text = (
-                        "Output-on mismatch remains; a bounded retry is active, but dispatch "
-                        "is not confirmed."
+                        "The output still does not match the expected on state. HI is "
+                        "retrying within its configured limit, but cannot confirm that "
+                        "Home Assistant received a request."
                     )
                     truth = "not_confirmed"
             elif reconciliation == "stopping":
                 if off_dispatch == "failed":
                     response_text = (
-                        "A Home Assistant output-off service call failed; HI is still checking "
-                        "within its attempt limit."
+                        "A Home Assistant output-off request failed, so HI is "
+                        "still checking for the output to turn off within its configured limit."
                     )
                     truth = "failed"
                 elif off_dispatch == "requested":
@@ -3397,15 +3451,22 @@ class HIAutomationEngine:
                     )
                     truth = "requested"
                 else:
-                    response_text = "Output-off confirmation is pending; dispatch is not confirmed."
+                    response_text = (
+                        "HI is waiting for output-off confirmation, but cannot confirm "
+                        "that Home Assistant received a request."
+                    )
                     truth = "not_confirmed"
             elif reconciliation == "isolated":
                 response_text = (
-                    "Humidifier-output isolation prevents Home Assistant service calls."
+                    "Humidifier-output isolation is active, so HI is not sending "
+                    "humidifier commands to Home Assistant."
                 )
                 truth = "blocked"
             elif reconciliation == "unknown":
-                response_text = "Output state is unavailable; activity is not confirmed."
+                response_text = (
+                    "Home Assistant is not reporting the output state, so HI cannot "
+                    "confirm whether it is on."
+                )
                 truth = "unavailable"
             elif reconciliation == "degraded":
                 if failure_category == "telemetry_unavailable":
@@ -3454,13 +3515,13 @@ class HIAutomationEngine:
                     truth = "not_confirmed"
             elif reconciliation == "fault_latched":
                 response_text = (
-                    "HI exhausted its bounded confirmation attempts; output activity is not "
-                    "confirmed."
+                    "HI has used all configured confirmation attempts and still cannot "
+                    "confirm the output state."
                 )
                 truth = "failed"
             elif reconciliation == "inactive_shared_output":
                 response_text = (
-                    "Demand is inactive here, but another humidifier area still needs the "
+                    "Demand is inactive here, but another area still needs the "
                     "shared output."
                 )
                 environment_text = None
@@ -3480,7 +3541,7 @@ class HIAutomationEngine:
             }
             lines.extend(
                 self._bounded_humidifier_response_lines(
-                    line_prefix=line_prefix,
+                    label=label,
                     environment_text=environment_text,
                     response_text=response_text,
                     reconciliation=reconciliation,
@@ -3488,23 +3549,24 @@ class HIAutomationEngine:
                     args=args,
                 )
             )
+            active_demand_seen = active_demand_seen or demand == "requested"
         return lines
 
     @staticmethod
     def _bounded_humidifier_response_lines(
         *,
-        line_prefix: str,
+        label: str,
         environment_text: Optional[str],
         response_text: str,
         reconciliation: str,
         truth: str,
         args: Dict[str, Any],
     ) -> List[ReasonLine]:
-        """Combine or split one lane response while preserving the line limit."""
+        """Combine or split one lane response without losing its friendly scope."""
 
         code = f"humidifier.{reconciliation}"
         if environment_text and response_text:
-            combined = f"{line_prefix}{environment_text} {response_text}"
+            combined = f"{environment_text} {response_text}"
             if len(combined) <= DISPLAY_REASON_MAX_LINE_TEXT:
                 return [
                     ReasonLine(
@@ -3522,7 +3584,7 @@ class HIAutomationEngine:
                     "humidifier",
                     "humidifier.environment",
                     "selected",
-                    f"{line_prefix}{environment_text}",
+                    environment_text,
                     args,
                 ),
                 ReasonLine(
@@ -3530,21 +3592,39 @@ class HIAutomationEngine:
                     "humidifier",
                     code,
                     truth,
-                    f"{line_prefix}{response_text}",
+                    HIAutomationEngine._scoped_humidifier_response(label, response_text),
                     args,
                 ),
             ]
         text = environment_text or response_text
+        if not environment_text:
+            text = HIAutomationEngine._scoped_humidifier_response(label, text)
         return [
             ReasonLine(
                 "notice",
                 "humidifier",
                 code,
                 truth,
-                f"{line_prefix}{text}",
+                text,
                 args,
             )
         ]
+
+    @staticmethod
+    def _scoped_humidifier_response(label: str, text: str) -> str:
+        """Prefix a split response with its resolved level without ledger phrasing."""
+
+        response = (
+            text
+            if text.startswith(("HI ", "Home Assistant "))
+            else f"{text[:1].lower()}{text[1:]}"
+        )
+        suffix = f", {response}"
+        available = DISPLAY_REASON_MAX_LINE_TEXT - len("For ") - len(suffix)
+        bounded_label = label
+        if len(bounded_label) > available:
+            bounded_label = f"{bounded_label[:max(1, available - 1)].rstrip()}…"
+        return f"For {bounded_label}{suffix}"
 
     def _humidifier_lane_dispatch_evidence(self, level: str, intent: str) -> str:
         runtime_data = self.hass.data.get(DOMAIN, {}).get(self.entry.entry_id, {})
@@ -3614,7 +3694,10 @@ class HIAutomationEngine:
                     "ventilation",
                     "isolation.fan_outputs",
                     "blocked",
-                    "Fan-output isolation is active; fan service calls are suppressed.",
+                    (
+                        "Fan-output isolation is active, so HI is not sending fan "
+                        "commands to Home Assistant."
+                    ),
                 )
             )
         if self._humidifier_outputs_isolated():
@@ -3632,7 +3715,10 @@ class HIAutomationEngine:
                         "humidifier",
                         "isolation.humidifier_outputs",
                         "blocked",
-                        "Humidifier-output isolation is active; humidifier service calls are suppressed.",
+                        (
+                            "Humidifier-output isolation is active, so HI is not sending "
+                            "humidifier commands to Home Assistant."
+                        ),
                     )
                 )
         return lines
@@ -3663,7 +3749,9 @@ class HIAutomationEngine:
             if label and label.lower() != entity_id.lower():
                 labels.append(label)
         if labels and len(labels) == len(entities) and len(labels) <= 2:
-            return " and ".join(labels)
+            summary = " and ".join(labels)
+            if len(summary.encode("utf-8")) <= _DISPLAY_OUTPUT_SUMMARY_MAX_BYTES:
+                return summary
         if len(entities) > 1:
             return f"{len(entities)} {generic}s"
         if len(entities) == 1:
@@ -3695,7 +3783,7 @@ class HIAutomationEngine:
             bounded_lines = [
                 line for index, line in enumerate(lines) if index in retained_indexes
             ]
-        return ReasonFacts(
+        facts = ReasonFacts(
             family=family,
             variant=variant,
             attention=attention,
@@ -3703,6 +3791,34 @@ class HIAutomationEngine:
             lines=tuple(bounded_lines),
             truncated=truncated,
         )
+        while True:
+            try:
+                build_display_reason(facts)
+                return facts
+            except ReasonPresentationError as err:
+                if str(err) != "display reason exceeds the 4 KiB limit":
+                    raise
+                if len(facts.lines) <= 1:
+                    raise
+                remove_index = max(
+                    range(len(facts.lines)),
+                    key=lambda index: (
+                        self._reason_line_retention_priority(facts.lines[index]),
+                        index,
+                    ),
+                )
+                facts = ReasonFacts(
+                    family=family,
+                    variant=variant,
+                    attention=attention,
+                    headline=headline,
+                    lines=tuple(
+                        line
+                        for index, line in enumerate(facts.lines)
+                        if index != remove_index
+                    ),
+                    truncated=True,
+                )
 
     @staticmethod
     def _reason_line_retention_priority(line: ReasonLine) -> int:

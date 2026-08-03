@@ -76,7 +76,7 @@ Use the V2 chip/reason state and native diagnostics together:
   intentionally suppressed
 - `Unknown` or `Degraded`: state/service/domain/ownership evidence is not safe enough
   for a normal reconciliation claim
-- `Fault`: HI exhausted its bounded confirmation attempts; inspect the device,
+- `Fault`: HI has used all configured confirmation attempts; inspect the device,
   water/safety state, vendor integration, and Home Assistant entity before recovery
 
 HI does not bypass a device-local target, idle mode, empty-water protection, safety

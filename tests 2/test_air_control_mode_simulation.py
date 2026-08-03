@@ -158,7 +158,10 @@ def test_aq_pressure_is_independent_when_zone_lanes_are_idle():
     assert display["family"] == "air_quality"
     text = " ".join(line["text"] for line in display["lines"])
     assert "IAQ is 70" in text
-    assert "fan-output isolation suppresses" in text
+    assert (
+        "fan-output isolation is preventing HI from changing the air-quality "
+        "ventilation outputs"
+    ) in text
     assert "Trigger detail" not in text
     assert "<=" not in text
 

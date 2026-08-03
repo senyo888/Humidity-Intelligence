@@ -57,7 +57,7 @@ It gives you:
 - native Home Assistant diagnostics for support and triage
 - services for dashboard export, self-check, diagnostics, pause/resume, and release validation
 
-Current manifest version: **v2.0.10-beta.5**.
+Current manifest version: **v2.0.10-beta.6**.
 
 For publication status, installed packages, and release tags, use
 [GitHub Releases](https://github.com/senyo888/Humidity-Intelligence/releases) and
@@ -471,7 +471,7 @@ must be reviewable from tracked repository files.
 - `v205_release_check` preserves its service name; the unreleased implementation
   extends its generated-card, humidifier-reconciliation, and release-validation
   contract through the v2.0.10 beta/rc/stable line and carries explicit
-  `2.0.10-beta.5` manifest metadata for renewed HA Lab beta validation
+  `2.0.10-beta.6` manifest metadata for renewed HA Lab beta validation
 - Home Assistant Area/Label setup assistance can suggest defaults from registry
   metadata, but saved HI telemetry, zone, AQ, humidifier, and alert mappings remain
   the only runtime truth
@@ -497,10 +497,11 @@ unchanged. Create or open a dashboard through Home Assistant, then add a Manual 
 or replace the complete YAML of an existing HI Manual card. Running `refresh_ui`
 alone updates only the in-memory cache. Users retaining V1 Mobile must
 also re-export and re-copy that card to receive the v2.0.9 HTML-escaping fix.
-Beta.3's self-contained `Humidifier response — {resolved label}:` wording is authored
-entirely by the backend, so an already-pasted V2 card that consumes `display_reason`
-does not need replacement and no frontend cache refresh is required for this copy
-amendment. Beta.4 also makes every selected response lane explicit and uses
+Humidifier explanations are authored entirely by the backend and remain
+self-contained through their resolved level label, including when a long explanation
+splits. An already-pasted V2 card that consumes `display_reason` therefore does not
+need replacement or a frontend cache refresh for backend copy amendments. Beta.4 also
+makes every selected response lane explicit and uses
 family-level alert headlines with Risk or Danger stated in the first explanation
 sentence; mould ordinal values are translated to named ranges in visible prose. A
 full Home Assistant restart is required to load the updated Python package.

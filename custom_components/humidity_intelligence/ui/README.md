@@ -226,6 +226,10 @@ If mismatch occurs:
 - V2 Mobile and Tablet use one strict mechanical `hi.reason.v1` consumer. They do not
   infer reason prose from mode, alerts, risks, timers, helpers, isolation, or
   humidifier attributes, and they do not add `Stage:` or `Engine:` text.
+- Backend AQ explanations keep the observed condition and selected/blocked action as
+  adjacent but distinct contract lines. Concurrent humidifier explanations follow as
+  explicitly separate, self-contained household sentences; cards must not merge,
+  relabel, summarize, or add bridge copy between those backend lines.
 - The reason headline and every ordered line are escaped independently at the HTML
   sink. Invalid or future contracts fall back atomically; card code never renders a
   valid-looking subset of malformed data or reconstructs from `code`, `args`,

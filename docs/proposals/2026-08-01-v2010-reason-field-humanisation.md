@@ -9,10 +9,10 @@ title: Humidity Intelligence Reason Field Humanisation
 created: 2026-08-01
 category: runtime-ui-contract
 target_version: v2.0.10
-implementation_version: 2.0.10-beta.5
-current_candidate_version: 2.0.10-beta.5
-current_candidate_manifest_status: exact_local_identity_authorized
-authority_status: implementation_and_ha_lab_validation_authorized
+implementation_version: 2.0.10-beta.6
+current_candidate_version: 2.0.10-beta.6
+current_candidate_manifest_status: exact_beta6_manifest_in_local_commit
+authority_status: beta6_identity_and_local_commit_authorized_external_actions_blocked
 state: REVIEW
 owner: Jules
 risk_level: medium
@@ -90,7 +90,7 @@ beta4_ha_lab_status: exact_deployment_stage_b3_t0_pass_playback_pending
 beta4_soak_status: historical_proposal_checkpoint_1_of_9_current_state_not_assessed
 beta4_exact_head_validation: passed
 beta5_amendment: current-air-control-status-chip-clarity
-beta5_implementation_status: exact_local_candidate_validated_pending_commit
+beta5_implementation_status: committed_and_pushed_exact_841a9c27_ci_passed
 beta5_implemented_diff_review: approved_all_four_roles_exact_identity
 beta5_aetherbite_review: approve_status_chip_candidate_for_local_closeout
 beta5_bella_review: approve_local_working_tree
@@ -100,9 +100,9 @@ beta5_identity_aetherbite_review: approve_mechanical_identity_and_copy_for_local
 beta5_identity_bella_review: approve_exact_local_commit_readiness
 beta5_identity_aetherwing_review: approve_exact_local_commit_after_proposal_link_fix
 beta5_identity_aethercore_review: approve_exact_local_commit_after_scope_bookkeeping
-beta5_ha_lab_status: pending_exact_remote_ref_and_controller_deploy
-beta5_soak_status: not_started
-beta5_mobile_tablet_playback: authorized_pending_exact_deployment
+beta5_ha_lab_status: no_governed_beta5_soak_evidence_recorded
+beta5_soak_status: not_accepted
+beta5_mobile_tablet_playback: visual_feedback_received_not_release_acceptance
 beta5_review_base_head: fad159e3b2f91e5407e06d2407a51bcaf3c5e410
 beta5_manifest_identity: 2.0.10-beta.5
 beta5_candidate_identity: 2.0.10-beta.5
@@ -113,7 +113,7 @@ beta5_card_presentation_changed: true
 beta5_generated_templates_changed: true
 beta5_manual_card_replacement_required: true
 beta5_config_migration_required: false
-beta5_external_actions_authorized: ha_lab_deploy_restart_manual_card_playback_and_soak_only
+beta5_external_actions_authorized: historical_ha_lab_deploy_restart_manual_card_playback_and_soak_only
 beta5_gallery_preview_status: unchanged_not_beta5_visual_evidence
 beta5_review_scope_file_count: 15
 beta5_non_proposal_patch_sha256: 14715e505501bd4d17322191323ed0dee226107649d380f5b708de8cf056cb83
@@ -121,9 +121,18 @@ phase3_review_candidate_tracked_patch_sha256: ced86d8d377ad64a2e4f427d5341d55591
 phase3_review_candidate_untracked_tar_sha256: 45f1dcc62bec051b9a61e1a001d3bb019cb56febb1ab2c7f743897cea2bd3039
 phase3_post_candidate_edits: validation-status-record-plus-ignored-service-field-copy
 registered_dashboard_validation: deferred_unsupported_path_removed
-ha_lab_validated: beta4_stage_b3_t0_pass_beta5_pending_exact_remote_ref
-release_candidate_validated: beta5_local_pass_external_ci_and_live_evidence_pending
-implemented_in: pending_exact_local_git_commit_from_this_reviewed_tree
+post_beta5_copy_candidate: backend_reason_language_harmonisation_and_utf8_contract_hardening
+post_beta5_copy_scope: aq_humidifier_isolation_canonical_aq_order_and_byte_compaction
+post_beta5_copy_implementation_status: committed_local_beta6_candidate
+post_beta5_copy_version_recommendation: 2.0.10-beta.6
+post_beta5_copy_schema_changed: false
+post_beta5_copy_runtime_control_changed: false
+post_beta5_copy_manual_card_replacement_required: false
+post_beta5_copy_restart_required_after_package_install: true
+post_beta5_copy_external_actions_authorized: false
+ha_lab_validated: beta4_stage_b3_t0_pass_beta5_not_accepted_beta6_not_started
+release_candidate_validated: beta6_local_tree_offline_validated_live_evidence_pending
+implemented_in: beta5_841a9c27_plus_beta6_local_commit
 cumulative_entity_contract_changed: true
 cumulative_entity_contract_change: additive-versioned-attribute
 service_contract_changed: true
@@ -134,8 +143,8 @@ stored_data_changed: false
 legacy_create_dashboard_token: ignored_export_only
 dashboard_delete_ownership: removed
 lane_order_risk: low
-ui_truth_risk: low_after_static_beta5_renderer_validation_live_mobile_tablet_playback_pending
-stable_runtime_risk: low_unreleased_beta5_exact_head_and_live_playback_pending
+ui_truth_risk: low_after_static_post_beta5_contract_validation_live_mobile_tablet_playback_pending
+stable_runtime_risk: low_unreleased_beta6_candidate_exact_identity_and_live_playback_pending
 breaking_reason_state_replacement: deferred_requires_separate_v2_1_proposal
 ```
 
@@ -168,18 +177,65 @@ backend-owned alert-language catalogue and has exact-head CI, package deployment
 full restart, Stage B, Stage 3, and T+0 evidence; the last proposal-local soak record
 is 1/9 and must not be presented as current without a fresh operational check.
 
-The current working tree adds a beta.5-candidate V2 status-chip refinement. Humidity
-Danger chips omit only their trailing measurement/threshold segment, humidifier chips
-use self-identifying labels and concise Home Assistant-observed `On` wording, and an
-active Zone 1/2 lane plus humidifier telemetry renders as two independently scrollable
-status groups. This changes no backend reason, alert telemetry, entity semantics,
-lane order, service dispatch, configuration, or stored data. The maintainer has now
-authorized the exact `2.0.10-beta.5` manifest identity, local commit, HA Lab package
-deployment/restart, lab-only Manual-card replacement, Mobile/Tablet playback, and a
-fresh soak. Beta.4 deployment, playback, and soak evidence do not validate beta.5.
-Push remains unauthorized, and the governed controller cannot deploy beta.5 until the
-exact local commit is available through its allowlisted remote Patch 1 profile. PR
-activity, promotion, tag, release, Stable access, and output writes remain blocked.
+Beta.5 is now the committed and pushed exact Patch 1 identity `841a9c27`. HACS,
+Hassfest, and version-governance workflows passed for that commit. Its status-chip
+refinement did not change backend reason composition; the engine, presenter, and
+sensor publication remained byte-identical to beta.4. Subsequent Manual-card review
+exposed an inherited AQ-plus-humidifier wording weakness: truthful facts were still
+rendered as adjacent engineering records rather than one coherent explanation.
+
+The beta.6 local commit therefore contains a post-beta.5, backend-only wording
+candidate. It preserves every `hi.reason.v1` field and runtime decision while
+humanising the ordered text. Because beta.5 is already an immutable remote identity,
+Jules approved `2.0.10-beta.6` as the fresh local identity; beta.5 CI, deployment,
+playback, and soak evidence cannot transfer. That approval covers the version bump
+and local commit only. Push, Home Assistant mutation, soak start, PR activity,
+promotion, tag, release, Stable access, and output writes remain blocked.
+
+## Post-beta.5 AQ And Humidifier Language Review
+
+The review keeps the beta.4 strength that each AQ cause and decision appear together,
+but removes the mechanical punctuation and noun fragments. The exact representative
+six-line result is:
+
+1. `Downstairs IAQ is 34, at or below the response point of 60.`
+2. `For Downstairs, HI selected 66% for Kitchen air and Living room Air.`
+3. `Upstairs IAQ is 17, at or below the response point of 60.`
+4. `For Upstairs, HI selected 66% for Upstairs air and Living room Air.`
+5. `Separately, Downstairs still needs humidification: 53.2%; Summer demand starts at 51.0% and remains active until 54.0%. Home Assistant reports its output on; physical moisture output is not measured.`
+6. `Upstairs still needs humidification: 52.2%; Summer demand starts at 51.0% and remains active until 54.0%. Home Assistant reports its output on; physical moisture output is not measured.`
+
+Each AQ observation remains `why/observed`; each ventilation choice remains
+`action/selected` or `action/blocked`. They are adjacent but not merged into one
+mixed-truth contract line. The first humidifier line uses `Separately` to make the
+independent control family explicit. Every split humidifier line remains independently
+scoped by its friendly level. The retained pair preserves environmental demand, known
+start/clear points, and reconciliation evidence; any observed-on statement keeps its
+physical-moisture limitation on that same response line. A long line splits
+deterministically, and the split response begins `For {resolved label}, ...` so its
+scope cannot be orphaned by bounded retention.
+
+AQ presentation now sorts the two configured levels into the canonical Downstairs,
+then Upstairs order before composing their adjacent observation/action pairs. Friendly
+output names remain preferred, but a multibyte-heavy joined summary falls back to the
+existing generic output count. If a valid eight-line contract would still exceed 4 KiB
+in UTF-8, the existing stable material-truth retention priorities remove the lowest
+priority presentation line until the contract validates, preserve original order, and
+set `truncated: true`. This compaction affects presentation only; it never changes the
+technical reason, selected lane, dispatch, reconciliation, or stored runtime facts.
+
+Aetherbite preferred one natural household narrative and led the removal of
+`output selection`, `Humidifier response —`, fragmentary `start/stop`, and generic
+`bounded` terminology. Bella challenged a proposed merged AQ sentence because one
+`ReasonLine` cannot honestly represent both observed and selected truth, and rejected
+one detached shared physical-output caveat because retention could separate it from
+one of two observed outputs. Those challenges are accepted. Aetherwing agreed the
+change must remain backend-only and flagged line-length, ordering, and fresh-identity
+risks; its alternative shared-caveat suggestion is not adopted for the same
+per-output retention reason. AetherCore found the scope bounded and maintainable only
+as a fresh beta.6 presentation candidate. The remaining disagreement is therefore
+recorded, not hidden: one shared caveat would be shorter, but repeated per-output
+caveats are retained because they are the stronger truth boundary under `hi.reason.v1`.
 
 ## Beta.3 Approved Amendment
 
@@ -306,9 +362,10 @@ modify the reason presenter, entity state or attributes, alert resolution, thres
 lane selection, output selection, dispatch/reconciliation, timers, configuration, or
 stored data.
 
-The next release identity is `2.0.10-beta.5` because beta.4 already has exact
-deployment evidence and must not be overwritten. The manifest has been advanced under
-explicit maintainer authority. Existing pasted Manual cards remain static and require
+The status-chip amendment uses `2.0.10-beta.5` because beta.4 already has exact
+deployment evidence and must not be overwritten. The manifest was advanced, committed,
+and pushed under explicit maintainer authority. Existing pasted Manual cards remain
+static and require
 `refresh_ui`, then `dump_cards` or `view_cards`,
 followed by complete YAML replacement in the existing HI Manual card. Public package
 installation or rollback follows the normal full Home Assistant restart boundary;
@@ -453,8 +510,8 @@ or predictive exit wording without evidence supporting that exact meaning.
 | Presence unavailable | Often collapses into away wording | **Presence status unavailable.** “All configured presence sources are unknown or unavailable.” “Occupancy cannot be confirmed.” |
 | Required telemetry | Technical unavailable list | **Required telemetry unavailable.** “Required humidity telemetry is unavailable.” “HI did not continue with zone, alert, air-quality, or humidifier decisions.” |
 | Zone 1/2 | `Trigger detail: Humidity delta 8.2% >= threshold 6%` | **Bathroom response lane selected.** “Humidity is 8.2 percentage points above the home average; response starts at a difference of 6 percentage points.” The leading text is the configured friendly zone label, not a hard-coded room. |
-| AQ trigger | `Stage: Air-quality assist running` plus operators | **Air quality response lane selected.** “Downstairs: PM2.5 is 48 µg/m³, at or above the 25 µg/m³ threshold.” |
-| AQ run window | Same as an active trigger | **Air quality response lane selected.** “Downstairs AQ run window remains active after the latest trigger.” Do not claim the trigger is still active. |
+| AQ trigger | `Stage: Air-quality assist running` plus operators | **Air quality response lane selected.** “Downstairs PM2.5 is 48 µg/m³, at or above the response point of 25 µg/m³.” “For Downstairs, HI selected 66% for the configured air-quality ventilation output.” Selection is not dispatch or observed fan operation. |
+| AQ run window | Same as an active trigger | **Air quality response lane selected.** “Downstairs air-quality response remains selected while its run window is active.” Keep the adjacent selected-output line; do not claim the triggering measurement is still beyond its response point. |
 | High humidity alert | `Stage: Alert lane active` plus source IDs/details | **High humidity alert lane selected.** “Danger alert: humidity in Bathroom is 68.0%, at or above the high-risk threshold of 66% for the active Summer profile.” “Bathroom is assigned to Zone 2 for this response.” |
 | Mould risk alert | `Mould risk level is 2, at or above the 2 risk threshold` | **Mould alert lane selected.** “Risk alert: mould conditions in Bathroom have reached the Risk range for the Summer profile.” |
 | Mould risk crossed into danger | Numeric ordinal comparison | **Mould alert lane selected.** “Risk alert: mould conditions in Bathroom are in the Danger range for the Summer profile; this response starts at Risk.” |
@@ -463,13 +520,13 @@ or predictive exit wording without evidence supporting that exact meaning.
 | Alert conflict/hold | Internal priority detail | “HI selected this alert using the fixed alert and zone priority order.” or “This alert remains selected until it clears.” |
 | Unmapped/degraded alert | Long degraded notice, sometimes repeated | **Monitoring with limited alert response** (`attention: degraded`). “Another active alert has no usable zone-output mapping, so HI did not select an automatic boost for it.” |
 | CO emergency | “forced to 100%” even when isolation can suppress calls | **Carbon monoxide emergency lane selected.** State the highest reading and threshold; then `selected`, `blocked`, or `unmapped` output truth. State the two-minute below-clear-threshold hold. |
-| Fan isolation | Repeated suffix and card stage | “Fan-output isolation is active; fan service calls are suppressed.” Once only. |
-| Humidifier demand | Demand and device action can blur | “Humidifier response — Upstairs: Winter profile: demand is active at 51.4%; start 54.0%, stop 55.0%.” |
-| Humidifier dispatch | Often described as output activity | “Humidifier response — Upstairs: HI sent the output-on request to Home Assistant; confirmation is pending.” `requested` means proved HA service-layer dispatch only. |
-| Humidifier observed on | Broad active wording plus a detached caveat | “Humidifier response — Upstairs: Home Assistant reports the output on and humidifying; moisture output is not measured.” |
-| Platform idle disagreement | Can be hidden by `idle` suppression | “Humidifier response — Upstairs: Home Assistant reports the output on but its humidifier action is idle; moisture output is not measured.” |
-| Retry/fault/degraded | Technical reconciliation terms | “Humidifier response — Upstairs: A Home Assistant output-on service call failed; a bounded retry is active.” / “Humidifier response — Upstairs: HI exhausted its bounded confirmation attempts; output activity is not confirmed.” / “Humidifier response — Upstairs: HI cannot confirm how the humidifier output responded.” |
-| Stop confirmation | Demand-off can look complete | “Humidifier response — Upstairs: Humidification demand is inactive. HI sent the output-off request to Home Assistant; confirmation is pending.” |
+| Fan isolation | Repeated suffix and card stage | “Fan-output isolation is active, so HI is not sending fan commands to Home Assistant.” Once only. |
+| Humidifier demand | Demand and device action can blur | “Separately, Upstairs needs humidification: 51.4%; Winter demand starts at 54.0% and clears at 55.0%.” A recovering lane says `still needs` and `remains active until`. |
+| Humidifier dispatch | Often described as output activity | Continue the same scoped line: “HI sent the output-on request to Home Assistant; confirmation is pending.” `requested` still means proved HA service-layer dispatch only. |
+| Humidifier observed on | Broad active wording plus a detached caveat | Continue the same scoped line: “Home Assistant reports its output on; physical moisture output is not measured.” |
+| Platform idle disagreement | Can be hidden by `idle` suppression | “Home Assistant reports its output on, but its humidifier action is idle; physical moisture output is not measured.” |
+| Retry/fault/degraded | Technical reconciliation terms | “A Home Assistant output-on request failed, so HI is retrying within its configured limit.” / “HI has used all configured confirmation attempts and still cannot confirm the output state.” / “HI cannot confirm how the humidifier output responded.” |
+| Stop confirmation | Demand-off can look complete | “Upstairs no longer needs humidification. HI sent the output-off request to Home Assistant; confirmation is pending.” |
 
 ## Architecture Options Considered
 
@@ -850,19 +907,18 @@ path -> Home Assistant dashboard UI -> Manual card.
    prose, human mould ranges, source/action/hold/conflict wording, beta identity,
    proposal, changelog, and exact regression fixtures without changing the schema or
    control behavior.
-6. **Beta.5 status-chip refinement — exact local identity validated.** Keep the four V2
+6. **Beta.5 status-chip refinement — exact remote identity validated.** Keep the four V2
    renderers identical, shorten only Humidity Danger measurement suffixes, preserve
    every other alert context, use self-identifying humidifier labels and concise
    observed-state copy, and split zone/humidifier status groups without changing
    backend truth or runtime control.
 7. **Exact-commit supported-HA and HA Lab validation — beta.4 operational deployment gate
-   passed; playback pending.** Exact beta.4 package deployment, full HA Lab restart,
-   Stage B, Stage 3, and a fresh T+0 passed. The proposal records a historical 1/9
-   soak checkpoint; its current operational state was not assessed in this repo-only
-   task. That evidence is beta.4-only. Beta.5 package deployment, full restart,
-   Mobile/Tablet save-load and playback, and a fresh soak are now authorized, but the
-   controller requires the exact commit on its remote Patch 1 profile and push remains
-   unauthorized. Do not reuse beta.1 through beta.4 acceptance.
+   passed; later identities remain separate.** Exact beta.4 package deployment, full
+   HA Lab restart, Stage B, Stage 3, and a fresh T+0 passed. The proposal records a
+   historical 1/9 soak checkpoint; its current operational state must be read from the
+   controller rather than inferred here. Beta.5 was pushed and passed exact-head CI,
+   but the later visual review is not release or soak acceptance. Do not reuse beta.1
+   through beta.5 evidence for the proposed beta.6 wording candidate.
 8. **Promotion review — pending.** Bella, Aetherwing, AetherCore, maintainer README approval,
    exact-head release sanity, live playback, and exact-candidate soak acceptance remain
    mandatory before RC or stable promotion.
@@ -894,8 +950,8 @@ Implementation acceptance requires:
   `/config/dashboards/` writes;
 - compile/import, runtime/card, diagnostics, HACS layout, JSON/YAML, version
   governance, diff, and secret scans; and
-- separately authorized beta.5 Mobile/Tablet playback and soak against the exact
-  commit/version.
+- separately authorized exact-identity Mobile/Tablet playback and soak; the proposed
+  beta.6 wording candidate requires a fresh gate.
 
 Beta.1 through beta.4 evidence remain historical evidence for their exact commits.
 They are not acceptance evidence for the beta.5 status-chip candidate.
@@ -1020,9 +1076,9 @@ test-backed rather than live-playback-backed. Supported-HA/frontend save-load an
 bounded alert scenario playback are not claimed. No stable-instance access, PR
 activity, re-review request, tag, release, or promotion occurred.
 
-## Beta.5 Local Validation Record
+## Beta.5 Exact-Commit Validation Record
 
-The beta.5-candidate working tree passed 387 tracked pytest checks plus 123 subtests,
+The beta.5 candidate passed 387 tracked pytest checks plus 123 subtests,
 excluding only `test_hi_memory_usage_auditor.py` because its intentionally ignored
 local helper is absent from this checkout. The two modified Python regression modules
 passed 142 focused checks. The executable V2 renderer suite passed 13/13, including
@@ -1034,19 +1090,26 @@ rendering, schema bounds, privacy rejection, and atomic fallback.
 Component compilation, branch/version governance for the authorized
 `2.0.10-beta.5` manifest, proposal-link validation, `git diff --check`, and the
 tracked Gitleaks scan passed. The full JavaScript pass was 33/33 across the V2
-renderer and Inspector. This proves the local beta.5 candidate only; GitHub HACS,
-Hassfest, and exact-head CI require the future remote commit and were not claimed.
-No Home Assistant instance or dashboard was accessed or mutated during this local
-gate. Live
+renderer and Inspector. Beta.5 was then committed and pushed as `841a9c27`; HACS,
+Hassfest, and version-governance workflows passed for that exact remote commit. No
+governed beta.5 soak evidence is recorded here. Live
 Mobile/Tablet rendering, touch scrolling, two-row spacing, chip overflow, card
 overlap, frontend cache behavior, and complete Manual-card save/load remain pending
-separate operational authority.
+formal acceptance. The later visual review that exposed the inherited reason-language
+weakness is design evidence, not beta.5 release or soak acceptance.
+
+The beta.6 wording candidate has separate focused regression evidence under its exact
+local identity and still requires fresh remote CI, package, playback, and soak
+evidence before release consideration. None of the beta.5 workflow, package,
+playback, or soak evidence transfers.
 
 ## Home Assistant Lab Playback Expectations
 
-Against the exact beta.5 commit/version created from this reviewed tree, first re-prove the beta.5 package and
+Against the next approved exact commit/version, first re-prove the package and
 perform the normal full Home Assistant restart. Back up and replace the complete card
-on a lab-only dashboard under separate write authority. Then capture sanitized
+only when card bytes have changed; the backend-only beta.6 candidate does not require
+Manual-card replacement. On a lab-only dashboard under separate write authority,
+capture sanitized
 evidence for calm normal, disabled, manual, pause, time gate, confirmed-away presence, unavailable presence,
 telemetry loss/recovery, Zone 1/2, AQ trigger and retained run window, actionable and
 unmapped/degraded alerts, alert conflict/hold, CO trigger and clear hold, fan and
@@ -1075,16 +1138,14 @@ Stable access, output writes, promotion, tag, or release.
 
 ## Release And Version Recommendation
 
-Use `2.0.10-beta.5` for the next exact candidate. Beta.3 established the conventional
-HACS package boundary and beta.4 established the backend-owned alert catalogue plus
-its own deployment evidence. The new four-surface status renderer changes public UI
-bytes and Manual-card copy, so beta.4 playback and soak acceptance cannot transfer.
-Do not overwrite beta.4. The authorized manifest now says beta.5; bind CI, package
-hashes, live playback, and a new soak to the exact beta.5 commit. The governed HA Lab
-controller resolves only the allowlisted remote Patch 1 ref, so local commit authority
-does not imply push authority or permit deployment from the developer checkout.
+Use `2.0.10-beta.6` for the backend wording candidate; Jules approved the exact copy,
+implementation diff, version bump, and local commit. Beta.5 is already the immutable remote identity `841a9c27`
+for the status-chip amendment and must not be amended or overwritten. Bind fresh CI,
+package hashes, full-restart playback, and a new soak to the exact beta.6 commit. The
+governed HA Lab controller resolves only the allowlisted remote Patch 1 ref, so local
+implementation and commit do not imply push, deployment, or soak authority.
 
-Do not move this to v2.1 merely because presentation is substantial: beta.5 keeps the
+Do not move this to v2.1 merely because presentation is substantial: beta.6 keeps the
 existing state contract. Reserve v2.1 for the future breaking replacement, removal,
 or reinterpretation of that state and its migration path. Use v2.0.11 only if the
 2.0.10 line is promoted before this complete change can be validated; that is a
@@ -1276,8 +1337,8 @@ There is no unresolved product or runtime disagreement. The accepted density tra
 that a long action sentence can begin below the tablet's initial 60-pixel fold; it
 remains keyboard/touch scrollable and the UI does not summarize or reconstruct it.
 Phase 3 registered/YAML-mode dashboard mutation is explicitly deferred, not treated as
-successful validation. Beta.4 playback evidence does not transfer; separately
-authorized exact-commit live playback remains required before beta.5 can be considered
+successful validation. Beta.4 and beta.5 evidence does not transfer; separately
+authorized exact-commit live playback remains required before beta.6 can be considered
 for release.
 
 ## Maintainer Decisions
@@ -1292,8 +1353,10 @@ Jules has approved every design decision needed to begin implementation:
   cards, with registered/YAML-mode dashboard lifecycle deferred;
 - degraded fail-closed unavailable-presence presentation;
 - beta.5 placement with v2.1 reserved for a breaking reason-state replacement;
-- a backend-owned, self-contained `Humidifier response — {resolved label}:` prefix
-  instead of a card-authored or standalone second heading;
+- backend-owned, self-contained humidifier lines using resolved labels instead of a
+  card-authored or standalone second heading; beta.3 used the exact `Humidifier
+  response — {resolved label}:` prefix, while the post-beta.5 candidate replaces that
+  ledger phrasing with natural scoped sentences without weakening retention safety;
 - conventional HACS packaging for the active repository-admission requirement;
 - disabling only CodeRabbit's generic docstring-coverage pre-merge check; and
 - family-level alert-lane headlines with Risk/Danger stated in the first visible
@@ -1305,13 +1368,12 @@ Jules has approved every design decision needed to begin implementation:
 
 No additional product decision is required for Phase 1, Phase 2, the bounded Phase 3
 compatibility amendment, the beta.3 package/copy/config amendments, or the beta.4
-alert-language amendment. Local
-implementation, beta.5 version identity, local commit, HA Lab deployment/restart,
-lab-only Manual-card replacement, Mobile/Tablet playback, and fresh soak are
-authorized. Push remains a separate authority and is required before the controller
-can resolve the new exact commit. Stable access, output writes, PR reply, re-review
-request, promotion, tag, and release remain blocked. Before release promotion, Jules
-must accept the exact final evidence and release boundary.
+alert-language amendment. Beta.5 implementation, version identity, commit, and push
+are complete. Jules has accepted the exact post-beta.5 copy/diff and authorized the
+beta.6 identity and local commit. Push, HA Lab deployment/restart, playback, and a
+fresh soak still require separate authorization. Stable access, output writes, PR reply,
+re-review request, promotion, tag, and release remain blocked. Before release
+promotion, Jules must accept the exact final evidence and release boundary.
 
 ## Rollback
 
@@ -1323,22 +1385,25 @@ Rollback remains migration-free:
   reason; and
 - no entity, registry, stored-data, or service cleanup is required.
 
-Beta.3 and beta.4 are immutable exact deployed evidence identities. Before beta.5 is
-deployed, rollback of this amendment is the reviewable reversal of its
-card, test, documentation, and manifest delta while leaving beta.4 untouched. After beta.5 is
-deployed or distributed, restore a complete known-good package through a separately
-governed rollback build; do not rewrite beta.4 history or attach beta.5 evidence to
-it. The conventional component layout remains unchanged.
+Beta.3 and beta.4 are immutable exact deployed evidence identities, and beta.5 is an
+immutable committed remote identity. Rollback of the local beta.6 wording commit is
+the reviewable reversal of its engine, test, documentation, and manifest delta while
+leaving beta.5 untouched. After any beta.6 package is deployed or distributed, restore a
+complete known-good package through a separately governed rollback build; do not
+rewrite beta.5 history or attach beta.6 evidence to it. The conventional component
+layout remains unchanged.
 
-Preserve both the exact beta.4 package and the complete pre-beta.5 Manual-card YAML.
+For the historical beta.5 status-chip boundary, preserve both the exact beta.4 package
+and the complete pre-beta.5 Manual-card YAML.
 Package rollback does not replace a beta.5 card already pasted into Home Assistant;
 UI rollback requires whole-card replacement with the backed-up YAML, save, then a
 frontend reload if cached content remains. No entity-registry, helper, configuration,
 or stored-data cleanup is involved.
 
-Rollback restores package identity only, not soak continuity. A beta.5 deployment
-starts a new evidence window; returning to beta.4 requires an explicit re-anchor or
-fresh T+0 rather than silently resuming any earlier sample sequence.
+Rollback restores package identity only, not soak continuity. A beta.6 deployment
+starts a new evidence window; returning to beta.5 requires an explicit re-anchor or
+fresh T+0 rather than silently resuming any earlier sample sequence. Historical
+beta.5-to-beta.4 rollback follows the same rule and remains separate evidence.
 
 The dashboard compatibility fail-safe is not reverted independently with reason
 humanisation. Restoring the former beta.1 tree wholesale would re-enable unsupported
@@ -1364,14 +1429,14 @@ requires a separately approved proposal and migration contract.
 
 ## Final Status
 
-`REVIEW_REQUIRED — BETA5_EXACT_LOCAL_COMMIT_AUTHORIZED / REMOTE_REF_AND_LIVE_MOBILE_TABLET_EVIDENCE_REQUIRED`
+`REVIEW_REQUIRED — BETA6_LOCAL_COMMIT_APPROVED / PUSH_AND_LIVE_EVIDENCE_NOT_AUTHORIZED`
 
 Phase 1, Phase 2, and Phase 3 remain approved historical implementation slices.
 Beta.3's package, configuration, reason, and brand corrections remain its immutable
 historical identity. Beta.4's alert-language amendment has exact deployment, Stage B,
-Stage 3, and T+0 evidence that remains beta.4-only. The beta.5 status-chip amendment
-now has explicit manifest, local-commit, HA Lab deployment/restart, lab-card playback,
-and soak authority. The governed controller requires the exact commit on its
-allowlisted remote Patch 1 ref; push is not authorized, so package deployment cannot
-begin from the local checkout. Stable access, output writes, PR reply, re-review
-request, PR creation, tag, and release promotion remain unauthorized.
+Stage 3, and T+0 evidence that remains beta.4-only. Beta.5 is committed and pushed at
+`841a9c27`, with HACS, Hassfest, and version-governance workflows passing for that
+identity. The current backend wording candidate responds to the subsequent visual
+review and now has an approved beta.6 local identity and commit. Push, deployment,
+playback, and soak remain unauthorized. Stable access, output writes, PR reply,
+re-review request, PR creation, tag, and release promotion remain unauthorized.

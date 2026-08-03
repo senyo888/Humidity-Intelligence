@@ -8,6 +8,33 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+- Advanced the implementation identity to `2.0.10-beta.6` with backend-owned
+  reason language harmonisation after live
+  review found that the inherited AQ-plus-humidifier explanation still read as
+  joined diagnostic records. AQ observation and selected action remain adjacent
+  but retain separate `observed`/`why` and `selected`/`action` contract lines:
+  `Downstairs IAQ is 34, at or below the response point of 60.` followed by
+  `For Downstairs, HI selected 66% for ...`. Concurrent humidifier truth now
+  continues naturally with `Separately, Downstairs needs humidification ...`,
+  while every split line remains independently scoped by its resolved level. The
+  retained pair preserves thresholds and reconciliation truth, and an observed-on
+  claim keeps its physical-output limitation. Retry, isolation,
+  unavailable, and fault copy replaces internal terms such as `bounded retry`,
+  `output mismatch`, and `service calls are suppressed` with calm direct language.
+  The `hi.reason.v1` schema, line codes, roles, scopes, truth values, arguments,
+  maximum bounds, technical reason state, lane selection, dispatch, and entity
+  semantics are unchanged. Presentation ordering is intentionally hardened: AQ levels
+  are explicitly ordered Downstairs
+  then Upstairs even if input details arrive reversed. Long multibyte friendly-output
+  summaries fall back to a generic count, and the existing stable retention priorities
+  compact any remaining UTF-8-heavy explanation before the 4 KiB contract boundary,
+  preserving retained-line semantics and original order instead of dropping
+  `display_reason`. Existing V2 and Manual cards consume the revised backend
+  attribute automatically; no card replacement, frontend-cache clear, configuration
+  migration, or entity migration is required. A packaged Python update requires the
+  normal Home Assistant restart. The committed beta.5 identity and its evidence must
+  not be overwritten or transferred. Beta.6 is a fresh local identity; push,
+  deployment, playback, and soak remain separate gates.
 - Advanced the implementation identity to `2.0.10-beta.5` and tightened the V2
   Current Air Control chip strip for mobile readability. Humidity
   Danger chips now stop after the resolved alert type, room, and zone; measurements
