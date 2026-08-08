@@ -453,7 +453,7 @@ def test_normal_ventilation_mode_can_coexist_with_humidifier_demand():
                 [display["headline"]]
                 + [line["text"] for line in display["lines"]]
             )
-            assert "Home Assistant reports its output on" in display_text
+            assert "Home Assistant reports that the output is on" in display_text
             assert "physical moisture output is not measured" in display_text
             assert "Ground Floor" in display_text
             assert "Downstairs" not in display_text
@@ -900,9 +900,19 @@ def test_humidifier_response_long_label_splits_and_folds_physical_caveat():
         platform_action="idle",
     )
 
-    lines = engine._humidifier_display_lines([_active_humidifier_detail()])
+    maximum_detail = _active_humidifier_detail()
+    maximum_detail.update(
+        {
+            "season": "S" * 32,
+            "humidity": 100.0,
+            "low": 100.0,
+            "recovery_off": 100.0,
+        }
+    )
+    lines = engine._humidifier_display_lines([maximum_detail])
     assert len(lines) == 2
-    assert lines[0].text.startswith(f"Separately, {long_label} needs humidification")
+    assert lines[0].text.startswith("Separately, L")
+    assert "… needs humidification" in lines[0].text
     assert lines[1].text.startswith(f"For {long_label}, Home Assistant reports")
     assert all(
         len(line.text) <= engine_mod.DISPLAY_REASON_MAX_LINE_TEXT
@@ -911,10 +921,38 @@ def test_humidifier_response_long_label_splits_and_folds_physical_caveat():
     environment_line = next(
         line for line in lines if line.code == "humidifier.environment"
     )
-    assert "Winter demand starts at 54.0%" in environment_line.text
-    assert "clears at 55.0%" in environment_line.text
-    assert sum("physical moisture output is not measured" in line.text for line in lines) == 1
-    assert not any("physical_output" in line.code or "caveat" in line.code for line in lines)
+    assert f"Under the {'S' * 32} profile" in environment_line.text
+    assert "demand starts at 100.0%" in environment_line.text
+    assert "clears at 100.0%" in environment_line.text
+    assert (
+        sum("physical moisture output is not measured" in line.text for line in lines)
+        == 1
+    )
+    assert not any(
+        "physical_output" in line.code or "caveat" in line.code for line in lines
+    )
+
+    missing_season_detail = _active_humidifier_detail()
+    missing_season_detail["season"] = None
+    missing_season_lines = engine._humidifier_display_lines([missing_season_detail])
+    missing_season_environment = next(
+        line
+        for line in missing_season_lines
+        if line.code == "humidifier.environment"
+    )
+    assert (
+        "Under the current profile, demand starts" in missing_season_environment.text
+    )
+    assert "profile profile" not in missing_season_environment.text
+
+    defensive_fallback = engine._bounded_humidifier_environment(
+        long_label,
+        f"Meanwhile, {long_label} needs humidification at {'9' * 240}%.",
+    )
+    assert defensive_fallback == (
+        "Meanwhile, the configured humidifier level needs humidification."
+    )
+    assert "structured reason data" not in defensive_fallback
 
     facts = engine._make_reason_facts(
         "normal",
@@ -1133,8 +1171,8 @@ def test_concurrent_aq_keeps_its_headline_and_self_contained_humidifier_response
     assert [line.text for line in facts.lines[:2]] == [
         "Ground Floor air-quality response remains selected while its run window is active.",
         (
-            "For Ground Floor, HI selected 66% for configured air-quality "
-            "ventilation output."
+            "For Ground Floor, HI keeps 66% selected for configured air-quality "
+            "ventilation output while the run window remains active."
         ),
     ]
     humidifier_lines = [line for line in facts.lines if line.scope == "humidifier"]
@@ -1175,9 +1213,9 @@ def test_aq_presentation_order_is_canonical_when_details_arrive_reversed():
     )
 
     assert lines[0].text.startswith("Downstairs air-quality response")
-    assert lines[1].text.startswith("For Downstairs, HI selected")
+    assert lines[1].text.startswith("For Downstairs, HI keeps")
     assert lines[2].text.startswith("Upstairs air-quality response")
-    assert lines[3].text.startswith("For Upstairs, HI selected")
+    assert lines[3].text.startswith("For Upstairs, HI keeps")
 
 
 def test_dual_aq_and_humidifier_copy_reads_as_one_ordered_household_explanation():
@@ -1284,18 +1322,26 @@ def test_dual_aq_and_humidifier_copy_reads_as_one_ordered_household_explanation(
     assert facts.headline == "Air quality response lane selected"
     assert [line.text for line in facts.lines] == [
         "Downstairs IAQ is 34, at or below the response point of 60.",
-        "For Downstairs, HI selected 66% for Kitchen air and Living room Air.",
+        "So for Downstairs, HI selected 66% for Kitchen air and Living room Air.",
         "Upstairs IAQ is 17, at or below the response point of 60.",
-        "For Upstairs, HI selected 66% for Upstairs air and Living room Air.",
+        "So for Upstairs, HI selected 66% for Upstairs air and Living room Air.",
         (
-            "Separately, Downstairs still needs humidification: 53.2%; Summer "
-            "demand starts at 51.0% and remains active until 54.0%. Home Assistant "
-            "reports its output on; physical moisture output is not measured."
+            "Separately, Downstairs still needs humidification at 53.2%. Under the "
+            "Summer profile, demand starts at 51.0% and clears at 54.0% to avoid "
+            "short cycling."
         ),
         (
-            "Upstairs still needs humidification: 52.2%; Summer demand starts at "
-            "51.0% and remains active until 54.0%. Home Assistant reports its output "
-            "on; physical moisture output is not measured."
+            "For Downstairs, Home Assistant reports that the output is on; physical "
+            "moisture output is not measured."
+        ),
+        (
+            "Meanwhile, Upstairs still needs humidification at 52.2%. Under the "
+            "Summer profile, demand starts at 51.0% and clears at 54.0% to avoid "
+            "short cycling."
+        ),
+        (
+            "For Upstairs, Home Assistant reports that the output is on; physical "
+            "moisture output is not measured."
         ),
     ]
     assert [line.truth for line in facts.lines] == [
@@ -1303,7 +1349,9 @@ def test_dual_aq_and_humidifier_copy_reads_as_one_ordered_household_explanation(
         "selected",
         "observed",
         "selected",
+        "selected",
         "observed",
+        "selected",
         "observed",
     ]
     assert [line.role for line in facts.lines] == [
@@ -1313,13 +1361,17 @@ def test_dual_aq_and_humidifier_copy_reads_as_one_ordered_household_explanation(
         "action",
         "notice",
         "notice",
+        "notice",
+        "notice",
     ]
     assert [line.code for line in facts.lines] == [
         "air_quality.iaq_bad",
         "air_quality.output_level_selected",
         "air_quality.iaq_bad",
         "air_quality.output_level_selected",
+        "humidifier.environment",
         "humidifier.output_on",
+        "humidifier.environment",
         "humidifier.output_on",
     ]
     assert [dict(line.args) for line in facts.lines] == [
@@ -1339,12 +1391,28 @@ def test_dual_aq_and_humidifier_copy_reads_as_one_ordered_household_explanation(
             "demand_active": True,
             "dispatch_evidence": "not_confirmed",
             "environmental_state": "recovering",
+            "lane": "level1",
+            "observed": "on",
+            "reconciliation": "output_on",
+        },
+        {
+            "demand_active": True,
+            "dispatch_evidence": "not_confirmed",
+            "environmental_state": "recovering",
+            "lane": "level2",
+            "observed": "on",
+            "reconciliation": "output_on",
+        },
+        {
+            "demand_active": True,
+            "dispatch_evidence": "not_confirmed",
+            "environmental_state": "recovering",
             "lane": "level2",
             "observed": "on",
             "reconciliation": "output_on",
         },
     ]
-    assert len(facts.lines) == engine_mod.DISPLAY_REASON_TARGET_LINES
+    assert len(facts.lines) == engine_mod.DISPLAY_REASON_MAX_LINES
     assert all(
         len(line.text) <= engine_mod.DISPLAY_REASON_MAX_LINE_TEXT
         for line in facts.lines
@@ -2043,13 +2111,18 @@ def test_service_unavailable_and_exception_degrade_without_false_confirmation():
                 for line in display["lines"]
                 if line["code"] == "humidifier.degraded"
             )
+            environment = next(
+                line
+                for line in display["lines"]
+                if line["code"] == "humidifier.environment"
+            )
             assert response["truth"] == "blocked"
-            assert response["text"].startswith(
+            assert environment["text"].startswith(
                 "Separately, Plant Room needs humidification"
             )
             assert (
-                "A required Home Assistant output-on service is unavailable, so HI did not send that request."
-                in response["text"]
+                "a required home assistant output-on service is unavailable, so hi did not send that request."
+                in response["text"].lower()
             )
             assert "HI sent" not in response["text"]
             assert len(response["text"]) <= engine_mod.DISPLAY_REASON_MAX_LINE_TEXT
@@ -2091,8 +2164,8 @@ def test_service_unavailable_and_exception_degrade_without_false_confirmation():
             )
             assert response["truth"] == "blocked"
             assert (
-                "A required Home Assistant output-off service is unavailable, so HI did not send that request."
-                in response["text"]
+                "a required home assistant output-off service is unavailable, so hi did not send that request."
+                in response["text"].lower()
             )
             assert "HI sent" not in response["text"]
         finally:
@@ -2126,7 +2199,7 @@ def test_service_unavailable_and_exception_degrade_without_false_confirmation():
                 "runtime_display_reason"
             ]
             display_text = " ".join(line["text"] for line in display["lines"])
-            assert "A Home Assistant output-on request failed" in display_text
+            assert "a Home Assistant output-on request failed" in display_text
             assert "sent" not in display_text.lower()
         finally:
             await exception_engine.async_stop()
@@ -2576,6 +2649,12 @@ def test_v2_templates_and_gallery_use_backend_humidifier_and_reason_truth():
         assert "Humidifier ${label} · ${text}" not in source
         assert "output_on: 'On'" in source
         assert "output_on: 'Output on'" not in source
+        assert "output_on: '#22d3ee'" in source
+        assert "requested: '#22d3ee'" in source
+        assert "const splitHumidifierRow" not in source
+        assert "out.push(...humidifierOut);" in source
+        assert "return scrollRow(out, 'Current Air Control status');" in source
+        assert ".cv-chip-stack{" not in source
         assert "Humidifier assist running" not in source
         assert "reasonState?.attributes?.display_reason" in source
         assert "displayReason.schema !== 'hi.reason.v1'" in source

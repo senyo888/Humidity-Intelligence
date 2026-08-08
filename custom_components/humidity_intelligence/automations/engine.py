@@ -2903,7 +2903,7 @@ class HIAutomationEngine:
                     "system",
                     "normal.no_higher_priority_lane",
                     "selected",
-                    "HI is monitoring; no ventilation response is selected.",
+                    "HI is monitoring, and no ventilation response is selected.",
                 )
             ]
 
@@ -2946,12 +2946,30 @@ class HIAutomationEngine:
             for fact in tuple(detail.get("trigger_facts") or ())[:2]
             if isinstance(fact, _TriggerFact)
         ]
+        zone_label = self._presentation_label(
+            detail.get("ui_label"),
+            "the configured zone",
+            maximum=40,
+        )
         output_level = _fan_level_text(detail.get("output_level"))
         outputs = list(detail.get("outputs") or [])
         output_summary = self._presentation_output_summary(
             outputs,
             generic="configured zone ventilation output",
         )
+        action_text = (
+            f"So for {zone_label}, HI selected {output_level} for {output_summary}."
+        )
+        if len(action_text) > DISPLAY_REASON_MAX_LINE_TEXT:
+            output_summary = (
+                f"{len(outputs)} configured zone ventilation outputs"
+                if len(outputs) > 1
+                else "configured zone ventilation output"
+            )
+            action_text = (
+                f"So for {zone_label}, HI selected {output_level} for "
+                f"{output_summary}."
+            )
         if self._fan_outputs_isolated():
             lines.append(
                 ReasonLine(
@@ -2972,7 +2990,7 @@ class HIAutomationEngine:
                     "ventilation",
                     "zone.output_level_selected",
                     "selected",
-                    f"Output selection: {output_level} for {output_summary}.",
+                    action_text,
                     {"output_count": len(outputs), "output_level": output_level},
                 )
             )
@@ -3033,9 +3051,16 @@ class HIAutomationEngine:
                 truth = "blocked"
                 code = "air_quality.output_isolated"
             else:
-                action_text = (
-                    f"For {level_label}, HI selected {output_level} for {output_summary}."
-                )
+                if facts:
+                    action_text = (
+                        f"So for {level_label}, HI selected {output_level} for "
+                        f"{output_summary}."
+                    )
+                else:
+                    action_text = (
+                        f"For {level_label}, HI keeps {output_level} selected for "
+                        f"{output_summary} while the run window remains active."
+                    )
                 if len(action_text) > DISPLAY_REASON_MAX_LINE_TEXT:
                     if len(outputs) > 1:
                         output_summary = (
@@ -3047,10 +3072,16 @@ class HIAutomationEngine:
                         )
                     else:
                         output_summary = "configured air-quality ventilation output"
-                    action_text = (
-                        f"For {level_label}, HI selected {output_level} for "
-                        f"{output_summary}."
-                    )
+                    if facts:
+                        action_text = (
+                            f"So for {level_label}, HI selected {output_level} for "
+                            f"{output_summary}."
+                        )
+                    else:
+                        action_text = (
+                            f"For {level_label}, HI keeps {output_level} selected for "
+                            f"{output_summary} while the run window remains active."
+                        )
                 truth = "selected"
                 code = "air_quality.output_level_selected"
             lines.append(
@@ -3176,7 +3207,7 @@ class HIAutomationEngine:
                 truth = "blocked"
                 code = "alert.output_isolated"
             else:
-                text = f"HI selected {level} for {output_summary}."
+                text = f"For this alert, HI selected {level} for {output_summary}."
                 truth = "selected"
                 code = "alert.output_level_selected"
             lines.append(
@@ -3229,8 +3260,8 @@ class HIAutomationEngine:
         if fact.code == "humidity_delta":
             text = (
                 f"Humidity is {fact.measured:.1f} percentage points above the home "
-                f"average; response starts at a difference of {fact.threshold:g} "
-                "percentage points."
+                f"average, meeting the configured {fact.threshold:g} percentage-point "
+                "response threshold."
             )
         elif fact.code == "condensation_risk":
             profile = self._presentation_label(fact.profile_label, "active profile")
@@ -3360,31 +3391,44 @@ class HIAutomationEngine:
             humidity = _to_float(detail.get("humidity"))
             start = _to_float(detail.get("low"))
             stop = _to_float(detail.get("recovery_off"))
-            environment = str(detail.get("environmental_state") or lane.get("environmental_state") or "inactive")
+            environment = str(
+                detail.get("environmental_state")
+                or lane.get("environmental_state")
+                or "inactive"
+            )
             environment_text: Optional[str]
-            if demand == "requested" and humidity is not None and start is not None and stop is not None:
+            if (
+                demand == "requested"
+                and humidity is not None
+                and start is not None
+                and stop is not None
+            ):
                 season = sanitize_display_label(detail.get("season"), maximum=32)
-                profile = season or "Current profile"
-                lead = "Separately, " if first_response else ""
+                profile_context = (
+                    f"the {season} profile" if season else "the current profile"
+                )
+                lead = "Separately, " if first_response else "Meanwhile, "
                 if environment == "recovering":
                     environment_text = (
-                        f"{lead}{label} still needs humidification: {humidity:.1f}%; "
-                        f"{profile} demand starts at {start:.1f}% and remains active "
-                        f"until {stop:.1f}%."
+                        f"{lead}{label} still needs humidification at {humidity:.1f}%. "
+                        f"Under {profile_context}, demand starts at {start:.1f}% "
+                        "and clears at "
+                        f"{stop:.1f}% to avoid short cycling."
                     )
                 else:
                     connector = "needs" if not active_demand_seen else "also needs"
                     environment_text = (
-                        f"{lead}{label} {connector} humidification: {humidity:.1f}%; "
-                        f"{profile} demand starts at {start:.1f}% and clears at "
-                        f"{stop:.1f}%."
+                        f"{lead}{label} {connector} humidification at {humidity:.1f}%. "
+                        f"Under {profile_context}, demand starts at {start:.1f}% "
+                        "and clears at "
+                        f"{stop:.1f}% to avoid short cycling."
                     )
             elif demand == "requested":
-                lead = "Separately, " if first_response else ""
+                lead = "Separately, " if first_response else "Meanwhile, "
                 connector = "needs" if not active_demand_seen else "also needs"
                 environment_text = f"{lead}{label} {connector} humidification."
             else:
-                lead = "Separately, " if first_response else ""
+                lead = "Separately, " if first_response else "Meanwhile, "
                 environment_text = f"{lead}{label} no longer needs humidification."
 
             if reconciliation == "output_on":
@@ -3396,8 +3440,8 @@ class HIAutomationEngine:
                     )
                 else:
                     response_text = (
-                        "Home Assistant reports its output on; physical moisture output "
-                        "is not measured."
+                        "Home Assistant reports that the output is on; physical moisture "
+                        "output is not measured."
                     )
                 truth = "observed"
             elif reconciliation == "platform_idle":
@@ -3565,6 +3609,11 @@ class HIAutomationEngine:
         """Combine or split one lane response without losing its friendly scope."""
 
         code = f"humidifier.{reconciliation}"
+        if environment_text:
+            environment_text = HIAutomationEngine._bounded_humidifier_environment(
+                label,
+                environment_text,
+            )
         if environment_text and response_text:
             combined = f"{environment_text} {response_text}"
             if len(combined) <= DISPLAY_REASON_MAX_LINE_TEXT:
@@ -3609,6 +3658,31 @@ class HIAutomationEngine:
                 args,
             )
         ]
+
+    @staticmethod
+    def _bounded_humidifier_environment(label: str, text: str) -> str:
+        """Shorten only the scoped label when environment prose exceeds its bound."""
+
+        if len(text) <= DISPLAY_REASON_MAX_LINE_TEXT:
+            return text
+        for lead in ("Separately, ", "Meanwhile, "):
+            marker = f"{lead}{label}"
+            if not text.startswith(marker):
+                continue
+            suffix = text[len(marker) :]
+            available = DISPLAY_REASON_MAX_LINE_TEXT - len(lead) - len(suffix)
+            if available <= 0:
+                break
+            bounded_label = label
+            if len(bounded_label) > available:
+                bounded_label = f"{bounded_label[:max(1, available - 1)].rstrip()}…"
+            return f"{lead}{bounded_label}{suffix}"
+        if "no longer needs humidification" in text:
+            return (
+                f"{lead}the configured humidifier level no longer needs "
+                "humidification."
+            )
+        return f"{lead}the configured humidifier level needs humidification."
 
     @staticmethod
     def _scoped_humidifier_response(label: str, text: str) -> str:

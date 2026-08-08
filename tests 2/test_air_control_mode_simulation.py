@@ -40,7 +40,7 @@ def test_normal_baseline_publishes_normal_air_control_mode_without_output_writes
     assert display["family"] == "normal"
     assert display["variant"] == "monitoring"
     assert display["headline"] == "Monitoring"
-    assert "HI is monitoring; no ventilation response is selected." in [
+    assert "HI is monitoring, and no ventilation response is selected." in [
         line["text"] for line in display["lines"]
     ]
 
@@ -113,7 +113,7 @@ def test_zone_pressure_uses_distinct_room_and_house_values_to_select_zone1():
     assert display["headline"] == "Zone 1 response lane selected"
     text = " ".join(line["text"] for line in display["lines"])
     assert "percentage points above the home average" in text
-    assert "difference of 5 percentage points" in text
+    assert "configured 5 percentage-point response threshold" in text
     assert "Fan-output isolation is active" in text
     assert "Trigger detail" not in text
     assert ">=" not in text
@@ -513,6 +513,55 @@ def test_zone_mould_copy_names_watch_risk_and_danger_with_safe_fallback():
         assert "configured configured" not in contract["lines"][0]["text"]
         assert contract["lines"][0]["args"]["measured"] == measured
         assert contract["lines"][0]["args"]["threshold"] == threshold
+
+
+def test_zone_action_keeps_configured_label_and_bounds_long_output_names():
+    engine_mod, _register_mod = _load_target_modules()
+    entry = SimpleNamespace(
+        entry_id=RUNTIME_ENTRY_ID,
+        data=_base_entry_data(),
+        options={},
+    )
+    long_name = "L" * 64
+    hass = _FakeHass(
+        entry,
+        {
+            "fan.zone_long_one": _FakeState("off", {"friendly_name": long_name}),
+            "fan.zone_long_two": _FakeState("off", {"friendly_name": long_name}),
+        },
+    )
+    engine = engine_mod.HIAutomationEngine(hass, entry)
+    engine._fan_outputs_isolated = lambda: False
+
+    normal_action = engine._zone_display_lines(
+        {
+            "ui_label": "Cooking",
+            "outputs": ["fan.zone_long_one"],
+            "output_level": "boost",
+        }
+    )[-1]
+    assert normal_action.text.startswith("So for Cooking, HI selected")
+
+    bounded_action = engine._zone_display_lines(
+        {
+            "ui_label": "Z" * 40,
+            "outputs": ["fan.zone_long_one", "fan.zone_long_two"],
+            "output_level": "boost",
+        }
+    )[-1]
+    assert bounded_action.text.startswith(f"So for {'Z' * 40}, HI selected")
+    assert "2 configured zone ventilation outputs" in bounded_action.text
+    assert len(bounded_action.text) <= engine_mod.DISPLAY_REASON_MAX_LINE_TEXT
+    contract = engine_mod.build_display_reason(
+        engine._make_reason_facts(
+            "zone",
+            "zone1",
+            "active",
+            "Zone response lane selected",
+            [bounded_action],
+        )
+    )
+    assert contract["lines"][0]["text"] == bounded_action.text
 
 
 def test_presence_unavailable_is_degraded_fail_closed_without_claiming_away():
