@@ -5711,7 +5711,7 @@ def test_v205_release_check_service_is_documented_and_registered():
     assert "write_test_exports" in services_yaml
     assert "humidity_intelligence.v205_release_check" in readme_source
     assert "humidity_intelligence_v205_release_check.json" in readme_source
-    assert manifest["version"] == "2.0.10-beta.6"
+    assert manifest["version"] == "2.0.10-beta.7"
 
 
 def test_owned_ui_path_discovery_and_legacy_cleanup_guidance_is_explicit():
