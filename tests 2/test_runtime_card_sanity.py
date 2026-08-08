@@ -2811,15 +2811,19 @@ async def _run_card_assertions(register_mod) -> None:
         assert "data-scroll-reset-delay-ms" in card
         assert "output_on: 'On'" in card
         assert "output_on: 'Output on'" not in card
+        assert "output_on: '#22d3ee'" in card
+        assert "requested: '#22d3ee'" in card
         assert "`${label} Humidifier · ${text}`" in card
         assert "`Humidifier ${label} · ${text}`" not in card
         assert ".replace(/\\s*·\\s*[^·]*\\s>=\\s.*$/, '')" in card
         assert "const humidifierOut = [];" in card
-        assert "const splitHumidifierRow = (zone1 || zone2) && humidifierOut.length > 0;" in card
-        assert "scrollRow(out, 'Ventilation status')" in card
-        assert "scrollRow(humidifierOut, 'Humidifier status')" in card
+        assert "const splitHumidifierRow" not in card
+        assert "scrollRow(out, 'Ventilation status')" not in card
+        assert "scrollRow(humidifierOut, 'Humidifier status')" not in card
+        assert "out.push(...humidifierOut);" in card
+        assert "return scrollRow(out, 'Current Air Control status');" in card
         assert "alertContext.startsWith('Humidity Danger · ')" in card
-        assert ".cv-chip-stack{" in card
+        assert ".cv-chip-stack{" not in card
         assert "activeAlertNames.forEach" not in card
         assert "if (alertLaneActive && alertContext" in card
         assert "states['binary_sensor.humidity_danger']?.state === 'on'" not in card

@@ -675,9 +675,9 @@ card:
                 unknown: 'Unknown',
               };
               const colors = {
-                output_on: '#22c55e',
+                output_on: '#22d3ee',
                 platform_idle: '#f59e0b',
-                requested: '#38bdf8',
+                requested: '#22d3ee',
                 retrying: '#f59e0b',
                 stopping: '#f59e0b',
                 isolated: '#f59e0b',
@@ -748,10 +748,6 @@ card:
 
             const scrollRow = (chips, label) =>
               `<div class="cv-scroll" role="group" aria-label="${label}" data-scroll-reset-delay-ms="${CHIPSET_SCROLL_RESET_DELAY_MS}">${chips.join('')}</div>`;
-            const splitHumidifierRow = (zone1 || zone2) && humidifierOut.length > 0;
-            if (splitHumidifierRow) {
-              return `<div class="cv-chip-stack">${scrollRow(out, 'Ventilation status')}${scrollRow(humidifierOut, 'Humidifier status')}</div>`;
-            }
             out.push(...humidifierOut);
             return scrollRow(out, 'Current Air Control status');
           ]]]
@@ -1327,12 +1323,6 @@ card:
       card_mod:
         style: >
           ha-card{ position:relative; }
-
-          .cv-chip-stack{
-            display:flex;
-            flex-direction:column;
-            gap:6px;
-          }
 
           .cv-scroll{
             display:flex;

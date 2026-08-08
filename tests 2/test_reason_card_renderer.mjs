@@ -65,7 +65,7 @@ function baseContract() {
         scope: 'system',
         code: 'normal.monitoring',
         truth: 'observed',
-        text: 'HI is monitoring; no ventilation response is selected.',
+        text: 'HI is monitoring, and no ventilation response is selected.',
         args: { selected: false },
       },
     ],
@@ -160,7 +160,7 @@ test('non-humidity alert context is never shortened by comparison syntax', () =>
   assert.match(output, /Mould Risk · Bathroom · Zone 2 · observed &gt;= risk threshold/);
 });
 
-test('active zone and humidifier render as two concise labelled rows', () => {
+test('active zone and humidifier share one concise labelled status row', () => {
   const states = {
     'sensor.air_control_mode': { state: 'bathroom', attributes: {} },
     'sensor.air_control_reason': {
@@ -176,10 +176,9 @@ test('active zone and humidifier render as two concise labelled rows', () => {
     },
   };
   const output = assertIdentical(STATUS_RENDERERS.map((render) => render(states)));
-  assert.match(output, /class="cv-chip-stack"/);
-  assert.equal((output.match(/class="cv-scroll"/g) || []).length, 2);
-  assert.match(output, /aria-label="Ventilation status"/);
-  assert.match(output, /aria-label="Humidifier status"/);
+  assert.doesNotMatch(output, /class="cv-chip-stack"/);
+  assert.equal((output.match(/class="cv-scroll"/g) || []).length, 1);
+  assert.match(output, /aria-label="Current Air Control status"/);
   assert.match(output, /ZONE 2/);
   assert.match(output, /Downstairs Humidifier · On/);
   assert.doesNotMatch(output, /Humidifier Downstairs|Output on/);
