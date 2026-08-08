@@ -79,6 +79,13 @@ Use the V2 chip/reason state and native diagnostics together:
 - `Fault`: HI has used all configured confirmation attempts; inspect the device,
   water/safety state, vendor integration, and Home Assistant entity before recovery
 
+V2 Mobile and Tablet place ventilation and humidifier chips in one horizontally
+scrollable Current Air Control row. `On` and `Requested` use cyan; `Idle`, `Retrying`,
+`Stopping`, and `Isolated` amber; `Fault` and `Degraded` red; and `Unknown` grey. If an
+older pasted card still shows a separate humidifier row, run `refresh_ui`, export with
+`dump_cards` or `view_cards`, replace the complete Manual-card YAML, and refresh the
+frontend if its styling is cached.
+
 HI does not bypass a device-local target, idle mode, empty-water protection, safety
 timeout, or vendor fault. A later output state change, unavailable-to-available
 recovery, demand transition, integration reload, or Home Assistant restart triggers

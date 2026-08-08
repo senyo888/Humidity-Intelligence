@@ -72,3 +72,7 @@
 - [ ] Required custom cards are documented.
 - [ ] Preserves canonical Humidity Intelligence backend entities/helpers.
 - [ ] Screenshots and YAML contain no private entity IDs, secrets, addresses, device IDs, tokens, internal URLs, or personal data.
+
+## Maintainer summary
+
+<!-- Final maintainer-facing decision, residual risks, and release/deploy gates. -->

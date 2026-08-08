@@ -8,7 +8,6 @@ on:
       - "assets/logo.png"
       - "assets/header.png"
       - "assets/site/github-pages-hero.png"
-      - "assets/v2_ui_gallery/v204_presence_gate_reason.png"
       - "assets/v2_ui_gallery/ui_v2_mobile_aq.png"
       - "assets/v2_ui_gallery/ui_v2_tablet_zone_2.png"
       - "scripts/build_hi_inspector.py"
@@ -46,7 +45,6 @@ jobs:
           cp assets/logo.png _site/assets/logo.png
           cp assets/header.png _site/assets/header.png
           cp assets/site/github-pages-hero.png _site/assets/site/github-pages-hero.png
-          cp assets/v2_ui_gallery/v204_presence_gate_reason.png _site/assets/v2_ui_gallery/v204_presence_gate_reason.png
           cp assets/v2_ui_gallery/ui_v2_mobile_aq.png _site/assets/v2_ui_gallery/ui_v2_mobile_aq.png
           cp assets/v2_ui_gallery/ui_v2_tablet_zone_2.png _site/assets/v2_ui_gallery/ui_v2_tablet_zone_2.png
           find _site -type f | sort

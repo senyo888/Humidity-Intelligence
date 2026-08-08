@@ -8,6 +8,26 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+- Advanced the implementation identity to `2.0.10-beta.7`. Backend-authored reason
+  copy now reads as natural, complete household sentences while preserving one
+  `hi.reason.v1` role and truth per line. Cause and action remain separate; every
+  retained action is independently scoped so bounded compaction cannot leave an
+  orphaned conclusion. Humidifier demand wording names the adjusted profile demand
+  start and recovery-off thresholds without misreporting them as the displayed target
+  floor, and observed Home Assistant output state retains the physical-moisture
+  limitation. The schema, code vocabulary/meanings, argument semantics, technical
+  reason state, lane ordering, thresholds, gates, service dispatch, and entity
+  semantics are unchanged; bounded presentation line grouping may split differently.
+- The beta.7 candidate supersedes beta.5's deliberate second humidifier row: V2
+  Mobile, V2 Tablet, and
+  both canonical gallery templates now present ventilation and humidifier chips in
+  one horizontally scrollable Current Air Control row. `On` and `Requested` are cyan;
+  `Idle`, `Retrying`, `Stopping`, and `Isolated` are amber; `Fault` and `Degraded` are
+  red; and `Unknown` is grey. Existing Manual cards require
+  a fresh export and full YAML
+  replacement. A packaged Python update requires a full Home Assistant restart; no
+  config-entry, registry, stored-data, service, threshold, or lane migration is
+  required. Beta.6's invalidated cadence transfers no validation or soak credit.
 - Advanced the implementation identity to `2.0.10-beta.6` with backend-owned
   reason language harmonisation after live
   review found that the inherited AQ-plus-humidifier explanation still read as
@@ -38,7 +58,7 @@ This project follows a practical changelog format for Home Assistant and HACS us
 - Advanced the implementation identity to `2.0.10-beta.5` and tightened the V2
   Current Air Control chip strip for mobile readability. Humidity
   Danger chips now stop after the resolved alert type, room, and zone; measurements
-  and thresholds remain intact in backend alert telemetry and the humanised reason
+  and thresholds remain intact in backend alert telemetry and the plain-language
   explanation. Other alert contexts are not shortened.
   Humidifier chips now read `Downstairs Humidifier` or `Upstairs Humidifier`, and the
   Home Assistant-observed `output_on` state is presented as `On`. When Zone 1 or Zone
@@ -91,7 +111,8 @@ This project follows a practical changelog format for Home Assistant and HACS us
   `display_reason` attribute on the existing Air Control Reason entity. The existing
   state, `full_reason`, truncation behavior, and `humidifier_status` remain backward
   compatible; invalid presentation data is omitted without interrupting control.
-- Humanised backend presentation for normal, disabled, manual, pause, time/presence
+- Added plain-language backend presentation for normal, disabled, manual, pause,
+  time/presence
   gates, unavailable presence, unavailable telemetry, zones, air quality, mapped and
   degraded alerts, CO emergency, output isolation, and humidifier reconciliation.
   Ventilation copy reports selected output intent because current fan writers do not

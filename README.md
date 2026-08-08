@@ -57,7 +57,9 @@ It gives you:
 - native Home Assistant diagnostics for support and triage
 - services for dashboard export, self-check, diagnostics, pause/resume, and release validation
 
-Current manifest version: **v2.0.10-beta.6**.
+Current candidate manifest version: **v2.0.10-beta.7**. Published Stable remains
+**v2.0.9** until the beta line completes its independent validation and promotion
+gates.
 
 For publication status, installed packages, and release tags, use
 [GitHub Releases](https://github.com/senyo888/Humidity-Intelligence/releases) and
@@ -155,7 +157,8 @@ At its core, Humidity Intelligence is about creating a calmer, more stable livin
 
 ![Humidity Intelligence quick demo](assets/readme/hi_quick_demo.gif)
 
-<p><em>Sanitized HA Lab runtime playback with output isolation enabled. The clip shows backend-owned mode, reason, chip, and badge changes across normal, Zone 1, Zone 2, AQ, alert, manual override, and unavailable-telemetry states.</em></p>
+<p><em>Historical sanitized HA Lab runtime reference with output isolation enabled.
+It predates beta.7 and is not current candidate playback evidence.</em></p>
 
 </details>
 
@@ -163,9 +166,10 @@ At its core, Humidity Intelligence is about creating a calmer, more stable livin
 
 ## V2 UI Example
 
-<p>
-  <img src="assets/v2_ui_gallery/v204_presence_gate_reason.png" width="320" alt="V2 mobile Current Air Control presence gate active state">
-</p>
+Fresh beta.7 mobile and tablet examples are pending separately authorized install,
+restart, card replacement, and live playback. Earlier reason-panel captures are not
+shown here because they predate the backend-owned presentation contract now described
+below.
 
 <details>
 <summary><strong>More UI Examples</strong></summary>
@@ -187,7 +191,7 @@ If you're finding Humidity Intelligence useful, insightful, or just interesting 
 
 It helps others discover the project, supports ongoing development, and shows that this kind of deterministic, explainable approach to Home Assistant has community value.
 
-[Star Humidity Intelligence on GitHub](https://github.com/senyo888/Humidity-Intelligence)
+[⭐ Star Humidity Intelligence on GitHub](https://github.com/senyo888/Humidity-Intelligence)
 
 Optional sponsorship is also available through GitHub Sponsors:
 
@@ -396,14 +400,35 @@ This layer makes the engine understandable. It reflects runtime truth:
 
 The engine decides; the UI renders.
 
-The existing Air Control Reason entity now carries an additive, versioned
-`display_reason` attribute using the backend-owned `hi.reason.v1` contract. It keeps
-the legacy state, `full_reason`, truncation, and `humidifier_status` surfaces for
-mixed-version cards and existing consumers. Presentation text distinguishes selected
-ventilation intent from humidifier service dispatch, Home Assistant-observed state,
-and unverified physical output. Unknown or unavailable evidence is never translated
-into a healthy or all-clear claim, and the new presentation contract never falls back
-to raw entity IDs.
+The existing Air Control Reason entity carries an additive `display_reason` attribute
+using exact schema `hi.reason.v1`. Its required top-level fields are `schema`,
+`locale`, `family`, `variant`, `attention`, `truncated`, `headline`, and `lines`.
+Attention is one of `neutral`, `active`, `hold`, `degraded`, `critical`, or `unknown`.
+Each ordered line contains `role`, `scope`, `code`, `truth`, and final backend-authored
+`text`, with optional bounded `args`. Roles are `why`, `action`, `next`, or `notice`;
+scopes are `system`, `safety`, `ventilation`, or `humidifier`; truth is `selected`,
+`blocked`, `requested`, `observed`, `unavailable`, `unmapped`, `not_confirmed`, or
+`failed`.
+
+The contract permits at most eight lines, targets six, limits headlines to 120
+characters and line text to 200 characters, and caps the serialized object at 4 KiB.
+Family, variant, and argument-key tokens are at most 64 characters; dotted line codes
+are at most 96. Each line may contain six JSON-scalar arguments, with string values
+limited to 64 characters. Normalized text rejects control characters, the markup
+delimiters `<`, `>`, and backtick, and raw entity IDs. V2 cards validate exact schema
+and locale `en`, escape final text, and
+otherwise fall back atomically to escaped `full_reason`, usable entity state, then
+`Reason unavailable.` They never compose prose or decisions from codes or arguments.
+The legacy state, `full_reason`, truncation, and `humidifier_status` surfaces remain
+available for mixed-version cards and existing consumers.
+
+Presentation text distinguishes selected ventilation intent from humidifier service
+dispatch, Home Assistant-observed state, and unverified physical output. A humidifier
+chip labelled `Requested` means effective humidification demand; it does not prove a
+service call, output state, or physical moisture. Reason-line truth `requested` means
+the backend recorded handoff to Home Assistant without an immediate exception.
+Unknown or unavailable evidence is never translated into a healthy or all-clear
+claim, and presentation never falls back to raw entity IDs.
 
 Generated V2 control-row colours separate selected command lanes from environmental risk: red row styling is reserved for selected alert/CO runtime truth. Degraded or unmapped alert candidates remain visible in reason text instead of occupying primary Current Air Control chip-row space.
 
@@ -420,9 +445,17 @@ must be reviewable from tracked repository files.
 
 ## Current Release Highlights
 
-- integration metadata and release documentation identify stable `2.0.9`; GitHub
-  Releases and HACS remain the authoritative publication and installed-package
-  records
+- the unreleased `2.0.10-beta.7` candidate refines backend-authored reason sentences
+  without changing the `hi.reason.v1` schema, control decisions, thresholds, service
+  dispatch, or entity semantics; every action line remains independently scoped if
+  bounded compaction removes an adjacent cause line
+- V2 Mobile, V2 Tablet, and both canonical gallery templates keep ventilation and
+  humidifier chips in one horizontally scrollable Current Air Control row;
+  `On` and `Requested` are cyan; `Idle`, `Retrying`, `Stopping`, and `Isolated` are
+  amber; `Fault` and `Degraded` are red; and `Unknown` is grey
+- the candidate manifest identifies `2.0.10-beta.7`, while the published GitHub
+  release, tag, and HACS Stable line remain `2.0.9`; those publication surfaces stay
+  authoritative for the installed Stable package
 - the browser-local
   [HI Support Bundle Inspector](https://senyo888.github.io/humidity-intelligence/inspector/)
   provides an optional inspect-before-sharing preflight: diagnostics content stays
@@ -471,7 +504,7 @@ must be reviewable from tracked repository files.
 - `v205_release_check` preserves its service name; the unreleased implementation
   extends its generated-card, humidifier-reconciliation, and release-validation
   contract through the v2.0.10 beta/rc/stable line and carries explicit
-  `2.0.10-beta.6` manifest metadata for renewed HA Lab beta validation
+  `2.0.10-beta.7` manifest metadata for renewed, zero-credit HA Lab beta validation
 - Home Assistant Area/Label setup assistance can suggest defaults from registry
   metadata, but saved HI telemetry, zone, AQ, humidifier, and alert mappings remain
   the only runtime truth
@@ -489,7 +522,7 @@ config-entry reload after option changes once the updated code is already loaded
 Run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual
 cards if you use generated Current Air Control cards, the default V2 control row, or
 output-detail surfaces; already-pasted Manual cards are static and do not inherit
-backend template changes automatically. The beta.4 V2 reason area consumes the
+backend template changes automatically. The v2.0.10 V2 reason area consumes the
 backend-owned `display_reason` contract and no longer composes `Stage:`, risk, timer,
 isolation, or `Engine:` explanations in the card. HI exports card fragments, not
 complete dashboard documents: leave registered or YAML-mode dashboard files
@@ -499,9 +532,11 @@ alone updates only the in-memory cache. Users retaining V1 Mobile must
 also re-export and re-copy that card to receive the v2.0.9 HTML-escaping fix.
 Humidifier explanations are authored entirely by the backend and remain
 self-contained through their resolved level label, including when a long explanation
-splits. An already-pasted V2 card that consumes `display_reason` therefore does not
-need replacement or a frontend cache refresh for backend copy amendments. Beta.4 also
-makes every selected response lane explicit and uses
+splits. An already-pasted V2 card that consumes `display_reason` does not need
+replacement for backend copy alone, but beta.7's one-row/cyan template change requires
+a fresh export and complete Manual-card YAML replacement. Refresh the frontend after
+pasting if Home Assistant still shows cached styling. The v2.0.10 line also makes
+every selected response lane explicit and uses
 family-level alert headlines with Risk or Danger stated in the first explanation
 sentence; mould ordinal values are translated to named ranges in visible prose. A
 full Home Assistant restart is required to load the updated Python package.
@@ -527,6 +562,27 @@ examples are not included in the Home Assistant integration payload.
 4. Go to Settings -> Devices & Services -> Add Integration
 5. Search for **Humidity Intelligence**
 6. Begin configuration
+
+### Option B - Manual package upgrade
+
+Use the exact contents of `custom_components/humidity_intelligence/` from the chosen
+release or candidate and replace the complete existing directory at:
+
+```text
+/config/custom_components/humidity_intelligence/
+```
+
+Do not copy the repository root into `custom_components`, and do not create a nested
+`humidity_intelligence/custom_components/humidity_intelligence` path. The repository
+root intentionally contains review-only docs, tests, site sources, workflows, and UI
+Gallery examples; it is not the installable payload. The conventional component-root
+layout lets HACS, Hassfest, manual installs, and source review validate the same
+package without `content_in_root` staging behavior.
+
+Back up the existing component directory, replace it as one coherent package, and
+fully restart Home Assistant. A config-entry reload alone cannot load changed Python
+or manifest metadata. Existing configuration entries and entities remain in place;
+no beta.7 data migration is required.
 
 ---
 
@@ -1161,6 +1217,27 @@ CO emergency pressure. Details are in
 
 ## Release Notes
 
+### v2.0.10 (Unreleased beta candidate)
+
+- carries exact candidate identity `2.0.10-beta.7`; published Stable remains v2.0.9
+- keeps one deterministic ventilation decision per cycle and leaves thresholds,
+  gates, output writers, service dispatch, configuration, and entity semantics
+  unchanged
+- refines backend-owned `hi.reason.v1` wording into complete, independently scoped
+  cause, action, humidifier-demand, and observed-state sentences while retaining the
+  technical state and `full_reason` compatibility surfaces
+- places ventilation and humidifier chips on one horizontal Current Air Control row
+  across V2 Mobile, V2 Tablet, and both canonical gallery templates: `On` and
+  `Requested` are cyan; `Idle`, `Retrying`, `Stopping`, and `Isolated` amber; `Fault`
+  and `Degraded` red; and `Unknown` grey
+- requires a full Home Assistant restart after installing the Python package; the
+  card layout change also requires `refresh_ui`, a fresh `dump_cards` or `view_cards`
+  export, complete Manual-card YAML replacement, and a frontend refresh if cached
+- requires no config-entry, entity-registry, stored-data, service, threshold, or lane
+  migration
+- begins a new exact-identity validation campaign after deployment; beta.6's
+  invalidated cadence transfers no soak credit
+
 ### v2.0.9
 
 - set integration metadata to stable `2.0.9` and aligned the release documentation;
@@ -1228,6 +1305,9 @@ CO emergency pressure. Details are in
   concurrent/fault-injected writes, legacy-root retention, or rendered Lovelace UI;
   those boundaries remain covered by local tests or require separate live evidence
 
+<details>
+<summary>Previous Releases</summary>
+
 ### v2.0.8
 
 - set integration metadata to stable `2.0.8`; GitHub Releases and HACS remain the
@@ -1265,9 +1345,6 @@ CO emergency pressure. Details are in
 - restart/dashboard impact: restart Home Assistant after updating package code; refresh
   or re-export generated cards and update pasted Manual-card YAML for the new default
   V2 card surfaces
-
-<details>
-<summary>Previous Releases</summary>
 
 ### v2.0.7
 

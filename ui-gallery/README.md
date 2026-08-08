@@ -12,8 +12,10 @@ headline and ordered line text without card-authored `Stage:` or `Engine:` prose
 Requested, On, Idle, Isolated, Retrying, Stopping, Unknown, Degraded, and Fault
 remain separate presentation states. `On` is concise card wording for backend
 `output_on`, and the examples do not infer physical moisture production from a
-generic output `on` state. The AQ and Zone preview images show the same humanised
-reason authority as their canonical YAML.
+generic output `on` state. The canonical YAML uses the same plain-language backend
+reason authority across AQ and Zone examples. Existing previews predate beta.7 and
+must not be treated as evidence of its one-row/cyan presentation until fresh live
+playback captures replace them.
 
 The browseable UI Gallery lives in the GitHub Wiki:
 

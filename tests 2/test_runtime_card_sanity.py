@@ -3919,21 +3919,22 @@ def test_readme_uses_manifest_version_badge_not_static_ha_compatibility_badge():
     assert "Home%20Assistant-2026.4.3%2B" not in readme_source
 
 
-def test_readme_shows_current_v209_notes_and_v208_before_previous_releases():
+def test_readme_keeps_candidate_and_current_stable_before_previous_releases():
     readme_source = (ROOT / "README.md").read_text()
     release_notes = readme_source.split("## Release Notes", 1)[1]
     visible_notes, previous_releases = release_notes.split("<details>", 1)
 
+    assert "### v2.0.10 (Unreleased beta candidate)" in visible_notes
     assert "### v2.0.9" in visible_notes
     assert "set integration metadata to stable `2.0.9`" in visible_notes
-    assert "### v2.0.8" in visible_notes
-    assert "### v2.0.7" not in visible_notes
+    assert "### v2.0.8" not in visible_notes
+    assert "### v2.0.8" in previous_releases
+    assert "### v2.0.7" in previous_releases
     assert "assets/release_banner/v2.0.9_release.png" not in visible_notes
     assert (ROOT / "assets" / "release_banner" / "v2.0.9_release.png").read_bytes()[:8] == (
         b"\x89PNG\r\n\x1a\n"
     )
     assert "<summary>Previous Releases</summary>" in previous_releases
-    assert "### v2.0.7" in previous_releases
 
 
 def test_dump_cards_without_layout_exports_all_cached_layouts():

@@ -44,19 +44,22 @@ Feature parity is maintained.
 
 ## UI Preview
 
-### Canonical V2 Mobile Gate State
-<img src="../../../assets/v2_ui_gallery/v204_presence_gate_reason.png" width="320" alt="HI v2 mobile Current Air Control presence gate active preview">
+### Canonical V2 Candidate State
+
+Fresh beta.7 mobile and tablet captures are pending separately authorized live
+playback. Older gate-state imagery is intentionally not presented as current contract
+evidence.
 
 <details>
-<summary>Additional layout previews</summary>
+<summary>Historical layout references — not beta.7 playback</summary>
 
 ### v1 Mobile (Deprecated Legacy-Compatible Skin)
 <img src="../../../assets/readme/ui_v1_mobile.png" width="320" alt="HI v1 mobile UI preview">
 
-### v2 Mobile (AQ State Example)
+### Historical pre-beta.7 v2 Mobile AQ reference
 <img src="../../../assets/readme/ui_v2_mobile_aq.png" width="320" alt="HI v2 mobile AQ UI preview">
 
-### v2 Tablet (Zone State Example)
+### Historical pre-beta.7 v2 Tablet Zone reference
 <img src="../../../assets/readme/ui_v2_tablet_zone_2.png" width="320" alt="HI v2 tablet zone UI preview">
 
 </details>
@@ -241,10 +244,11 @@ If mismatch occurs:
   and Fault. `On` is the concise card label for backend reconciliation state
   `output_on`: Home Assistant has observed the configured output on, but this does
   not claim physical moisture production.
-- When a Zone 1 or Zone 2 ventilation lane and humidifier telemetry are both active,
-  V2 cards render the humidifier chips on a second, accessibility-labelled row.
-  Humidifier demand and reconciliation remain independent of ventilation lane
-  selection.
+- Ventilation and humidifier chips share one accessibility-labelled, horizontally
+  scrollable Current Air Control row. Humidifier demand and reconciliation remain
+  independent of ventilation lane selection; layout does not merge their semantics.
+- `On` and `Requested` humidifier chips use cyan; `Idle`, `Retrying`, `Stopping`, and
+  `Isolated` use amber; `Fault` and `Degraded` use red; and `Unknown` uses grey.
 - Humidity Danger chips show the concise backend context through the resolved zone
   (`Humidity Danger · room · zone`). Measurements and thresholds remain available in
   the backend alert context, structured alert telemetry, and reason explanation;

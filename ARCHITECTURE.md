@@ -103,12 +103,37 @@ pure, bounded to 4 KiB, and failure-isolated: invalid or failed presentation is
 omitted while the existing technical state, `full_reason`, truncation behavior, and
 `humidifier_status` remain available as the compatibility fallback.
 
+The exact top-level object contains only required fields `schema`, `locale`, `family`,
+`variant`, `attention`, `truncated`, `headline`, and `lines`. `schema` is
+`hi.reason.v1`; `locale` is `en`; attention is `neutral`, `active`, `hold`,
+`degraded`, `critical`, or `unknown`. Each ordered line contains required `role`,
+`scope`, `code`, `truth`, and `text`, plus optional `args`. Roles are `why`, `action`,
+`next`, and `notice`; scopes are `system`, `safety`, `ventilation`, and `humidifier`;
+truth values are `selected`, `blocked`, `requested`, `observed`, `unavailable`,
+`unmapped`, `not_confirmed`, and `failed`.
+
+The contract targets six lines and permits no more than eight. Headline text is
+bounded to 120 characters and each line to 200; family, variant, and argument-key
+tokens are at most 64 characters, dotted line codes are at most 96, each line permits
+six JSON-scalar arguments, and string argument values are at most 64 characters. The
+serialized object is limited to 4 KiB. Normalized text rejects control characters,
+the markup delimiters `<`, `>`, and backtick, and raw entity IDs. One line represents
+one role and one truth; cause and
+action remain separate, and every retained line must be semantically complete if
+bounded compaction removes its neighbours.
+
 Schema-1 cards render final backend-authored headline and line text. They may validate
 schema support, escape text, and fall back atomically, but must not reconstruct prose
 from codes/arguments or add independent Stage, risk, timer, isolation, or Engine
 explanations. Ventilation output wording must remain selection truth unless dispatch
 and observation are separately proven. Humidifier wording may use its stronger
 reconciliation evidence while preserving the physical-moisture caveat.
+
+The title-case card chip `Requested` means effective backend humidification demand;
+it does not prove a service call, output state, or physical moisture. It must not be
+conflated with line truth `requested`, which means the backend recorded handoff to
+Home Assistant without an immediate exception. Neither namespace proves physical
+moisture production.
 
 Unavailable-only presence evidence is presented as degraded
 `presence_unavailable`, not confirmed absence. The v2.0.10 contract preserves the

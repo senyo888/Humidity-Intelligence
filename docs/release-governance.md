@@ -78,11 +78,12 @@ an exact-head review; actionable feedback must be fixed through a prerequisite P
 explicitly recorded as not applicable before promotion can continue.
 
 For the broadened v2.0.10 beta humidifier reconciliation, reason-presentation, and
-HACS package-layout slice, implementation targets manifest identity
-`2.0.10-beta.5`. That beta identity
+HACS package-layout slice, the current implementation target is manifest identity
+`2.0.10-beta.7`. That beta identity
 does not authorize HA Lab/stable-instance mutation, branch promotion, tag, GitHub
-Release, HACS publication, or deployment.
-Beta evidence must cover restored demand, long-demand device stops, output
+Release, HACS publication, or deployment. Beta.7 starts a new exact-identity
+campaign with zero inherited credit. Beta evidence must cover restored demand,
+long-demand device stops, output
 availability recovery, all supported output domains, isolation/gate interactions,
 shared-output aggregation, bounded retry/fault behavior, generated V2 truth,
 diagnostics redaction, the complete `hi.reason.v1` runtime-family matrix,
@@ -90,11 +91,11 @@ presenter-failure invariance, mixed-version fallback, line/size bounds, raw-ID a
 privacy checks, 52-file count/content parity with the approved brand-path relocation,
 the required component-local `brand/icon.png` and `brand/logo.png` paths, direct
 Hassfest/HACS validation, and unchanged deterministic ventilation ordering. Beta.1
-through beta.4 evidence remain historical evidence for their exact commits and
-cannot approve beta.5. The incomplete beta.2 soak is superseded rather than failed;
+through beta.6 evidence remain historical evidence for their exact commits and
+cannot approve beta.7. The incomplete beta.2 soak is superseded rather than failed;
 the separately deployed beta.3 soak is bound to beta.3, and beta.4 deployment and
-soak evidence remain beta.4-only. None transfers sample numbering or acceptance to
-beta.5. HA Lab
+soak evidence remain beta.4-only; beta.6 is invalidated for cadence failure. None
+transfers sample numbering or acceptance to beta.7. HA Lab
 evidence is advisory; stable-instance authority and release promotion remain
 separate maintainer gates.
 

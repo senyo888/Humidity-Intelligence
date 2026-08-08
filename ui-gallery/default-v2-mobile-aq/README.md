@@ -12,8 +12,12 @@
 
 This example shows the default V2 mobile layout while the air-quality lane is active.
 It demonstrates the compact badge row, Current Air Control panel, lane chips, and the
-backend-owned humanised reason headline and ordered explanation used by the generated
+backend-owned plain-language reason headline and ordered explanation used by the generated
 V2 mobile card.
+
+The YAML keeps ventilation and humidifier chips in one horizontally scrollable
+Current Air Control row. The preview predates beta.7 and is not beta.7 playback
+evidence.
 
 The YAML is copied from the canonical generated card template and should be treated as an example artifact. In a real installation, prefer the card YAML exported by `humidity_intelligence.dump_cards` so placeholders match your generated entities.
 
