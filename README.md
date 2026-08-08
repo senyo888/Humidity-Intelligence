@@ -171,6 +171,11 @@ restart, card replacement, and live playback. Earlier reason-panel captures are 
 shown here because they predate the backend-owned presentation contract now described
 below.
 
+HA Lab evidence is optional advisory operational evidence. Missing, blocked,
+incomplete, or failed Lab playback or soak does not block promotion, tagging, GitHub
+Release or HACS publication, or Stable approval; those decisions remain with the
+canonical validation, review, CI, and explicit maintainer gates.
+
 <details>
 <summary><strong>More UI Examples</strong></summary>
 

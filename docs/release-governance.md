@@ -36,12 +36,13 @@ recorded as maintainer confirmation unless independently verified in the same
 validation packet. Stable-instance access or mutation requires explicit approval for
 this lane.
 
-For future promotion candidates, release readiness needs more than Stage A HA Lab
-package deploy evidence. Each release-readiness record must separately state whether
-restart/reload approval, post-restart read-only checks, generated-card evidence, Bella
-review, Aetherwing runtime/security review, AetherCore governance review, Aetherbite
-release-language/visual review, maintainer stable-instance confirmation, and
-maintainer promotion approval are complete.
+For future promotion candidates, release readiness is established independently of
+HA Lab. Each release-readiness record must state whether the scope-appropriate tracked
+validation, generated-card evidence, Bella review, Aetherwing runtime/security review,
+AetherCore governance review, Aetherbite release-language/visual review, maintainer
+stable-instance confirmation where required, and maintainer promotion approval are
+complete. HA Lab deploy, restart, playback, and soak evidence may be attached as
+advisory context, but no HA Lab status is a required release field or gate.
 
 ## v2.0.8 Release Path Record
 
@@ -65,6 +66,9 @@ The recorded develop-to-main promotion checklist was:
    users should re-export or refresh generated cards after install.
 5. Preserve the hard release gates below as separate `main`, tag, and GitHub Release
    approval requirements.
+
+That v2.0.8 checklist is retained as history. Its request to record HA Lab evidence
+does not define a current or future promotion requirement.
 
 For future releases, a `develop` merge must not be treated as tag, GitHub Release, or
 `main` authority. Final promotion still requires maintainer approval, Bella coherence
@@ -95,9 +99,10 @@ through beta.6 evidence remain historical evidence for their exact commits and
 cannot approve beta.7. The incomplete beta.2 soak is superseded rather than failed;
 the separately deployed beta.3 soak is bound to beta.3, and beta.4 deployment and
 soak evidence remain beta.4-only; beta.6 is invalidated for cadence failure. None
-transfers sample numbering or acceptance to beta.7. HA Lab
-evidence is advisory; stable-instance authority and release promotion remain
-separate maintainer gates.
+transfers sample numbering or acceptance to beta.7. HA Lab evidence is advisory;
+whether it passes, fails, is blocked, is incomplete, or is not run cannot block
+promotion or release. Stable-instance authority and release promotion remain separate
+maintainer gates.
 
 For v2.0.9 owned-artifact namespace validation, the release packet must separately
 record:
@@ -164,11 +169,6 @@ until all of these gates are satisfied:
 - Release sanity validation has passed for the change scope, including version
   governance, HACS/package metadata checks, and the relevant Home Assistant runtime,
   direct sanity, service, or generated-card checks.
-- HA Lab beta-validation status is recorded when a beta package has been deployed,
-  activated, soaked, or checked in HA Lab. This is operational evidence only: it can
-  inform Bella, Aetherwing, AetherCore, maintainer, PR, and release-readiness review,
-  while release approval, runtime semantics, stable Home Assistant validation, and
-  mutation approval stay with their normal gates.
 - The `humidity-intelligence-maintenance` companion has been updated with advisory
   release-gate evidence, blocker notes, or an explicit no-op maintenance status for
   the staging promotion. This records maintenance evidence; promotion approval and
@@ -179,6 +179,11 @@ until all of these gates are satisfied:
   Wiki remains a public support manual; runtime and release truth stay in the
   repository source and release documentation.
 - The README has maintainer approval before release tagging.
+
+HA Lab is deliberately absent from the hard-gate list. When HA Lab evidence exists,
+its status may be recorded as optional operational context. A pass, failure, blocked
+run, incomplete playback/soak, or `not run` status is not a missing gate and cannot
+block promotion, tagging, GitHub Release or HACS publication, or Stable approval.
 
 If any gate is missing for the version being prepared, the release state is `not ready`,
 even when the manifest version already carries a stable number on `senyo888-patch-1`,
@@ -226,7 +231,7 @@ Validation Infrastructure. Use it after beta deploys to collect practical runtim
 evidence from an isolated Home Assistant lab instance while preserving repository and
 review authority.
 
-Expected HA Lab evidence for beta-readiness review:
+Optional HA Lab evidence for beta-readiness review may include:
 
 - package deploy identity: source branch/worktree, commit, manifest version, target
   classification, and clean/dirty source state;
@@ -245,3 +250,8 @@ HA Lab evidence remains non-binding. It is not release authority, runtime author
 stable Home Assistant authority, or a substitute for Bella coherence review,
 Aetherwing runtime/risk validation, AetherCore governance consistency review,
 release-candidate validation, or Senyo approval.
+
+HA Lab is therefore never a promotion or release blocker. A failed, blocked,
+incomplete, unavailable, or omitted HA Lab run may be reported as advisory risk
+context, but it cannot turn an otherwise satisfied canonical release decision into
+`not ready`.

@@ -8,6 +8,11 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+- Clarified the project-wide release boundary: HA Lab deploy, restart, playback, and
+  soak evidence is optional advisory context. A pass, failure, blocked run,
+  incomplete matrix/soak, or absence of Lab evidence is not a promotion, PR, tag,
+  GitHub Release, HACS publication, or Stable-release blocker. Canonical validation,
+  review, CI, version governance, and explicit maintainer gates remain unchanged.
 - Advanced the implementation identity to `2.0.10-beta.7`. Backend-authored reason
   copy now reads as natural, complete household sentences while preserving one
   `hi.reason.v1` role and truth per line. Cause and action remain separate; every

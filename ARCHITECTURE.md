@@ -250,3 +250,10 @@ Release truth must remain in tracked repository files, release notes, and Home
 Assistant metadata. Private maintenance evidence and ignored local planning surfaces
 may support review, while release approval, runtime behavior, and tracked validation
 stay with the canonical repository surfaces.
+
+HA Lab evidence is optional advisory operational evidence. Its presence, absence,
+failure, blocked status, incomplete scenario coverage, or soak state may be recorded
+as risk context, but none of those states is a promotion or release veto. Promotion,
+tagging, GitHub Release publication, HACS publication, and Stable approval are decided
+only by the canonical tracked validation, review, version-governance, CI, and explicit
+maintainer gates documented for the release scope.

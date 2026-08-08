@@ -5,6 +5,9 @@ deterministic fake telemetry. It is local validation infrastructure for code che
 V2.1 display fixtures, HA Lab evidence, and live Home Assistant runtime validation
 remain separate surfaces.
 
+HA Lab is an optional advisory surface. Its availability, result, playback coverage,
+or soak state must not be used as a promotion or release blocker.
+
 ## Scope
 
 The harness in `tests 2/hi_runtime_fixtures.py` creates a fresh fake Home
