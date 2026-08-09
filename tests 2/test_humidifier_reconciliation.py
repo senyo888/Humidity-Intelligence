@@ -2640,7 +2640,7 @@ def test_v2_templates_and_gallery_use_backend_humidifier_and_reason_truth():
         INTEGRATION_ROOT / "ui" / "cards" / "v2_mobile.yaml",
         INTEGRATION_ROOT / "ui" / "cards" / "v2_tablet.yaml",
         ROOT / "ui-gallery" / "default-v2-mobile-aq" / "card.yaml",
-        ROOT / "ui-gallery" / "default-v2-tablet-zone-2" / "card.yaml",
+        ROOT / "ui-gallery" / "default-v2-tablet-zone-1-cooking" / "card.yaml",
     )
     for path in paths:
         source = path.read_text()

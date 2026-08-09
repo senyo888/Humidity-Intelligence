@@ -151,25 +151,28 @@ The project also places strong emphasis on transparency. Users can see why actio
 
 At its core, Humidity Intelligence is about creating a calmer, more stable living environment through continuous environmental awareness and accountable smart-home control.
 
-<details>
-<summary><strong>Quick Demo</strong></summary>
-
-
-![Humidity Intelligence quick demo](assets/readme/hi_quick_demo.gif)
-
-<p><em>Historical sanitized HA Lab runtime reference with output isolation enabled.
-It predates beta.7 and is not current candidate playback evidence.</em></p>
-
-</details>
-
----
-
 ## V2 UI Example
 
-Fresh beta.7 mobile and tablet examples are pending separately authorized install,
-restart, card replacement, and live playback. Earlier reason-panel captures are not
-shown here because they predate the backend-owned presentation contract now described
-below.
+These are live `2.0.10-beta.7` dashboard captures. Home Assistant was restarted, the
+beta.7 cards were freshly exported, the complete Manual-card YAML was replaced, and
+the dashboard/browser cache was refreshed before capture.
+
+<p align="center">
+  <img src="assets/ui/v2.0.10-beta.7/mobile-aq-humidifier-retrying.png" width="43%" alt="Live Humidity Intelligence 2.0.10-beta.7 mobile dashboard with the air-quality lane selected and a humidifier retry state">
+  <img src="assets/ui/v2.0.10-beta.7/tablet-zone1-cooking-output-on.jpg" width="43%" alt="Live Humidity Intelligence 2.0.10-beta.7 tablet dashboard with the Zone 1 cooking lane selected and observed outputs on">
+</p>
+
+<p align="center"><em>Live package-and-card UI evidence, not soak, Stable, release, or HACS-publication evidence.</em></p>
+
+### The simple reason
+
+The comparison graphics below are editorial illustrations built from the refreshed
+beta.7 UI evidence. They explain the reason-field presentation change; they are not
+continuous playback records.
+
+![Alert reason before and after comparison](assets/ui/v2.0.10-beta.7/comparison-alert-reason-before-after.png)
+
+![Reason field before and after comparison](assets/ui/v2.0.10-beta.7/comparison-reason-field-before-after.png)
 
 HA Lab evidence is optional advisory operational evidence. Missing, blocked,
 incomplete, or failed Lab playback or soak does not block promotion, tagging, GitHub
@@ -875,7 +878,7 @@ Canonical YAML, preview assets, and contribution rules remain versioned in this 
 
 - [Gallery source](ui-gallery/README.md)
 - [Default V2 Mobile AQ](ui-gallery/default-v2-mobile-aq/README.md)
-- [Default V2 Tablet Zone 2](ui-gallery/default-v2-tablet-zone-2/README.md)
+- [Default V2 Tablet Zone 1 Cooking](ui-gallery/default-v2-tablet-zone-1-cooking/README.md)
 - [Default V1 Mobile (deprecated)](ui-gallery/default-v1-mobile/README.md)
 - [Contributing UI Gallery examples](ui-gallery/CONTRIBUTING.md)
 

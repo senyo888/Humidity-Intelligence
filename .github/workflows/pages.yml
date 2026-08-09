@@ -8,8 +8,7 @@ on:
       - "assets/logo.png"
       - "assets/header.png"
       - "assets/site/github-pages-hero.png"
-      - "assets/v2_ui_gallery/ui_v2_mobile_aq.png"
-      - "assets/v2_ui_gallery/ui_v2_tablet_zone_2.png"
+      - "assets/ui/v2.0.10-beta.7/**"
       - "scripts/build_hi_inspector.py"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
@@ -39,14 +38,16 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf _site
-          mkdir -p _site/assets/site _site/assets/v2_ui_gallery
+          mkdir -p _site/assets/site _site/assets/ui/v2.0.10-beta.7
           cp site/index.html site/styles.css site/robots.txt site/sitemap.xml _site/
           python3 scripts/build_hi_inspector.py _site/inspector
           cp assets/logo.png _site/assets/logo.png
           cp assets/header.png _site/assets/header.png
           cp assets/site/github-pages-hero.png _site/assets/site/github-pages-hero.png
-          cp assets/v2_ui_gallery/ui_v2_mobile_aq.png _site/assets/v2_ui_gallery/ui_v2_mobile_aq.png
-          cp assets/v2_ui_gallery/ui_v2_tablet_zone_2.png _site/assets/v2_ui_gallery/ui_v2_tablet_zone_2.png
+          cp assets/ui/v2.0.10-beta.7/mobile-aq-humidifier-retrying.png _site/assets/ui/v2.0.10-beta.7/mobile-aq-humidifier-retrying.png
+          cp assets/ui/v2.0.10-beta.7/tablet-zone1-cooking-output-on.jpg _site/assets/ui/v2.0.10-beta.7/tablet-zone1-cooking-output-on.jpg
+          cp assets/ui/v2.0.10-beta.7/comparison-alert-reason-before-after.png _site/assets/ui/v2.0.10-beta.7/comparison-alert-reason-before-after.png
+          cp assets/ui/v2.0.10-beta.7/comparison-reason-field-before-after.png _site/assets/ui/v2.0.10-beta.7/comparison-reason-field-before-after.png
           find _site -type f | sort
 
       - name: Upload Pages artifact

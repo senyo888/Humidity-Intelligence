@@ -44,23 +44,31 @@ Feature parity is maintained.
 
 ## UI Preview
 
-### Canonical V2 Candidate State
+### Live 2.0.10-beta.7 Card State
 
-Fresh beta.7 mobile and tablet captures are pending separately authorized live
-playback. Older gate-state imagery is intentionally not presented as current contract
-evidence.
+These captures were taken from an exact live `2.0.10-beta.7` installation after Home
+Assistant restart, fresh card export, complete Manual-card YAML replacement, and
+dashboard/browser cache refresh.
+
+<img src="../../../assets/ui/v2.0.10-beta.7/mobile-aq-humidifier-retrying.png" width="320" alt="Live HI 2.0.10-beta.7 mobile AQ card with a humidifier retry state">
+<img src="../../../assets/ui/v2.0.10-beta.7/tablet-zone1-cooking-output-on.jpg" width="320" alt="Live HI 2.0.10-beta.7 tablet Zone 1 cooking card with observed outputs on">
+
+These images demonstrate the refreshed package and cards. They are not soak,
+Stable, release-approval, or HACS-publication evidence.
+
+### The simple reason
+
+The before/after assets are editorial comparisons built from refreshed beta.7 UI
+evidence, not continuous playback records.
+
+<img src="../../../assets/ui/v2.0.10-beta.7/comparison-alert-reason-before-after.png" width="760" alt="Editorial comparison of the alert reason presentation before and in v2.0.10">
+<img src="../../../assets/ui/v2.0.10-beta.7/comparison-reason-field-before-after.png" width="760" alt="Editorial comparison of reason field presentation before and in v2.0.10">
 
 <details>
 <summary>Historical layout references — not beta.7 playback</summary>
 
 ### v1 Mobile (Deprecated Legacy-Compatible Skin)
 <img src="../../../assets/readme/ui_v1_mobile.png" width="320" alt="HI v1 mobile UI preview">
-
-### Historical pre-beta.7 v2 Mobile AQ reference
-<img src="../../../assets/readme/ui_v2_mobile_aq.png" width="320" alt="HI v2 mobile AQ UI preview">
-
-### Historical pre-beta.7 v2 Tablet Zone reference
-<img src="../../../assets/readme/ui_v2_tablet_zone_2.png" width="320" alt="HI v2 tablet zone UI preview">
 
 </details>
 

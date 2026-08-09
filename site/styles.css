@@ -301,6 +301,10 @@ p {
   background: #ffffff;
 }
 
+.reason-gallery {
+  background: var(--soft);
+}
+
 .gallery-heading {
   display: flex;
   align-items: end;
@@ -343,6 +347,19 @@ figure {
   object-fit: cover;
   object-position: top center;
   background: #edf2ee;
+}
+
+.dashboard-grid img {
+  height: min(72vh, 780px);
+  aspect-ratio: auto;
+  object-fit: contain;
+  background: #07111f;
+}
+
+.comparison-grid img {
+  aspect-ratio: 16 / 10;
+  object-fit: contain;
+  background: #07111f;
 }
 
 .screenshot-grid figcaption {
@@ -466,6 +483,15 @@ figure {
 
   .screenshot-grid img {
     aspect-ratio: 16 / 11;
+  }
+
+  .dashboard-grid img {
+    height: min(76vh, 720px);
+    aspect-ratio: auto;
+  }
+
+  .comparison-grid img {
+    aspect-ratio: 16 / 10;
   }
 
   .hero-logo {

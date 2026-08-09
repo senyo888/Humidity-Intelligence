@@ -1,19 +1,19 @@
-# Default V2 Mobile AQ
+# Default V2 Tablet Zone 1 Cooking
 
-- Style: mobile-first V2 control surface with air-quality lane active state
-- Optimised for: phones and narrow dashboard panels
+- Style: tablet-friendly V2 control surface with the Zone 1 cooking lane selected
+- Optimised for: tablets, wall panels, and wider dashboard views
 - Author: @senyo888
-- Source template: `custom_components/humidity_intelligence/ui/cards/v2_mobile.yaml`
+- Source template: `custom_components/humidity_intelligence/ui/cards/v2_tablet.yaml`
 - Required custom cards: `card-mod`, `button-card`, `mod-card`, `apexcharts-card`
 
-[![Default V2 Mobile AQ preview](preview.png)](preview.png)
+[![Default V2 Tablet Zone 1 Cooking preview](preview.png)](preview.png)
 
 ## Notes
 
-This example shows the default V2 mobile layout while the air-quality lane is active.
-It demonstrates the compact badge row, Current Air Control panel, lane chips, and the
-backend-owned plain-language reason headline and ordered explanation used by the generated
-V2 mobile card.
+This example shows the default V2 tablet layout with the Zone 1 cooking response lane
+selected. It highlights the larger badge presentation, backend-owned plain-language
+Current Air Control reason panel, observed output summary, lane status controls, and
+scan-friendly spacing intended for tablet and wall-panel use.
 
 The YAML keeps ventilation and humidifier chips in one horizontally scrollable
 Current Air Control row. The preview is a live `2.0.10-beta.7` capture taken after

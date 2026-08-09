@@ -24,7 +24,7 @@ PUBLIC_CARD_SURFACES = (
     INTEGRATION_ROOT / "ui" / "cards" / "v2_mobile.yaml",
     INTEGRATION_ROOT / "ui" / "cards" / "v2_tablet.yaml",
     ROOT / "ui-gallery" / "default-v2-mobile-aq" / "card.yaml",
-    ROOT / "ui-gallery" / "default-v2-tablet-zone-2" / "card.yaml",
+    ROOT / "ui-gallery" / "default-v2-tablet-zone-1-cooking" / "card.yaml",
     ROOT / "tmp_out" / "v2_mobile.yaml",
     ROOT / "tmp_out" / "v2_tablet.yaml",
     INTEGRATION_ROOT / "ui" / "_sensor_ids.txt",
@@ -49,7 +49,7 @@ OUTPUT_DETAILS_SURFACES = (
     INTEGRATION_ROOT / "ui" / "cards" / "v2_mobile.yaml",
     INTEGRATION_ROOT / "ui" / "cards" / "v2_tablet.yaml",
     ROOT / "ui-gallery" / "default-v2-mobile-aq" / "card.yaml",
-    ROOT / "ui-gallery" / "default-v2-tablet-zone-2" / "card.yaml",
+    ROOT / "ui-gallery" / "default-v2-tablet-zone-1-cooking" / "card.yaml",
 )
 V2_REASON_SURFACES = OUTPUT_DETAILS_SURFACES
 
@@ -3378,7 +3378,7 @@ def test_default_public_card_surfaces_block_unsafe_service_controls():
         INTEGRATION_ROOT / "ui" / "cards" / "v2_tablet.yaml",
         INTEGRATION_ROOT / "ui" / "cards" / "view_cards_button.yaml",
         ROOT / "ui-gallery" / "default-v2-mobile-aq" / "card.yaml",
-        ROOT / "ui-gallery" / "default-v2-tablet-zone-2" / "card.yaml",
+        ROOT / "ui-gallery" / "default-v2-tablet-zone-1-cooking" / "card.yaml",
     )
     mutation_markers = (
         "action: call-service",
@@ -3505,7 +3505,7 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
         INTEGRATION_ROOT / "ui" / "cards" / "v2_mobile.yaml",
         INTEGRATION_ROOT / "ui" / "cards" / "v2_tablet.yaml",
         ROOT / "ui-gallery" / "default-v2-mobile-aq" / "card.yaml",
-        ROOT / "ui-gallery" / "default-v2-tablet-zone-2" / "card.yaml",
+        ROOT / "ui-gallery" / "default-v2-tablet-zone-1-cooking" / "card.yaml",
     )
     forbidden_pause_tile_markers = (
         "name: Pause",
@@ -3598,7 +3598,7 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
 def test_public_v2_gallery_cards_preserve_air_control_mode_truth():
     gallery_cards = (
         ROOT / "ui-gallery" / "default-v2-mobile-aq" / "card.yaml",
-        ROOT / "ui-gallery" / "default-v2-tablet-zone-2" / "card.yaml",
+        ROOT / "ui-gallery" / "default-v2-tablet-zone-1-cooking" / "card.yaml",
     )
 
     for path in gallery_cards:
@@ -5227,7 +5227,7 @@ def test_generated_v2_cards_escape_dynamic_html_text():
         INTEGRATION_ROOT / "ui" / "cards" / "v2_mobile.yaml",
         INTEGRATION_ROOT / "ui" / "cards" / "v2_tablet.yaml",
         ROOT / "ui-gallery" / "default-v2-mobile-aq" / "card.yaml",
-        ROOT / "ui-gallery" / "default-v2-tablet-zone-2" / "card.yaml",
+        ROOT / "ui-gallery" / "default-v2-tablet-zone-1-cooking" / "card.yaml",
     ):
         source = path.read_text(encoding="utf-8")
         assert "const escapeHtml = " in source, path

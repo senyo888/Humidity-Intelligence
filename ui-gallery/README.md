@@ -13,9 +13,10 @@ Requested, On, Idle, Isolated, Retrying, Stopping, Unknown, Degraded, and Fault
 remain separate presentation states. `On` is concise card wording for backend
 `output_on`, and the examples do not infer physical moisture production from a
 generic output `on` state. The canonical YAML uses the same plain-language backend
-reason authority across AQ and Zone examples. Existing previews predate beta.7 and
-must not be treated as evidence of its one-row/cyan presentation until fresh live
-playback captures replace them.
+reason authority across AQ and Zone examples. The V2 previews were captured from an
+exact live `2.0.10-beta.7` installation after restart, fresh export, complete
+Manual-card YAML replacement, and cache refresh. They are package-and-card UI
+evidence, not soak, Stable, release, or HACS-publication evidence.
 
 The browseable UI Gallery lives in the GitHub Wiki:
 
@@ -39,19 +40,19 @@ This repository directory remains the canonical source for gallery YAML, preview
 - [Card YAML](default-v2-mobile-aq/card.yaml)
 - [Example notes](default-v2-mobile-aq/README.md)
 
-### Default V2 Tablet Zone 2
+### Default V2 Tablet Zone 1 Cooking
 
-- Style: tablet-friendly V2 control surface with Zone 2 active state
+- Style: tablet-friendly V2 control surface with the Zone 1 cooking lane selected
 - Optimised for: tablets, wall panels, and wider dashboard views
 - Author: @senyo888
 - Source template: `custom_components/humidity_intelligence/ui/cards/v2_tablet.yaml`
 - Required custom cards: `card-mod`, `button-card`, `mod-card`, `apexcharts-card`
 
-[![Default V2 Tablet Zone 2 preview](default-v2-tablet-zone-2/preview.png)](default-v2-tablet-zone-2/preview.png)
+[![Default V2 Tablet Zone 1 Cooking preview](default-v2-tablet-zone-1-cooking/preview.png)](default-v2-tablet-zone-1-cooking/preview.png)
 
-- [View preview](default-v2-tablet-zone-2/preview.png)
-- [Card YAML](default-v2-tablet-zone-2/card.yaml)
-- [Example notes](default-v2-tablet-zone-2/README.md)
+- [View preview](default-v2-tablet-zone-1-cooking/preview.png)
+- [Card YAML](default-v2-tablet-zone-1-cooking/card.yaml)
+- [Example notes](default-v2-tablet-zone-1-cooking/README.md)
 
 ### Default V1 Mobile (Deprecated)
 

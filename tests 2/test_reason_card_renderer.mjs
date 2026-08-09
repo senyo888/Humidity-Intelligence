@@ -9,7 +9,7 @@ const SURFACES = [
   'custom_components/humidity_intelligence/ui/cards/v2_mobile.yaml',
   'custom_components/humidity_intelligence/ui/cards/v2_tablet.yaml',
   'ui-gallery/default-v2-mobile-aq/card.yaml',
-  'ui-gallery/default-v2-tablet-zone-2/card.yaml',
+  'ui-gallery/default-v2-tablet-zone-1-cooking/card.yaml',
 ];
 const OMIT = Symbol('omit');
 
