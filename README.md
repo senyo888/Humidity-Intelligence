@@ -35,7 +35,6 @@
 - [UI Gallery](#ui-gallery)
 - [Post-Configuration Workflow](#post-configuration-workflow)
 - [How to Use Services](#how-to-use-services)
-- [Documentation and Support Manual](#documentation-and-support-manual)
 - [Support, Diagnostics, and Issue Triage](#support-diagnostics-and-issue-triage)
 - [Runtime Simulation Validation](#runtime-simulation-validation)
 - [Release Notes](#release-notes)
@@ -341,9 +340,10 @@ Canonical runtime order:
 4. Mould Risk
 5. Condensation Danger
 6. Condensation Risk
-7. Zone 1 / Zone 2
-8. Air Quality
-9. Normal
+7. Zone 1
+8. Zone 2
+9. Air Quality
+10. Normal
 
 Alert lanes resolve the originating sensor to a configured room/zone, then use that zone's boost fan level as the single deterministic control path. Once an actionable alert is selected, HI holds that boost path until the originating alert clears unless a higher-priority alert appears.
 
@@ -1117,36 +1117,6 @@ Detailed manual:
 - [Troubleshooting Generated UI](https://github.com/senyo888/humidity-intelligence/wiki/Troubleshooting-Generated-UI)
 - [Diagnostics and Support Bundle](https://github.com/senyo888/humidity-intelligence/wiki/Diagnostics-and-Support-Bundle)
 - [Release Validation for Users](https://github.com/senyo888/humidity-intelligence/wiki/Release-Validation-for-Users)
-
----
-
-## Documentation and Support Manual
-
-The early [Wiki and Support Manual](#wiki-and-support-manual) section links the main
-manual pages. This section keeps the deeper support and background references in one
-place without making the README duplicate the full manual.
-
-The README covers installation, current release highlights, core usage, screenshots,
-services, support entry points, and release notes.
-
-For longer support guidance, see the Humidity Intelligence Wiki:
-
-- [Getting Help](https://github.com/senyo888/humidity-intelligence/wiki/Getting-Help)
-- [Diagnostics and Support Bundle](https://github.com/senyo888/humidity-intelligence/wiki/Diagnostics-and-Support-Bundle)
-- [Generated Dashboards](https://github.com/senyo888/humidity-intelligence/wiki/Generated-Dashboards)
-- [UI Gallery](https://github.com/senyo888/humidity-intelligence/wiki/UI-Gallery)
-- [HACS and Updates](https://github.com/senyo888/humidity-intelligence/wiki/HACS-and-Updates)
-- [Configuration Walkthrough](https://github.com/senyo888/humidity-intelligence/wiki/Configuration-Walkthrough)
-- [Understanding Control Decisions](https://github.com/senyo888/humidity-intelligence/wiki/Understanding-Control-Decisions)
-- [Why Environmental Stability Matters](https://github.com/senyo888/humidity-intelligence/wiki/Why-Environmental-Stability-Matters)
-- [Air Quality and CO Safety](https://github.com/senyo888/humidity-intelligence/wiki/Air-Quality-and-CO-Safety)
-- [Troubleshooting Generated UI](https://github.com/senyo888/humidity-intelligence/wiki/Troubleshooting-Generated-UI)
-- [Release Validation for Users](https://github.com/senyo888/humidity-intelligence/wiki/Release-Validation-for-Users)
-- [FAQ](https://github.com/senyo888/humidity-intelligence/wiki/FAQ)
-
-The Wiki is a support manual. Runtime behavior, entity semantics, generated dashboard
-logic, diagnostics, release state, and migration requirements live in the repository
-source and release documentation.
 
 ---
 
