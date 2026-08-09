@@ -173,11 +173,6 @@ continuous playback records.
 
 ![Reason field before and after comparison](assets/ui/v2.0.10-beta.7/comparison-reason-field-before-after.png)
 
-HA Lab evidence is optional advisory operational evidence. Missing, blocked,
-incomplete, or failed Lab playback or soak does not block promotion, tagging, GitHub
-Release or HACS publication, or Stable approval; those decisions remain with the
-canonical validation, review, CI, and explicit maintainer gates.
-
 <details>
 <summary><strong>More UI Examples</strong></summary>
 
@@ -396,49 +391,35 @@ Only one comfort/control lane drives outputs at a time.
 
 This keeps control ownership explicit and prevents lower-priority comfort responses from fighting safety or risk responses.
 
-### 3) Presentation Layer - UI Truth Contract
+### 3) Presentation Layer - Clear, Truthful Status
 
-This layer makes the engine understandable. It reflects runtime truth:
+This layer explains what HI is doing:
 
-- active lane
-- gate blocks
-- override state
-- reason text
-- output stage transparency
+- the selected ventilation response
+- any gate, pause, or override limiting control
+- the reason for the decision
+- humidifier demand and the output state Home Assistant can observe
 
-The engine decides; the UI renders.
+HI decides; the cards explain that decision.
 
-The existing Air Control Reason entity carries an additive `display_reason` attribute
-using exact schema `hi.reason.v1`. Its required top-level fields are `schema`,
-`locale`, `family`, `variant`, `attention`, `truncated`, `headline`, and `lines`.
-Attention is one of `neutral`, `active`, `hold`, `degraded`, `critical`, or `unknown`.
-Each ordered line contains `role`, `scope`, `code`, `truth`, and final backend-authored
-`text`, with optional bounded `args`. Roles are `why`, `action`, `next`, or `notice`;
-scopes are `system`, `safety`, `ventilation`, or `humidifier`; truth is `selected`,
-`blocked`, `requested`, `observed`, `unavailable`, `unmapped`, `not_confirmed`, or
-`failed`.
+The Air Control Reason entity supplies the final wording shown by V2 cards. The cards
+display that backend-authored text instead of rebuilding control logic in the
+dashboard. When the text is missing or the card uses an older format, it falls back to
+the existing reason and ultimately shows `Reason unavailable.` Older cards and
+existing integrations can continue using the original reason state and supporting
+details. The technical format and fallback rules are documented in
+[ARCHITECTURE.md](ARCHITECTURE.md#ui-truth-contract).
 
-The contract permits at most eight lines, targets six, limits headlines to 120
-characters and line text to 200 characters, and caps the serialized object at 4 KiB.
-Family, variant, and argument-key tokens are at most 64 characters; dotted line codes
-are at most 96. Each line may contain six JSON-scalar arguments, with string values
-limited to 64 characters. Normalized text rejects control characters, the markup
-delimiters `<`, `>`, and backtick, and raw entity IDs. V2 cards validate exact schema
-and locale `en`, escape final text, and
-otherwise fall back atomically to escaped `full_reason`, usable entity state, then
-`Reason unavailable.` They never compose prose or decisions from codes or arguments.
-The legacy state, `full_reason`, truncation, and `humidifier_status` surfaces remain
-available for mixed-version cards and existing consumers.
+The selected ventilation response, humidifier demand, and output seen by Home
+Assistant are reported separately. A humidifier chip labelled `Requested` confirms
+demand only. HI reports separately whether it sent a command and whether Home
+Assistant sees the output as on. Entity state alone leaves physical moisture
+unverified. If information is missing or unmatched in the setup, the UI shows
+`Unknown`, `Unavailable`, or `Degraded` instead of an all-clear.
 
-Presentation text distinguishes selected ventilation intent from humidifier service
-dispatch, Home Assistant-observed state, and unverified physical output. A humidifier
-chip labelled `Requested` means effective humidification demand; it does not prove a
-service call, output state, or physical moisture. Reason-line truth `requested` means
-the backend recorded handoff to Home Assistant without an immediate exception.
-Unknown or unavailable evidence is never translated into a healthy or all-clear
-claim, and presentation never falls back to raw entity IDs.
-
-Generated V2 control-row colours separate selected command lanes from environmental risk: red row styling is reserved for selected alert/CO runtime truth. Degraded or unmapped alert candidates remain visible in reason text instead of occupying primary Current Air Control chip-row space.
+Red control-row styling is reserved for a selected alert or CO response. Other
+environmental warnings remain visible in the reason text without being presented as
+the active control response.
 
 ## Public Architecture Contract
 
@@ -524,30 +505,32 @@ must be reviewable from tracked repository files.
   semantics, migration shape, and UI truth stay aligned with the existing backend
   model
 
-Upgrade note: after updating HI through HACS or file replacement, restart Home
-Assistant so Home Assistant reloads the manifest version and updated services. Use
-config-entry reload after option changes once the updated code is already loaded.
-Run `humidity_intelligence.dump_cards` and paste the updated YAML into existing Manual
-cards if you use generated Current Air Control cards, the default V2 control row, or
-output-detail surfaces; already-pasted Manual cards are static and do not inherit
-backend template changes automatically. The v2.0.10 V2 reason area consumes the
-backend-owned `display_reason` contract and no longer composes `Stage:`, risk, timer,
-isolation, or `Engine:` explanations in the card. HI exports card fragments, not
-complete dashboard documents: leave registered or YAML-mode dashboard files
-unchanged. Create or open a dashboard through Home Assistant, then add a Manual card
-or replace the complete YAML of an existing HI Manual card. Running `refresh_ui`
-alone updates only the in-memory cache. Users retaining V1 Mobile must
-also re-export and re-copy that card to receive the v2.0.9 HTML-escaping fix.
-Humidifier explanations are authored entirely by the backend and remain
-self-contained through their resolved level label, including when a long explanation
-splits. An already-pasted V2 card that consumes `display_reason` does not need
-replacement for backend copy alone, but beta.7's one-row/cyan template change requires
-a fresh export and complete Manual-card YAML replacement. Refresh the frontend after
-pasting if Home Assistant still shows cached styling. The v2.0.10 line also makes
-every selected response lane explicit and uses
-family-level alert headlines with Risk or Danger stated in the first explanation
-sentence; mould ordinal values are translated to named ranges in visible prose. A
-full Home Assistant restart is required to load the updated Python package.
+Upgrade note:
+
+After installing a new HI version through HACS or replacing its files:
+
+1. Restart Home Assistant. A full restart loads the updated HI package and services.
+2. If you use generated Current Air Control, V2 control-row, or output-detail cards,
+   run `humidity_intelligence.dump_cards`.
+3. Open the dashboard in Home Assistant and replace the complete YAML of each existing
+   HI Manual card with the new export.
+4. Refresh the browser if the old layout or colours are still cached.
+
+The exported YAML belongs inside a Manual card. Keep registered and YAML-mode
+dashboard files as they are; add a Manual card or replace the complete YAML inside an
+existing HI Manual card.
+
+In v2.0.10, HI writes the full reason message and the card displays it. Alert messages
+state Risk or Danger early, mould levels use named ranges, and humidifier explanations
+keep the relevant level name when a longer message is split. Existing V2 cards that
+already show HI-authored reason text receive wording updates automatically. The
+beta.7 single-row layout and cyan `On` / `Requested` styling require a fresh export.
+Users keeping V1 Mobile should also re-export and replace that card to receive the
+v2.0.9 fix that safely displays dynamic text.
+
+After the updated integration code is loaded, a config-entry reload is enough for
+option changes. `refresh_ui` updates HI's live card cache;
+`humidity_intelligence.dump_cards` creates fresh YAML you can paste.
 
 ---
 
