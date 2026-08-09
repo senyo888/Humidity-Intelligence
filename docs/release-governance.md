@@ -155,6 +155,17 @@ record:
    but they do not replace the `main` release/tag gate.
 5. A GitHub release is created only from a stable version on `main`.
 
+## README Release-Note Structure
+
+The README keeps the current candidate and current Stable release summaries expanded.
+When a newer release takes either position, move the displaced summary into the
+collapsible `Previous Releases` container. Retain that container as the canonical
+older-release structure so successive releases follow the same visible chronology.
+
+`CHANGELOG.md` owns the complete detailed release and legacy-migration history. The
+README container may keep concise displaced summaries and must retain a direct link to
+that tracked history.
+
 ## Hard Release Gates
 
 No Humidity Intelligence version release, GitHub release, or release tag may be created

@@ -97,6 +97,7 @@ Humidity Intelligence is a deterministic Home Assistant environmental control en
 ## Documentation and Release Expectations
 
 - Keep `README.md`, `manifest.json`, `hacs.json`, docs, release notes, UI examples, and runtime behavior aligned.
+- Keep the current candidate and current Stable release summaries expanded in the README `Release Notes` section. When a newer release takes either position, move the displaced summary into the collapsible `Previous Releases` container; retain that container as the canonical older-release structure. `CHANGELOG.md` remains the complete detailed release and legacy-migration history.
 - Keep the Wiki UI Gallery as a browseable mirror/index only; repository `ui-gallery/` remains canonical for reviewed YAML, preview assets, and contribution rules.
 - Update related docs when implementation behavior changes.
 - Treat completed milestones as completed. Do not leave shipped v2.0.5 functionality in planned, pending, or proposal-only roadmap buckets.

@@ -442,6 +442,13 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## 2.0.4
 
+- Promoted integration metadata to stable `2.0.4`.
+- Added alert-to-zone binding for humidity, mould, and condensation alerts so the originating room resolves to its configured zone boost level.
+- Added mould risk and condensation risk alert trigger types alongside the existing danger triggers.
+- Enforced deterministic priority across CO emergency, humidity danger, mould danger, mould risk, condensation danger, condensation risk, Zone 1, Zone 2, AQ, and normal lanes.
+- Added deterministic multi-alert conflict reporting in the reason panel and debug logs.
+- Added the `auto_refresh_ui_on_startup` option, enabled by default, to refresh HI UI mapping shortly after Home Assistant startup without blocking startup.
+- Removed the HACS URL from frontend dependency flow output while retaining HACS detection.
 - Fixed alert flash color payloads so internally triggered visual alerts send RGB lists accepted by Home Assistant service validation.
 - Added user-friendly headers to V2 card YAML exports with Manual-card paste instructions, `dump_cards` refresh guidance, and frontend dependency reminders.
 - Fixed alert flash payloads so optional visual-indicator power entities are omitted when unset, avoiding schema errors and repeated debug logs.
@@ -470,6 +477,7 @@ This project follows a practical changelog format for Home Assistant and HACS us
 - Fixed alert boost hold behavior so selected alert zone outputs are not returned to auto while the alert lane is active.
 - Changed alert conflict handling to keep the current actionable alert boost until that originating alert clears, unless a higher-priority alert appears.
 - Changed unmapped/degraded alert handling so unsafe alert candidates are reported in the reason text while automation continues to the next eligible priority.
+- Added degraded-mode handling when an alert sensor, room, zone, or output mapping is incomplete.
 - Fixed built-in humidity, mould, and condensation alert candidates so they enter the alert lane, resolve to the mapped zone boost level, and populate `HI Active Alert Context` even when no matching explicit alert row is configured.
 - Fixed V2 alert chip detection so generated cards recognise real alert switch entity IDs and the active alert context companion chip.
 - Changed Humidity Danger alerts to use the active target profile high-risk threshold instead of any saved static humidity threshold.
@@ -487,6 +495,44 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## 2.0.3
 
-- Previous documented release.
+- Promoted integration metadata to stable `2.0.3`.
+- Documented minimum Home Assistant version `2026.4.3`.
+- Added direct repository links for `card-mod`, `button-card`, `mod-card`, and `apexcharts-card` to frontend dependency status output.
+- Added a post-configuration Frontend Dependencies options step so dependency checks remain accessible after initial setup.
+- Reordered the options menu for setup-flow clarity: Frontend Dependencies, Sensors, then Global Gates.
+- Refreshed README frontend dependency guidance with a HACS-first installation path and acknowledgements.
+- Updated the top badges so HACS reads `Custom Integration` and Home Assistant compatibility is visible directly.
+
+## 2.0.2
+
+- Corrected humidity badge semantics to target-relative `below_target`, `in_target`, `above_target`, and `high_risk` states.
+- Surfaced the active target season/profile in the UI target display.
+- Updated condensation and mould risk evaluation to use season-aware deterministic thresholds.
+- Expanded humidifier telemetry reasons with lane scope, trigger condition, measured values versus thresholds, and recovery logic.
+- Added runtime debug logging for the active target profile, seasonal adjustments, humidity badge classification, and humidifier trigger/stop events.
+
+## 2.0.1
+
+- Fixed Fahrenheit telemetry normalization by converting internal temperature calculations to Celsius before averages, spreads, deltas, and thresholds.
+- Fixed IAQ/AQ aggregation so `unknown`, `unavailable`, and non-numeric states are excluded and the aggregate is unknown only when no valid values remain.
+- Added aggregate exclusion debug logging with explicit `unknown`, `unavailable`, `non_numeric`, and `unit_mismatch` reasons.
+- Added zone-mapping duplicate warnings in setup/options and a duplicate-diagnostics sensor state.
+- Added `alert_only_mode` for monitoring and alerts without output-control lanes.
+- Improved generated-UI placeholder pruning so unconfigured optional outputs and controls, including alert-only controls, are hidden.
+- Fixed alert-only card rendering by pruning invalid leftover `conditional` blocks after entity pruning.
+- Updated Current Air Control reason behavior so alert-only mode reports monitoring/alert context separately from output-control wording.
+- Made `alert_only_mode` option changes trigger UI card refresh/export regeneration and a notification.
+- Expanded options editing so previously skipped lanes and alerts can be revisited and added later.
+- Expanded post-configuration lane management so humidifier and AQ lanes can be restored after removal, with explicit telemetry add/update/remove logging.
+- Made alert target lights optional across config, options, services, and runtime; alerts remain active without flash entities.
+- Hardened service input validation for filenames, URL paths, layouts, and bounded flash parameters, and expanded diagnostics redaction for sensitive attributes.
+
+### Legacy migration notes
+
+- `alert_only_mode` is available under Global Gates in setup and options. Disable it to restore normal control entities and lane behavior.
+- `HI Zone Mapping Duplicates` (`hi_<entry_id>_zone_mapping_duplicates`) exposes duplicate zone-mapping status and details.
+- New computed sensors are `HI Active Target Season` (`hi_<entry_id>_target_season`) and `HI House Humidity State` (`hi_<entry_id>_house_humidity_state`).
+- Generated V2 cards prune unresolved optional control/output entities instead of leaving stale references.
+- Manual-card dashboards should use the latest exported YAML after changing `alert_only_mode` so the UI and reason panel match the selected mode.
 
 </details>
