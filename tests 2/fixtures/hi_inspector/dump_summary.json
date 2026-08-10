@@ -140,13 +140,7 @@
       }
     },
     "entity_map_summary": {
-      "mapped_entity_count": 4,
-      "mapped_keys": [
-        "air_control_mode",
-        "air_control_reason",
-        "fan_output",
-        "optional_output"
-      ]
+      "mapped_entity_count": 4
     },
     "state_summary": {
       "by_status": {

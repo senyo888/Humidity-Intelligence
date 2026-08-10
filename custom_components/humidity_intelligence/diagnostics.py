@@ -348,12 +348,9 @@ def _output_states(hass: HomeAssistant, config: dict[str, Any]) -> dict[str, Any
 
 
 def _mapped_entity_states(hass: HomeAssistant, entity_map: dict[str, Any]) -> dict[str, Any]:
-    rows = {}
-    for key, entity_id in sorted((entity_map or {}).items()):
-        if not entity_id:
-            continue
-        rows[str(key)] = _entity_status(hass, str(entity_id))
-    return rows
+    """Summarize mapped states without exposing mapping keys or entity IDs."""
+    entity_ids = [entity_id for entity_id in (entity_map or {}).values() if entity_id]
+    return _entity_status_summary(hass, entity_ids)
 
 
 def _entity_status(hass: HomeAssistant, entity_id: str) -> dict[str, Any]:

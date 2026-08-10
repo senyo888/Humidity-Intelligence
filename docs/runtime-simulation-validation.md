@@ -54,10 +54,10 @@ node "tests 2/test_reason_card_renderer.mjs"
 Expected local pass output:
 
 ```text
-21 air-control mode simulation checks passed.
-26 humidifier reconciliation checks passed.
+24 air-control mode simulation checks passed.
+39 humidifier reconciliation checks passed.
 14 reason-presentation contract checks passed.
-7 reason-card renderer checks passed.
+13 reason-card renderer checks passed.
 ```
 
 Where full test dependencies are available, this file can also be run through

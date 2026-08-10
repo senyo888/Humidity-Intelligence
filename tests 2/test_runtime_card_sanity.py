@@ -3919,19 +3919,21 @@ def test_readme_uses_manifest_version_badge_not_static_ha_compatibility_badge():
     assert "Home%20Assistant-2026.4.3%2B" not in readme_source
 
 
-def test_readme_keeps_candidate_and_current_stable_before_previous_releases():
+def test_readme_keeps_release_source_and_published_stable_before_previous_releases():
     readme_source = (ROOT / "README.md").read_text()
     release_notes = readme_source.split("## Release Notes", 1)[1]
     visible_notes, previous_releases = release_notes.split("<details>", 1)
 
-    assert "### v2.0.10 (Unreleased beta candidate)" in visible_notes
+    assert "### v2.0.10 (Stable release source; publication pending)" in visible_notes
     assert "### v2.0.9" in visible_notes
     assert "set integration metadata to stable `2.0.9`" in visible_notes
     assert "### v2.0.8" not in visible_notes
-    assert "### v2.0.8" in previous_releases
-    assert "### v2.0.7" in previous_releases
+    assert "v2.0.1 through v2.0.8" in previous_releases
     assert "assets/release_banner/v2.0.9_release.png" not in visible_notes
     assert (ROOT / "assets" / "release_banner" / "v2.0.9_release.png").read_bytes()[:8] == (
+        b"\x89PNG\r\n\x1a\n"
+    )
+    assert (ROOT / "assets" / "release_banner" / "v2.0.10_release.png").read_bytes()[:8] == (
         b"\x89PNG\r\n\x1a\n"
     )
     assert "<summary>Previous Releases</summary>" in previous_releases
@@ -5218,7 +5220,9 @@ def test_dump_diagnostics_owned_export_redacts_sensitive_payload_before_write():
     assert "/hacsfiles/button-card/button-card.js" not in rendered
     assert "configuration_summary" in captured["payload"][ENTRY_ID]
     assert "entity_map_summary" in captured["payload"][ENTRY_ID]
-    assert captured["payload"][ENTRY_ID]["entity_map_summary"]["mapped_entity_count"] == 2
+    assert captured["payload"][ENTRY_ID]["entity_map_summary"] == {
+        "mapped_entity_count": 2,
+    }
     assert captured["filename"] == "humidity_intelligence_diagnostics.json"
 
 
@@ -5712,7 +5716,7 @@ def test_v205_release_check_service_is_documented_and_registered():
     assert "write_test_exports" in services_yaml
     assert "humidity_intelligence.v205_release_check" in readme_source
     assert "humidity_intelligence_v205_release_check.json" in readme_source
-    assert manifest["version"] == "2.0.10-beta.7"
+    assert manifest["version"] == "2.0.10"
 
 
 def test_owned_ui_path_discovery_and_legacy_cleanup_guidance_is_explicit():

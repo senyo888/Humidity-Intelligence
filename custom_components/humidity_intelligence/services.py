@@ -1100,7 +1100,6 @@ def _support_configuration_summary(config: dict, options: dict) -> dict:
 def _support_entity_map_summary(entity_map: dict) -> dict:
     return {
         "mapped_entity_count": len([value for value in (entity_map or {}).values() if value]),
-        "mapped_keys": sorted(str(key) for key, value in (entity_map or {}).items() if value),
     }
 
 

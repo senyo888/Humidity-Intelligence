@@ -56,9 +56,13 @@ It gives you:
 - native Home Assistant diagnostics for support and triage
 - services for dashboard export, self-check, diagnostics, pause/resume, and release validation
 
-Current candidate manifest version: **v2.0.10-beta.7**. Published Stable remains
-**v2.0.9** until the beta line completes its independent validation and promotion
-gates.
+Current stable release-source manifest version: **v2.0.10**. Publication is pending;
+the published GitHub Release, tag, and HACS Stable package remain **v2.0.9** until the
+separate publication lane is completed.
+
+Optional HA Lab evidence is advisory and does not block promotion. Canonical tests,
+review, CI, version governance, and explicit maintainer decisions remain the release
+authority.
 
 For publication status, installed packages, and release tags, use
 [GitHub Releases](https://github.com/senyo888/Humidity-Intelligence/releases) and
@@ -434,15 +438,15 @@ must be reviewable from tracked repository files.
 
 ## Current Release Highlights
 
-- the unreleased `2.0.10-beta.7` candidate refines backend-authored reason sentences
-  without changing the `hi.reason.v1` schema, control decisions, thresholds, service
-  dispatch, or entity semantics; every action line remains independently scoped if
-  bounded compaction removes an adjacent cause line
+- the stable `2.0.10` release source adds deterministic humidifier-output
+  reconciliation and backend-authored `hi.reason.v1` explanations while preserving
+  one selected ventilation lane, the existing lane order, thresholds, configuration,
+  stored data, and entity identity
 - V2 Mobile, V2 Tablet, and both canonical gallery templates keep ventilation and
   humidifier chips in one horizontally scrollable Current Air Control row;
   `On` and `Requested` are cyan; `Idle`, `Retrying`, `Stopping`, and `Isolated` are
   amber; `Fault` and `Degraded` are red; and `Unknown` is grey
-- the candidate manifest identifies `2.0.10-beta.7`, while the published GitHub
+- the release-source manifest identifies stable `2.0.10`, while the published GitHub
   release, tag, and HACS Stable line remain `2.0.9`; those publication surfaces stay
   authoritative for the installed Stable package
 - the browser-local
@@ -487,13 +491,14 @@ must be reviewable from tracked repository files.
   counts, statuses, and summaries instead of raw entity maps, state dumps, room
   names, or Lovelace resource URLs; validation reports may still include configured
   or generated entity IDs needed to debug missing mappings
+- mapped runtime entity diagnostics are aggregated into availability counts; native
+  diagnostics and `dump_diagnostics` do not retain mapping keys or mapped entity IDs
 - local issue-triage private report writing is confined through the private atomic
   writer, keeping public issue/support flows separate from local report output
 - the tracked secret scan now fails closed when no tracked files are selected
-- `v205_release_check` preserves its service name; the unreleased implementation
+- `v205_release_check` preserves its service name; the stable release source
   extends its generated-card, humidifier-reconciliation, and release-validation
-  contract through the v2.0.10 beta/rc/stable line and carries explicit
-  `2.0.10-beta.7` manifest metadata for renewed, zero-credit HA Lab beta validation
+  contract through the v2.0.10 beta/rc/stable line
 - Home Assistant Area/Label setup assistance can suggest defaults from registry
   metadata, but saved HI telemetry, zone, AQ, humidifier, and alert mappings remain
   the only runtime truth
@@ -740,7 +745,9 @@ sensor:
 
 Since v2.0.6, HI reports missing-helper guidance through the drift sensor attributes, diagnostics, `self_check`, `v205_release_check`, and Home Assistant Repairs. The setup/options Frontend Dependencies pages remain frontend-only; drift helper truth belongs on diagnostics and repair surfaces.
 
-Do not fabricate history. If the helper is missing, warming up, unavailable, or not numeric, HI reports that dependency state instead of synthesizing a drift value.
+Do not fabricate history. If the helper is missing, warming up, unavailable, or not
+numeric, HI reports it as not ready or unavailable instead of synthesizing a drift
+value.
 
 If the helper exists but reports `unknown`, `unavailable`, a non-numeric state, low `age_coverage_ratio`, or `source_value_valid: false`, HI treats the helper as still warming up or awaiting usable recorder data.
 
@@ -1178,26 +1185,45 @@ CO emergency pressure. Details are in
 
 ## Release Notes
 
-### v2.0.10 (Unreleased beta candidate)
+### v2.0.10 (Stable release source; publication pending)
 
-- carries exact candidate identity `2.0.10-beta.7`; published Stable remains v2.0.9
-- keeps one deterministic ventilation decision per cycle and leaves thresholds,
-  gates, output writers, service dispatch, configuration, and entity semantics
-  unchanged
-- refines backend-owned `hi.reason.v1` wording into complete, independently scoped
-  cause, action, humidifier-demand, and observed-state sentences while retaining the
-  technical state and `full_reason` compatibility surfaces
+- carries stable package identity `2.0.10`; the published GitHub Release, tag, and
+  HACS Stable package remain v2.0.9 until the separate publication lane completes
+- adds deterministic reconciliation for configured `humidifier`, `fan`, and `switch`
+  humidifier outputs, including observed-state confirmation, bounded retry/fault
+  handling, availability recovery, output isolation, and safe shared-output ownership
+- adds the backward-compatible `hi.reason.v1` `display_reason` attribute and clearer
+  backend-authored cause, action, demand, dispatch, observed-state, gate, alert, and
+  degraded explanations while retaining technical state and `full_reason`
+- moves the installable package into
+  `custom_components/humidity_intelligence/`, removes HACS `content_in_root`, and keeps
+  the installed component path unchanged
 - places ventilation and humidifier chips on one horizontal Current Air Control row
   across V2 Mobile, V2 Tablet, and both canonical gallery templates: `On` and
   `Requested` are cyan; `Idle`, `Retrying`, `Stopping`, and `Isolated` amber; `Fault`
   and `Degraded` red; and `Unknown` grey
-- requires a full Home Assistant restart after installing the Python package; the
-  card layout change also requires `refresh_ui`, a fresh `dump_cards` or `view_cards`
-  export, complete Manual-card YAML replacement, and a frontend refresh if cached
-- requires no config-entry, entity-registry, stored-data, service, threshold, or lane
-  migration
-- begins a new exact-identity validation campaign after deployment; beta.6's
-  invalidated cadence transfers no soak credit
+- preserves one deterministic ventilation decision per cycle, canonical lane order,
+  thresholds, configuration schema, stored data, entity IDs/states, and service names;
+  humidifier output reconciliation and explanatory/diagnostic attributes change
+  intentionally
+- closes a diagnostics privacy gap found during forward validation by replacing mapped
+  runtime entity rows with aggregate availability counts and removing mapping keys
+  from `dump_diagnostics`; runtime mappings and control behavior are unchanged
+- retains `create_dashboard` for call compatibility but changes it to a deterministic,
+  admin-gated, no-write Manual-card guidance action. Callers relying on automatic
+  dashboard creation or removal must use `refresh_ui` plus `dump_cards`/`view_cards`
+  and the Home Assistant Manual-card workflow; existing dashboards and legacy IDs are
+  retained
+- requires a full Home Assistant restart after installing the Python package. Existing
+  Manual cards also require `refresh_ui`, a fresh `dump_cards` or `view_cards` export,
+  complete YAML replacement, and a frontend refresh if cached
+- requires no config-entry, entity-registry, stored-data, threshold, lane-order, or
+  service-name migration
+- records advisory beta.7 soak evidence for exact campaign
+  `P22C-20260808T073919Z-9162eca3`: 9/9 scheduled slots passed with identity verified
+  and no failed or missed slots. Private Stable-instance diagnostics also passed for
+  the installed beta.7 package; neither evidence class claims that stable `2.0.10` is
+  already published or installed
 
 ### v2.0.9
 
@@ -1266,7 +1292,7 @@ CO emergency pressure. Details are in
   concurrent/fault-injected writes, legacy-root retention, or rendered Lovelace UI;
   those boundaries remain covered by local tests or require separate live evidence
 
-<!-- Canonical release-note structure: keep the current candidate and current Stable
+<!-- Canonical release-note structure: keep the current release source and current Published Stable
 summaries expanded above, then move displaced older summaries into this container as
 new releases are added. CHANGELOG.md remains the complete detailed history. -->
 <details>

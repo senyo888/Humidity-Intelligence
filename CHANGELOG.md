@@ -8,6 +8,17 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+- No unreleased changes.
+
+## 2.0.10 - 2026-08-10
+
+- Fixed a diagnostics privacy gap found during Stable-instance forward validation:
+  native diagnostics now report mapped runtime entities only as aggregate availability
+  counts, and `dump_diagnostics` no longer emits mapping keys. Entity-ID-shaped map
+  keys and mapped entity values are not retained in either sanitized support export.
+  The HI Support Bundle Inspector accepts the privacy-safe aggregate schema. This
+  changes diagnostics presentation only; control decisions, mappings, entities, and
+  outputs are unchanged.
 - Clarified the project-wide release boundary: HA Lab deploy, restart, playback, and
   soak evidence is optional advisory context. A pass, failure, blocked run,
   incomplete matrix/soak, or absence of Lab evidence is not a promotion, PR, tag,

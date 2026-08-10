@@ -38,13 +38,9 @@
 
 <!-- Optional and non-blocking. If useful, state HA Lab status as pass / fail / blocked / incomplete / not run / not applicable and include only sanitized evidence. No HA Lab status is a PR, promotion, tag, HACS, or release gate. -->
 
-## Type
+## Maintainer notes
 
-- [ ] Fix
-- [ ] Feature
-- [ ] Documentation
-- [ ] UI Gallery
-- [ ] Maintenance
+<!-- Reserved for the maintainer's manual notes. -->
 
 ## Checks
 

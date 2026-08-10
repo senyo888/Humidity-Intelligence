@@ -400,10 +400,42 @@ def test_native_diagnostics_uses_sanitized_counts_status_not_raw_private_ids():
     assert unavailable["by_status"]["unavailable"] == 1
 
     mapped = payload["runtime"]["mapped_runtime_entities"]
-    assert mapped["air_control_mode"]["status"] == "available"
-    assert mapped["air_control_reason"]["status"] == "available"
-    assert mapped["zone_output"]["status"] == "unavailable"
+    assert mapped["count"] == 3
+    assert mapped["by_status"] == {
+        "available": 2,
+        "missing": 0,
+        "unknown": 0,
+        "unavailable": 1,
+    }
     assert "humidity danger in kitchen" not in json.dumps(mapped, sort_keys=True).lower()
+
+
+def test_native_diagnostics_never_emits_entity_id_shaped_mapping_keys():
+    diagnostics = _load_diagnostics_module()
+    hass = _sample_hass()
+    hass.data["humidity_intelligence"]["entry123"]["entity_map"] = {
+        "sensor.private_source": "sensor.air_control_mode",
+        "fan.private_output": "fan.kitchen_extract",
+        "runtime_mode": "sensor.air_control_mode",
+    }
+
+    payload = asyncio.run(
+        diagnostics.async_get_config_entry_diagnostics(hass, _sample_entry())
+    )
+    rendered = json.dumps(payload, sort_keys=True)
+    mapped = payload["runtime"]["mapped_runtime_entities"]
+
+    assert mapped == {
+        "count": 3,
+        "by_status": {
+            "available": 2,
+            "missing": 0,
+            "unknown": 0,
+            "unavailable": 1,
+        },
+    }
+    assert "sensor.private_source" not in rendered
+    assert "fan.private_output" not in rendered
 
 
 def test_native_diagnostics_reports_humidifier_reconciliation_without_output_ids():
