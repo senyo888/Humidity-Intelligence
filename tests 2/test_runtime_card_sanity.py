@@ -3528,6 +3528,7 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
             "hi-stability-gauge",
             "hi-stability-gauge-white",
             "hi-stability-leds",
+            "margin-inline: auto;",
             'return `<i class="led-${index} ${active ? \'active\' : \'\'}"></i>`;',
             ".hi-stability-leds i.led-3 { left: 40px; top: 2px; }",
             "const hasStabilityContract =",
@@ -3573,7 +3574,16 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
 """
         if proven_stability_position not in stability_block:
             missing_stability_markers.append(
-                f"{path.relative_to(ROOT)}: Stability position differs from the proven centred layout"
+                f"{path.relative_to(ROOT)}: Stability wrapper differs from the established centred layout"
+            )
+        proven_inner_gauge_position = """            .hi-stability-gauge {
+              width: 82px;
+              height: 82px;
+              margin-inline: auto;
+"""
+        if proven_inner_gauge_position not in stability_block:
+            missing_stability_markers.append(
+                f"{path.relative_to(ROOT)}: fixed-width Stability gauge is not centred inside its custom-field wrapper"
             )
         for marker in ("- align-self: stretch", "- justify-self: stretch"):
             if marker in stability_block:

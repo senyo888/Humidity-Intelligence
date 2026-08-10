@@ -9,7 +9,8 @@ This project follows a practical changelog format for Home Assistant and HACS us
 ## Unreleased
 
 - Restored the established Stability preview badge treatment in generated V2 cards:
-  the original centred 82px circle, seven LEDs, and neutral-white six-second breathing
+  the fixed-width 82px circle is now centred inside button-card's custom-field wrapper,
+  while the original seven LEDs and neutral-white six-second breathing
   shimmer now remain active when future v2.1 diagnostics are absent. The badge reads
   `2.1 / PREVIEW` through a dedicated preview class, so the familiar visual treatment
   does not claim that a completed backend score exists. Collecting and unavailable

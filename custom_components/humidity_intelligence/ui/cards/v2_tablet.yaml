@@ -1708,6 +1708,7 @@ card:
             .hi-stability-gauge {
               width: 82px;
               height: 82px;
+              margin-inline: auto;
               border-radius: 999px;
               position: relative;
               display: grid;
