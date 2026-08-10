@@ -3560,22 +3560,21 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
         ):
             if marker not in source:
                 missing_stability_markers.append(f"{path.relative_to(ROOT)}: {marker}")
-        for marker in (
-            '- grid-template-areas: \'"gauge" "n"\'',
-            "- grid-template-columns: 1fr",
-            "- grid-template-rows: 86px min-content",
-            "- justify-items: center",
-            "- align-items: center",
-            "- width: 100%",
-            "- height: 86px",
-            "- display: grid",
-            "- place-items: center",
-            "- align-self: stretch",
-            "- justify-self: stretch",
-        ):
-            if marker not in stability_block:
+        proven_stability_position = """            custom_fields:
+              gauge:
+                - grid-area: gauge
+                - align-self: center
+                - justify-self: center
+          extra_styles: |
+"""
+        if proven_stability_position not in stability_block:
+            missing_stability_markers.append(
+                f"{path.relative_to(ROOT)}: Stability position differs from the proven centred layout"
+            )
+        for marker in ("- align-self: stretch", "- justify-self: stretch"):
+            if marker in stability_block:
                 missing_stability_markers.append(
-                    f"{path.relative_to(ROOT)}: Stability position is not anchored: {marker}"
+                    f"{path.relative_to(ROOT)}: Stability position uses the rejected stretch layout"
                 )
         for entity_id in (
             "input_boolean.air_control_enabled",

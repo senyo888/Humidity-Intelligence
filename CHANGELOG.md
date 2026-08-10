@@ -13,10 +13,8 @@ This project follows a practical changelog format for Home Assistant and HACS us
   intentional cyan `2.1 / PREVIEW` state instead of inheriting completed-score white
   styling and internal `future` wording. Collecting and unavailable diagnostics remain
   explicit, while real backend score and classification values keep their existing
-  gauge colours. The circular gauge is also explicitly centred in a full-width grid
-  track so Home Assistant layout resolution cannot shift it within the middle tile.
-  This is a presentation-only correction: Stability remains passive, no score is
-  calculated in the card, and runtime decisions, lanes, outputs, entities,
+  gauge colours. This is a presentation-only correction: Stability remains passive,
+  no score is calculated in the card, and runtime decisions, lanes, outputs, entities,
   configuration, and services are unchanged. Existing Manual cards require a fresh
   export, complete YAML replacement, and browser/app refresh.
 
