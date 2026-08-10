@@ -57,9 +57,9 @@ It gives you:
 - native Home Assistant diagnostics for support and triage
 - services for dashboard export, self-check, diagnostics, pause/resume, and release validation
 
-Current stable release-source manifest version: **v2.0.10**. Publication is pending;
-the published GitHub Release, tag, and HACS Stable package remain **v2.0.9** until the
-separate publication lane is completed.
+Current maintenance-candidate manifest version: **v2.0.11**. The published Stable
+GitHub Release and tag remain **v2.0.10** until the separate v2.0.11 promotion and
+publication lane is completed. Check HACS for installed-package availability.
 
 Optional HA Lab evidence is advisory and does not block promotion. Canonical tests,
 review, CI, version governance, and explicit maintainer decisions remain the release
@@ -439,7 +439,10 @@ must be reviewable from tracked repository files.
 
 ## Current Release Highlights
 
-- the stable `2.0.10` release source adds deterministic humidifier-output
+- the `2.0.11` maintenance candidate restores the established centred, passive
+  Stability preview badge and six-second breathing treatment without calculating a
+  score in the card or changing control behaviour
+- the published `2.0.10` Stable release adds deterministic humidifier-output
   reconciliation and backend-authored `hi.reason.v1` explanations while preserving
   one selected ventilation lane, the existing lane order, thresholds, configuration,
   stored data, and entity identity
@@ -447,9 +450,9 @@ must be reviewable from tracked repository files.
   humidifier chips in one horizontally scrollable Current Air Control row;
   `On` and `Requested` are cyan; `Idle`, `Retrying`, `Stopping`, and `Isolated` are
   amber; `Fault` and `Degraded` are red; and `Unknown` is grey
-- the release-source manifest identifies stable `2.0.10`, while the published GitHub
-  release, tag, and HACS Stable line remain `2.0.9`; those publication surfaces stay
-  authoritative for the installed Stable package
+- the v2.0.10 GitHub Release and tag were published from exact `main` commit
+  `02b0f17291c7996aca793a8807a5830ede768013`; GitHub Releases and HACS remain the
+  authoritative publication and installed-package records
 - the browser-local
   [HI Support Bundle Inspector](https://senyo888.github.io/humidity-intelligence/inspector/)
   provides an optional inspect-before-sharing preflight: diagnostics content stays
@@ -501,7 +504,7 @@ must be reviewable from tracked repository files.
 - the tracked secret scan now fails closed when no tracked files are selected
 - `v205_release_check` preserves its service name; the stable release source
   extends its generated-card, humidifier-reconciliation, and release-validation
-  contract through the v2.0.10 beta/rc/stable line
+  contract through the v2.0.11 beta/rc/stable line
 - Home Assistant Area/Label setup assistance can suggest defaults from registry
   metadata, but saved HI telemetry, zone, AQ, humidifier, and alert mappings remain
   the only runtime truth
@@ -987,7 +990,7 @@ Notes:
   remaining entry is re-exported with unqualified names; its superseded qualified
   files stay externally readable until an exact previewed purge.
 - `v205_release_check` is the backward-compatible validation service name. It accepts
-  the v2.0.5-v2.0.10 beta/rc/stable line and is runtime/device
+  the v2.0.5-v2.0.11 beta/rc/stable line and is runtime/device
   read-only: it writes its validation report, and `write_test_exports: true`
   additionally writes card-export test files.
 - `dump_diagnostics` and native diagnostics are support surfaces; support exports are
@@ -1028,7 +1031,7 @@ Common service groups:
 | `flash_lights` | admin-only test of configured visual alert behavior; runtime alerts use the trusted engine path |
 | `pause_control` / `resume_control` | admin-only pause or resume for one supplied entry or all entries |
 | `self_check` | admin-only fixed export of mapping, generated-card entity, telemetry, drift-helper, and frontend-dependency checks |
-| `v205_release_check` | admin-only runtime-safe v2.0.5-v2.0.10 generated-card, humidifier-reconciliation, and release-validation support checks |
+| `v205_release_check` | admin-only runtime-safe v2.0.5-v2.0.11 generated-card, humidifier-reconciliation, and release-validation support checks |
 | `create_local_backup` | admin-only creation of a package-local HI snapshot for advanced validation |
 | `list_saved_versions` | admin-only, read-only inspection of package-local HI snapshot metadata |
 | `dump_diagnostics` | admin-only export of fuller local diagnostics for maintainer/debug workflows |
@@ -1191,14 +1194,45 @@ CO emergency pressure. Details are in
 
 ## Release Notes
 
+### v2.0.11 — Poetic Justice (Maintenance candidate; not published)
+
+![Humidity Intelligence v2.0.11 Poetic Justice release banner](assets/release_banner/v2.0.11_release.png)
+
+[![Latest Release](https://img.shields.io/github/v/release/senyo888/Humidity-Intelligence?display_name=tag&sort=semver)](https://github.com/senyo888/Humidity-Intelligence/releases) [![Project Site](https://img.shields.io/badge/Project%20Site-GitHub%20Pages-5aa8d6)](https://senyo888.github.io/humidity-intelligence/) [![License](https://img.shields.io/github/license/senyo888/Humidity-Intelligence)](LICENSE) [![Sponsor](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/senyo888) [![Star Humidity Intelligence](https://img.shields.io/badge/Star%20%2F%20Support-Humidity%20Intelligence-2ea44f?logo=github&logoColor=white)](https://github.com/senyo888/humidity-intelligence)
+
+- carries stable maintenance-candidate manifest identity `2.0.11`; published Stable
+  remains v2.0.10 until the exact candidate completes review, promotion to `main`,
+  tagging, GitHub Release publication, and HACS availability
+- restores the established centred Stability Score preview across generated V2
+  Mobile, V2 Tablet, and both canonical gallery cards by keeping the name's
+  button-card grid area as the quoted string `'n'`
+- retains the fixed 82px circle, seven LEDs, and neutral-white six-second breathing
+  preview when Stability diagnostics are absent; the card remains passive
+  and does not calculate or influence a score
+- treats an explicitly present but empty or malformed nested `stability_score`
+  payload as `NO SCORE`, while preserving explicit collecting/unavailable states and
+  existing completed-score colors
+- extends the existing `v205_release_check` version-compatibility boundary through
+  v2.0.11 without renaming the service or changing its runtime/device-read-only
+  validation purpose
+- preserves deterministic lane ordering, output behaviour, configuration and stored
+  data, entity IDs/states, service names, and generated-card backend truth
+- requires a full Home Assistant restart after installing the package because its
+  manifest and release-check service code changed. Existing Manual cards require
+  `refresh_ui`, a fresh `dump_cards` or `view_cards` export, complete YAML
+  replacement, and a frontend refresh if cached
+- requires no config-entry, entity-registry, stored-data, threshold, lane-order,
+  service-name, or dashboard-registration migration
+
+### v2.0.10 (Published Stable)
+
 ![Humidity Intelligence v2.0.10 release banner](assets/release_banner/v2.0.10_release.png)
 
 [![Latest Release](https://img.shields.io/github/v/release/senyo888/Humidity-Intelligence?display_name=tag&sort=semver)](https://github.com/senyo888/Humidity-Intelligence/releases) [![Project Site](https://img.shields.io/badge/Project%20Site-GitHub%20Pages-5aa8d6)](https://senyo888.github.io/humidity-intelligence/) [![License](https://img.shields.io/github/license/senyo888/Humidity-Intelligence)](LICENSE) [![Sponsor](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/senyo888) [![Star Humidity Intelligence](https://img.shields.io/badge/Star%20%2F%20Support-Humidity%20Intelligence-2ea44f?logo=github&logoColor=white)](https://github.com/senyo888/humidity-intelligence)
 
-### v2.0.10 (Stable release source; publication pending)
-
-- carries stable package identity `2.0.10`; the published GitHub Release, tag, and
-  HACS Stable package remain v2.0.9 until the separate publication lane completes
+- was published on 2026-08-10 as a non-prerelease GitHub Release and tag from exact
+  `main` commit `02b0f17291c7996aca793a8807a5830ede768013`; GitHub Releases and HACS
+  remain the public release and installed-package records
 - adds deterministic reconciliation for configured `humidifier`, `fan`, and `switch`
   humidifier outputs, including observed-state confirmation, bounded retry/fault
   handling, availability recovery, output isolation, and safe shared-output ownership
@@ -1218,7 +1252,7 @@ CO emergency pressure. Details are in
   intentionally
 - closes a diagnostics privacy gap found during forward validation by replacing mapped
   runtime entity rows with aggregate availability counts and removing mapping keys
-  from `dump_diagnostics`; runtime mappings and control behavior are unchanged
+  from `dump_diagnostics`; runtime mappings and control behaviour are unchanged
 - retains `create_dashboard` for call compatibility but changes it to a deterministic,
   admin-gated, no-write Manual-card guidance action. Callers relying on automatic
   dashboard creation or removal must use `refresh_ui` plus `dump_cards`/`view_cards`
@@ -1232,8 +1266,14 @@ CO emergency pressure. Details are in
 - records advisory beta.7 soak evidence for exact campaign
   `P22C-20260808T073919Z-9162eca3`: 9/9 scheduled slots passed with identity verified
   and no failed or missed slots. Private Stable-instance diagnostics also passed for
-  the installed beta.7 package; neither evidence class claims that stable `2.0.10` is
-  already published or installed
+  the installed beta.7 package; neither evidence class proves that the later stable
+  package bytes were installed on that instance
+
+<!-- Canonical release-note structure: keep the current release source and current Published Stable
+summaries expanded above, then move displaced older summaries into this container as
+new releases are added. CHANGELOG.md remains the complete detailed history. -->
+<details>
+<summary>Previous Releases</summary>
 
 ### v2.0.9
 
@@ -1301,12 +1341,6 @@ CO emergency pressure. Details are in
 - HA Lab did not live-test non-admin rejection, multi-entry naming, purge removal,
   concurrent/fault-injected writes, legacy-root retention, or rendered Lovelace UI;
   those boundaries remain covered by local tests or require separate live evidence
-
-<!-- Canonical release-note structure: keep the current release source and current Published Stable
-summaries expanded above, then move displaced older summaries into this container as
-new releases are added. CHANGELOG.md remains the complete detailed history. -->
-<details>
-<summary>Previous Releases</summary>
 
 Release details for v2.0.1 through v2.0.8, including legacy migration notes, are maintained in [CHANGELOG.md](CHANGELOG.md).
 

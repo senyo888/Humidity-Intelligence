@@ -8,6 +8,16 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+![Humidity Intelligence v2.0.11 Poetic Justice release banner](assets/release_banner/v2.0.11_release.png)
+
+[![Latest Release](https://img.shields.io/github/v/release/senyo888/Humidity-Intelligence?display_name=tag&sort=semver)](https://github.com/senyo888/Humidity-Intelligence/releases) [![Project Site](https://img.shields.io/badge/Project%20Site-GitHub%20Pages-5aa8d6)](https://senyo888.github.io/humidity-intelligence/) [![License](https://img.shields.io/github/license/senyo888/Humidity-Intelligence)](LICENSE) [![Sponsor](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/senyo888) [![Star Humidity Intelligence](https://img.shields.io/badge/Star%20%2F%20Support-Humidity%20Intelligence-2ea44f?logo=github&logoColor=white)](https://github.com/senyo888/humidity-intelligence)
+
+- Prepared **Poetic Justice**, stable maintenance identity `2.0.11`, for the bounded
+  post-v2.0.10
+  Stability badge correction and extended the existing `v205_release_check`
+  compatibility range through v2.0.11 beta/rc/stable versions. This is release
+  preparation only: v2.0.10 remains the published Stable release until the separate
+  v2.0.11 promotion, tag, GitHub Release, and HACS publication gates are completed.
 - Restored the established Stability preview badge treatment in generated V2 cards:
   the name's `grid-area` is now the quoted string `'n'`, preventing Home Assistant's
   YAML parser from coercing it to Boolean `false` and creating an implicit second
@@ -26,11 +36,11 @@ This project follows a practical changelog format for Home Assistant and HACS us
   configuration, and services are unchanged. Existing Manual cards require a fresh
   export, complete YAML replacement, and browser/app refresh.
 
+## 2.0.10 - 2026-08-10
+
 ![Humidity Intelligence v2.0.10 release banner](assets/release_banner/v2.0.10_release.png)
 
 [![Latest Release](https://img.shields.io/github/v/release/senyo888/Humidity-Intelligence?display_name=tag&sort=semver)](https://github.com/senyo888/Humidity-Intelligence/releases) [![Project Site](https://img.shields.io/badge/Project%20Site-GitHub%20Pages-5aa8d6)](https://senyo888.github.io/humidity-intelligence/) [![License](https://img.shields.io/github/license/senyo888/Humidity-Intelligence)](LICENSE) [![Sponsor](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/senyo888) [![Star Humidity Intelligence](https://img.shields.io/badge/Star%20%2F%20Support-Humidity%20Intelligence-2ea44f?logo=github&logoColor=white)](https://github.com/senyo888/humidity-intelligence)
-
-## 2.0.10 - 2026-08-10
 
 - Fixed a diagnostics privacy gap found during Stable-instance forward validation:
   native diagnostics now report mapped runtime entities only as aggregate availability

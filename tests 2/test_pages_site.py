@@ -142,12 +142,16 @@ class PagesSiteTests(unittest.TestCase):
         self.assertEqual(urljoin(PAGES_URL, inspector_links[0]), INSPECTOR_URL)
 
     def test_referenced_site_assets_are_public_and_copied_by_workflow(self) -> None:
-        _html, parser = parse_index()
+        html, parser = parse_index()
         workflow = (ROOT / ".github/workflows/pages.yml").read_text(encoding="utf-8")
         assets = referenced_site_assets(parser)
 
         self.assertIn("assets/logo.png", parser.images)
         self.assertIn("assets/site/github-pages-hero.png", assets)
+        self.assertIn("assets/release_banner/v2.0.11_release.png", parser.images)
+        self.assertIn("Poetic Justice.", html)
+        self.assertIn("v2.0.11 maintenance candidate", html)
+        self.assertIn("published release</span><span class=\"badge-value\">v2.0.10", html)
 
         for asset in assets:
             with self.subTest(asset=asset):

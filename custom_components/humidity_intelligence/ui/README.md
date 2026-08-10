@@ -235,7 +235,7 @@ If mismatch occurs:
 
 ## Versioned UI Contract Notes
 
-### Unreleased v2.0.10 Beta Contract
+### Published v2.0.10 Contract
 
 - V2 Mobile and Tablet use one strict mechanical `hi.reason.v1` consumer. They do not
   infer reason prose from mode, alerts, risks, timers, helpers, isolation, or
