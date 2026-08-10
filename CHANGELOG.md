@@ -16,8 +16,12 @@ This project follows a practical changelog format for Home Assistant and HACS us
   post-v2.0.10
   Stability badge correction and extended the existing `v205_release_check`
   compatibility range through v2.0.11 beta/rc/stable versions. This is release
-  preparation only: v2.0.10 remains the published Stable release until the separate
-  v2.0.11 promotion, tag, GitHub Release, and HACS publication gates are completed.
+  preparation only: the v2.0.11 release source is now on `main`, but it must not be
+  tagged or published until exact-package identity and restart validation, generated
+  release-check review, fresh Mobile and Tablet export validation, Bella verification,
+  AetherCore governance verification, release-sanity validation, and maintainer README
+  approval are complete. v2.0.10 remains the published Stable release until the
+  v2.0.11 tag, GitHub Release, and HACS publication are complete.
 - Restored the established Stability preview badge treatment in generated V2 cards:
   the name's `grid-area` is now the quoted string `'n'`, preventing Home Assistant's
   YAML parser from coercing it to Boolean `false` and creating an implicit second
