@@ -5,9 +5,9 @@ testing and validation branches.
 
 ## Canonical Version Model
 
-- `2.0.10-beta.7`: testing build.
-- `2.0.10-rc.1`: release-candidate build.
-- `2.0.10`: stable version label. On `senyo888-patch-1`, `develop`, or `main`,
+- `2.0.11-beta.1`: testing build.
+- `2.0.11-rc.1`: release-candidate build.
+- `2.0.11`: stable version label. On `senyo888-patch-1`, `develop`, or `main`,
   stable metadata may be staged or promoted through the governed release path.
   Published release status comes from release tags, GitHub release publication, and
   maintainer approval.
@@ -20,14 +20,31 @@ must remain aligned with the
 `custom_components/humidity_intelligence/manifest.json` version contained in the
 published GitHub Release/tag.
 
-The tracked source and release documentation identify stable `2.0.10` release-source
-metadata. Published Stable remains `2.0.9` until the separate tag, GitHub Release, and
-HACS publication lane completes. A branch or merge containing stable metadata is not
-by itself a publication. Public release status comes from GitHub Releases and HACS, while
+Published Stable is `2.0.10`, released on 2026-08-10 from exact `main` commit
+`02b0f17291c7996aca793a8807a5830ede768013`. The current maintenance candidate uses
+stable `2.0.11` metadata on the governed release-preparation lane. A branch or merge
+containing that metadata is not by itself a publication. Public release status comes
+from GitHub Releases and HACS, while
 release readiness must be established through public-safe validation summaries,
 GitHub CI, the required review gates, and explicit maintainer approval. Local
 operational evidence does not replace or become part of the tracked public
 correctness contract.
+
+## v2.0.10 Publication And v2.0.11 Maintenance Path
+
+The v2.0.10 tag and non-prerelease GitHub Release were published on 2026-08-10 from
+exact `main` commit `02b0f17291c7996aca793a8807a5830ede768013`. Post-release fixes
+must use a new version and must not rewrite, retag, or silently replace that immutable
+release.
+
+The v2.0.11 maintenance candidate is bounded to the generated-card Stability preview
+correction, its fail-closed incomplete-diagnostics behavior, regression coverage,
+and the existing release-check service's version compatibility. It changes no lane,
+output, entity ID/state, configuration, stored data, or service name. Exact packaged
+v2.0.11 validation still requires a full Home Assistant restart after installation,
+fresh Manual-card export/replacement, and review of the rendered V2 Mobile and Tablet
+surfaces before `develop` to `main` promotion. Unsaved Manual-card playback is useful
+presentation evidence but is not exact installed-package activation evidence.
 
 The former v2.0.8 candidate moved through `senyo888-patch-1`, `develop`, and `main`
 before publication. Stable metadata on a staging or review branch was not release
