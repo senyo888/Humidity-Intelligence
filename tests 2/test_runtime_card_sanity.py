@@ -3532,6 +3532,8 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
             "hi-stability-leds",
             'return `<i class="led-${index} ${active ? \'active\' : \'\'}"></i>`;',
             ".hi-stability-leds i.led-3 { left: 40px; top: 2px; }",
+            "const hasNestedStabilityContract =",
+            "Object.prototype.hasOwnProperty.call(summary, 'stability_score');",
             "const hasStabilityContract =",
             "const preview = !hasValue && !hasStabilityContract;",
             "const completeWhite = hasValue && (value >= 99 || classification === 'excellent');",

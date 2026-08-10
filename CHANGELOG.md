@@ -16,9 +16,11 @@ This project follows a practical changelog format for Home Assistant and HACS us
   stretching the badge. The original seven LEDs and neutral-white six-second breathing
   shimmer remain active when future v2.1 diagnostics are absent. The badge reads
   `2.1 / PREVIEW` through a dedicated preview class, so the familiar visual treatment
-  does not claim that a completed backend score exists. Collecting and unavailable
-  diagnostics remain explicit, while real backend score and classification values
-  keep their existing gauge colours. Reduced-motion preferences disable the shimmer.
+  does not claim that a completed backend score exists. An explicitly present but
+  empty or malformed nested `stability_score` payload degrades to `NO SCORE`;
+  collecting and unavailable diagnostics remain explicit, while real backend score and
+  classification values keep their existing gauge colours. Reduced-motion preferences
+  disable the shimmer.
   This is a presentation-only correction: Stability remains passive, no score is
   calculated in the card, and runtime decisions, lanes, outputs, entities,
   configuration, and services are unchanged. Existing Manual cards require a fresh

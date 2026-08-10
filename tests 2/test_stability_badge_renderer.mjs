@@ -57,6 +57,19 @@ test('absent v2.1 diagnostics render an intentional preview rather than a comple
   assert.doesNotMatch(output, />future</i);
 });
 
+test('explicit incomplete nested contracts degrade to no score rather than preview', () => {
+  for (const stabilityScore of [{}, null, 'malformed', []]) {
+    const output = assertIdentical(renderAll({
+      diagnostics_summary: { stability_score: stabilityScore },
+    }));
+    assert.match(output, /--hi-stability-color:#94a3b8/);
+    assert.match(output, /<span>—<\/span><small>NO SCORE<\/small>/);
+    assert.match(output, /aria-label="Stability Score is not available\."/);
+    assert.doesNotMatch(output, /hi-stability-gauge-preview/);
+    assert.doesNotMatch(output, /<small>PREVIEW<\/small>/);
+  }
+});
+
 test('backend score and classification still drive the live badge', () => {
   const output = assertIdentical(renderAll({
     diagnostics_summary: {

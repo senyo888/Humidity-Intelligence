@@ -1760,8 +1760,19 @@ card:
           custom_fields:
             gauge: |
               [[[
-                const summary = entity?.attributes?.diagnostics_summary || {};
-                const stability = summary.stability_score || {};
+                const summary = entity?.attributes?.diagnostics_summary;
+                const hasNestedStabilityContract =
+                  summary !== null &&
+                  typeof summary === 'object' &&
+                  !Array.isArray(summary) &&
+                  Object.prototype.hasOwnProperty.call(summary, 'stability_score');
+                const nestedStability = hasNestedStabilityContract ? summary.stability_score : null;
+                const stability =
+                  nestedStability !== null &&
+                  typeof nestedStability === 'object' &&
+                  !Array.isArray(nestedStability)
+                    ? nestedStability
+                    : {};
                 const score = stability.score || {};
                 const rawValue =
                   score.display_score ??
@@ -1795,12 +1806,7 @@ card:
                   'stability_score_suppression_reason',
                 ].some((key) => Object.prototype.hasOwnProperty.call(attributes, key));
                 const hasStabilityContract =
-                  hasFlattenedStabilityContract || (
-                    stability !== null &&
-                    typeof stability === 'object' &&
-                    !Array.isArray(stability) &&
-                    Object.keys(stability).length > 0
-                  );
+                  hasFlattenedStabilityContract || hasNestedStabilityContract;
                 const preview = !hasValue && !hasStabilityContract;
                 const unavailable =
                   suppression === 'current_telemetry_unavailable' || availability === 'unavailable';
