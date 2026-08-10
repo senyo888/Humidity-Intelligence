@@ -37,9 +37,10 @@ exact `main` commit `02b0f17291c7996aca793a8807a5830ede768013`. Post-release fix
 must use a new version and must not rewrite, retag, or silently replace that immutable
 release.
 
-The v2.0.11 maintenance candidate is bounded to the generated-card Stability preview
-correction, its fail-closed incomplete-diagnostics behavior, regression coverage,
-and the existing release-check service's version compatibility. It changes no lane,
+The v2.0.11 **Poetic Justice** maintenance candidate is bounded to the generated-card
+Stability preview correction, its fail-closed incomplete-diagnostics behavior,
+regression coverage, and the existing release-check service's version compatibility.
+It changes no lane,
 output, entity ID/state, configuration, stored data, or service name. Exact packaged
 v2.0.11 validation still requires a full Home Assistant restart after installation,
 fresh Manual-card export/replacement, and review of the rendered V2 Mobile and Tablet

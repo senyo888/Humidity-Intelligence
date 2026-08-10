@@ -1194,7 +1194,11 @@ CO emergency pressure. Details are in
 
 ## Release Notes
 
-### v2.0.11 (Maintenance candidate; not published)
+### v2.0.11 — Poetic Justice (Maintenance candidate; not published)
+
+![Humidity Intelligence v2.0.11 Poetic Justice release banner](assets/release_banner/v2.0.11_release.png)
+
+[![Latest Release](https://img.shields.io/github/v/release/senyo888/Humidity-Intelligence?display_name=tag&sort=semver)](https://github.com/senyo888/Humidity-Intelligence/releases) [![Project Site](https://img.shields.io/badge/Project%20Site-GitHub%20Pages-5aa8d6)](https://senyo888.github.io/humidity-intelligence/) [![License](https://img.shields.io/github/license/senyo888/Humidity-Intelligence)](LICENSE) [![Sponsor](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/senyo888) [![Star Humidity Intelligence](https://img.shields.io/badge/Star%20%2F%20Support-Humidity%20Intelligence-2ea44f?logo=github&logoColor=white)](https://github.com/senyo888/humidity-intelligence)
 
 - carries stable maintenance-candidate manifest identity `2.0.11`; published Stable
   remains v2.0.10 until the exact candidate completes review, promotion to `main`,

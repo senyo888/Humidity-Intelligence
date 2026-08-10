@@ -3996,7 +3996,7 @@ def test_readme_keeps_candidate_and_published_stable_before_previous_releases():
     release_notes = readme_source.split("## Release Notes", 1)[1]
     visible_notes, previous_releases = release_notes.split("<details>", 1)
 
-    assert "### v2.0.11 (Maintenance candidate; not published)" in visible_notes
+    assert "### v2.0.11 — Poetic Justice (Maintenance candidate; not published)" in visible_notes
     assert "### v2.0.10 (Published Stable)" in visible_notes
     assert "was published on 2026-08-10" in visible_notes
     assert "### v2.0.9" not in visible_notes
@@ -4009,6 +4009,9 @@ def test_readme_keeps_candidate_and_published_stable_before_previous_releases():
         b"\x89PNG\r\n\x1a\n"
     )
     assert (ROOT / "assets" / "release_banner" / "v2.0.10_release.png").read_bytes()[:8] == (
+        b"\x89PNG\r\n\x1a\n"
+    )
+    assert (ROOT / "assets" / "release_banner" / "v2.0.11_release.png").read_bytes()[:8] == (
         b"\x89PNG\r\n\x1a\n"
     )
     assert "<summary>Previous Releases</summary>" in previous_releases
