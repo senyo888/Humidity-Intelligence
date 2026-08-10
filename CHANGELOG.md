@@ -8,7 +8,23 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
-- No unreleased changes.
+- Restored the established Stability preview badge treatment in generated V2 cards:
+  the name's `grid-area` is now the quoted string `'n'`, preventing Home Assistant's
+  YAML parser from coercing it to Boolean `false` and creating an implicit second
+  button-card grid column. This returns the fixed-width 82px circle and its
+  `Stability Score` wording to their shared centred layout without widening or
+  stretching the badge. The original seven LEDs and neutral-white six-second breathing
+  shimmer remain active when future v2.1 diagnostics are absent. The badge reads
+  `2.1 / PREVIEW` through a dedicated preview class, so the familiar visual treatment
+  does not claim that a completed backend score exists. An explicitly present but
+  empty or malformed nested `stability_score` payload degrades to `NO SCORE`;
+  collecting and unavailable diagnostics remain explicit, while real backend score and
+  classification values keep their existing gauge colours. Reduced-motion preferences
+  disable the shimmer.
+  This is a presentation-only correction: Stability remains passive, no score is
+  calculated in the card, and runtime decisions, lanes, outputs, entities,
+  configuration, and services are unchanged. Existing Manual cards require a fresh
+  export, complete YAML replacement, and browser/app refresh.
 
 ![Humidity Intelligence v2.0.10 release banner](assets/release_banner/v2.0.10_release.png)
 

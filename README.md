@@ -476,9 +476,11 @@ must be reviewable from tracked repository files.
   default runtime card surfaces stay calm and inspection-focused
 - the generated V2 Pause LIVE tile is replaced with a passive compact Stability
   preview badge that reads future v2.1 diagnostics when present; score calculation,
-  sensor creation, lane selection, and runtime control stay backend-owned
-- the Stability preview badge uses a 10 BPM shimmer cadence: one 6-second animation
-  cycle for current/complete states
+  sensor creation, lane selection, and runtime control stay backend-owned. Without
+  that future diagnostics contract, the badge shows an intentional neutral-white
+  `2.1 / PREVIEW` state with its established breathing shimmer
+- the Stability preview and completed-white states use a 10 BPM shimmer cadence:
+  one 6-second animation cycle, with reduced-motion preferences respected
 - every `pause_control` / `resume_control` call now requires admin user context;
   `entry_id` still limits the action to the supplied config entry
 - explicit `create_dashboard` and `purge_files` service calls require admin user
@@ -940,7 +942,10 @@ Notes:
 - The generated V2 control row uses a passive Stability preview badge instead of
   a Pause LIVE control tile. It reflects future v2.1 diagnostics when available
   while score calculation, lane selection, and runtime control stay backend-owned.
-  The current/complete shimmer uses a slow 10 BPM cadence, one pulse every 6 seconds.
+  Without that future contract, the badge shows `2.1 / PREVIEW` with the established
+  neutral-white breathing shimmer, paced at a slow 10 BPM—one pulse every 6 seconds.
+  A dedicated preview class keeps that presentation distinct from a completed
+  backend score.
 - Every `pause_control` / `resume_control` call requires an admin user context.
   Supplying `entry_id` scopes the action to that config entry; it does not bypass the
   authorization check. Background automations/scripts whose action context has no
