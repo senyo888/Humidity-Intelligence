@@ -58,11 +58,12 @@ It gives you:
 - services for dashboard export, self-check, diagnostics, pause/resume, and release validation
 
 Current maintenance-candidate manifest version: **v2.0.11**. The v2.0.11 release
-source is now on `main`; the published Stable GitHub Release and tag remain
-**v2.0.10** until exact-package identity and restart validation, generated
-release-check review, fresh Mobile and Tablet export validation, required review and
-final maintainer approval, tagging, GitHub Release publication, and HACS availability
-are complete. Check HACS for installed-package availability.
+source is now on `main`, but it must not be tagged or published until exact-package
+identity and restart validation, generated release-check review, fresh Mobile and
+Tablet export validation, Bella verification, AetherCore governance verification,
+release-sanity validation, and maintainer README approval are complete. The published
+Stable GitHub Release and tag remain **v2.0.10** until the v2.0.11 tag, GitHub Release,
+and HACS availability are complete. Check HACS for installed-package availability.
 
 Optional HA Lab evidence is advisory and does not block promotion, tagging, or
 publication.
@@ -1205,10 +1206,12 @@ CO emergency pressure. Details are in
 [![Latest Release](https://img.shields.io/github/v/release/senyo888/Humidity-Intelligence?display_name=tag&sort=semver)](https://github.com/senyo888/Humidity-Intelligence/releases) [![Project Site](https://img.shields.io/badge/Project%20Site-GitHub%20Pages-5aa8d6)](https://senyo888.github.io/humidity-intelligence/) [![License](https://img.shields.io/github/license/senyo888/Humidity-Intelligence)](LICENSE) [![Sponsor](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/senyo888) [![Star Humidity Intelligence](https://img.shields.io/badge/Star%20%2F%20Support-Humidity%20Intelligence-2ea44f?logo=github&logoColor=white)](https://github.com/senyo888/humidity-intelligence)
 
 - carries stable maintenance-candidate manifest identity `2.0.11`; its release source
-  is now on `main`, while published Stable remains v2.0.10 until exact-package identity
+  is now on `main`, but it must not be tagged or published until exact-package identity
   and restart validation, generated release-check review, fresh Mobile and Tablet
-  export validation, required review and final maintainer approval, tagging, GitHub
-  Release publication, and HACS availability are complete
+  export validation, Bella verification, AetherCore governance verification,
+  release-sanity validation, and maintainer README approval are complete; published
+  Stable remains v2.0.10 until the v2.0.11 tag, GitHub Release, and HACS availability
+  are complete
 - restores the established centred Stability Score preview across generated V2
   Mobile, V2 Tablet, and both canonical gallery cards by keeping the name's
   button-card grid area as the quoted string `'n'`

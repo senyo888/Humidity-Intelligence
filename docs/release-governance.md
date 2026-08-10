@@ -49,8 +49,10 @@ restart after installation, review of the generated `v205_release_check` report,
 fresh Manual-card export/replacement, and review of the rendered V2 Mobile and Tablet
 surfaces. PR `#109` merged without a recorded approving review, so that review-gate
 exception also requires explicit independent or maintainer adjudication before
-publication. Unsaved Manual-card playback is useful presentation evidence but is not
-exact installed-package activation evidence.
+tag or publication. Bella verification, AetherCore governance verification,
+release-sanity validation, and maintainer README approval remain hard pre-tag gates.
+Unsaved Manual-card playback is useful presentation evidence but is not exact
+installed-package activation evidence.
 
 The former v2.0.8 candidate moved through `senyo888-patch-1`, `develop`, and `main`
 before publication. Stable metadata on a staging or review branch was not release

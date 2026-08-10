@@ -4029,12 +4029,12 @@ def test_v2011_public_release_surfaces_track_post_merge_prepublication_state():
     normalized_governance = " ".join(release_governance.split())
 
     assert "v2.0.11 release source is now on `main`" in normalized_readme
-    assert (
-        "until exact-package identity and restart validation"
-        in normalized_readme
-    )
+    assert "must not be tagged or published until exact-package" in normalized_readme
     assert "generated release-check review" in normalized_readme
-    assert "required review and final maintainer approval" in normalized_readme
+    assert "Bella verification" in normalized_readme
+    assert "AetherCore governance verification" in normalized_readme
+    assert "release-sanity validation" in normalized_readme
+    assert "maintainer README approval" in normalized_readme
     assert "its release source is now on `main`" in normalized_visible_notes
     assert "promotion to `main`" not in normalized_visible_notes
     assert "v2.0.11 release source is now on `main`" in normalized_changelog
@@ -4045,7 +4045,16 @@ def test_v2011_public_release_surfaces_track_post_merge_prepublication_state():
     )
     assert "GitHub Release draft is release preparation only" in normalized_governance
     assert "merged without a recorded approving review" in normalized_governance
-    assert "Before tag or publication" in normalized_governance
+    assert (
+        "review-gate exception also requires explicit independent or maintainer "
+        "adjudication before tag or publication"
+        in normalized_governance
+    )
+    assert (
+        "Bella verification, AetherCore governance verification, release-sanity "
+        "validation, and maintainer README approval remain hard pre-tag gates"
+        in normalized_governance
+    )
     assert "until the separate v2.0.11 promotion" not in normalized_readme
     assert "v2.0.11 promotion, tag, GitHub Release" not in normalized_changelog
     assert "before `develop` to `main` promotion" not in normalized_governance

@@ -155,9 +155,8 @@ class PagesSiteTests(unittest.TestCase):
         self.assertIn("v2.0.11 release source is now on main", normalized_html)
         self.assertIn("required review", normalized_html)
         self.assertIn("final maintainer approval", normalized_html)
-        self.assertIn("required before tag", normalized_html)
-        self.assertIn("and publication", normalized_html)
-        self.assertNotIn("before promotion.", html)
+        self.assertIn("must not be tagged or published until", normalized_html)
+        self.assertNotIn("before promotion.", normalized_html)
         self.assertIn("published release</span><span class=\"badge-value\">v2.0.10", html)
 
         for asset in assets:
