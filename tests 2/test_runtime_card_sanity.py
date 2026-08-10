@@ -3514,9 +3514,11 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
     )
     missing_stability_markers = []
     pause_tile_offenders = []
+    stability_blocks = []
     for path in default_surfaces:
         source = path.read_text(encoding="utf-8")
         stability_block = _button_card_block(source, "sensor.hi_diagnostics")
+        stability_blocks.append(stability_block)
         for marker in forbidden_pause_tile_markers:
             if marker in source:
                 pause_tile_offenders.append(f"{path.relative_to(ROOT)}: {marker}")
@@ -3528,7 +3530,6 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
             "hi-stability-gauge",
             "hi-stability-gauge-white",
             "hi-stability-leds",
-            "margin-inline: auto;",
             'return `<i class="led-${index} ${active ? \'active\' : \'\'}"></i>`;',
             ".hi-stability-leds i.led-3 { left: 40px; top: 2px; }",
             "const hasStabilityContract =",
@@ -3576,14 +3577,33 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
             missing_stability_markers.append(
                 f"{path.relative_to(ROOT)}: Stability wrapper differs from the established centred layout"
             )
+        proven_stability_name_area = """            name:
+              - grid-area: 'n'
+"""
+        if proven_stability_name_area not in stability_block:
+            missing_stability_markers.append(
+                f"{path.relative_to(ROOT)}: Stability name grid area must remain the quoted string 'n'"
+            )
+        for marker in (
+            "\n              - grid-area: n\n",
+            "\n              - grid-area: false\n",
+        ):
+            if marker in stability_block:
+                missing_stability_markers.append(
+                    f"{path.relative_to(ROOT)}: Stability name grid area can be coerced to YAML boolean false"
+                )
         proven_inner_gauge_position = """            .hi-stability-gauge {
               width: 82px;
               height: 82px;
-              margin-inline: auto;
+              border-radius: 999px;
 """
         if proven_inner_gauge_position not in stability_block:
             missing_stability_markers.append(
-                f"{path.relative_to(ROOT)}: fixed-width Stability gauge is not centred inside its custom-field wrapper"
+                f"{path.relative_to(ROOT)}: fixed-width Stability gauge geometry has drifted"
+            )
+        if "margin-inline: auto;" in stability_block:
+            missing_stability_markers.append(
+                f"{path.relative_to(ROOT)}: Stability gauge still relies on inner auto margins"
             )
         for marker in ("- align-self: stretch", "- justify-self: stretch"):
             if marker in stability_block:
@@ -3642,6 +3662,7 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
 
     assert pause_tile_offenders == []
     assert missing_stability_markers == []
+    assert len(set(stability_blocks)) == 1
 
 
 def test_public_v2_gallery_cards_preserve_air_control_mode_truth():

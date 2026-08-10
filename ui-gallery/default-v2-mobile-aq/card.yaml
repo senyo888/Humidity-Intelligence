@@ -1872,7 +1872,7 @@ card:
               - grid-template-rows: 86px min-content
               - row-gap: 0
             name:
-              - grid-area: n
+              - grid-area: 'n'
               - color: "#e5e7eb"
               - font-size: 13px
               - font-weight: 700
@@ -1885,7 +1885,6 @@ card:
             .hi-stability-gauge {
               width: 82px;
               height: 82px;
-              margin-inline: auto;
               border-radius: 999px;
               position: relative;
               display: grid;
