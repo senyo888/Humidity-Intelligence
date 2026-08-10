@@ -225,6 +225,85 @@ img {
   margin: 0 auto;
 }
 
+.release-spotlight {
+  padding: 64px 0;
+  background: #07111d;
+}
+
+.release-spotlight .section-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+  gap: 36px;
+  align-items: center;
+}
+
+.release-banner {
+  display: block;
+  width: 100%;
+  border: 1px solid rgba(100, 211, 255, 0.5);
+  border-radius: 12px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
+}
+
+.release-copy h2,
+.release-copy p:not(.section-kicker),
+.release-copy .text-link {
+  color: #ffffff;
+}
+
+.release-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 22px 0;
+}
+
+.release-badges a,
+.release-badges img {
+  display: block;
+}
+
+.release-badge {
+  display: inline-flex !important;
+  overflow: hidden;
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1;
+  text-decoration: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.24);
+}
+
+.release-badge .badge-key,
+.release-badge .badge-value {
+  padding: 7px 9px;
+}
+
+.release-badge .badge-key {
+  background: #555b63;
+}
+
+.badge-release .badge-value {
+  background: #087fb5;
+}
+
+.badge-site .badge-value {
+  background: #4f9fc9;
+}
+
+.badge-license .badge-value {
+  background: #5da800;
+}
+
+.badge-sponsor .badge-value {
+  background: #d62d91;
+}
+
+.badge-star .badge-value {
+  background: #239447;
+}
+
 .intro,
 .feature-band,
 .gallery,
@@ -473,6 +552,7 @@ figure {
   }
 
   .two-column,
+  .release-spotlight .section-inner,
   .feature-grid,
   .screenshot-grid,
   .link-list,
