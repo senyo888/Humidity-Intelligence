@@ -4017,6 +4017,40 @@ def test_readme_keeps_candidate_and_published_stable_before_previous_releases():
     assert "<summary>Previous Releases</summary>" in previous_releases
 
 
+def test_v2011_public_release_surfaces_track_post_merge_prepublication_state():
+    readme_source = (ROOT / "README.md").read_text()
+    release_notes = readme_source.split("## Release Notes", 1)[1]
+    visible_notes = release_notes.split("<details>", 1)[0]
+    changelog_source = (ROOT / "CHANGELOG.md").read_text()
+    release_governance = (ROOT / "docs" / "release-governance.md").read_text()
+    normalized_readme = " ".join(readme_source.split())
+    normalized_visible_notes = " ".join(visible_notes.split())
+    normalized_changelog = " ".join(changelog_source.split())
+    normalized_governance = " ".join(release_governance.split())
+
+    assert "v2.0.11 release source is now on `main`" in normalized_readme
+    assert (
+        "until exact-package identity and restart validation"
+        in normalized_readme
+    )
+    assert "generated release-check review" in normalized_readme
+    assert "required review and final maintainer approval" in normalized_readme
+    assert "its release source is now on `main`" in normalized_visible_notes
+    assert "promotion to `main`" not in normalized_visible_notes
+    assert "v2.0.11 release source is now on `main`" in normalized_changelog
+    assert "exact-package identity and restart validation" in normalized_changelog
+    assert (
+        "The release source is now on `main` after PR `#109`"
+        in normalized_governance
+    )
+    assert "GitHub Release draft is release preparation only" in normalized_governance
+    assert "merged without a recorded approving review" in normalized_governance
+    assert "Before tag or publication" in normalized_governance
+    assert "until the separate v2.0.11 promotion" not in normalized_readme
+    assert "v2.0.11 promotion, tag, GitHub Release" not in normalized_changelog
+    assert "before `develop` to `main` promotion" not in normalized_governance
+
+
 def test_dump_cards_without_layout_exports_all_cached_layouts():
     services_mod = _load_services_module()
     entry = SimpleNamespace(entry_id=ENTRY_ID)

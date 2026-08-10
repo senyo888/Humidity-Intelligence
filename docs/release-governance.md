@@ -41,11 +41,16 @@ The v2.0.11 **Poetic Justice** maintenance candidate is bounded to the generated
 Stability preview correction, its fail-closed incomplete-diagnostics behavior,
 regression coverage, and the existing release-check service's version compatibility.
 It changes no lane,
-output, entity ID/state, configuration, stored data, or service name. Exact packaged
-v2.0.11 validation still requires a full Home Assistant restart after installation,
+output, entity ID/state, configuration, stored data, or service name. The release
+source is now on `main` after PR `#109`. The existing GitHub Release draft is release
+preparation only and is not publication. Before tag or publication, exact packaged
+v2.0.11 validation still requires identity confirmation and a full Home Assistant
+restart after installation, review of the generated `v205_release_check` report,
 fresh Manual-card export/replacement, and review of the rendered V2 Mobile and Tablet
-surfaces before `develop` to `main` promotion. Unsaved Manual-card playback is useful
-presentation evidence but is not exact installed-package activation evidence.
+surfaces. PR `#109` merged without a recorded approving review, so that review-gate
+exception also requires explicit independent or maintainer adjudication before
+publication. Unsaved Manual-card playback is useful presentation evidence but is not
+exact installed-package activation evidence.
 
 The former v2.0.8 candidate moved through `senyo888-patch-1`, `develop`, and `main`
 before publication. Stable metadata on a staging or review branch was not release
