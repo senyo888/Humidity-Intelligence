@@ -1690,8 +1690,11 @@ card:
               - "-webkit-backdrop-filter": blur(12px)
             grid:
               - grid-template-areas: '"gauge" "n"'
+              - grid-template-columns: 1fr
               - grid-template-rows: 86px min-content
               - row-gap: 0
+              - justify-items: center
+              - align-items: center
             name:
               - grid-area: n
               - color: "#e5e7eb"
@@ -1700,8 +1703,12 @@ card:
             custom_fields:
               gauge:
                 - grid-area: gauge
-                - align-self: center
-                - justify-self: center
+                - width: 100%
+                - height: 86px
+                - display: grid
+                - place-items: center
+                - align-self: stretch
+                - justify-self: stretch
           extra_styles: |
             .hi-stability-gauge {
               width: 82px;

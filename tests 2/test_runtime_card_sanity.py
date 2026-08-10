@@ -3516,6 +3516,7 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
     pause_tile_offenders = []
     for path in default_surfaces:
         source = path.read_text(encoding="utf-8")
+        stability_block = _button_card_block(source, "sensor.hi_diagnostics")
         for marker in forbidden_pause_tile_markers:
             if marker in source:
                 pause_tile_offenders.append(f"{path.relative_to(ROOT)}: {marker}")
@@ -3559,6 +3560,23 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
         ):
             if marker not in source:
                 missing_stability_markers.append(f"{path.relative_to(ROOT)}: {marker}")
+        for marker in (
+            '- grid-template-areas: \'"gauge" "n"\'',
+            "- grid-template-columns: 1fr",
+            "- grid-template-rows: 86px min-content",
+            "- justify-items: center",
+            "- align-items: center",
+            "- width: 100%",
+            "- height: 86px",
+            "- display: grid",
+            "- place-items: center",
+            "- align-self: stretch",
+            "- justify-self: stretch",
+        ):
+            if marker not in stability_block:
+                missing_stability_markers.append(
+                    f"{path.relative_to(ROOT)}: Stability position is not anchored: {marker}"
+                )
         for entity_id in (
             "input_boolean.air_control_enabled",
             "input_boolean.air_control_manual_override",
