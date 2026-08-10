@@ -49,7 +49,8 @@ test('all four public surfaces carry one identical Stability renderer', () => {
 
 test('absent v2.1 diagnostics render an intentional preview rather than a completed score', () => {
   const output = assertIdentical(renderAll({ diagnostics_summary: {} }));
-  assert.match(output, /--hi-stability-color:#38bdf8/);
+  assert.match(output, /--hi-stability-color:#f8fafc/);
+  assert.match(output, /hi-stability-gauge hi-stability-gauge-preview/);
   assert.match(output, /<span>2\.1<\/span><small>PREVIEW<\/small>/);
   assert.match(output, /aria-label="Stability Score preview for v2\.1\."/);
   assert.doesNotMatch(output, /hi-stability-gauge-white/);
@@ -67,6 +68,7 @@ test('backend score and classification still drive the live badge', () => {
   assert.match(output, /--hi-stability-color:#4ade80/);
   assert.match(output, /<span>82<\/span><small>score<\/small>/);
   assert.match(output, /aria-label="Stability Score 82, good\."/);
+  assert.doesNotMatch(output, /hi-stability-gauge-preview/);
   assert.doesNotMatch(output, /hi-stability-gauge-white/);
 });
 
@@ -80,6 +82,7 @@ test('completed backend score alone receives completed white styling', () => {
   }));
   assert.match(output, /--hi-stability-color:#f8fafc/);
   assert.match(output, /hi-stability-gauge hi-stability-gauge-white/);
+  assert.doesNotMatch(output, /hi-stability-gauge-preview/);
   assert.match(output, /<span>99<\/span><small>score<\/small>/);
 });
 

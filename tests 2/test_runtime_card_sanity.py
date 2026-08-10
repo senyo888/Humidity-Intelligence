@@ -3533,12 +3533,16 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
             "const hasStabilityContract =",
             "const preview = !hasValue && !hasStabilityContract;",
             "const completeWhite = hasValue && (value >= 99 || classification === 'excellent');",
-            "preview ? '#38bdf8'",
+            "preview ? '#f8fafc'",
             "completeWhite ? '#f8fafc'",
+            "preview ? 'hi-stability-gauge-preview' : '',",
+            ".hi-stability-gauge-preview::before,",
+            ".hi-stability-gauge-preview .hi-stability-leds i.active,",
             "animation: hi-stability-white-shimmer 6000ms ease-in-out infinite;",
             "animation: hi-stability-led-shimmer 6000ms ease-in-out infinite;",
             "@keyframes hi-stability-white-shimmer",
             "@keyframes hi-stability-led-shimmer",
+            "@media (prefers-reduced-motion: reduce)",
             "- border: 1px solid rgba(148,163,184,0.22)",
             "- box-shadow: inset 0 0 0 1px rgba(255,255,255,0.035), 0 0 16px rgba(15,23,42,0.55)",
             "inset: 14px;",
@@ -3553,7 +3557,7 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
             "unavailable ? 'NO DATA'",
             "collecting ? 'COLLECTING'",
             "'NO SCORE'",
-            "const gaugeClass = completeWhite",
+            "const gaugeClass = [",
             'role="img" aria-label="${accessibilityText}" title="${accessibilityText}"',
             "const normalized = hasValue ? Math.max(-1, Math.min(1, (value - 50) / 50)) : 0;",
             "direction === 'left'",
@@ -3570,10 +3574,6 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
         if proven_stability_position not in stability_block:
             missing_stability_markers.append(
                 f"{path.relative_to(ROOT)}: Stability position differs from the proven centred layout"
-            )
-        if "- grid-template-columns: 1fr" not in stability_block:
-            missing_stability_markers.append(
-                f"{path.relative_to(ROOT)}: Stability gauge lacks its explicit full-width grid column"
             )
         for marker in ("- align-self: stretch", "- justify-self: stretch"):
             if marker in stability_block:

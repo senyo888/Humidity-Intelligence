@@ -155,8 +155,9 @@ Control row:
 
 - preserve the v2.0.7 tap-to-toggle behavior for the System and Manual helper buttons
 - keep the Stability Score badge passive; it must not pause/resume, select lanes, or create output writes
-- render absent future Stability diagnostics as the cyan `2.1 / PREVIEW` state;
-  reserve completed white styling and shimmer for a real completed backend score
+- render absent future Stability diagnostics as the neutral-white `2.1 / PREVIEW`
+  state with the established six-second breathing shimmer; use a dedicated preview
+  class so it remains distinct from a real completed backend score
 
 Output details:
 

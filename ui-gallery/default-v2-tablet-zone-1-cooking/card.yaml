@@ -1633,7 +1633,7 @@ card:
                   availability === 'insufficient_coverage' || suppression === 'coverage_below_threshold';
                 const completeWhite = hasValue && (value >= 99 || classification === 'excellent');
                 const color =
-                  preview ? '#38bdf8' :
+                  preview ? '#f8fafc' :
                   unavailable ? '#94a3b8' :
                   collecting ? '#38bdf8' :
                   completeWhite ? '#f8fafc' :
@@ -1667,9 +1667,11 @@ card:
                   unavailable ? 'Stability Score data is unavailable.' :
                   collecting ? 'Stability Score is collecting evidence.' :
                   'Stability Score is not available.';
-                const gaugeClass = completeWhite
-                  ? 'hi-stability-gauge hi-stability-gauge-white'
-                  : 'hi-stability-gauge';
+                const gaugeClass = [
+                  'hi-stability-gauge',
+                  preview ? 'hi-stability-gauge-preview' : '',
+                  completeWhite ? 'hi-stability-gauge-white' : '',
+                ].filter(Boolean).join(' ');
                 return `<div class="${gaugeClass}" style="--hi-stability-color:${color};" role="img" aria-label="${accessibilityText}" title="${accessibilityText}">
                   <div class="hi-stability-center"><span>${valueText}</span><small>${unitText}</small></div>
                   <div class="hi-stability-leds">${dots}</div>
@@ -1691,7 +1693,6 @@ card:
               - "-webkit-backdrop-filter": blur(12px)
             grid:
               - grid-template-areas: '"gauge" "n"'
-              - grid-template-columns: 1fr
               - grid-template-rows: 86px min-content
               - row-gap: 0
             name:
@@ -1731,6 +1732,7 @@ card:
               background: #000;
               box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08), 0 0 10px rgba(0,0,0,0.85);
             }
+            .hi-stability-gauge-preview::before,
             .hi-stability-gauge-white::before {
               animation: hi-stability-white-shimmer 6000ms ease-in-out infinite;
             }
@@ -1782,6 +1784,7 @@ card:
               background: var(--hi-stability-color);
               box-shadow: 0 0 3px var(--hi-stability-color);
             }
+            .hi-stability-gauge-preview .hi-stability-leds i.active,
             .hi-stability-gauge-white .hi-stability-leds i.active {
               animation: hi-stability-led-shimmer 6000ms ease-in-out infinite;
             }
@@ -1792,6 +1795,14 @@ card:
             @keyframes hi-stability-led-shimmer {
               0%, 100% { opacity: 0.65; }
               50% { opacity: 1; }
+            }
+            @media (prefers-reduced-motion: reduce) {
+              .hi-stability-gauge-preview::before,
+              .hi-stability-gauge-white::before,
+              .hi-stability-gauge-preview .hi-stability-leds i.active,
+              .hi-stability-gauge-white .hi-stability-leds i.active {
+                animation: none !important;
+              }
             }
         - type: custom:button-card
           entity: input_boolean.air_control_manual_override
