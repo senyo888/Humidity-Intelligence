@@ -66,7 +66,7 @@ Every example folder must include a short `README.md` using this shape:
 - Style: concise visual description
 - Optimised for: Mobile / Tablet / Wall panel
 - Author: @handle
-- Source template: ui/cards/example.yaml
+- Source template: custom_components/humidity_intelligence/ui/cards/example.yaml
 - Required custom cards: card-mod, button-card, mod-card, apexcharts-card
 
 [![Preview](preview.png)](preview.png)
@@ -95,6 +95,12 @@ Submissions must:
 - Avoid private entity IDs, addresses, people names, device IDs, tokens, internal URLs, or other personal data
 - Avoid modifying backend logic or sensor meanings
 - Remain understandable when copied into a clean Home Assistant instance
+- Keep Current Air Control chips tied to backend status truth. Layout and colour may
+  clarify state but must not merge ventilation selection, humidifier demand,
+  reconciliation, or physical-output meaning.
+- Use fresh runtime captures for claims about a candidate UI. Mockups and captures
+  from an earlier package must be labelled as references, never current playback
+  evidence.
 
 Examples may use generic demo rooms such as Bathroom, Bedroom, Kitchen, Zone 1, or Zone 2.
 

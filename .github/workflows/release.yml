@@ -22,18 +22,53 @@ jobs:
           import json
           from pathlib import Path
 
-          manifests = list(Path("custom_components").glob("*/manifest.json"))
+          integration = Path("custom_components/humidity_intelligence")
+          manifest = integration / "manifest.json"
+          hacs = json.loads(Path("hacs.json").read_text(encoding="utf-8"))
+          if "content_in_root" in hacs:
+              raise SystemExit("hacs.json must not declare content_in_root")
           if Path("manifest.json").exists():
-              manifests.append(Path("manifest.json"))
+              raise SystemExit("Root manifest.json is not allowed")
+          if not integration.is_dir():
+              raise SystemExit(f"Missing integration directory: {integration}")
+          integrations = sorted(
+              path
+              for path in Path("custom_components").iterdir()
+              if path.is_dir()
+          )
+          if integrations != [integration]:
+              raise SystemExit(
+                  "Expected exactly custom_components/humidity_intelligence"
+              )
+          if not manifest.is_file():
+              raise SystemExit(f"Missing integration manifest: {manifest}")
+          for rel_path in ("brand/icon.png", "brand/logo.png"):
+              brand_path = integration / rel_path
+              if not brand_path.is_file():
+                  raise SystemExit(f"Missing local integration brand asset: {brand_path}")
+              repository_brand_path = Path("brand") / brand_path.name
+              if not repository_brand_path.is_file():
+                  raise SystemExit(
+                      f"Missing repository brand source: {repository_brand_path}"
+                  )
+              if repository_brand_path.read_bytes() != brand_path.read_bytes():
+                  raise SystemExit(
+                      f"Repository and integration brand assets differ: {brand_path.name}"
+                  )
+          for rel_path in ("icon.png", "logo.png"):
+              misplaced_brand_path = integration / rel_path
+              if misplaced_brand_path.exists():
+                  raise SystemExit(
+                      f"Integration brand asset must be under {integration / 'brand'}: "
+                      f"{misplaced_brand_path}"
+                  )
 
-          if not manifests:
-              raise SystemExit("No manifest.json found.")
-
-          for path in manifests:
-              data = json.loads(path.read_text(encoding="utf-8"))
-              if not data.get("version"):
-                  raise SystemExit(f"{path} has no version.")
-              print(f"{path}: {data['version']}")
+          data = json.loads(manifest.read_text(encoding="utf-8"))
+          if data.get("domain") != "humidity_intelligence":
+              raise SystemExit("Integration manifest domain must be humidity_intelligence")
+          if not data.get("version"):
+              raise SystemExit(f"{manifest} has no version.")
+          print(f"{manifest}: {data['version']}")
           PY
 
       - name: Validate branch/version policy

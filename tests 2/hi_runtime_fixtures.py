@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+INTEGRATION_ROOT = ROOT / "custom_components" / "humidity_intelligence"
 ENTRY_ID = "entry123"
 PKG = "hi_air_control_mode_testpkg"
 DOMAIN = "humidity_intelligence"
@@ -32,6 +33,7 @@ BASELINE_TELEMETRY: Dict[str, Any] = {
     "sensor.hi_fixture_bedroom_humidity": 50,
     "sensor.hi_fixture_bedroom_temperature": 20,
     "sensor.hi_fixture_level1_iaq": 90,
+    "sensor.hi_fixture_level1_pm25": 5,
     "sensor.hi_fixture_co_ppm": 0,
 }
 
@@ -60,7 +62,10 @@ def run_air_control_simulation(
     state_overrides: Optional[Dict[str, Any]] = None,
     config_overrides: Optional[Dict[str, Any]] = None,
     boolean_overrides: Optional[Dict[str, bool]] = None,
+    timer_overrides: Optional[Dict[str, str]] = None,
     co_pressure: bool = False,
+    display_presenter_failure: bool = False,
+    display_fact_failure: bool = False,
 ) -> SimulationResult:
     """Run a backend-consumed fake telemetry scenario.
 
@@ -74,6 +79,12 @@ def run_air_control_simulation(
         raise AssertionError("CO emergency pressure must be explicitly opted in.")
 
     engine_mod, core_mod = _load_runtime_modules()
+    original_presenter = engine_mod.build_display_reason
+    if display_presenter_failure:
+        def _raise_presenter(_facts):
+            raise RuntimeError("injected display presenter failure")
+
+        engine_mod.build_display_reason = _raise_presenter
     config = _base_entry_data()
     _deep_update(config, dict(config_overrides or {}))
     entry = SimpleNamespace(entry_id=ENTRY_ID, data=config, options={})
@@ -88,6 +99,8 @@ def run_air_control_simulation(
     hass = _FakeHass(entry, states)
     for key, value in dict(boolean_overrides or {}).items():
         hass.data[DOMAIN][ENTRY_ID]["hi_input_booleans"][key].is_on = bool(value)
+    for key, value in dict(timer_overrides or {}).items():
+        hass.data[DOMAIN][ENTRY_ID]["hi_timers"][key].native_value = str(value)
 
     sensors, binary_sensors, _sources = core_mod.build_entities(hass, entry)
     _attach_entity_ids(sensors)
@@ -96,6 +109,23 @@ def run_air_control_simulation(
     runtime_data["core_binary_sensors"] = binary_sensors
 
     engine = engine_mod.HIAutomationEngine(hass, entry)
+    if display_fact_failure:
+        def _raise_fact_collection(self, *_args, **_kwargs):
+            raise RuntimeError("injected display fact-collection failure")
+
+        for method_name in (
+            "_co_display_facts",
+            "_control_lock_display_facts",
+            "_gate_display_facts",
+            "_pause_display_facts",
+            "_telemetry_display_facts",
+            "_runtime_display_facts",
+        ):
+            setattr(
+                engine,
+                method_name,
+                MethodType(_raise_fact_collection, engine),
+            )
     lower_lane_trace: List[str] = []
     for method in ("_handle_alerts", "_handle_humidifiers", "_handle_zone_by_key", "_handle_aq"):
         _wrap_async_method(engine, method, lower_lane_trace)
@@ -125,6 +155,7 @@ def run_air_control_simulation(
         )
     finally:
         asyncio.run(engine.async_stop())
+        engine_mod.build_display_reason = original_presenter
 
 
 def _install_homeassistant_stubs() -> None:
@@ -218,7 +249,7 @@ def _install_package_scaffold() -> None:
 
     for sub in ("automations", "helpers", "sensors"):
         mod = types.ModuleType(f"{PKG}.{sub}")
-        mod.__path__ = [str(ROOT / sub)]
+        mod.__path__ = [str(INTEGRATION_ROOT / sub)]
         sys.modules[f"{PKG}.{sub}"] = mod
 
     services = types.ModuleType(f"{PKG}.services")
@@ -242,13 +273,14 @@ def _load_module(name: str, path: pathlib.Path):
 def _load_runtime_modules():
     _install_homeassistant_stubs()
     _install_package_scaffold()
-    _load_module(f"{PKG}.const", ROOT / "const.py")
-    _load_module(f"{PKG}.helpers.parsing", ROOT / "helpers" / "parsing.py")
-    _load_module(f"{PKG}.helpers.seasonal", ROOT / "helpers" / "seasonal.py")
-    _load_module(f"{PKG}.helpers.zone_validation", ROOT / "helpers" / "zone_validation.py")
-    _load_module(f"{PKG}.helpers.drift", ROOT / "helpers" / "drift.py")
-    engine_mod = _load_module(f"{PKG}.automations.engine", ROOT / "automations" / "engine.py")
-    core_mod = _load_module(f"{PKG}.sensors.core", ROOT / "sensors" / "core.py")
+    _load_module(f"{PKG}.const", INTEGRATION_ROOT / "const.py")
+    _load_module(f"{PKG}.helpers.level_labels", INTEGRATION_ROOT / "helpers" / "level_labels.py")
+    _load_module(f"{PKG}.helpers.parsing", INTEGRATION_ROOT / "helpers" / "parsing.py")
+    _load_module(f"{PKG}.helpers.seasonal", INTEGRATION_ROOT / "helpers" / "seasonal.py")
+    _load_module(f"{PKG}.helpers.zone_validation", INTEGRATION_ROOT / "helpers" / "zone_validation.py")
+    _load_module(f"{PKG}.helpers.drift", INTEGRATION_ROOT / "helpers" / "drift.py")
+    engine_mod = _load_module(f"{PKG}.automations.engine", INTEGRATION_ROOT / "automations" / "engine.py")
+    core_mod = _load_module(f"{PKG}.sensors.core", INTEGRATION_ROOT / "sensors" / "core.py")
     return engine_mod, core_mod
 
 
@@ -305,6 +337,13 @@ def _base_entry_data() -> Dict[str, Any]:
                 "level": "level1",
                 "room": "Hallway",
                 "friendly_name": "Level 1 IAQ",
+            },
+            {
+                "entity_id": "sensor.hi_fixture_level1_pm25",
+                "sensor_type": "pm25",
+                "level": "level1",
+                "room": "Hallway",
+                "friendly_name": "Level 1 PM2.5",
             },
             {
                 "entity_id": "sensor.hi_fixture_co_ppm",

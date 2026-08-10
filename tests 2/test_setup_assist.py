@@ -11,6 +11,7 @@ from unittest import mock
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+INTEGRATION_ROOT = ROOT / "custom_components" / "humidity_intelligence"
 PKG = "hi_setup_assist_testpkg"
 
 
@@ -62,7 +63,7 @@ def _install_package_scaffold() -> None:
     sys.modules[PKG] = pkg
 
     helpers = types.ModuleType(f"{PKG}.helpers")
-    helpers.__path__ = [str(ROOT / "helpers")]
+    helpers.__path__ = [str(INTEGRATION_ROOT / "helpers")]
     sys.modules[f"{PKG}.helpers"] = helpers
 
 
@@ -78,7 +79,7 @@ def _load_module(name: str, path: pathlib.Path):
 def _load_setup_assist_module():
     _install_homeassistant_stubs()
     _install_package_scaffold()
-    return _load_module(f"{PKG}.helpers.setup_assist", ROOT / "helpers" / "setup_assist.py")
+    return _load_module(f"{PKG}.helpers.setup_assist", INTEGRATION_ROOT / "helpers" / "setup_assist.py")
 
 
 def test_setup_assist_suggests_area_room_level_and_labels_without_runtime_authority():

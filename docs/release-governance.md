@@ -5,22 +5,25 @@ testing and validation branches.
 
 ## Canonical Version Model
 
-- `2.0.9-beta.1`: testing build.
-- `2.0.9-rc.1`: release-candidate build.
-- `2.0.9`: stable version label. On `senyo888-patch-1`, `develop`, or `main`,
+- `2.0.10-beta.7`: testing build.
+- `2.0.10-rc.1`: release-candidate build.
+- `2.0.10`: stable version label. On `senyo888-patch-1`, `develop`, or `main`,
   stable metadata may be staged or promoted through the governed release path.
   Published release status comes from release tags, GitHub release publication, and
   maintainer approval.
 
-The integration version in `manifest.json` is the source of truth for the installed
-Home Assistant package and integration metadata checks. When GitHub Releases are
-used, HACS derives published version state from the GitHub Release/tag; that state
-must remain aligned with the `manifest.json` version contained in the published
-GitHub Release/tag.
+The integration version in
+`custom_components/humidity_intelligence/manifest.json` is the source of truth for the
+installed Home Assistant package and integration metadata checks. When GitHub Releases
+are used, HACS derives published version state from the GitHub Release/tag; that state
+must remain aligned with the
+`custom_components/humidity_intelligence/manifest.json` version contained in the
+published GitHub Release/tag.
 
-The tracked source and release documentation identify stable `2.0.9`. A branch or
-merge containing stable metadata is not by itself a tag, GitHub Release, or HACS
-publication. Public release status comes from GitHub Releases and HACS, while
+The tracked source and release documentation identify stable `2.0.10` release-source
+metadata. Published Stable remains `2.0.9` until the separate tag, GitHub Release, and
+HACS publication lane completes. A branch or merge containing stable metadata is not
+by itself a publication. Public release status comes from GitHub Releases and HACS, while
 release readiness must be established through public-safe validation summaries,
 GitHub CI, the required review gates, and explicit maintainer approval. Local
 operational evidence does not replace or become part of the tracked public
@@ -34,12 +37,13 @@ recorded as maintainer confirmation unless independently verified in the same
 validation packet. Stable-instance access or mutation requires explicit approval for
 this lane.
 
-For future promotion candidates, release readiness needs more than Stage A HA Lab
-package deploy evidence. Each release-readiness record must separately state whether
-restart/reload approval, post-restart read-only checks, generated-card evidence, Bella
-review, Aetherwing runtime/security review, AetherCore governance review, Aetherbite
-release-language/visual review, maintainer stable-instance confirmation, and
-maintainer promotion approval are complete.
+For future promotion candidates, release readiness is established independently of
+HA Lab. Each release-readiness record must state whether the scope-appropriate tracked
+validation, generated-card evidence, Bella review, Aetherwing runtime/security review,
+AetherCore governance review, Aetherbite release-language/visual review, maintainer
+stable-instance confirmation where required, and maintainer promotion approval are
+complete. HA Lab deploy, restart, playback, and soak evidence may be attached as
+advisory context, but no HA Lab status is a required release field or gate.
 
 ## v2.0.8 Release Path Record
 
@@ -64,6 +68,9 @@ The recorded develop-to-main promotion checklist was:
 5. Preserve the hard release gates below as separate `main`, tag, and GitHub Release
    approval requirements.
 
+That v2.0.8 checklist is retained as history. Its request to record HA Lab evidence
+does not define a current or future promotion requirement.
+
 For future releases, a `develop` merge must not be treated as tag, GitHub Release, or
 `main` authority. Final promotion still requires maintainer approval, Bella coherence
 review, Aetherwing runtime/release validation, AetherCore governance consistency
@@ -75,19 +82,59 @@ house-agent, and explicit maintainer gates are complete. CodeRabbit must then fi
 an exact-head review; actionable feedback must be fixed through a prerequisite PR or
 explicitly recorded as not applicable before promotion can continue.
 
+For the broadened v2.0.10 humidifier reconciliation, reason-presentation, and HACS
+package-layout release, beta.7 established the final runtime candidate identity before
+the stable `2.0.10` metadata bridge. Stable release-source metadata does not authorize
+HA Lab/Stable-instance mutation, tag, GitHub Release, HACS publication, or deployment.
+Beta.7 started a new exact-identity campaign with zero inherited credit. Beta evidence
+must cover restored demand,
+long-demand device stops, output
+availability recovery, all supported output domains, isolation/gate interactions,
+shared-output aggregation, bounded retry/fault behavior, generated V2 truth,
+diagnostics redaction, the complete `hi.reason.v1` runtime-family matrix,
+presenter-failure invariance, mixed-version fallback, line/size bounds, raw-ID and HTML
+privacy checks, 52-file count/content parity with the approved brand-path relocation,
+the required component-local `brand/icon.png` and `brand/logo.png` paths, direct
+Hassfest/HACS validation, and unchanged deterministic ventilation ordering. Beta.1
+through beta.6 evidence remain historical evidence for their exact commits and
+cannot approve beta.7. The incomplete beta.2 soak is superseded rather than failed;
+the separately deployed beta.3 soak is bound to beta.3, and beta.4 deployment and
+soak evidence remain beta.4-only; beta.6 is invalidated for cadence failure. None
+transfers sample numbering or acceptance to beta.7. HA Lab evidence is advisory;
+whether it passes, fails, is blocked, is incomplete, or is not run cannot block
+promotion or release. Stable-instance authority and release promotion remain separate
+maintainer gates.
+
+The durable beta.7 campaign `P22C-20260808T073919Z-9162eca3` completed with all 9/9
+scheduled slots accepted, identity verified, and no failed or missed slots. That is
+advisory exact-beta evidence. Stable-instance forward validation then identified a
+diagnostics privacy gap: entity-ID-shaped mapping keys could survive value redaction.
+The stable release source replaces mapped runtime entity rows with aggregate status
+counts, removes mapping keys from the sanitized diagnostics export, and updates the
+browser-local Inspector contract. This narrow support-surface change means the stable
+package is intentionally not byte-identical to the soaked beta.7 package. Exact stable
+HEAD therefore requires its own canonical privacy, diagnostics, Inspector, package,
+version-governance, and full-suite validation; no beta soak credit is transferred to
+the changed bytes. Control decisions, configuration, entity identity/state, generated
+card YAML, and deterministic lane ordering remain unchanged. Attached Stable-instance
+diagnostics remain private beta.7 evidence and must be summarized, not copied into
+public repositories or PRs.
+
 For v2.0.9 owned-artifact namespace validation, the release packet must separately
 record:
 
-- exact diagnostics, self-check, release-check, generated-card, and registered
-  dashboard paths;
+- exact diagnostics, self-check, release-check, and generated-card paths, plus proof
+  that card fragments are not treated as registered dashboard documents;
 - admin rejection before work for external `dump_diagnostics`, `self_check`,
   `v205_release_check`, `dump_cards`, `view_cards`, `flash_lights`,
   `create_local_backup`, `list_saved_versions`, `pause_control`, `resume_control`,
-  `create_dashboard`, and `purge_files`; continuity of trusted
+  `create_dashboard`, and `purge_files`; deterministic guidance-only failure for
+  `create_dashboard`; continuity of trusted
   setup/options/release-test exports and engine-owned visual alerts; and truthful
   cache-only startup refresh;
-- single-entry and entry-qualified multi-entry filenames, exact purge preview/removal
-  ownership, and retention of custom and legacy root artifacts;
+- single-entry and entry-qualified multi-entry filenames, exact file-only purge
+  preview/removal ownership, dashboard retention, and retention of custom and legacy
+  root artifacts;
 - descriptor-relative no-follow atomic writer tests, including concurrent writes,
   directory creation/permissions, symlink, non-regular target, and directory
   substitution rejection;
@@ -124,6 +171,17 @@ record:
    but they do not replace the `main` release/tag gate.
 5. A GitHub release is created only from a stable version on `main`.
 
+## README Release-Note Structure
+
+The README keeps the current release source and current Published Stable summaries expanded.
+When a newer release takes either position, move the displaced summary into the
+collapsible `Previous Releases` container. Retain that container as the canonical
+older-release structure so successive releases follow the same visible chronology.
+
+`CHANGELOG.md` owns the complete detailed release and legacy-migration history. The
+README container may keep concise displaced summaries and must retain a direct link to
+that tracked history.
+
 ## Hard Release Gates
 
 No Humidity Intelligence version release, GitHub release, or release tag may be created
@@ -138,11 +196,6 @@ until all of these gates are satisfied:
 - Release sanity validation has passed for the change scope, including version
   governance, HACS/package metadata checks, and the relevant Home Assistant runtime,
   direct sanity, service, or generated-card checks.
-- HA Lab beta-validation status is recorded when a beta package has been deployed,
-  activated, soaked, or checked in HA Lab. This is operational evidence only: it can
-  inform Bella, Aetherwing, AetherCore, maintainer, PR, and release-readiness review,
-  while release approval, runtime semantics, stable Home Assistant validation, and
-  mutation approval stay with their normal gates.
 - The `humidity-intelligence-maintenance` companion has been updated with advisory
   release-gate evidence, blocker notes, or an explicit no-op maintenance status for
   the staging promotion. This records maintenance evidence; promotion approval and
@@ -153,6 +206,11 @@ until all of these gates are satisfied:
   Wiki remains a public support manual; runtime and release truth stay in the
   repository source and release documentation.
 - The README has maintainer approval before release tagging.
+
+HA Lab is deliberately absent from the hard-gate list. When HA Lab evidence exists,
+its status may be recorded as optional operational context. A pass, failure, blocked
+run, incomplete playback/soak, or `not run` status is not a missing gate and cannot
+block promotion, tagging, GitHub Release or HACS publication, or Stable approval.
 
 If any gate is missing for the version being prepared, the release state is `not ready`,
 even when the manifest version already carries a stable number on `senyo888-patch-1`,
@@ -184,7 +242,8 @@ Use it for:
 
 - HACS/install metadata validation
 - release packaging sanity
-- `manifest.json`, `hacs.json`, branding, workflow, and repository hygiene support
+- `custom_components/humidity_intelligence/manifest.json`, `hacs.json`, branding,
+  workflow, and repository hygiene support
 
 Do not treat it as a replacement for pytest, direct runtime/card sanity, Home Assistant
 runtime validation, Bella coherence review, Aetherwing validation, or version governance.
@@ -199,7 +258,7 @@ Validation Infrastructure. Use it after beta deploys to collect practical runtim
 evidence from an isolated Home Assistant lab instance while preserving repository and
 review authority.
 
-Expected HA Lab evidence for beta-readiness review:
+Optional HA Lab evidence for beta-readiness review may include:
 
 - package deploy identity: source branch/worktree, commit, manifest version, target
   classification, and clean/dirty source state;
@@ -217,4 +276,9 @@ Expected HA Lab evidence for beta-readiness review:
 HA Lab evidence remains non-binding. It is not release authority, runtime authority,
 stable Home Assistant authority, or a substitute for Bella coherence review,
 Aetherwing runtime/risk validation, AetherCore governance consistency review,
-release-candidate validation, or Senyo approval.
+release-candidate validation, or maintainer approval.
+
+HA Lab is therefore never a promotion or release blocker. A failed, blocked,
+incomplete, unavailable, or omitted HA Lab run may be reported as advisory risk
+context, but it cannot turn an otherwise satisfied canonical release decision into
+`not ready`.

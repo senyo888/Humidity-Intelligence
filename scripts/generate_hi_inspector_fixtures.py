@@ -16,6 +16,7 @@ from typing import Any
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+INTEGRATION_ROOT = ROOT / "custom_components" / "humidity_intelligence"
 FIXTURE_ROOT = ROOT / "tests 2" / "fixtures" / "hi_inspector"
 SYNTHETIC_ENTRY_ID = "0123456789abcdef0123456789abcdef"
 INTEGRATION_VERSION_PATTERN = re.compile(
@@ -218,14 +219,17 @@ def _assert_public_safe(fixtures: dict[str, dict[str, Any]]) -> None:
 
 
 def _repository_manifest_version() -> str:
-    manifest = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads(
+        (INTEGRATION_ROOT / "manifest.json").read_text(encoding="utf-8")
+    )
     version = manifest.get("version")
     if (
         not isinstance(version, str)
         or not INTEGRATION_VERSION_PATTERN.fullmatch(version)
     ):
         raise RuntimeError(
-            "Repository manifest.json must contain a supported integration version"
+            "custom_components/humidity_intelligence/manifest.json must contain "
+            "a supported integration version"
         )
     return version
 

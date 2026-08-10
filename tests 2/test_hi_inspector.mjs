@@ -295,6 +295,31 @@ test("native schema 1 exposes only allowlisted backend facts", () => {
   assert.doesNotMatch(rendered, /reason bodies|repair_steps/i);
 });
 
+test("legacy native mapped rows are aggregated without retaining mapping keys", () => {
+  const payload = fixture("native_schema1.json");
+  payload.runtime.mapped_runtime_entities = {
+    "sensor.private_source": { configured: true, status: "available" },
+    "fan.private_output": { configured: true, status: "unavailable" },
+  };
+
+  const parsed = parseDiagnosticsText(JSON.stringify(payload));
+  assert.equal(parsed.ok, true);
+  assert.deepEqual(parsed.report.runtime.mappedEntities, {
+    total: 2,
+    available: 1,
+    missing: 0,
+    unknown: 0,
+    unavailable: 1,
+    other: 0,
+  });
+
+  const reportText = JSON.stringify(parsed.report);
+  const handoff = createSupportHandoff(parsed.report);
+  assert.equal(handoff.ok, true);
+  assert.doesNotMatch(reportText, /sensor\.private_source|fan\.private_output/);
+  assert.doesNotMatch(handoff.text, /sensor\.private_source|fan\.private_output/);
+});
+
 test("Home Assistant diagnostics envelope adapts to the same native report", () => {
   const envelopeFixture = fixture("native_schema1_envelope.json");
   assert.deepEqual(envelopeFixture.issues, []);

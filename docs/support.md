@@ -25,6 +25,9 @@ Please review the bundle before attaching if you are concerned about privacy. Th
 - current runtime mode/lane and reason availability/truncation
 - gate states
 - output state summary
+- sanitized humidifier demand/output reconciliation, including desired and observed
+  categories, dispatch result, retry/fault state, mismatch age, and bounded history
+  without configured humidifier output entity IDs
 - active alert resolution
 - compact local HI-only snapshot status
 - house humidity drift 7d statistics dependency status, including helper readiness
@@ -55,6 +58,41 @@ Native diagnostics prefer structure, counts, and statuses over raw entity IDs, r
 names, Area names, Label names, entity maps, and state dumps. Selected mapping and
 local-name evidence is generally reduced, but user-configured display and level labels may remain.
 Review the complete file before uploading it to a public issue.
+
+## Humidifier Demand/Output Troubleshooting
+
+The humidifier-active helper and V2 `Requested` chip mean HI currently has effective
+humidification demand. They do not mean a command completed or a device is physically
+producing moisture.
+
+Use the V2 chip/reason state and native diagnostics together:
+
+- `On`: concise V2 chip wording for backend `output_on`; Home Assistant reports the
+  configured output `on`
+- `Idle`: Home Assistant reports `on`, but a humidifier action attribute reports idle
+- `Retrying` or `Stopping`: HI dispatched a command and is waiting or retrying within
+  the bounded schedule
+- `Isolated`: demand remains visible but humidifier output service calls are
+  intentionally suppressed
+- `Unknown` or `Degraded`: state/service/domain/ownership evidence is not safe enough
+  for a normal reconciliation claim
+- `Fault`: HI has used all configured confirmation attempts; inspect the device,
+  water/safety state, vendor integration, and Home Assistant entity before recovery
+
+V2 Mobile and Tablet place ventilation and humidifier chips in one horizontally
+scrollable Current Air Control row. `On` and `Requested` use cyan; `Idle`, `Retrying`,
+`Stopping`, and `Isolated` amber; `Fault` and `Degraded` red; and `Unknown` grey. If an
+older pasted card still shows a separate humidifier row, run `refresh_ui`, export with
+`dump_cards` or `view_cards`, replace the complete Manual-card YAML, and refresh the
+frontend if its styling is cached.
+
+HI does not bypass a device-local target, idle mode, empty-water protection, safety
+timeout, or vendor fault. A later output state change, unavailable-to-available
+recovery, demand transition, integration reload, or Home Assistant restart triggers
+fresh evaluation; toggling helpers or repeatedly calling services is not the
+recommended recovery path. If the output is `on` but no moisture is produced, inspect
+the physical device and vendor integration because Home Assistant output state alone
+cannot establish physical actuation.
 
 ## Optional Public Inspector Preflight
 
@@ -137,8 +175,8 @@ The v2.0.9 path change is non-destructive. Existing report and card files in the
 config root are not moved, copied, symlinked, dual-written, or deleted. The fixed
 self-check report now lives at
 `<config>/humidity_intelligence/exports/humidity_intelligence_self_check.json`;
-generated card YAML lives under `<config>/humidity_intelligence/ui/`. Registered
-dashboard YAML remains at `<config>/dashboards/<url_path>.yaml`.
+generated Manual-card YAML lives under `<config>/humidity_intelligence/ui/`. Those
+exports are card fragments and must not be copied to `<config>/dashboards/`.
 
 Update file sensors, shell commands, support tools, or other consumers from
 `<config>/<report filename>` to
@@ -154,7 +192,7 @@ HI no longer refreshes superseded owned-UI files, but external consumers can sti
 read their stale content. Do not treat an older inferred filename as current truth;
 follow the newest notification and remove stale defaults through an explicit
 previewed purge when desired. Config-entry removal deletes only the removed entry's
-exact default/release-test UI exports and registered dashboard. It retains reports,
+exact default/release-test UI exports. It retains Home Assistant dashboards, reports,
 custom card exports, legacy root files, and the remaining entry's superseded
 qualified files after a multi-entry installation returns to one entry.
 
@@ -173,7 +211,7 @@ For an artifact that exact purge intentionally retains:
 3. delete only the confirmed regular file through File Editor, Studio Code Server,
    Samba, or SSH
 4. do not delete an owned directory, use a wildcard, follow a symlink/non-regular
-   object, or manually remove registered dashboard YAML
+   object, or overwrite a dashboard file with a Manual-card fragment
 5. confirm the active owned-directory artifact and Manual card remain correct
 
 Manual deletion of an unused retained file does not itself require a Home Assistant

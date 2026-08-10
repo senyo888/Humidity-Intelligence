@@ -31,7 +31,8 @@ Default output:
 the maintainer explicitly asks to publish a sanitized summary.
 
 Generated triage reports are timestamped support snapshots. The current release state
-stays in `CHANGELOG.md`, `manifest.json`, and `docs/release-governance.md`.
+stays in `CHANGELOG.md`, `custom_components/humidity_intelligence/manifest.json`, and
+`docs/release-governance.md`.
 
 ## Privacy Boundary
 

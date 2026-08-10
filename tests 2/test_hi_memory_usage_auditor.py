@@ -81,7 +81,7 @@ class HiMemoryUsageAuditorTests(unittest.TestCase):
 
             candidate = "- Keep memory updates exact, approved, and reviewable.\n"
             manifest = {
-                "approved_by": "Jules",
+                "approved_by": "Senyo",
                 "entries": [
                     {
                         "target_file": ".codex/memories/project/release_lessons.md",

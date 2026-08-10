@@ -16,6 +16,7 @@ from types import SimpleNamespace
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+INTEGRATION_ROOT = ROOT / "custom_components" / "humidity_intelligence"
 PKG = "hi_local_versions_testpkg"
 FIXED_NOW = datetime(2026, 5, 22, 13, 4, 55, tzinfo=timezone.utc)
 
@@ -26,7 +27,7 @@ def _install_package_scaffold() -> None:
     sys.modules[PKG] = pkg
 
     helpers = types.ModuleType(f"{PKG}.helpers")
-    helpers.__path__ = [str(ROOT / "helpers")]
+    helpers.__path__ = [str(INTEGRATION_ROOT / "helpers")]
     sys.modules[f"{PKG}.helpers"] = helpers
 
 
@@ -41,8 +42,8 @@ def _load_module(name: str, path: pathlib.Path):
 
 def _load_local_versions_module():
     _install_package_scaffold()
-    _load_module(f"{PKG}.const", ROOT / "const.py")
-    return _load_module(f"{PKG}.helpers.local_versions", ROOT / "helpers" / "local_versions.py")
+    _load_module(f"{PKG}.const", INTEGRATION_ROOT / "const.py")
+    return _load_module(f"{PKG}.helpers.local_versions", INTEGRATION_ROOT / "helpers" / "local_versions.py")
 
 
 def _write(path: pathlib.Path, body: str) -> None:
@@ -447,9 +448,9 @@ def test_async_helpers_use_executor_and_global_lock_for_rapid_calls():
 
 def test_helper_is_runtime_isolated_and_services_are_documented():
     module = _load_local_versions_module()
-    helper_source = (ROOT / "helpers" / "local_versions.py").read_text(encoding="utf-8")
-    services_source = (ROOT / "services.py").read_text(encoding="utf-8")
-    services_yaml = (ROOT / "services.yaml").read_text(encoding="utf-8")
+    helper_source = (INTEGRATION_ROOT / "helpers" / "local_versions.py").read_text(encoding="utf-8")
+    services_source = (INTEGRATION_ROOT / "services.py").read_text(encoding="utf-8")
+    services_yaml = (INTEGRATION_ROOT / "services.yaml").read_text(encoding="utf-8")
 
     assert "automations.engine" not in helper_source
     assert "async_request_evaluate" not in helper_source

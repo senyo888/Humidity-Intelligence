@@ -1,0 +1,236 @@
+flash_lights:
+  name: Flash lights
+  description: Admin-only external action from an authenticated UI/API session; background calls without a user ID are rejected. Test selected visual-alert lights. HI runtime alerts use a separate trusted internal helper so the engine does not require or manufacture a user context.
+  fields:
+    power_entity:
+      name: Optional power entity
+      description: Optional switch or light that powers the circuit
+      selector:
+        entity:
+          domain: [switch, light]
+    lights:
+      name: Lights to flash
+      description: Optional lights to flash
+      required: false
+      selector:
+        entity:
+          domain: light
+          multiple: true
+    color:
+      name: Flash color
+      description: RGB color for flashing lights
+      selector:
+        color_rgb: {}
+    duration:
+      name: Duration in seconds
+      description: Total flash duration (1-300s)
+      selector:
+        number:
+          min: 1
+          max: 300
+          step: 1
+          mode: slider
+          unit_of_measurement: s
+    flash_count:
+      name: Number of flashes
+      description: Override flash count (optional, 1-240). HI humidity/mould/condensation visual alerts use 10 flashes per cycle and repeat after 30 minutes only while the same alert remains active.
+      selector:
+        number:
+          min: 1
+          max: 240
+          step: 1
+          mode: slider
+refresh_ui:
+  name: Refresh UI Mapping
+  description: Rebuild entity mapping and re-render cached dashboard YAML cards. Already-pasted Manual dashboard cards remain static until refreshed from a new dump_cards export. HI can also run this automatically shortly after Home Assistant startup when the startup refresh option is enabled.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to refresh; omit to refresh all
+      selector:
+        text: {}
+dump_diagnostics:
+  name: Dump Diagnostics
+  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Write sanitized diagnostics (configuration counts, active target profile, alert resolution status, humidifier demand/output reconciliation, visual alert counts, house humidity drift dependency, unavailable counts, cards) to a JSON file under the owned Home Assistant config/humidity_intelligence/exports directory. Humidifier output state is Home Assistant evidence and does not prove physical moisture production.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to dump; omit to dump all
+      selector:
+        text: {}
+    filename:
+      name: Filename
+      description: Output basename under Home Assistant config/humidity_intelligence/exports. Custom names must use the exact lowercase humidity_intelligence_*.json pattern; update existing callers that use another custom name or consume the former config-root path.
+      selector:
+        text: {}
+self_check:
+  name: Self Check
+  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Validate entity mapping, generated-card entity references, frontend dependencies, humidifier demand/output reconciliation reporting, house humidity drift dependency, PM2.5 aggregate normalization status, local HI-only snapshot status, and telemetry setup, then write the fixed entity-bearing report to Home Assistant config/humidity_intelligence/exports/humidity_intelligence_self_check.json. Treat the report as local/private.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to check; omit to check all
+      selector:
+        text: {}
+v205_release_check:
+  name: Release Check
+  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Run a runtime/device-read-only v2.0.5-v2.0.10 validation check, including sanitized humidifier demand/output reconciliation truth, and write its report under the owned Home Assistant config/humidity_intelligence/exports directory. It cannot prove physical moisture production.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to check; omit to check all
+      selector:
+        text: {}
+    filename:
+      name: Filename
+      description: Output basename under Home Assistant config/humidity_intelligence/exports (defaults to humidity_intelligence_v205_release_check.json). Custom names must use the exact lowercase humidity_intelligence_*.json pattern; update existing callers that use another custom name or consume the former config-root path.
+      selector:
+        text: {}
+    write_test_exports:
+      name: Write test card exports
+      description: When enabled, writes test card export files under Home Assistant config/humidity_intelligence/ui to verify unscoped dump_cards exports all layouts and scoped layout exports only v2_tablet. No devices or runtime outputs are changed.
+      selector:
+        boolean: {}
+    require_local_hi_snapshot:
+      name: Require local HI snapshot
+      description: Optional release gate. When enabled, the release check fails if there is no fresh local HI-only snapshot. Leave disabled for normal validation.
+      selector:
+        boolean: {}
+    max_snapshot_age_minutes:
+      name: Maximum snapshot age
+      description: Maximum local HI-only snapshot age in minutes when require_local_hi_snapshot is enabled.
+      selector:
+        number:
+          min: 1
+          max: 10080
+          step: 1
+          mode: box
+          unit_of_measurement: min
+create_local_backup:
+  name: Create Local HI Snapshot
+  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Create a local HI-only snapshot of /config/custom_components/humidity_intelligence. This is not a Home Assistant backup, does not intercept HACS updates, and does not change running code until Home Assistant is restarted.
+  fields:
+    retain_count:
+      name: Snapshots to retain
+      description: Number of finalized local HI-only snapshots to retain after a successful create operation (1-5, default 2).
+      selector:
+        number:
+          min: 1
+          max: 5
+          step: 1
+          mode: box
+    max_total_bytes:
+      name: Maximum total bytes
+      description: Maximum total bytes for finalized local HI-only snapshots after retention cleanup (default 52428800, hard maximum 262144000).
+      selector:
+        number:
+          min: 1
+          max: 262144000
+          step: 1048576
+          mode: box
+          unit_of_measurement: B
+list_saved_versions:
+  name: List Local HI Snapshots
+  description: Admin-only read of finalized local HI-only snapshots and invalid snapshot folders from an authenticated UI/API session. Contextless and non-admin calls are rejected. This is not a Home Assistant backup and does not change running code.
+  fields: {}
+dump_cards:
+  name: Dump Cards
+  description: Admin-only external action from an authenticated UI/API session; background calls without a user ID are rejected. Write rendered card YAML under Home Assistant config/humidity_intelligence/ui for static Manual dashboards. Without layout, all cached layouts are exported; with layout, only that layout is exported. This action does not post a completion path notification; use view_cards when you want the exact written path in a notification. Trusted first-run setup, options, and release-check paths call the internal exporter directly. Startup refresh remains cache-only.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to dump; omit to dump all
+      selector:
+        text: {}
+    filename:
+      name: Filename
+      description: Optional custom base filename under Home Assistant config/humidity_intelligence/ui (defaults to humidity_intelligence_cards; basename only). Multi-entry installations add an entry-qualified token before the layout.
+      selector:
+        text: {}
+    layout:
+      name: Layout (optional)
+      description: Optional. Omit to dump all cached layouts, or supply one layout (v2_mobile, v2_tablet, v1_mobile, view_cards_button). v1_mobile is deprecated in v2.0.9; use v2_mobile for new dashboards.
+      selector:
+        text: {}
+create_dashboard:
+  name: Dashboard Setup Guidance
+  description: Compatibility-only admin action. Humidity Intelligence exports Manual-card YAML but cannot safely create, register, replace, or delete a Home Assistant dashboard on supported versions. This action performs no file or dashboard writes and returns the supported refresh_ui, view_cards, and Manual-card steps.
+  fields:
+    entry_id:
+      name: Entry ID (compatibility only)
+      description: Retained for existing callers; ignored by this guidance-only action. Supply the intended entry ID when separately running refresh_ui and view_cards.
+      selector:
+        text: {}
+    layout:
+      name: Layout (compatibility only)
+      description: Retained for existing callers; ignored by this guidance-only action. Supply v2_mobile or v2_tablet when separately running view_cards.
+      selector:
+        select:
+          options:
+            - v2_mobile
+            - v2_tablet
+    title:
+      name: Dashboard title (compatibility only)
+      description: Retained for existing callers; ignored by this guidance-only action
+      selector:
+        text: {}
+    url_path:
+      name: URL path (compatibility only)
+      description: Retained for existing callers; ignored by this guidance-only action
+      selector:
+        text: {}
+view_cards:
+  name: View Cards
+  description: Admin-only external action from an authenticated UI/API session; background calls without a user ID are rejected. Export cards under Home Assistant config/humidity_intelligence/ui and post a notification with each exact file path. Use this instead of dump_cards when path discovery is the priority.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to use; omit to use all
+      selector:
+        text: {}
+    filename:
+      name: Filename
+      description: Optional custom base filename under Home Assistant config/humidity_intelligence/ui (defaults to humidity_intelligence_cards; basename only). Multi-entry installations add an entry-qualified token before the layout.
+      selector:
+        text: {}
+    layout:
+      name: Layout (optional)
+      description: Dump a single layout (v2_mobile, v2_tablet, v1_mobile, view_cards_button). v1_mobile is deprecated in v2.0.9; use v2_mobile for new dashboards.
+      selector:
+        text: {}
+purge_files:
+  name: Purge Files
+  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Show the exact existing owned default/per-entry UI exports and release-check test-card exports in a blocking preview, then remove them. Home Assistant dashboards are user-managed and are never listed or removed. Entry-scoped calls remove no reports. An unscoped all-entry call may additionally remove only the fixed default diagnostics and self-check reports. Custom card exports, custom reports, release-check reports, and all legacy config-root artifacts are retained. Partial failures are reported and fail the service call.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to purge; omit to purge all
+      selector:
+        text: {}
+pause_control:
+  name: Pause Control
+  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Pause the automation engine for a number of minutes (default 60), either for one supplied entry or all entries.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to pause; omit to pause all entries. Every call requires admin context.
+      selector:
+        text: {}
+    minutes:
+      name: Minutes
+      description: Pause duration in minutes
+      selector:
+        number:
+          min: 1
+          max: 1440
+          step: 1
+          mode: box
+resume_control:
+  name: Resume Control
+  description: Admin-only action from an authenticated UI/API session; background calls without a user ID are rejected. Resume the automation engine immediately by clearing the pause timer for one supplied entry or all entries.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID to resume; omit to resume all entries. Every call requires admin context.
+      selector:
+        text: {}

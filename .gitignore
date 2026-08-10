@@ -44,6 +44,7 @@ DESIGN_BRIEF.md
 PROJECT_SUMMARY.md
 ROADMAP.md
 PROPOSALS.md
+/docs/proposals/
 
 # --- Local AI-agent instructions ---
 AGENTS.local.md

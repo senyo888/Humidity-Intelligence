@@ -36,15 +36,11 @@
 
 ## HA Lab advisory evidence
 
-<!-- State HA Lab status as pass / fail / blocked / not run / not applicable. Include sanitized Stage A, activation, soak, Stage 3, card/entity-map, and rollback evidence when relevant. HA Lab evidence is advisory input; release gates still apply. -->
+<!-- Optional and non-blocking. If useful, state HA Lab status as pass / fail / blocked / incomplete / not run / not applicable and include only sanitized evidence. No HA Lab status is a PR, promotion, tag, HACS, or release gate. -->
 
-## Type
+## Maintainer notes
 
-- [ ] Fix
-- [ ] Feature
-- [ ] Documentation
-- [ ] UI Gallery
-- [ ] Maintenance
+<!-- Reserved for the maintainer's manual notes. -->
 
 ## Checks
 
@@ -55,7 +51,6 @@
 - [ ] Docs/changelog updated where needed.
 - [ ] Support docs, diagnostics guidance, and issue templates updated where support flow changed.
 - [ ] Wiki update status recorded as `updated`, `no-op`, or `blocked` where public support/manual guidance is affected.
-- [ ] HA Lab advisory evidence recorded, or explicitly marked `not applicable`.
 - [ ] No private entity IDs, secrets, addresses, or personal data included.
 - [ ] HACS/custom integration metadata still looks correct.
 - [ ] Deterministic lane ordering is preserved, or the PR explicitly explains an approved semantic change.
@@ -72,3 +67,7 @@
 - [ ] Required custom cards are documented.
 - [ ] Preserves canonical Humidity Intelligence backend entities/helpers.
 - [ ] Screenshots and YAML contain no private entity IDs, secrets, addresses, device IDs, tokens, internal URLs, or personal data.
+
+## Maintainer summary
+
+<!-- Final maintainer-facing decision, residual risks, and release/deploy gates. -->
