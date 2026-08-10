@@ -112,6 +112,18 @@ class WorkflowConfigurationTests(unittest.TestCase):
         )
         self.assertNotIn("python -m compileall -q .", workflow)
 
+    def test_validate_executes_generated_card_renderers(self) -> None:
+        workflow = (ROOT / ".github" / "workflows" / "validate.yml").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn(
+            'node --test "tests 2/test_reason_card_renderer.mjs"', workflow
+        )
+        self.assertIn(
+            'node --test "tests 2/test_stability_badge_renderer.mjs"', workflow
+        )
+
     def test_component_brand_assets_use_home_assistant_local_brand_layout(self) -> None:
         integration = ROOT / "custom_components" / "humidity_intelligence"
         repository_brand = ROOT / "brand"

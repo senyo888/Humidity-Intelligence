@@ -3529,7 +3529,10 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
             "hi-stability-leds",
             'return `<i class="led-${index} ${active ? \'active\' : \'\'}"></i>`;',
             ".hi-stability-leds i.led-3 { left: 40px; top: 2px; }",
-            "const completeWhite = !hasValue || value >= 99 || classification === 'excellent';",
+            "const hasStabilityContract =",
+            "const preview = !hasValue && !hasStabilityContract;",
+            "const completeWhite = hasValue && (value >= 99 || classification === 'excellent');",
+            "preview ? '#38bdf8'",
             "completeWhite ? '#f8fafc'",
             "animation: hi-stability-white-shimmer 6000ms ease-in-out infinite;",
             "animation: hi-stability-led-shimmer 6000ms ease-in-out infinite;",
@@ -3544,6 +3547,13 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
             "const hasRawValue = rawValue !== null && rawValue !== undefined && rawValue !== '';",
             "const value = hasRawValue ? Number(rawValue) : NaN;",
             "const hasValue = hasRawValue && Number.isFinite(value);",
+            "const valueText = hasValue ? String(Math.round(value)) : preview ? '2.1' : '—';",
+            "preview ? 'PREVIEW'",
+            "unavailable ? 'NO DATA'",
+            "collecting ? 'COLLECTING'",
+            "'NO SCORE'",
+            "const gaugeClass = completeWhite",
+            'role="img" aria-label="${accessibilityText}" title="${accessibilityText}"',
             "const normalized = hasValue ? Math.max(-1, Math.min(1, (value - 50) / 50)) : 0;",
             "direction === 'left'",
         ):
@@ -3570,6 +3580,14 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
             missing_stability_markers.append(f"{path.relative_to(ROOT)}: invalid flattened score attribute")
         if "FUTURE 2.1" in source:
             missing_stability_markers.append(f"{path.relative_to(ROOT)}: stale bottom future label")
+        if "const completeWhite = !hasValue" in source:
+            missing_stability_markers.append(
+                f"{path.relative_to(ROOT)}: absent Stability data still inherits completed styling"
+            )
+        if "const unitText = hasValue ? 'score' : 'future';" in source:
+            missing_stability_markers.append(
+                f"{path.relative_to(ROOT)}: stale internal future fallback copy"
+            )
         if "repeating-conic-gradient" in source:
             missing_stability_markers.append(f"{path.relative_to(ROOT)}: stale full-circumference LED halo")
         if "bottom: 5px;" in source:

@@ -8,7 +8,15 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
-- No unreleased changes.
+- Corrected carried-forward Stability preview drift in generated V2 cards. When
+  future v2.1 Stability diagnostics are absent, the existing badge now renders an
+  intentional cyan `2.1 / PREVIEW` state instead of inheriting completed-score white
+  styling and internal `future` wording. Collecting and unavailable diagnostics remain
+  explicit, while real backend score and classification values keep their existing
+  gauge colours. This is a presentation-only correction: Stability remains passive,
+  no score is calculated in the card, and runtime decisions, lanes, outputs, entities,
+  configuration, and services are unchanged. Existing Manual cards require a fresh
+  export, complete YAML replacement, and browser/app refresh.
 
 ![Humidity Intelligence v2.0.10 release banner](assets/release_banner/v2.0.10_release.png)
 

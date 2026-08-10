@@ -1611,15 +1611,35 @@ card:
                   ''
                 );
                 const hasValue = hasRawValue && Number.isFinite(value);
-                const completeWhite = !hasValue || value >= 99 || classification === 'excellent';
+                const attributes = entity?.attributes || {};
+                const hasFlattenedStabilityContract = [
+                  'stability_score_display_score',
+                  'stability_score_display_classification',
+                  'stability_score_availability',
+                  'stability_score_suppression_reason',
+                ].some((key) => Object.prototype.hasOwnProperty.call(attributes, key));
+                const hasStabilityContract =
+                  hasFlattenedStabilityContract || (
+                    stability !== null &&
+                    typeof stability === 'object' &&
+                    !Array.isArray(stability) &&
+                    Object.keys(stability).length > 0
+                  );
+                const preview = !hasValue && !hasStabilityContract;
+                const unavailable =
+                  suppression === 'current_telemetry_unavailable' || availability === 'unavailable';
+                const collecting =
+                  availability === 'insufficient_coverage' || suppression === 'coverage_below_threshold';
+                const completeWhite = hasValue && (value >= 99 || classification === 'excellent');
                 const color =
-                  suppression === 'current_telemetry_unavailable' ? '#94a3b8' :
-                  availability === 'insufficient_coverage' || suppression === 'coverage_below_threshold' ? '#38bdf8' :
+                  preview ? '#38bdf8' :
+                  unavailable ? '#94a3b8' :
+                  collecting ? '#38bdf8' :
                   completeWhite ? '#f8fafc' :
                   classification === 'good' ? '#4ade80' :
                   classification === 'unstable' ? '#f9a8d4' :
                   classification === 'poor' ? '#db2777' :
-                  '#f8fafc';
+                  '#94a3b8';
                 const normalized = hasValue ? Math.max(-1, Math.min(1, (value - 50) / 50)) : 0;
                 const direction = normalized < 0 ? 'left' : 'right';
                 const activeDots = hasValue ? Math.max(1, Math.min(7, Math.round(Math.abs(normalized) * 7))) : 1;
@@ -1632,12 +1652,24 @@ card:
                     : index === center;
                   return `<i class="led-${index} ${active ? 'active' : ''}"></i>`;
                 }).join('');
-                const valueText = hasValue ? String(Math.round(value)) : '2.1';
-                const unitText = hasValue ? 'score' : 'future';
-                const gaugeClass = color === '#f8fafc'
+                const valueText = hasValue ? String(Math.round(value)) : preview ? '2.1' : '—';
+                const unitText = hasValue ? 'score' :
+                  preview ? 'PREVIEW' :
+                  unavailable ? 'NO DATA' :
+                  collecting ? 'COLLECTING' :
+                  'NO SCORE';
+                const accessibleClassification = ['excellent', 'good', 'unstable', 'poor'].includes(classification)
+                  ? `, ${classification}`
+                  : '';
+                const accessibilityText = hasValue ? `Stability Score ${Math.round(value)}${accessibleClassification}.` :
+                  preview ? 'Stability Score preview for v2.1.' :
+                  unavailable ? 'Stability Score data is unavailable.' :
+                  collecting ? 'Stability Score is collecting evidence.' :
+                  'Stability Score is not available.';
+                const gaugeClass = completeWhite
                   ? 'hi-stability-gauge hi-stability-gauge-white'
                   : 'hi-stability-gauge';
-                return `<div class="${gaugeClass}" style="--hi-stability-color:${color};">
+                return `<div class="${gaugeClass}" style="--hi-stability-color:${color};" role="img" aria-label="${accessibilityText}" title="${accessibilityText}">
                   <div class="hi-stability-center"><span>${valueText}</span><small>${unitText}</small></div>
                   <div class="hi-stability-leds">${dots}</div>
                 </div>`;
