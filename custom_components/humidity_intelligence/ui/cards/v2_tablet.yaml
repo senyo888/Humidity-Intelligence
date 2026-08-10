@@ -1584,8 +1584,19 @@ card:
           custom_fields:
             gauge: |
               [[[
-                const summary = entity?.attributes?.diagnostics_summary || {};
-                const stability = summary.stability_score || {};
+                const summary = entity?.attributes?.diagnostics_summary;
+                const hasNestedStabilityContract =
+                  summary !== null &&
+                  typeof summary === 'object' &&
+                  !Array.isArray(summary) &&
+                  Object.prototype.hasOwnProperty.call(summary, 'stability_score');
+                const nestedStability = hasNestedStabilityContract ? summary.stability_score : null;
+                const stability =
+                  nestedStability !== null &&
+                  typeof nestedStability === 'object' &&
+                  !Array.isArray(nestedStability)
+                    ? nestedStability
+                    : {};
                 const score = stability.score || {};
                 const rawValue =
                   score.display_score ??
@@ -1611,15 +1622,30 @@ card:
                   ''
                 );
                 const hasValue = hasRawValue && Number.isFinite(value);
-                const completeWhite = !hasValue || value >= 99 || classification === 'excellent';
+                const attributes = entity?.attributes || {};
+                const hasFlattenedStabilityContract = [
+                  'stability_score_display_score',
+                  'stability_score_display_classification',
+                  'stability_score_availability',
+                  'stability_score_suppression_reason',
+                ].some((key) => Object.prototype.hasOwnProperty.call(attributes, key));
+                const hasStabilityContract =
+                  hasFlattenedStabilityContract || hasNestedStabilityContract;
+                const preview = !hasValue && !hasStabilityContract;
+                const unavailable =
+                  suppression === 'current_telemetry_unavailable' || availability === 'unavailable';
+                const collecting =
+                  availability === 'insufficient_coverage' || suppression === 'coverage_below_threshold';
+                const completeWhite = hasValue && (value >= 99 || classification === 'excellent');
                 const color =
-                  suppression === 'current_telemetry_unavailable' ? '#94a3b8' :
-                  availability === 'insufficient_coverage' || suppression === 'coverage_below_threshold' ? '#38bdf8' :
+                  preview ? '#f8fafc' :
+                  unavailable ? '#94a3b8' :
+                  collecting ? '#38bdf8' :
                   completeWhite ? '#f8fafc' :
                   classification === 'good' ? '#4ade80' :
                   classification === 'unstable' ? '#f9a8d4' :
                   classification === 'poor' ? '#db2777' :
-                  '#f8fafc';
+                  '#94a3b8';
                 const normalized = hasValue ? Math.max(-1, Math.min(1, (value - 50) / 50)) : 0;
                 const direction = normalized < 0 ? 'left' : 'right';
                 const activeDots = hasValue ? Math.max(1, Math.min(7, Math.round(Math.abs(normalized) * 7))) : 1;
@@ -1632,12 +1658,26 @@ card:
                     : index === center;
                   return `<i class="led-${index} ${active ? 'active' : ''}"></i>`;
                 }).join('');
-                const valueText = hasValue ? String(Math.round(value)) : '2.1';
-                const unitText = hasValue ? 'score' : 'future';
-                const gaugeClass = color === '#f8fafc'
-                  ? 'hi-stability-gauge hi-stability-gauge-white'
-                  : 'hi-stability-gauge';
-                return `<div class="${gaugeClass}" style="--hi-stability-color:${color};">
+                const valueText = hasValue ? String(Math.round(value)) : preview ? '2.1' : '—';
+                const unitText = hasValue ? 'score' :
+                  preview ? 'PREVIEW' :
+                  unavailable ? 'NO DATA' :
+                  collecting ? 'COLLECTING' :
+                  'NO SCORE';
+                const accessibleClassification = ['excellent', 'good', 'unstable', 'poor'].includes(classification)
+                  ? `, ${classification}`
+                  : '';
+                const accessibilityText = hasValue ? `Stability Score ${Math.round(value)}${accessibleClassification}.` :
+                  preview ? 'Stability Score preview for v2.1.' :
+                  unavailable ? 'Stability Score data is unavailable.' :
+                  collecting ? 'Stability Score is collecting evidence.' :
+                  'Stability Score is not available.';
+                const gaugeClass = [
+                  'hi-stability-gauge',
+                  preview ? 'hi-stability-gauge-preview' : '',
+                  completeWhite ? 'hi-stability-gauge-white' : '',
+                ].filter(Boolean).join(' ');
+                return `<div class="${gaugeClass}" style="--hi-stability-color:${color};" role="img" aria-label="${accessibilityText}" title="${accessibilityText}">
                   <div class="hi-stability-center"><span>${valueText}</span><small>${unitText}</small></div>
                   <div class="hi-stability-leds">${dots}</div>
                 </div>`;
@@ -1661,7 +1701,7 @@ card:
               - grid-template-rows: 86px min-content
               - row-gap: 0
             name:
-              - grid-area: n
+              - grid-area: 'n'
               - color: "#e5e7eb"
               - font-size: 13px
               - font-weight: 700
@@ -1697,6 +1737,7 @@ card:
               background: #000;
               box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08), 0 0 10px rgba(0,0,0,0.85);
             }
+            .hi-stability-gauge-preview::before,
             .hi-stability-gauge-white::before {
               animation: hi-stability-white-shimmer 6000ms ease-in-out infinite;
             }
@@ -1748,6 +1789,7 @@ card:
               background: var(--hi-stability-color);
               box-shadow: 0 0 3px var(--hi-stability-color);
             }
+            .hi-stability-gauge-preview .hi-stability-leds i.active,
             .hi-stability-gauge-white .hi-stability-leds i.active {
               animation: hi-stability-led-shimmer 6000ms ease-in-out infinite;
             }
@@ -1758,6 +1800,14 @@ card:
             @keyframes hi-stability-led-shimmer {
               0%, 100% { opacity: 0.65; }
               50% { opacity: 1; }
+            }
+            @media (prefers-reduced-motion: reduce) {
+              .hi-stability-gauge-preview::before,
+              .hi-stability-gauge-white::before,
+              .hi-stability-gauge-preview .hi-stability-leds i.active,
+              .hi-stability-gauge-white .hi-stability-leds i.active {
+                animation: none !important;
+              }
             }
         - type: custom:button-card
           entity: input_boolean.air_control_manual_override

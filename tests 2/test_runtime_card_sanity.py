@@ -3514,8 +3514,11 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
     )
     missing_stability_markers = []
     pause_tile_offenders = []
+    stability_blocks = []
     for path in default_surfaces:
         source = path.read_text(encoding="utf-8")
+        stability_block = _button_card_block(source, "sensor.hi_diagnostics")
+        stability_blocks.append(stability_block)
         for marker in forbidden_pause_tile_markers:
             if marker in source:
                 pause_tile_offenders.append(f"{path.relative_to(ROOT)}: {marker}")
@@ -3529,12 +3532,21 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
             "hi-stability-leds",
             'return `<i class="led-${index} ${active ? \'active\' : \'\'}"></i>`;',
             ".hi-stability-leds i.led-3 { left: 40px; top: 2px; }",
-            "const completeWhite = !hasValue || value >= 99 || classification === 'excellent';",
+            "const hasNestedStabilityContract =",
+            "Object.prototype.hasOwnProperty.call(summary, 'stability_score');",
+            "const hasStabilityContract =",
+            "const preview = !hasValue && !hasStabilityContract;",
+            "const completeWhite = hasValue && (value >= 99 || classification === 'excellent');",
+            "preview ? '#f8fafc'",
             "completeWhite ? '#f8fafc'",
+            "preview ? 'hi-stability-gauge-preview' : '',",
+            ".hi-stability-gauge-preview::before,",
+            ".hi-stability-gauge-preview .hi-stability-leds i.active,",
             "animation: hi-stability-white-shimmer 6000ms ease-in-out infinite;",
             "animation: hi-stability-led-shimmer 6000ms ease-in-out infinite;",
             "@keyframes hi-stability-white-shimmer",
             "@keyframes hi-stability-led-shimmer",
+            "@media (prefers-reduced-motion: reduce)",
             "- border: 1px solid rgba(148,163,184,0.22)",
             "- box-shadow: inset 0 0 0 1px rgba(255,255,255,0.035), 0 0 16px rgba(15,23,42,0.55)",
             "inset: 14px;",
@@ -3544,11 +3556,62 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
             "const hasRawValue = rawValue !== null && rawValue !== undefined && rawValue !== '';",
             "const value = hasRawValue ? Number(rawValue) : NaN;",
             "const hasValue = hasRawValue && Number.isFinite(value);",
+            "const valueText = hasValue ? String(Math.round(value)) : preview ? '2.1' : '—';",
+            "preview ? 'PREVIEW'",
+            "unavailable ? 'NO DATA'",
+            "collecting ? 'COLLECTING'",
+            "'NO SCORE'",
+            "const gaugeClass = [",
+            'role="img" aria-label="${accessibilityText}" title="${accessibilityText}"',
             "const normalized = hasValue ? Math.max(-1, Math.min(1, (value - 50) / 50)) : 0;",
             "direction === 'left'",
         ):
             if marker not in source:
                 missing_stability_markers.append(f"{path.relative_to(ROOT)}: {marker}")
+        proven_stability_position = """            custom_fields:
+              gauge:
+                - grid-area: gauge
+                - align-self: center
+                - justify-self: center
+          extra_styles: |
+"""
+        if proven_stability_position not in stability_block:
+            missing_stability_markers.append(
+                f"{path.relative_to(ROOT)}: Stability wrapper differs from the established centred layout"
+            )
+        proven_stability_name_area = """            name:
+              - grid-area: 'n'
+"""
+        if proven_stability_name_area not in stability_block:
+            missing_stability_markers.append(
+                f"{path.relative_to(ROOT)}: Stability name grid area must remain the quoted string 'n'"
+            )
+        for marker in (
+            "\n              - grid-area: n\n",
+            "\n              - grid-area: false\n",
+        ):
+            if marker in stability_block:
+                missing_stability_markers.append(
+                    f"{path.relative_to(ROOT)}: Stability name grid area can be coerced to YAML boolean false"
+                )
+        proven_inner_gauge_position = """            .hi-stability-gauge {
+              width: 82px;
+              height: 82px;
+              border-radius: 999px;
+"""
+        if proven_inner_gauge_position not in stability_block:
+            missing_stability_markers.append(
+                f"{path.relative_to(ROOT)}: fixed-width Stability gauge geometry has drifted"
+            )
+        if "margin-inline: auto;" in stability_block:
+            missing_stability_markers.append(
+                f"{path.relative_to(ROOT)}: Stability gauge still relies on inner auto margins"
+            )
+        for marker in ("- align-self: stretch", "- justify-self: stretch"):
+            if marker in stability_block:
+                missing_stability_markers.append(
+                    f"{path.relative_to(ROOT)}: Stability position uses the rejected stretch layout"
+                )
         for entity_id in (
             "input_boolean.air_control_enabled",
             "input_boolean.air_control_manual_override",
@@ -3570,6 +3633,14 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
             missing_stability_markers.append(f"{path.relative_to(ROOT)}: invalid flattened score attribute")
         if "FUTURE 2.1" in source:
             missing_stability_markers.append(f"{path.relative_to(ROOT)}: stale bottom future label")
+        if "const completeWhite = !hasValue" in source:
+            missing_stability_markers.append(
+                f"{path.relative_to(ROOT)}: absent Stability data still inherits completed styling"
+            )
+        if "const unitText = hasValue ? 'score' : 'future';" in source:
+            missing_stability_markers.append(
+                f"{path.relative_to(ROOT)}: stale internal future fallback copy"
+            )
         if "repeating-conic-gradient" in source:
             missing_stability_markers.append(f"{path.relative_to(ROOT)}: stale full-circumference LED halo")
         if "bottom: 5px;" in source:
@@ -3593,6 +3664,7 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
 
     assert pause_tile_offenders == []
     assert missing_stability_markers == []
+    assert len(set(stability_blocks)) == 1
 
 
 def test_public_v2_gallery_cards_preserve_air_control_mode_truth():
@@ -3919,21 +3991,27 @@ def test_readme_uses_manifest_version_badge_not_static_ha_compatibility_badge():
     assert "Home%20Assistant-2026.4.3%2B" not in readme_source
 
 
-def test_readme_keeps_release_source_and_published_stable_before_previous_releases():
+def test_readme_keeps_candidate_and_published_stable_before_previous_releases():
     readme_source = (ROOT / "README.md").read_text()
     release_notes = readme_source.split("## Release Notes", 1)[1]
     visible_notes, previous_releases = release_notes.split("<details>", 1)
 
-    assert "### v2.0.10 (Stable release source; publication pending)" in visible_notes
-    assert "### v2.0.9" in visible_notes
-    assert "set integration metadata to stable `2.0.9`" in visible_notes
+    assert "### v2.0.11 — Poetic Justice (Maintenance candidate; not published)" in visible_notes
+    assert "### v2.0.10 (Published Stable)" in visible_notes
+    assert "was published on 2026-08-10" in visible_notes
+    assert "### v2.0.9" not in visible_notes
     assert "### v2.0.8" not in visible_notes
+    assert "### v2.0.9" in previous_releases
+    assert "set integration metadata to stable `2.0.9`" in previous_releases
     assert "v2.0.1 through v2.0.8" in previous_releases
     assert "assets/release_banner/v2.0.9_release.png" not in visible_notes
     assert (ROOT / "assets" / "release_banner" / "v2.0.9_release.png").read_bytes()[:8] == (
         b"\x89PNG\r\n\x1a\n"
     )
     assert (ROOT / "assets" / "release_banner" / "v2.0.10_release.png").read_bytes()[:8] == (
+        b"\x89PNG\r\n\x1a\n"
+    )
+    assert (ROOT / "assets" / "release_banner" / "v2.0.11_release.png").read_bytes()[:8] == (
         b"\x89PNG\r\n\x1a\n"
     )
     assert "<summary>Previous Releases</summary>" in previous_releases
@@ -4229,22 +4307,30 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
     assert beta_report["status"] == "pass"
     assert beta_checks["manifest_version"]["status"] == "pass"
 
-    future_report = services_mod._build_v205_release_check_entry_report(
-        hass,
-        entry,
-        runtime_data,
-        manifest_version="2.0.10-beta.1",
-        frontend_dependencies={"status": "not_inspectable"},
-    )
-    future_checks = {check["id"]: check for check in future_report["checks"]}
-    assert future_report["status"] == "pass"
-    assert future_checks["manifest_version"]["status"] == "pass"
+    for candidate_version in (
+        "2.0.10-beta.1",
+        "2.0.10-rc.1",
+        "2.0.10",
+        "2.0.11-beta.1",
+        "2.0.11-rc.1",
+        "2.0.11",
+    ):
+        future_report = services_mod._build_v205_release_check_entry_report(
+            hass,
+            entry,
+            runtime_data,
+            manifest_version=candidate_version,
+            frontend_dependencies={"status": "not_inspectable"},
+        )
+        future_checks = {check["id"]: check for check in future_report["checks"]}
+        assert future_report["status"] == "pass"
+        assert future_checks["manifest_version"]["status"] == "pass"
 
     out_of_range_report = services_mod._build_v205_release_check_entry_report(
         hass,
         entry,
         runtime_data,
-        manifest_version="2.0.11-beta.1",
+        manifest_version="2.0.12-beta.1",
         frontend_dependencies={"status": "not_inspectable"},
     )
     out_of_range_checks = {
@@ -5711,12 +5797,12 @@ def test_v205_release_check_service_is_documented_and_registered():
     assert "handle_v205_release_check" in services_source
     assert "SERVICE_V205_RELEASE_CHECK" in services_source.split("async_unregister_services", 1)[1]
     assert "v205_release_check:" in services_yaml
-    assert "v2.0.5-v2.0.10" in services_yaml
-    assert "v2.0.5-v2.0.10" in readme_source
+    assert "v2.0.5-v2.0.11" in services_yaml
+    assert "v2.0.5-v2.0.11" in readme_source
     assert "write_test_exports" in services_yaml
     assert "humidity_intelligence.v205_release_check" in readme_source
     assert "humidity_intelligence_v205_release_check.json" in readme_source
-    assert manifest["version"] == "2.0.10"
+    assert manifest["version"] == "2.0.11"
 
 
 def test_owned_ui_path_discovery_and_legacy_cleanup_guidance_is_explicit():

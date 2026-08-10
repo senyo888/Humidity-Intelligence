@@ -155,6 +155,9 @@ Control row:
 
 - preserve the v2.0.7 tap-to-toggle behavior for the System and Manual helper buttons
 - keep the Stability Score badge passive; it must not pause/resume, select lanes, or create output writes
+- render absent future Stability diagnostics as the neutral-white `2.1 / PREVIEW`
+  state with the established six-second breathing shimmer; use a dedicated preview
+  class so it remains distinct from a real completed backend score
 
 Output details:
 
@@ -232,7 +235,7 @@ If mismatch occurs:
 
 ## Versioned UI Contract Notes
 
-### Unreleased v2.0.10 Beta Contract
+### Published v2.0.10 Contract
 
 - V2 Mobile and Tablet use one strict mechanical `hi.reason.v1` consumer. They do not
   infer reason prose from mode, alerts, risks, timers, helpers, isolation, or
