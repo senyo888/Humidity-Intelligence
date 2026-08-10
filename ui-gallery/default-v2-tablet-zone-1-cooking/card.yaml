@@ -1,0 +1,1971 @@
+# Humidity Intelligence V2 Tablet Manual-card YAML
+#
+# What this is:
+# - Example Lovelace card YAML for the V2 tablet/wide dashboard.
+# - In a live installation, prefer the YAML exported by Humidity Intelligence.
+# - Paste the exported YAML into a Home Assistant Dashboard Manual card.
+# - Do not paste this into configuration.yaml.
+#
+# How to use after an upgrade or UI-changing option update:
+# 1. Export refreshed Humidity Intelligence card YAML from Home Assistant.
+# 2. Open the exact /config/humidity_intelligence/ui/... path from the latest
+#    Humidity Intelligence notification; multi-entry/custom exports use other names.
+# 3. Replace the old Manual card YAML with the full contents of that file.
+# 4. Save the dashboard and hard-refresh the browser/app if the old UI remains cached.
+#
+# Required custom cards:
+# - mod-card
+# - card-mod
+# - button-card
+# - apexcharts-card
+#
+# The integration replaces placeholder entity IDs when card YAML is exported.
+# Edit entity IDs manually only if you are deliberately overriding the generated mapping.
+
+type: custom:mod-card
+card_mod:
+  style: |
+    ha-card {
+      --cv-scale: 1; /* try 0.9, 1, 1.1 */
+
+      transform: scale(var(--cv-scale));
+      transform-origin: top center;
+
+      background: radial-gradient(1200px 600px at 20% 0%, rgba(56,189,248,0.16), transparent 55%),
+                  radial-gradient(1000px 600px at 80% 0%, rgba(250,204,21,0.08), transparent 55%),
+                  rgba(15,23,42,0.62);
+      border-radius: 24px;
+      border: 1px solid rgba(148,163,184,0.22);
+      box-shadow: 0 0 26px rgba(56,189,248,0.16);
+      padding: 11px;
+    }
+card:
+  type: vertical-stack
+  cards:
+    - type: grid
+      columns: 4
+      square: false
+      cards:
+        - type: custom:button-card
+          entity: sensor.house_average_humidity
+          name: Humidity
+          icon: mdi:water-percent
+          show_name: true
+          show_state: true
+          show_label: false
+          state_display: |
+            [[[
+              const h = parseFloat(entity.state);
+              if (isNaN(h)) return '—%';
+              return `${Math.round(h)}%`;
+            ]]]
+          tap_action:
+            action: more-info
+          styles:
+            card:
+              - height: 118px
+              - border-radius: 22px
+              - padding: 10px
+              - background: rgba(10,12,16,0.62)
+              - border: |
+                  [[[
+                    const state = String(states['sensor.house_humidity_state']?.state || '').toLowerCase();
+                    if (state === 'below_target') return '2px solid rgba(56,189,248,0.75)';
+                    if (state === 'in_target') return '2px solid rgba(74,222,128,0.70)';
+                    if (state === 'above_target') return '2px solid rgba(250,204,21,0.75)';
+                    if (state === 'high_risk') return '2px solid rgba(239,68,68,0.85)';
+                    return '2px solid rgba(148,163,184,0.22)';
+                  ]]]
+              - box-shadow: |
+                  [[[
+                    const state = String(states['sensor.house_humidity_state']?.state || '').toLowerCase();
+                    if (state === 'below_target') return '0 0 24px rgba(56,189,248,0.20)';
+                    if (state === 'in_target') return '0 0 24px rgba(74,222,128,0.20)';
+                    if (state === 'above_target') return '0 0 24px rgba(250,204,21,0.22)';
+                    if (state === 'high_risk') return '0 0 24px rgba(239,68,68,0.22)';
+                    return '0 0 16px rgba(148,163,184,0.18)';
+                  ]]]
+              - backdrop-filter: blur(12px)
+              - "-webkit-backdrop-filter": blur(12px)
+            grid:
+              - grid-template-areas: "\"i\" \"n\" \"s\""
+              - grid-template-rows: 42px min-content min-content
+              - justify-items: center
+              - align-items: center
+              - row-gap: 4px
+            icon:
+              - width: 32px
+              - color: |
+                  [[[
+                    const state = String(states['sensor.house_humidity_state']?.state || '').toLowerCase();
+                    if (state === 'below_target') return '#38bdf8';
+                    if (state === 'in_target') return '#4ade80';
+                    if (state === 'above_target') return '#facc15';
+                    if (state === 'high_risk') return '#ef4444';
+                    return '#94a3b8';
+                  ]]]
+            name:
+              - font-size: 12px
+              - font-weight: 900
+              - opacity: 0.95
+            state:
+              - font-size: 20px
+              - font-weight: 900
+              - letter-spacing: 0.2px
+              - color: |
+                  [[[
+                    const state = String(states['sensor.house_humidity_state']?.state || '').toLowerCase();
+                    if (state === 'below_target') return '#38bdf8';
+                    if (state === 'in_target') return '#4ade80';
+                    if (state === 'above_target') return '#facc15';
+                    if (state === 'high_risk') return '#ef4444';
+                    return '#94a3b8';
+                  ]]]
+        - type: custom:button-card
+          entity: sensor.worst_room_condensation
+          name: Condensation
+          icon: mdi:water-alert
+          show_name: true
+          show_state: true
+          show_label: false
+          state_display: |
+            [[[
+              const r = states['sensor.worst_room_condensation']?.attributes?.risk;
+              if (!r || r === 'unknown' || r === 'unavailable') return '—';
+              return String(r);
+            ]]]
+          tap_action:
+            action: more-info
+          styles:
+            card:
+              - height: 118px
+              - border-radius: 22px
+              - padding: 10px
+              - background: rgba(10,12,16,0.62)
+              - border: |
+                  [[[
+                    const raw = (states['sensor.worst_room_condensation']?.attributes?.risk || '');
+                    const r = raw.toLowerCase();
+                    const high = /\b(high|danger|risk|critical|severe)\b/.test(r);
+                    const watch = /\b(watch|elev|medium|moderate)\b/.test(r);
+                    const low = /\b(low|ok|safe|none)\b/.test(r);
+                    if (!r) return '2px solid rgba(148,163,184,0.22)';
+                    if (high) return '2px solid rgba(239,68,68,0.85)';
+                    if (watch) return '2px solid rgba(250,204,21,0.75)';
+                    if (low) return '2px solid rgba(74,222,128,0.70)';
+                    return '2px solid rgba(148,163,184,0.22)';
+                  ]]]
+              - box-shadow: |
+                  [[[
+                    const raw = (states['sensor.worst_room_condensation']?.attributes?.risk || '');
+                    const r = raw.toLowerCase();
+                    const high = /\b(high|danger|risk|critical|severe)\b/.test(r);
+                    const watch = /\b(watch|elev|medium|moderate)\b/.test(r);
+                    const low = /\b(low|ok|safe|none)\b/.test(r);
+                    if (!r) return '0 0 16px rgba(148,163,184,0.18)';
+                    if (high) return '0 0 24px rgba(239,68,68,0.22)';
+                    if (watch) return '0 0 24px rgba(250,204,21,0.22)';
+                    if (low) return '0 0 24px rgba(74,222,128,0.20)';
+                    return '0 0 16px rgba(148,163,184,0.18)';
+                  ]]]
+              - backdrop-filter: blur(12px)
+              - "-webkit-backdrop-filter": blur(12px)
+            grid:
+              - grid-template-areas: "\"i\" \"n\" \"s\""
+              - grid-template-rows: 42px min-content min-content
+              - justify-items: center
+              - align-items: center
+              - row-gap: 4px
+            icon:
+              - width: 32px
+              - color: |
+                  [[[
+                    const raw = (states['sensor.worst_room_condensation']?.attributes?.risk || '');
+                    const r = raw.toLowerCase();
+                    if (!r) return '#94a3b8';
+                    if (/\b(high|danger|severe|critical)\b/.test(r)) return '#ef4444';
+                    if (/\b(watch|elev|medium|risk|moderate)\b/.test(r)) return '#facc15';
+                    if (/\b(low|ok|safe|none)\b/.test(r)) return '#4ade80';
+                    return '#94a3b8';
+                  ]]]
+            name:
+              - font-size: 12px
+              - font-weight: 900
+            state:
+              - font-size: 16px
+              - font-weight: 900
+              - opacity: 0.92
+              - text-transform: uppercase
+        - type: custom:button-card
+          entity: sensor.worst_room_mould
+          name: Mould
+          icon: mdi:mushroom-outline
+          show_name: true
+          show_state: true
+          show_label: false
+          state_display: |
+            [[[
+              const r = states['sensor.worst_room_mould']?.attributes?.risk;
+              if (!r || r === 'unknown' || r === 'unavailable') return '—';
+              return String(r);
+            ]]]
+          tap_action:
+            action: more-info
+          styles:
+            card:
+              - height: 118px
+              - border-radius: 22px
+              - padding: 10px
+              - background: rgba(10,12,16,0.62)
+              - border: |
+                  [[[
+                    const raw = (states['sensor.worst_room_mould']?.attributes?.risk || '');
+                    const r = raw.toLowerCase();
+                    const high = /\b(high|danger|risk|critica|severel)\b/.test(r);
+                    const watch = /\b(watch|elev|medium|moderate)\b/.test(r);
+                    const low = /\b(low|ok|safe|none)\b/.test(r);
+                    if (!r) return '2px solid rgba(148,163,184,0.22)';
+                    if (high) return '2px solid rgba(239,68,68,0.85)';
+                    if (watch) return '2px solid rgba(250,204,21,0.75)';
+                    if (low) return '2px solid rgba(74,222,128,0.70)';
+                    return '2px solid rgba(148,163,184,0.22)';
+                  ]]]
+              - box-shadow: |
+                  [[[
+                    const raw = (states['sensor.worst_room_mould']?.attributes?.risk || '');
+                    const r = raw.toLowerCase();
+                    const high = /\b(high|danger|risk|critical|severe)\b/.test(r);
+                    const watch = /\b(watch|elev|medium|moderate)\b/.test(r);
+                    const low = /\b(low|ok|safe|none)\b/.test(r);
+                    if (!r) return '0 0 16px rgba(148,163,184,0.18)';
+                    if (high) return '0 0 24px rgba(239,68,68,0.22)';
+                    if (watch) return '0 0 24px rgba(250,204,21,0.22)';
+                    if (low) return '0 0 24px rgba(74,222,128,0.20)';
+                    return '0 0 16px rgba(148,163,184,0.18)';
+                  ]]]
+              - backdrop-filter: blur(12px)
+              - "-webkit-backdrop-filter": blur(12px)
+            grid:
+              - grid-template-areas: "\"i\" \"n\" \"s\""
+              - grid-template-rows: 42px min-content min-content
+              - justify-items: center
+              - align-items: center
+              - row-gap: 4px
+            icon:
+              - width: 32px
+              - color: |
+                  [[[
+                    const raw = (states['sensor.worst_room_mould']?.attributes?.risk || '');
+                    const r = raw.toLowerCase();
+                    if (!r) return '#94a3b8';
+                    if (/\b(high|danger|severe|critical)\b/.test(r)) return '#ef4444';
+                    if (/\b(watch|elev|medium|risk|moderate)\b/.test(r)) return '#facc15';
+                    if (/\b(low|ok|safe|none)\b/.test(r)) return '#4ade80';
+                    return '#94a3b8';
+                  ]]]
+            name:
+              - font-size: 12px
+              - font-weight: 900
+            state:
+              - font-size: 16px
+              - font-weight: 900
+              - opacity: 0.92
+              - text-transform: uppercase
+        - type: custom:button-card
+          entity: sensor.house_humidity_drift_7d
+          name: 7 Day Drift
+          icon: mdi:chart-line-variant
+          show_name: true
+          show_state: true
+          show_label: false
+          state_display: |
+            [[[
+              const d = parseFloat(entity.state);
+              if (isNaN(d)) return '—';
+              return `${d > 0 ? '+' : ''}${d.toFixed(1)}%`;
+            ]]]
+          tap_action:
+            action: more-info
+          styles:
+            card:
+              - height: 118px
+              - border-radius: 22px
+              - padding: 10px
+              - background: rgba(10,12,16,0.62)
+              - border: |
+                  [[[
+                    const d = parseFloat(entity.state);
+                    if (isNaN(d)) return '2px solid rgba(148,163,184,0.22)';
+                    if (Math.abs(d) >= 6.0) return '2px solid rgba(239,68,68,0.85)';
+                    if (Math.abs(d) < 0.5) return '2px solid rgba(148,163,184,0.35)';
+                    if (d > 0) return '2px solid rgba(250,204,21,0.75)';
+                    return '2px solid rgba(125,211,252,0.75)';
+                  ]]]
+              - box-shadow: |
+                  [[[
+                    const d = parseFloat(entity.state);
+                    if (isNaN(d)) return '0 0 16px rgba(148,163,184,0.18)';
+                    if (Math.abs(d) >= 6.0) return '0 0 24px rgba(239,68,68,0.22)';
+                    if (Math.abs(d) < 0.5) return '0 0 18px rgba(148,163,184,0.20)';
+                    if (d > 0) return '0 0 22px rgba(250,204,21,0.22)';
+                    return '0 0 22px rgba(125,211,252,0.22)';
+                  ]]]
+              - backdrop-filter: blur(12px)
+              - "-webkit-backdrop-filter": blur(12px)
+            grid:
+              - grid-template-areas: "\"i\" \"n\" \"s\""
+              - grid-template-rows: 42px min-content min-content
+              - justify-items: center
+              - align-items: center
+              - row-gap: 4px
+            icon:
+              - width: 32px
+              - color: |
+                  [[[
+                    const d = parseFloat(entity.state);
+                    if (isNaN(d)) return '#94a3b8';
+                    if (Math.abs(d) >= 6.0) return '#ef4444';
+                    if (Math.abs(d) < 0.5) return '#94a3b8';
+                    if (d > 0) return '#facc15';
+                    return '#7dd3fc';
+                  ]]]
+            name:
+              - font-size: 12px
+              - font-weight: 900
+            state:
+              - font-size: 18px
+              - font-weight: 900
+              - opacity: 0.92
+    - type: custom:button-card
+      entity: sensor.air_control_mode
+      name: Current Air Control
+      icon: mdi:eye
+      show_icon: true
+      show_name: true
+      show_state: true
+      show_label: true
+      state_display: |
+        [[[
+          const rawMode = String(states['sensor.air_control_mode']?.state || '').trim();
+          const mode = rawMode.toLowerCase();
+          const knownModes = new Set([
+            'normal',
+            'co_emergency',
+            'danger',
+            'air_quality',
+            'global_gate',
+            'away',
+            'cooking',
+            'bathroom',
+            'bath',
+            'paused',
+            'manual_override',
+            'disabled',
+            'telemetry_unavailable',
+          ]);
+          const modeKnown =
+            !!mode &&
+            mode !== 'unknown' &&
+            mode !== 'unavailable' &&
+            (knownModes.has(mode) || mode.includes('alert'));
+          if (!modeKnown) return 'UNKNOWN';
+          const display = states['sensor.air_control_mode']?.attributes?.display;
+          if (display && String(display).trim()) return String(display);
+          return rawMode.replace(/_/g,' ').toUpperCase();
+        ]]]
+      label: |
+        [[[
+          const low  = parseFloat(states['sensor.house_humidity_target_low']?.state);
+          const high = parseFloat(states['sensor.house_humidity_target_high']?.state);
+          const h    = parseFloat(states['sensor.house_average_humidity']?.state);
+          const season = String(states['sensor.house_humidity_target_season']?.state || 'Seasonal').trim() || 'Seasonal';
+
+          const bandTxt = (isNaN(low) || isNaN(high))
+            ? `Target humidity (${season}): —`
+            : `Target humidity (${season}): ${low.toFixed(0)}–${high.toFixed(0)}%`;
+
+          let comfort = 'Comfort: —';
+          if (!isNaN(h) && !isNaN(low) && !isNaN(high)) {
+            if (h < low) comfort = 'Comfort: A bit dry — humidify / reduce extraction.';
+            else if (h <= high) comfort = 'Comfort: In the sweet spot — keep steady.';
+            else comfort = 'Comfort: High humidity — ventilate 30 to 45 min.';
+          }
+
+          return `${bandTxt}\n${comfort}`;
+        ]]]
+      custom_fields:
+        status: |
+          [[[
+            const rawMode = String(states['sensor.air_control_mode']?.state || '').trim().toLowerCase();
+            const knownModes = new Set([
+              'normal',
+              'co_emergency',
+              'danger',
+              'air_quality',
+              'global_gate',
+              'away',
+              'cooking',
+              'bathroom',
+              'bath',
+              'paused',
+              'manual_override',
+              'disabled',
+              'telemetry_unavailable',
+            ]);
+            const modeKnown =
+              !!rawMode &&
+              rawMode !== 'unknown' &&
+              rawMode !== 'unavailable' &&
+              (knownModes.has(rawMode) || rawMode.includes('alert'));
+            const mode = modeKnown ? rawMode : 'unknown';
+
+            const coE  = states['input_boolean.air_co_emergency_active']?.state === 'on';
+            const aqU  = states['input_boolean.air_aq_upstairs_active']?.state === 'on';
+            const aqD  = states['input_boolean.air_aq_downstairs_active']?.state === 'on';
+            const dHumHelper = states['input_boolean.air_downstairs_humidifier_active']?.state === 'on';
+            const uHumHelper = states['input_boolean.air_upstairs_humidifier_active']?.state === 'on';
+            const humidifierTruth =
+              states['sensor.air_control_reason']?.attributes?.humidifier_status || {};
+            const humidifierLanes =
+              humidifierTruth && typeof humidifierTruth.lanes === 'object'
+                ? humidifierTruth.lanes
+                : {};
+            const humidifierLane = (level, helperRequested) => {
+              const row = humidifierLanes[level];
+              if (row && typeof row === 'object') return row;
+              return {
+                demand: helperRequested ? 'requested' : 'inactive',
+                reconciliation: helperRequested ? 'requested' : 'inactive',
+              };
+            };
+            const dHum = humidifierLane('level1', dHumHelper);
+            const uHum = humidifierLane('level2', uHumHelper);
+            const fanIso = states['input_boolean.air_isolate_fan_outputs']?.state === 'on';
+            const humIso = states['input_boolean.air_isolate_humidifier_outputs']?.state === 'on';
+            const isAlertActiveEntity = (id) => {
+              const stateObj = states[id];
+              if (stateObj?.state !== 'on') return false;
+              const attrs = stateObj.attributes || {};
+              if (attrs.alert_index !== undefined && attrs.trigger_type) return true;
+              return /^(?:switch|input_boolean)\\.(?:hi_)?(?:air_)?alert_\\d+.*_active(?:_\\d+)?$/.test(id);
+            };
+            const activeAlertIds = Object.keys(states).filter(isAlertActiveEntity);
+            const activeAlertNames = activeAlertIds.map(
+              (id) => states[id]?.attributes?.friendly_name || id
+            );
+            const zone1 = mode === 'cooking';
+            const zone2 = (mode === 'bathroom' || mode === 'bath');
+            const aqActive = mode === 'air_quality' || aqU || aqD;
+            const gateActive = mode === 'global_gate' || mode === 'away';
+            const alertLaneActive =
+              mode.includes('alert') ||
+              mode === 'co_emergency' ||
+              coE ||
+              (!gateActive && activeAlertIds.length > 0);
+            const red = alertLaneActive;
+            const gateReason = String(states['sensor.air_control_reason']?.state || '').toLowerCase();
+            const timeGateActive = gateActive && gateReason.includes('time gate');
+            const presenceGateActive = gateActive && gateReason.includes('presence gate');
+            const ready = modeKnown && mode === 'normal' && !red && !zone1 && !zone2 && !aqActive && !gateActive;
+
+            const escapeHtml = (value) => String(value ?? '')
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
+            const chip = (t, c, glow=false) =>
+              `<span class="cv-chip ${glow ? 'glow' : ''}" style="--cv:${c}; border-color: color-mix(in srgb, var(--cv) 55%, rgba(148,163,184,0.18));">
+                <span class="t">${escapeHtml(t)}</span>
+              </span>`;
+            const humidifierChip = (label, row) => {
+              const status = String(row?.reconciliation || 'unknown');
+              const requested = row?.demand === 'requested';
+              const visibleWithoutDemand = new Set(['stopping', 'fault_latched', 'degraded', 'unknown']);
+              if (!requested && !visibleWithoutDemand.has(status)) return '';
+              const labels = {
+                output_on: 'On',
+                platform_idle: 'Idle',
+                requested: 'Requested',
+                retrying: 'Retrying',
+                stopping: 'Stopping',
+                isolated: 'Isolated',
+                fault_latched: 'Fault',
+                degraded: 'Degraded',
+                unknown: 'Unknown',
+              };
+              const colors = {
+                output_on: '#22d3ee',
+                platform_idle: '#f59e0b',
+                requested: '#22d3ee',
+                retrying: '#f59e0b',
+                stopping: '#f59e0b',
+                isolated: '#f59e0b',
+                fault_latched: '#ef4444',
+                degraded: '#ef4444',
+                unknown: '#94a3b8',
+              };
+              const text = labels[status] || (requested ? 'Requested' : 'Unknown');
+              const color = colors[status] || '#94a3b8';
+              return chip(
+                `${label} Humidifier · ${text}`,
+                color,
+                ['retrying', 'fault_latched', 'degraded'].includes(status)
+              );
+            };
+
+            const cMode = (() => {
+              if (mode === 'telemetry_unavailable') return '#f59e0b';
+              if (!modeKnown) return '#94a3b8';
+              if (red || coE || mode === 'co_emergency' || mode.includes('alert') || mode === 'danger') return '#ef4444';
+              if (gateActive) return '#f59e0b';
+              if (zone1) return '#38bdf8';
+              if (zone2) return '#4ade80';
+              if (aqActive) return '#a855f7';
+              if (ready) return '#e5e7eb';
+              if (mode === 'paused') return '#facc15';
+              if (mode === 'manual_override') return '#a855f7';
+              if (mode === 'disabled') return '#94a3b8';
+              return '#94a3b8';
+            })();
+            const modeBadgeLabel = (() => {
+              if (mode === 'telemetry_unavailable') return 'TELEMETRY UNAVAILABLE';
+              if (!modeKnown) return 'UNKNOWN';
+              if (red) return 'ALERT';
+              if (gateActive) return 'GATE';
+              if (zone1) return 'ZONE 1';
+              if (zone2) return 'ZONE 2';
+              if (aqActive) return 'AQ';
+              if (ready) return 'READY';
+              return mode.replace(/_/g,' ').toUpperCase();
+            })();
+
+            const out = [];
+            const CHIPSET_SCROLL_RESET_DELAY_MS = 15000;
+            out.push(chip(modeBadgeLabel, cMode, true));
+            if (aqD) out.push(chip('AQ Downstairs', '#a855f7'));
+            if (aqU) out.push(chip('AQ Upstairs', '#a855f7'));
+            if (coE) out.push(chip('CO EMERGENCY', '#ef4444', true));
+            const alertContextId =
+              Object.keys(states).find((id) => id === 'sensor.active_alert_context') ||
+              Object.keys(states).find((id) => /^sensor\\..*active_alert_context$/.test(id));
+            const alertContext = String(states[alertContextId]?.state || '').trim();
+            if (alertLaneActive && alertContext && alertContext !== 'None' && alertContext !== 'unknown' && alertContext !== 'unavailable') {
+              const alertChipText = alertContext.startsWith('Humidity Danger · ')
+                ? (alertContext.replace(/\s*·\s*[^·]*\s>=\s.*$/, '').trim() || alertContext)
+                : alertContext;
+              out.push(chip(alertChipText, '#ef4444', true));
+            }
+            if (timeGateActive) out.push(chip('Time Gate', '#f59e0b'));
+            if (presenceGateActive) out.push(chip('Presence Gate', '#f59e0b'));
+            const humidifierOut = [];
+            const dHumChip = humidifierChip('Downstairs', dHum);
+            const uHumChip = humidifierChip('Upstairs', uHum);
+            if (dHumChip) humidifierOut.push(dHumChip);
+            if (uHumChip) humidifierOut.push(uHumChip);
+            if (fanIso) out.push(chip('FAN OUTPUTS ISOLATED', '#f59e0b', true));
+            if (humIso) humidifierOut.push(chip('HUMIDIFIER OUTPUTS ISOLATED', '#f59e0b', true));
+
+            const scrollRow = (chips, label) =>
+              `<div class="cv-scroll" role="group" aria-label="${label}" data-scroll-reset-delay-ms="${CHIPSET_SCROLL_RESET_DELAY_MS}">${chips.join('')}</div>`;
+            out.push(...humidifierOut);
+            return scrollRow(out, 'Current Air Control status');
+          ]]]
+        reason: |
+          [[[
+            const escapeHtml = (value) => String(value ?? '')
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
+            const wrapReason = (content) =>
+              '<div class="cv-reason" role="region" aria-label="Current Air Control reason" tabindex="0">' +
+              content +
+              '</div>';
+            const reasonState = states['sensor.air_control_reason'];
+            const legacyReason = () => {
+              try {
+                const fullReason = String(reasonState?.attributes?.full_reason || '').trim();
+                if (fullReason) return fullReason;
+              } catch (e) {
+                // Continue to the bounded state fallback.
+              }
+              try {
+                const stateReason = String(reasonState?.state || '').trim();
+                if (stateReason && !['unknown', 'unavailable'].includes(stateReason.toLowerCase())) {
+                  return stateReason;
+                }
+              } catch (e) {
+                // Continue to the fixed final fallback.
+              }
+              return 'Reason unavailable.';
+            };
+            try {
+              const displayReason = reasonState?.attributes?.display_reason;
+              const isPlainObject = (value) =>
+                value !== null && typeof value === 'object' && !Array.isArray(value);
+              const hasOwn = (value, key) =>
+                Object.prototype.hasOwnProperty.call(value, key);
+              const hasExactKeys = (value, required, optional = []) => {
+                if (!isPlainObject(value)) return false;
+                const keys = Object.keys(value);
+                const allowed = new Set([...required, ...optional]);
+                return required.every((key) => hasOwn(value, key)) &&
+                  keys.every((key) => allowed.has(key)) &&
+                  keys.length >= required.length &&
+                  keys.length <= required.length + optional.length;
+              };
+              const codePointLength = (value) => Array.from(value).length;
+              const containsRawEntityId = (value) => {
+                const withoutBenignDots = value.replace(
+                  /\b(?:PM2\.5|v\d+(?:\.\d+){1,2})\b/giu,
+                  ''
+                );
+                return /(^|[^a-z0-9_])(?:[a-z_][a-z0-9_]*)\.[a-z0-9_]+(?![a-z0-9_])/u.test(
+                  withoutBenignDots
+                );
+              };
+              const validText = (value, maximum) =>
+                typeof value === 'string' &&
+                value.length > 0 &&
+                codePointLength(value) <= maximum &&
+                value === value.trim().replace(/\s+/gu, ' ') &&
+                !/\p{C}/u.test(value) &&
+                !/[<>]/u.test(value) &&
+                !value.includes(String.fromCharCode(96)) &&
+                !containsRawEntityId(value);
+              const validToken = (value) =>
+                typeof value === 'string' &&
+                codePointLength(value) <= 64 &&
+                /^[a-z][a-z0-9_]{0,63}$/u.test(value);
+              const validCode = (value) =>
+                typeof value === 'string' &&
+                codePointLength(value) <= 96 &&
+                /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$/u.test(value);
+              const validArgs = (value) => {
+                if (!isPlainObject(value)) return false;
+                const keys = Object.keys(value);
+                if (keys.length > 6 || !keys.every(validToken)) return false;
+                return keys.every((key) => {
+                  const item = value[key];
+                  if (item === null || typeof item === 'boolean') return true;
+                  if (typeof item === 'number') return Number.isFinite(item);
+                  return typeof item === 'string' && validText(item, 64);
+                });
+              };
+              const validLine = (line) => {
+                if (!hasExactKeys(
+                  line,
+                  ['role', 'scope', 'code', 'truth', 'text'],
+                  ['args']
+                )) return false;
+                if (!new Set(['why', 'action', 'next', 'notice']).has(line.role)) return false;
+                if (!new Set(['system', 'safety', 'ventilation', 'humidifier']).has(line.scope)) return false;
+                if (!new Set([
+                  'selected',
+                  'blocked',
+                  'requested',
+                  'observed',
+                  'unavailable',
+                  'unmapped',
+                  'not_confirmed',
+                  'failed',
+                ]).has(line.truth)) return false;
+                if (!validCode(line.code) || !validText(line.text, 200)) return false;
+                return !hasOwn(line, 'args') || validArgs(line.args);
+              };
+              const validDisplayReason = (() => {
+                if (!hasExactKeys(displayReason, [
+                  'schema',
+                  'locale',
+                  'family',
+                  'variant',
+                  'attention',
+                  'truncated',
+                  'headline',
+                  'lines',
+                ])) return false;
+                if (displayReason.schema !== 'hi.reason.v1' || displayReason.locale !== 'en') return false;
+                if (!validToken(displayReason.family) || !validToken(displayReason.variant)) return false;
+                if (!new Set([
+                  'neutral',
+                  'active',
+                  'hold',
+                  'degraded',
+                  'critical',
+                  'unknown',
+                ]).has(displayReason.attention)) return false;
+                if (typeof displayReason.truncated !== 'boolean') return false;
+                if (!validText(displayReason.headline, 120)) return false;
+                if (!Array.isArray(displayReason.lines) ||
+                    displayReason.lines.length < 1 ||
+                    displayReason.lines.length > 8 ||
+                    !displayReason.lines.every(validLine)) return false;
+                try {
+                  return new TextEncoder().encode(JSON.stringify(displayReason)).length <= 4096;
+                } catch (e) {
+                  return false;
+                }
+              })();
+
+              if (!validDisplayReason) {
+                return wrapReason(escapeHtml(legacyReason()));
+              }
+              const rendered = [
+                '<span class="cv-reason__headline">' +
+                  escapeHtml(displayReason.headline) +
+                  '</span>',
+                ...displayReason.lines.map((line) => escapeHtml(line.text)),
+              ];
+              return wrapReason(rendered.join('<br>'));
+            } catch (e) {
+              return wrapReason(escapeHtml(legacyReason()));
+            }
+          ]]]
+        aq: |
+          [[[
+            const num = (id) => {
+              const v = parseFloat(states[id]?.state);
+              return isNaN(v) ? null : v;
+            };
+
+            // Colours match your triggers: IAQ <=50 bad (red), <=60 warn (amber)
+            const cIAQ = (v) => {
+              if (v === null) return '#94a3b8';
+              if (v <= 50) return '#ef4444';
+              if (v <= 60) return '#facc15';
+              return '#4ade80';
+            };
+            // PM2.5 >=65 bad (red), >=35 warn (amber)
+            const cPM = (v) => {
+              if (v === null) return '#94a3b8';
+              if (v >= 65) return '#ef4444';
+              if (v >= 35) return '#facc15';
+              return '#4ade80';
+            };
+            // VOC >=60 bad (red), >=40 warn (amber)
+            const cVOC = (v) => {
+              if (v === null) return '#94a3b8';
+              if (v >= 60) return '#ef4444';
+              if (v >= 40) return '#facc15';
+              return '#4ade80';
+            };
+            // CO >=15 bad (red), >=10 warn (amber)
+            const cCO = (v) => {
+              if (v === null) return '#94a3b8';
+              if (v >= 15) return '#ef4444';
+              if (v >= 10) return '#facc15';
+              return '#4ade80';
+            };
+
+            const escapeHtml = (value) => String(value ?? '')
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
+            const chip = (k, v, unit, c) => `
+              <span class="cv-chip" style="--cv:${c};">
+                <span class="k">${escapeHtml(k)}</span>
+                <span class="v" style="color:${c};">${escapeHtml(v === null ? '—' : `${v}${unit || ''}`)}</span>
+              </span>`;
+            const maybeChip = (k, v, unit, c) => (v === null ? '' : chip(k, v, unit, c));
+
+            const iaqU = num('sensor.air_control_upstairs_iaq_average');
+            const pmU  = num('sensor.air_control_upstairs_pm25_average');
+            const vocU = num('sensor.air_control_upstairs_voc_average');
+            const coU  = num('sensor.air_control_upstairs_co_average');
+
+            const iaqD = num('sensor.air_control_downstairs_iaq_average');
+            const pmD  = num('sensor.air_control_downstairs_pm25_average');
+            const vocD = num('sensor.air_control_downstairs_voc_average');
+            const coD  = num('sensor.air_control_downstairs_co_average');
+            const iaqH = num('sensor.air_control_house_iaq_average');
+            const pmH  = num('sensor.air_control_house_pm25_average');
+            const vocH = num('sensor.air_control_house_voc_average');
+            const coH  = num('sensor.air_control_house_co_average');
+
+            return `
+              <div class="cv-scroll">
+                ${maybeChip('House IAQ', iaqH, '', cIAQ(iaqH))}
+                ${maybeChip('House PM2.5', pmH, '', cPM(pmH))}
+                ${maybeChip('House VOC', vocH, '', cVOC(vocH))}
+                ${maybeChip('House CO', coH, '', cCO(coH))}
+                ${maybeChip('Upstairs IAQ', iaqU, '', cIAQ(iaqU))}
+                ${maybeChip('Upstairs PM2.5', pmU, '', cPM(pmU))}
+                ${maybeChip('Upstairs VOC', vocU, '', cVOC(vocU))}
+                ${maybeChip('Upstairs CO', coU, '', cCO(coU))}
+                ${maybeChip('Downs.. IAQ', iaqD, '', cIAQ(iaqD))}
+                ${maybeChip('Downs.. PM2.5', pmD, '', cPM(pmD))}
+                ${maybeChip('Downs.. VOC', vocD, '', cVOC(vocD))}
+                ${maybeChip('Downs.. CO', coD, '', cCO(coD))}
+              </div>`;
+          ]]]
+        humidity: |
+          [[[
+            const num = (id) => {
+              const v = parseFloat(states[id]?.state);
+              return isNaN(v) ? null : v;
+            };
+
+            const escapeHtml = (value) => String(value ?? '')
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
+            const chip = (k, v, unit, c) => `
+              <span class="cv-chip" style="--cv:${c};">
+                <span class="k">${escapeHtml(k)}</span>
+                <span class="v" style="color:${c};">${escapeHtml(v === null ? '—' : `${v}${unit || ''}`)}</span>
+              </span>`;
+
+            const s1 = (v) => (v === null ? null : `${v > 0 ? '+' : ''}${v.toFixed(1)}`);
+
+            const diagAttrs = states['sensor.hi_diagnostics']?.attributes || {};
+            const cfg = diagAttrs.config || {};
+            const telemetry = Array.isArray(cfg.telemetry) ? cfg.telemetry : [];
+            const zones = cfg.zones && typeof cfg.zones === 'object' ? cfg.zones : {};
+            const norm = (v) => String(v || '').trim().toLowerCase();
+            const zoneRooms = [...new Set(Object.values(zones)
+              .flatMap((zone) => zone && zone.enabled !== false && Array.isArray(zone?.rooms) ? zone.rooms : [])
+              .map((room) => String(room || '').trim())
+              .filter(Boolean))]
+              .sort((a, b) => a.localeCompare(b));
+            const zoneTelemetry = (sensorType) => zoneRooms
+              .map((room) => {
+                const match = telemetry.find((item) =>
+                  item?.sensor_type === sensorType &&
+                  norm(item.room) === norm(room) &&
+                  item.entity_id
+                );
+                return match ? { label: room, entity: match.entity_id } : null;
+              })
+              .filter(Boolean);
+
+            const roomDelta = Object.keys(states)
+              .filter((id) => id.startsWith('sensor.hi_') && id.includes('_humidity_delta'))
+              .map((id) => {
+                const value = num(id);
+                if (value === null) return null;
+                const raw = states[id]?.attributes?.room;
+                if (!raw) return null;
+                const label = String(raw).trim();
+                return { id, label, value };
+              })
+              .filter(Boolean)
+              .sort((a, b) => a.label.localeCompare(b.label));
+
+            const roomDeltaChips = roomDelta
+              .map((item) => chip(`${item.label} Δ`, s1(item.value), '%', '#94a3b8'))
+              .join('');
+
+            const low = num('sensor.house_humidity_target_low');
+            const high = num('sensor.house_humidity_target_high');
+            const highRiskFromState = parseFloat(states['sensor.house_humidity_state']?.attributes?.high_risk);
+            const highRiskFromSeason = parseFloat(states['sensor.house_humidity_target_season']?.attributes?.high_risk);
+            const highRisk = !isNaN(highRiskFromState)
+              ? highRiskFromState
+              : (!isNaN(highRiskFromSeason) ? highRiskFromSeason : (high === null ? null : high + 8));
+
+            const cH = (h) => {
+              if (h === null) return '#94a3b8';
+              if (highRisk !== null && h >= highRisk) return '#ef4444';
+              if (low !== null && h < low) return '#38bdf8';
+              if (high !== null && h <= high) return '#4ade80';
+              if (high !== null && h > high) return '#facc15';
+              return '#94a3b8';
+            };
+            const hh = num('sensor.house_average_humidity');
+            const dh = num('sensor.air_control_downstairs_average_humidity');
+            const uh = num('sensor.air_control_upstairs_average_humidity');
+            const roomHumidityChips = zoneTelemetry('humidity')
+              .map((item) => {
+                const value = num(item.entity);
+                return chip(item.label, value === null ? null : Math.round(value), '%', cH(value));
+              })
+              .join('');
+
+            return `
+              <div class="cv-scroll">
+                ${chip('House AVG', hh === null ? null : Math.round(hh), '%', cH(hh))}
+                ${chip('Upstairs AVG', uh === null ? null : Math.round(uh), '%', cH(uh))}
+                ${chip('Downstairs AVG', dh === null ? null : Math.round(dh), '%', cH(dh))}
+                ${roomHumidityChips}
+                ${roomDeltaChips}
+              </div>`;
+          ]]]
+        temperature: |
+          [[[
+            const num = (id) => {
+              const v = parseFloat(states[id]?.state);
+              return isNaN(v) ? null : v;
+            };
+            const attrNum = (id, attr) => {
+              const v = parseFloat(states[id]?.attributes?.[attr]);
+              return isNaN(v) ? null : v;
+            };
+            const diagAttrs = states['sensor.hi_diagnostics']?.attributes || {};
+            const cfg = diagAttrs.config || {};
+            const slopeCfg = cfg.slope || {};
+            if (!slopeCfg.show_temperature_chips) return '';
+
+            const escapeHtml = (value) => String(value ?? '')
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
+            const chip = (k, v, unit, c) => `
+              <span class="cv-chip" style="--cv:${c};">
+                <span class="k">${escapeHtml(k)}</span>
+                <span class="v" style="color:${c};">${escapeHtml(v === null ? '—' : `${v}${unit || ''}`)}</span>
+              </span>`;
+            const telemetry = Array.isArray(cfg.telemetry) ? cfg.telemetry : [];
+            const zones = cfg.zones && typeof cfg.zones === 'object' ? cfg.zones : {};
+            const norm = (v) => String(v || '').trim().toLowerCase();
+            const zoneRooms = [...new Set(Object.values(zones)
+              .flatMap((zone) => zone && zone.enabled !== false && Array.isArray(zone?.rooms) ? zone.rooms : [])
+              .map((room) => String(room || '').trim())
+              .filter(Boolean))]
+              .sort((a, b) => a.localeCompare(b));
+            const zoneTelemetry = (sensorType) => zoneRooms
+              .map((room) => {
+                const match = telemetry.find((item) =>
+                  item?.sensor_type === sensorType &&
+                  norm(item.room) === norm(room) &&
+                  item.entity_id
+                );
+                return match ? { label: room, entity: match.entity_id } : null;
+              })
+              .filter(Boolean);
+            const comfortLow = num('sensor.house_temperature_comfort_low');
+            const comfortHigh = num('sensor.house_temperature_comfort_high');
+            const warmHigh = (() => {
+              const explicit = attrNum('sensor.house_temperature_comfort_high', 'warm_high');
+              return explicit === null ? attrNum('sensor.house_temperature_comfort_high', 'watch_high') : explicit;
+            })();
+            const tempValueC = (id) => {
+              const value = num(id);
+              if (value === null) return null;
+              const unit = String(states[id]?.attributes?.unit_of_measurement || '').toLowerCase();
+              return unit.includes('°f') || unit.includes('f') ? (value - 32) * 5 / 9 : value;
+            };
+            const tempColor = (valueC) => {
+              if (valueC === null || comfortLow === null || comfortHigh === null) return '#94a3b8';
+              if (valueC < comfortLow) return '#38bdf8';
+              if (valueC <= comfortHigh) return '#4ade80';
+              if (warmHigh === null) return '#94a3b8';
+              if (valueC <= warmHigh) return '#facc15';
+              return '#ef4444';
+            };
+            const tempDisplay = (id) => {
+              const attrs = states[id]?.attributes || {};
+              const display = parseFloat(attrs.display_value);
+              const value = !isNaN(display) ? display : num(id);
+              const unit = attrs.display_unit || attrs.unit_of_measurement || '°C';
+              return { value: value === null ? null : Number(value).toFixed(1), unit };
+            };
+            const signed = (v) => (v === null ? null : `${v > 0 ? '+' : ''}${v.toFixed(2)}`);
+            const tempChip = (label, entity) => {
+              const item = tempDisplay(entity);
+              return chip(label, item.value, item.unit, tempColor(tempValueC(entity)));
+            };
+            const slopeMap = diagAttrs.slope_map || {};
+            const slug = (value) => String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+            const sourceSet = new Set([...(Array.isArray(slopeCfg.source_entities) ? slopeCfg.source_entities : [])]);
+            const provided = Array.isArray(slopeCfg.provided_sensors) ? slopeCfg.provided_sensors : [];
+            const slopeEntityFor = (item) => {
+              if (!item?.entity_id || !sourceSet.has(item.entity_id)) return null;
+              if (slopeMap[item.entity_id]) return slopeMap[item.entity_id];
+              const roomKey = slug(item.room || item.friendly_name || item.entity_id);
+              const providedMatch = provided.find((entity) => slug(entity).includes(roomKey));
+              if (providedMatch) return providedMatch;
+              if (slopeCfg.mode === 'hi_calculates' && roomKey) return `sensor.hi_${roomKey}_temperature_slope`;
+              return null;
+            };
+            const roomTemperatureChips = zoneTelemetry('temperature')
+              .map((item) => tempChip(item.label, item.entity))
+              .join('');
+            const slopeChips = telemetry
+              .filter((item) => item?.sensor_type === 'temperature' && item.entity_id && item.room)
+              .map((item) => ({ label: String(item.room).trim(), entity: slopeEntityFor(item) }))
+              .filter((item) => item.label && item.entity)
+              .sort((a, b) => a.label.localeCompare(b.label))
+              .map((item) => chip(`${item.label} slope`, signed(num(item.entity)), '°C/h', '#94a3b8'))
+              .join('');
+
+            return `
+              <div class="cv-scroll">
+                ${tempChip('House Temp', 'sensor.house_average_temperature')}
+                ${tempChip('Upstairs Temp', 'sensor.air_control_upstairs_average_temperature')}
+                ${tempChip('Downstairs Temp', 'sensor.air_control_downstairs_average_temperature')}
+                ${roomTemperatureChips}
+                ${slopeChips}
+              </div>`;
+          ]]]
+      tap_action:
+        action: more-info
+      hold_action:
+        action: more-info
+      styles:
+        card:
+          - position: relative
+          - padding: 16px 16px 14px 16px
+          - border-radius: 22px
+          - background: rgba(2,6,23,0.38)
+          - border: |
+              [[[
+                const mode = String(states['sensor.air_control_mode']?.state || '').trim().toLowerCase();
+                const borderKnownModes = new Set([
+                  'normal',
+                  'co_emergency',
+                  'danger',
+                  'air_quality',
+                  'global_gate',
+                  'away',
+                  'cooking',
+                  'bathroom',
+                  'bath',
+                  'paused',
+                  'manual_override',
+                  'disabled',
+                  'telemetry_unavailable',
+                ]);
+                const borderModeKnown =
+                  !!mode &&
+                  mode !== 'unknown' &&
+                  mode !== 'unavailable' &&
+                  (borderKnownModes.has(mode) || mode.includes('alert'));
+                const anyAlertActive = Object.keys(states).some((id) => {
+                  const stateObj = states[id];
+                  if (stateObj?.state !== 'on') return false;
+                  const attrs = stateObj.attributes || {};
+                  if (attrs.alert_index !== undefined && attrs.trigger_type) return true;
+                  return /^(?:switch|input_boolean)\\.(?:hi_)?(?:air_)?alert_\\d+.*_active(?:_\\d+)?$/.test(id);
+                });
+                const zone1 = mode === 'cooking';
+                const zone2 = mode === 'bathroom' || mode === 'bath';
+                const gateActive = mode === 'global_gate' || mode === 'away';
+                const coE = states['input_boolean.air_co_emergency_active']?.state === 'on';
+                const red =
+                  mode.includes('alert') ||
+                  mode === 'co_emergency' ||
+                  coE ||
+                  (!gateActive && anyAlertActive);
+                if (mode === 'telemetry_unavailable') return '1px solid rgba(245,158,11,0.78)';
+                if (!borderModeKnown) return '1px solid rgba(148,163,184,0.55)';
+                if (red) return '1px solid rgba(239,68,68,0.85)';
+                if (gateActive) return '1px solid rgba(245,158,11,0.78)';
+                if (zone1) return '1px solid rgba(56,189,248,0.75)';
+                if (zone2) return '1px solid rgba(74,222,128,0.70)';
+
+                const aqActive =
+                  mode === 'air_quality' ||
+                  states['input_boolean.air_aq_upstairs_active']?.state === 'on' ||
+                  states['input_boolean.air_aq_downstairs_active']?.state === 'on';
+
+                if (aqActive) return '1px solid rgba(168,85,247,0.70)';
+                if (mode === 'normal') return '1px solid rgba(229,231,235,0.68)';
+                if (mode === 'paused') return '1px solid rgba(250,204,21,0.70)';
+                return '1px solid rgba(148,163,184,0.55)';
+              ]]]
+          - box-shadow: 0 0 22px rgba(148,163,184,0.16)
+          - backdrop-filter: blur(14px)
+          - "-webkit-backdrop-filter": blur(14px)
+          - overflow: hidden
+        grid:
+          - grid-template-areas: |
+              [[[
+                const showTemp = !!states['sensor.hi_diagnostics']?.attributes?.config?.slope?.show_temperature_chips;
+                const rows = [
+                  '"i i"',
+                  '"n n"',
+                  '"s s"',
+                  '"l l"',
+                  '"status status"',
+                  '"reason reason"',
+                  '"aq aq"',
+                  '"humidity humidity"',
+                ];
+                if (showTemp) rows.push('"temperature temperature"');
+                return rows.join('\n');
+              ]]]
+          - grid-template-columns: 1fr 1fr
+          - row-gap: 6px
+          - justify-items: center
+          - align-items: center
+        icon:
+          - width: 40px
+          - height: 36px
+          - color: rgba(226,232,240,0.92)
+        name:
+          - font-size: 22px
+          - font-weight: 900
+          - color: rgba(226,232,240,0.96)
+          - text-align: center
+        state:
+          - font-size: 14px
+          - font-weight: 900
+          - letter-spacing: 1px
+          - color: rgba(226,232,240,0.68)
+          - text-align: center
+        label:
+          - margin-top: 2px
+          - font-size: 15px
+          - line-height: 1.35
+          - white-space: pre-line
+          - color: rgba(226,232,240,0.72)
+          - text-align: center
+        custom_fields:
+          status:
+            - width: 100%
+            - justify-self: stretch
+          reason:
+            - width: 100%
+            - justify-self: stretch
+          aq:
+            - width: 100%
+            - justify-self: stretch
+          humidity:
+            - width: 100%
+            - justify-self: stretch
+          temperature:
+            - width: 100%
+            - justify-self: stretch
+            - display: |
+                [[[
+                  return states['sensor.hi_diagnostics']?.attributes?.config?.slope?.show_temperature_chips
+                    ? 'block'
+                    : 'none';
+                ]]]
+      card_mod:
+        style: >
+          ha-card{ position:relative; }
+
+          .cv-scroll{
+            display:flex;
+            gap:8px;
+            flex-wrap:nowrap;
+            overflow-x:auto;
+            padding: 4px 2px 2px 2px;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+          }
+
+          .cv-chip{
+            flex: 0 0 auto;
+            display:inline-flex;
+            gap:8px;
+            align-items:center;
+            padding: 6px 9px;
+            border-radius: 999px;
+            background: rgba(2,6,23,0.30);
+            border: 2px solid rgba(148,163,184,0.18);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            font-size: 12px;
+            line-height: 1;
+            color: rgba(226,232,240,0.86);
+            white-space: nowrap;
+          }
+
+          .cv-chip.glow{
+            box-shadow: 0 0 13px color-mix(in srgb, var(--cv) 45%, rgba(148,163,184,0.10));
+          }
+
+          .cv-chip .k{ opacity:.70; font-weight:900; letter-spacing:.2px; }
+          .cv-chip .v{ font-weight:900; }
+
+          .cv-scroll::-webkit-scrollbar{ height: 2px; }
+          .cv-scroll::-webkit-scrollbar-track{
+            background: rgba(148,163,184,0.08);
+            border-radius: 999px;
+          } .cv-scroll::-webkit-scrollbar-thumb{
+            background: rgba(148,163,184,0.28);
+            border-radius: 999px;
+          }
+
+          /* Reason: wraps + scrolls properly */ .cv-reason{
+            width: 92.5%;
+            margin: 0 auto;
+            padding: 6px 13px;
+            border-radius: 14px;
+            background: rgba(2,6,23,0.22);
+            border: 2px solid rgba(148,163,184,0.16);
+            color: rgba(226,232,240,0.80);
+            font-size: 12px;
+            line-height: 1.25;
+
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+
+            max-height: 60px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+          }
+
+          .cv-reason::-webkit-scrollbar{ width: 1px; }
+          .cv-reason__headline{
+            color: rgba(241,245,249,0.96);
+            font-weight: 800;
+          }
+          .cv-reason:focus-visible{
+            outline: 2px solid rgba(56,189,248,0.92);
+            outline-offset: 2px;
+          }
+          .cv-reason::-webkit-scrollbar-track{
+            background: rgba(148,163,184,0.08);
+            border-radius: 999px;
+          } .cv-reason::-webkit-scrollbar-thumb{
+            background: rgba(148,163,184,0.28);
+            border-radius: 999px;
+          }
+    - type: horizontal-stack
+      cards:
+        - type: custom:button-card
+          entity: sensor.air_control_mode
+          name: Ready
+          icon: mdi:air-humidifier
+          show_state: false
+          tap_action:
+            action: more-info
+            entity: sensor.house_average_humidity
+          styles:
+            card:
+              - border-radius: 18px
+              - padding: 12px
+              - background: |
+                  [[[
+                    const m = String(entity?.state || '').trim().toLowerCase();
+                    const red =
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
+                      states['input_boolean.air_co_emergency_active']?.state === 'on';
+
+                    if (red) return 'linear-gradient(145deg, rgba(239,68,68,0.16), rgba(239,68,68,0.05)), rgba(2,6,23,0.35)';
+                    return (m === 'normal')
+                      ? 'linear-gradient(145deg, rgba(148,163,184,0.14), rgba(148,163,184,0.05)), rgba(2,6,23,0.35)'
+                      : 'rgba(2,6,23,0.35)';
+                  ]]]
+              - border: |
+                  [[[
+                    const m = String(entity?.state || '').trim().toLowerCase();
+                    const red =
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
+                      states['input_boolean.air_co_emergency_active']?.state === 'on';
+
+                    if (red) return '1px solid rgba(239,68,68,0.70)';
+                    return (m === 'normal')
+                      ? '1px solid rgba(148,163,184,0.55)'
+                      : '1px solid rgba(148,163,184,0.18)';
+                  ]]]
+              - box-shadow: |
+                  [[[
+                    const m = String(entity?.state || '').trim().toLowerCase();
+                    const red =
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
+                      states['input_boolean.air_co_emergency_active']?.state === 'on';
+
+                    if (red) return '0 0 18px rgba(239,68,68,0.35)';
+                    return (m === 'normal') ? '0 0 18px rgba(148,163,184,0.35)' : 'none';
+                  ]]]
+              - backdrop-filter: blur(12px)
+              - "-webkit-backdrop-filter": blur(12px)
+            icon:
+              - color: |
+                  [[[
+                    const m = String(entity?.state || '').trim().toLowerCase();
+                    const red =
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
+                      states['input_boolean.air_co_emergency_active']?.state === 'on';
+                    if (red) return '#ef4444';
+                    return (m === 'normal') ? '#e5e7eb' : '#94a3b8';
+                  ]]]
+            name:
+              - color: |
+                  [[[
+                    const m = String(entity?.state || '').trim().toLowerCase();
+                    const red =
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
+                      states['input_boolean.air_co_emergency_active']?.state === 'on';
+                    if (red) return '#fee2e2';
+                    return (m === 'normal') ? '#e5e7eb' : 'rgba(226,232,240,0.78)';
+                  ]]]
+        - type: custom:button-card
+          entity: sensor.air_control_mode
+          name: Zone 1
+          icon: mdi:chef-hat
+          show_state: false
+          tap_action:
+            action: more-info
+            entity: sensor.kitchen_humidity
+          styles:
+            card:
+              - border-radius: 18px
+              - padding: 12px
+              - background: |
+                  [[[
+                    const m = String(entity?.state || '').trim().toLowerCase();
+                    const red =
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
+                      states['input_boolean.air_co_emergency_active']?.state === 'on';
+
+                    if (red) return 'linear-gradient(145deg, rgba(239,68,68,0.16), rgba(239,68,68,0.05)), rgba(2,6,23,0.35)';
+                    return (m === 'cooking')
+                      ? 'linear-gradient(145deg, rgba(56,189,248,0.16), rgba(56,189,248,0.05)), rgba(2,6,23,0.35)'
+                      : 'rgba(2,6,23,0.35)';
+                  ]]]
+              - border: |
+                  [[[
+                    const m = String(entity?.state || '').trim().toLowerCase();
+                    const red =
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
+                      states['input_boolean.air_co_emergency_active']?.state === 'on';
+
+                    if (red) return '1px solid rgba(239,68,68,0.70)';
+                    return (m === 'cooking')
+                      ? '1px solid rgba(56,189,248,0.65)'
+                      : '1px solid rgba(56,189,248,0.25)';
+                  ]]]
+              - box-shadow: |
+                  [[[
+                    const m = String(entity?.state || '').trim().toLowerCase();
+                    const red =
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
+                      states['input_boolean.air_co_emergency_active']?.state === 'on';
+
+                    if (red) return '0 0 18px rgba(239,68,68,0.35)';
+                    return (m === 'cooking') ? '0 0 18px rgba(56,189,248,0.35)' : 'none';
+                  ]]]
+              - backdrop-filter: blur(12px)
+              - "-webkit-backdrop-filter": blur(12px)
+            icon:
+              - color: |
+                  [[[
+                    const m = String(entity?.state || '').trim().toLowerCase();
+                    const red =
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
+                      states['input_boolean.air_co_emergency_active']?.state === 'on';
+                    if (red) return '#ef4444';
+                    return (m === 'cooking') ? '#38bdf8' : '#94a3b8';
+                  ]]]
+            name:
+              - color: |
+                  [[[
+                    const m = String(entity?.state || '').trim().toLowerCase();
+                    const red =
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
+                      states['input_boolean.air_co_emergency_active']?.state === 'on';
+                    if (red) return '#fee2e2';
+                    return (m === 'cooking') ? '#bae6fd' : 'rgba(226,232,240,0.78)';
+                  ]]]
+        - type: custom:button-card
+          entity: sensor.air_control_mode
+          name: Zone 2
+          icon: mdi:shower
+          show_state: false
+          tap_action:
+            action: more-info
+            entity: sensor.bathroom_humidity
+          styles:
+            card:
+              - border-radius: 18px
+              - padding: 12px
+              - background: |
+                  [[[
+                    const m = String(entity?.state || '').trim().toLowerCase();
+                    const active = (m === 'bathroom' || m === 'bath');
+
+                    const red =
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
+                      states['input_boolean.air_co_emergency_active']?.state === 'on';
+
+                    if (red) return 'linear-gradient(145deg, rgba(239,68,68,0.16), rgba(239,68,68,0.05)), rgba(2,6,23,0.35)';
+                    return active
+                      ? 'linear-gradient(145deg, rgba(74,222,128,0.18), rgba(74,222,128,0.06)), rgba(2,6,23,0.35)'
+                      : 'rgba(2,6,23,0.35)';
+                  ]]]
+              - border: |
+                  [[[
+                    const m = String(entity?.state || '').trim().toLowerCase();
+                    const active = (m === 'bathroom' || m === 'bath');
+
+                    const red =
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
+                      states['input_boolean.air_co_emergency_active']?.state === 'on';
+
+                    if (red) return '1px solid rgba(239,68,68,0.70)';
+                    return active
+                      ? '1px solid rgba(74,222,128,0.65)'
+                      : '1px solid rgba(74,222,128,0.22)';
+                  ]]]
+              - box-shadow: |
+                  [[[
+                    const m = String(entity?.state || '').trim().toLowerCase();
+                    const active = (m === 'bathroom' || m === 'bath');
+
+                    const red =
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
+                      states['input_boolean.air_co_emergency_active']?.state === 'on';
+
+                    if (red) return '0 0 18px rgba(239,68,68,0.35)';
+                    return active ? '0 0 18px rgba(74,222,128,0.35)' : 'none';
+                  ]]]
+              - backdrop-filter: blur(12px)
+              - "-webkit-backdrop-filter": blur(12px)
+            icon:
+              - color: |
+                  [[[
+                    const m = String(entity?.state || '').trim().toLowerCase();
+                    const active = (m === 'bathroom' || m === 'bath');
+
+                    const red =
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
+                      states['input_boolean.air_co_emergency_active']?.state === 'on';
+
+                    if (red) return '#ef4444';
+                    return active ? '#4ade80' : '#94a3b8';
+                  ]]]
+            name:
+              - color: |
+                  [[[
+                    const m = String(entity?.state || '').trim().toLowerCase();
+                    const active = (m === 'bathroom' || m === 'bath');
+
+                    const red =
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
+                      states['input_boolean.air_co_emergency_active']?.state === 'on';
+
+                    if (red) return '#fee2e2';
+                    return active ? '#dcfce7' : 'rgba(226,232,240,0.78)';
+                  ]]]
+        - type: custom:button-card
+          entity: sensor.air_control_mode
+          name: AQ
+          icon: mdi:air-purifier
+          show_state: false
+          tap_action:
+            action: more-info
+            entity: sensor.air_control_house_iaq_average
+          styles:
+            card:
+              - border-radius: 18px
+              - padding: 12px
+              - background: |
+                  [[[
+                    const m = String(entity?.state || '').trim().toLowerCase();
+                    const active = (m === 'air_quality') ||
+                      (states['input_boolean.air_aq_upstairs_active']?.state === 'on') ||
+                      (states['input_boolean.air_aq_downstairs_active']?.state === 'on');
+
+                    const red =
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
+                      states['input_boolean.air_co_emergency_active']?.state === 'on';
+
+                    if (red) return 'linear-gradient(145deg, rgba(239,68,68,0.16), rgba(239,68,68,0.05)), rgba(2,6,23,0.35)';
+                    return active
+                      ? 'linear-gradient(145deg, rgba(168,85,247,0.16), rgba(168,85,247,0.05)), rgba(2,6,23,0.35)'
+                      : 'rgba(2,6,23,0.35)';
+                  ]]]
+              - border: |
+                  [[[
+                    const m = String(entity?.state || '').trim().toLowerCase();
+                    const active = (m === 'air_quality') ||
+                      (states['input_boolean.air_aq_upstairs_active']?.state === 'on') ||
+                      (states['input_boolean.air_aq_downstairs_active']?.state === 'on');
+
+                    const red =
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
+                      states['input_boolean.air_co_emergency_active']?.state === 'on';
+
+                    if (red) return '1px solid rgba(239,68,68,0.70)';
+                    return active
+                      ? '1px solid rgba(168,85,247,0.70)'
+                      : '1px solid rgba(168,85,247,0.28)';
+                  ]]]
+              - box-shadow: |
+                  [[[
+                    const m = String(entity?.state || '').trim().toLowerCase();
+                    const active = (m === 'air_quality') ||
+                      (states['input_boolean.air_aq_upstairs_active']?.state === 'on') ||
+                      (states['input_boolean.air_aq_downstairs_active']?.state === 'on');
+
+                    const red =
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
+                      states['input_boolean.air_co_emergency_active']?.state === 'on';
+
+                    if (red) return '0 0 18px rgba(239,68,68,0.35)';
+                    return active ? '0 0 18px rgba(168,85,247,0.38)' : 'none';
+                  ]]]
+              - backdrop-filter: blur(12px)
+              - "-webkit-backdrop-filter": blur(12px)
+            icon:
+              - color: |
+                  [[[
+                    const m = String(entity?.state || '').trim().toLowerCase();
+                    const active = (m === 'air_quality') ||
+                      (states['input_boolean.air_aq_upstairs_active']?.state === 'on') ||
+                      (states['input_boolean.air_aq_downstairs_active']?.state === 'on');
+
+                    const red =
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
+                      states['input_boolean.air_co_emergency_active']?.state === 'on';
+
+                    if (red) return '#ef4444';
+                    return active ? '#a855f7' : '#94a3b8';
+                  ]]]
+            name:
+              - color: |
+                  [[[
+                    const m = String(entity?.state || '').trim().toLowerCase();
+                    const active = (m === 'air_quality') ||
+                      (states['input_boolean.air_aq_upstairs_active']?.state === 'on') ||
+                      (states['input_boolean.air_aq_downstairs_active']?.state === 'on');
+
+                    const red =
+                      m === 'alert' ||
+                      m === 'co_emergency' ||
+                      states['input_boolean.air_co_emergency_active']?.state === 'on';
+
+                    if (red) return '#fee2e2';
+                    return active ? '#f5d0fe' : 'rgba(226,232,240,0.78)';
+                  ]]]
+    - type: horizontal-stack
+      cards:
+        - type: custom:button-card
+          entity: input_boolean.air_control_enabled
+          name: System
+          icon: mdi:power
+          show_state: true
+          state_display: |
+            [[[
+              return entity.state === 'on' ? 'ARMED' : 'DISABLED';
+            ]]]
+          tap_action:
+            action: toggle
+          hold_action:
+            action: more-info
+          styles:
+            card:
+              - border-radius: 20px
+              - padding: 14px
+              - min-height: 132px
+              - background: rgba(2,6,23,0.35)
+              - border: 1px solid rgba(148,163,184,0.22)
+              - box-shadow: 0 0 18px rgba(148,163,184,0.12)
+              - backdrop-filter: blur(12px)
+              - "-webkit-backdrop-filter": blur(12px)
+        - type: custom:button-card
+          entity: sensor.hi_diagnostics
+          name: Stability Score
+          show_icon: false
+          show_state: false
+          show_label: false
+          custom_fields:
+            gauge: |
+              [[[
+                const summary = entity?.attributes?.diagnostics_summary || {};
+                const stability = summary.stability_score || {};
+                const score = stability.score || {};
+                const rawValue =
+                  score.display_score ??
+                  stability.display_score ??
+                  entity?.attributes?.stability_score_display_score;
+                const hasRawValue = rawValue !== null && rawValue !== undefined && rawValue !== '';
+                const value = hasRawValue ? Number(rawValue) : NaN;
+                const classification = String(
+                  score.display_classification ||
+                  stability.display_classification ||
+                  entity?.attributes?.stability_score_display_classification ||
+                  ''
+                ).toLowerCase();
+                const availability = String(
+                  stability.availability ||
+                  entity?.attributes?.stability_score_availability ||
+                  ''
+                );
+                const suppression = String(
+                  score.suppression_reason ||
+                  stability.suppression_reason ||
+                  entity?.attributes?.stability_score_suppression_reason ||
+                  ''
+                );
+                const hasValue = hasRawValue && Number.isFinite(value);
+                const completeWhite = !hasValue || value >= 99 || classification === 'excellent';
+                const color =
+                  suppression === 'current_telemetry_unavailable' ? '#94a3b8' :
+                  availability === 'insufficient_coverage' || suppression === 'coverage_below_threshold' ? '#38bdf8' :
+                  completeWhite ? '#f8fafc' :
+                  classification === 'good' ? '#4ade80' :
+                  classification === 'unstable' ? '#f9a8d4' :
+                  classification === 'poor' ? '#db2777' :
+                  '#f8fafc';
+                const normalized = hasValue ? Math.max(-1, Math.min(1, (value - 50) / 50)) : 0;
+                const direction = normalized < 0 ? 'left' : 'right';
+                const activeDots = hasValue ? Math.max(1, Math.min(7, Math.round(Math.abs(normalized) * 7))) : 1;
+                const center = 3;
+                const dots = Array.from({ length: 7 }, (_, index) => {
+                  const active = hasValue
+                    ? direction === 'left'
+                      ? index <= center && center - index < activeDots
+                      : index >= center && index - center < activeDots
+                    : index === center;
+                  return `<i class="led-${index} ${active ? 'active' : ''}"></i>`;
+                }).join('');
+                const valueText = hasValue ? String(Math.round(value)) : '2.1';
+                const unitText = hasValue ? 'score' : 'future';
+                const gaugeClass = color === '#f8fafc'
+                  ? 'hi-stability-gauge hi-stability-gauge-white'
+                  : 'hi-stability-gauge';
+                return `<div class="${gaugeClass}" style="--hi-stability-color:${color};">
+                  <div class="hi-stability-center"><span>${valueText}</span><small>${unitText}</small></div>
+                  <div class="hi-stability-leds">${dots}</div>
+                </div>`;
+              ]]]
+          tap_action:
+            action: more-info
+          hold_action:
+            action: more-info
+          styles:
+            card:
+              - border-radius: 20px
+              - padding: 10px 12px
+              - min-height: 132px
+              - background: rgba(2,6,23,0.35)
+              - border: 1px solid rgba(148,163,184,0.22)
+              - box-shadow: inset 0 0 0 1px rgba(255,255,255,0.035), 0 0 16px rgba(15,23,42,0.55)
+              - backdrop-filter: blur(12px)
+              - "-webkit-backdrop-filter": blur(12px)
+            grid:
+              - grid-template-areas: '"gauge" "n"'
+              - grid-template-rows: 86px min-content
+              - row-gap: 0
+            name:
+              - grid-area: n
+              - color: "#e5e7eb"
+              - font-size: 13px
+              - font-weight: 700
+            custom_fields:
+              gauge:
+                - grid-area: gauge
+                - align-self: center
+                - justify-self: center
+          extra_styles: |
+            .hi-stability-gauge {
+              width: 82px;
+              height: 82px;
+              border-radius: 999px;
+              position: relative;
+              display: grid;
+              place-items: center;
+              background: #000;
+              box-shadow: none;
+            }
+            .hi-stability-gauge::before {
+              content: "";
+              position: absolute;
+              inset: 14px;
+              border-radius: 999px;
+              box-shadow: 0 0 9px 3px var(--hi-stability-color);
+              opacity: 0.42;
+            }
+            .hi-stability-gauge::after {
+              content: "";
+              position: absolute;
+              inset: 20px;
+              border-radius: 999px;
+              background: #000;
+              box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08), 0 0 10px rgba(0,0,0,0.85);
+            }
+            .hi-stability-gauge-white::before {
+              animation: hi-stability-white-shimmer 6000ms ease-in-out infinite;
+            }
+            .hi-stability-center {
+              position: relative;
+              z-index: 1;
+              display: grid;
+              place-items: center;
+              line-height: 1.05;
+            }
+            .hi-stability-center span {
+              color: #f8fafc;
+              font-size: 26px;
+              font-weight: 800;
+            }
+            .hi-stability-center small {
+              color: #6b7280;
+              font-size: 9px;
+              font-weight: 700;
+              letter-spacing: 0;
+              margin-top: 3px;
+            }
+            .hi-stability-leds {
+              position: absolute;
+              z-index: 2;
+              left: 50%;
+              top: 0;
+              width: 82px;
+              height: 18px;
+              transform: translateX(-50%);
+            }
+            .hi-stability-leds i {
+              position: absolute;
+              width: 2px;
+              height: 2px;
+              border-radius: 999px;
+              opacity: 0;
+              background: transparent;
+            }
+            .hi-stability-leds i.led-0 { left: 25px; top: 8px; }
+            .hi-stability-leds i.led-1 { left: 30px; top: 5px; }
+            .hi-stability-leds i.led-2 { left: 35px; top: 3px; }
+            .hi-stability-leds i.led-3 { left: 40px; top: 2px; }
+            .hi-stability-leds i.led-4 { left: 45px; top: 3px; }
+            .hi-stability-leds i.led-5 { left: 50px; top: 5px; }
+            .hi-stability-leds i.led-6 { left: 55px; top: 8px; }
+            .hi-stability-leds i.active {
+              opacity: 1;
+              background: var(--hi-stability-color);
+              box-shadow: 0 0 3px var(--hi-stability-color);
+            }
+            .hi-stability-gauge-white .hi-stability-leds i.active {
+              animation: hi-stability-led-shimmer 6000ms ease-in-out infinite;
+            }
+            @keyframes hi-stability-white-shimmer {
+              0%, 100% { opacity: 0.34; filter: brightness(0.92); }
+              50% { opacity: 0.64; filter: brightness(1.25); }
+            }
+            @keyframes hi-stability-led-shimmer {
+              0%, 100% { opacity: 0.65; }
+              50% { opacity: 1; }
+            }
+        - type: custom:button-card
+          entity: input_boolean.air_control_manual_override
+          name: Manual
+          icon: mdi:hand-front-right
+          show_state: true
+          show_label: null
+          state_display: |
+            [[[
+              return entity.state === 'on' ? 'LOCKED' : 'AUTO';
+            ]]]
+          label: |
+            [[[
+              return entity.state === 'on' ? 'Automation stands down' : 'Automation active';
+            ]]]
+          styles:
+            card:
+              - border-radius: 20px
+              - padding: 14px
+              - min-height: 132px
+              - background: rgba(2,6,23,0.35)
+              - border: 1px solid rgba(148,163,184,0.22)
+              - box-shadow: 0 0 18px rgba(148,163,184,0.12)
+              - backdrop-filter: blur(12px)
+              - "-webkit-backdrop-filter": blur(12px)
+            label:
+              - font-size: 12px
+              - opacity: 0.75
+              - margin-top: 2px
+          tap_action:
+            action: toggle
+          hold_action:
+            action: more-info
+    # hi:output-details:start
+    - type: custom:button-card
+      entity: input_boolean.air_control_output_expanded
+      name: Outputs
+      icon: mdi:fan
+      show_state: false
+      show_label: true
+      tap_action:
+        action: call-service
+        service: switch.toggle
+        service_data:
+          entity_id: input_boolean.air_control_output_expanded
+      custom_fields:
+        chevron: |
+          [[[
+            const expanded = states['input_boolean.air_control_output_expanded']?.state === 'on';
+            const icon = expanded ? 'mdi:chevron-up' : 'mdi:chevron-down';
+            return `<ha-icon icon="${icon}"></ha-icon>`;
+          ]]]
+      label: |
+        [[[
+          const fanTxt = (id) => {
+            const st = states[id]?.state;
+            const pct = states[id]?.attributes?.percentage;
+            const preset = states[id]?.attributes?.preset_mode;
+            if (!st) return '—';
+            if (st !== 'on') return st.toUpperCase();
+            if (pct != null) return `${pct}%`;
+            if (preset) return String(preset).toUpperCase();
+            return 'ON';
+          };
+
+          const coE = states['input_boolean.air_co_emergency_active']?.state === 'on';
+          const co = coE ? ' • CO EMERGENCY' : '';
+          const fanIso = states['input_boolean.air_isolate_fan_outputs']?.state === 'on';
+          const humIso = states['input_boolean.air_isolate_humidifier_outputs']?.state === 'on';
+          const iso = `${fanIso ? ' • FAN ISO' : ''}${humIso ? ' • HUM ISO' : ''}`;
+          return `Kitchen: ${fanTxt('fan.kitchen_air')} • Living: ${fanTxt('fan.living_room_air')} • Upstairs: ${fanTxt('fan.upstairs_air')}${co}${iso}`;
+        ]]]
+      styles:
+        card:
+          - position: relative
+          - border-radius: 22px
+          - padding: 12px 14px 12px 14px
+          - background: rgba(10,12,16,0.62)
+          - border: 2px solid rgba(148,163,184,0.18)
+          - box-shadow: 0 0 18px rgba(148,163,184,0.18)
+          - overflow: hidden
+          - backdrop-filter: blur(12px)
+          - "-webkit-backdrop-filter": blur(12px)
+        grid:
+          - grid-template-areas: "\"i n chevron\" \"l l chevron\""
+          - grid-template-columns: 18px 1fr 22px
+          - column-gap: 1px
+          - row-gap: 6px
+          - align-items: center
+        icon:
+          - width: 18px
+          - color: "#94a3b8"
+        name:
+          - font-size: 15px
+          - font-weight: 900
+          - letter-spacing: 0.2px
+        label:
+          - white-space: pre-line
+          - font-size: 12px
+          - line-height: 1
+          - opacity: 0.95
+          - text-align: center
+        custom_fields:
+          chevron:
+            - justify-self: end
+            - align-self: start
+            - margin-top: 2px
+            - width: 25px
+            - height: 25px
+            - display: flex
+            - align-items: center
+            - justify-content: center
+            - border-radius: 999px
+            - background: rgba(15,23,42,0.85)
+            - box-shadow: 0 0 12px rgba(148,163,184,0.45)
+            - color: |
+                [[[
+                  const expanded = states['input_boolean.air_control_output_expanded']?.state === 'on';
+                  return expanded ? '#4ade80' : '#94a3b8';
+                ]]]
+            - opacity: 0.98
+            - pointer-events: none
+    - type: conditional
+      conditions:
+        - entity: input_boolean.air_control_output_expanded
+          state: "on"
+      card:
+        type: custom:mod-card
+        card_mod:
+          style: |
+            ha-card{
+              border-radius: 20px;
+              background: rgba(2,6,23,0.35);
+              border: 1px solid rgba(148,163,184,0.20);
+              backdrop-filter: blur(12px);
+              -webkit-backdrop-filter: blur(12px);
+              padding: 10px;
+              overflow: hidden;
+            }
+        card:
+          type: entities
+          card_mod:
+            style: |
+              ha-card{
+                background: rgba(2,6,23,0.18);
+                border: 1px solid rgba(148,163,184,0.18);
+                box-shadow: none;
+              }
+          show_header_toggle: false
+          entities:
+            - entity: fan.kitchen_air
+              name: Kitchen purifier
+            - entity: fan.living_room_air
+              name: Living room purifier
+            - entity: fan.upstairs_air
+              name: Upstairs purifier
+            - type: section
+            - entity: input_boolean.air_aq_downstairs_active
+              name: AQ Downstairs Active
+            - entity: input_boolean.air_aq_upstairs_active
+              name: AQ Upstairs Active
+            - entity: input_boolean.air_co_emergency_active
+              name: CO Emergency (ALL 100%)
+            - entity: input_boolean.air_isolate_fan_outputs
+              name: Fan Outputs Isolated (Testing)
+            - entity: input_boolean.air_isolate_humidifier_outputs
+              name: Humidifier Outputs Isolated (Testing)
+            - entity: input_boolean.air_alert_1_active
+              name: Alert 1 Active
+            - entity: input_boolean.air_alert_2_active
+              name: Alert 2 Active
+            - entity: input_boolean.air_alert_3_active
+              name: Alert 3 Active
+            - entity: input_boolean.air_alert_4_active
+              name: Alert 4 Active
+            - entity: input_boolean.air_alert_5_active
+              name: Alert 5 Active
+            - type: section
+            - entity: sensor.air_control_downstairs_iaq_average
+              name: Downstairs IAQ
+            - entity: sensor.air_control_downstairs_pm25_average
+              name: Downstairs PM2.5
+            - entity: sensor.air_control_downstairs_voc_average
+              name: Downstairs VOC
+            - entity: sensor.air_control_downstairs_co_average
+              name: Downstairs CO
+            - type: section
+            - entity: sensor.air_control_upstairs_iaq_average
+              name: Upstairs IAQ
+            - entity: sensor.air_control_upstairs_pm25_average
+              name: Upstairs PM2.5
+            - entity: sensor.air_control_upstairs_voc_average
+              name: Upstairs VOC
+            - entity: sensor.air_control_upstairs_co_average
+              name: Upstairs CO
+            - type: section
+            - entity: light.alert_1
+              name: Alert light 1
+            - entity: light.alert_2
+              name: Alert light 2
+            - entity: light.alert_3
+              name: Alert light 3
+            - entity: light.alert_4
+              name: Alert light 4
+            - entity: light.alert_5
+              name: Alert light 5
+            - type: section
+            - entity: humidifier.downstairs_humidifier
+            - entity: humidifier.upstairs_humidifier
+    # hi:output-details:end

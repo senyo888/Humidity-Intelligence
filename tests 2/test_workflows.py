@@ -93,20 +93,94 @@ class WorkflowConfigurationTests(unittest.TestCase):
             self.assertTrue(marker.exists())
             self.assertIn("dir", marker.read_text(encoding="utf-8"))
 
-    def test_validate_compile_step_accepts_root_content_without_warning(self) -> None:
+    def test_validate_requires_exact_conventional_component_layout(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "validate.yml").read_text(
             encoding="utf-8"
         )
         hacs = (ROOT / "hacs.json").read_text(encoding="utf-8")
 
-        self.assertIn('"content_in_root": true', hacs)
-        self.assertIn('hacs.get("content_in_root")', workflow)
-        self.assertIn("python -m compileall -q .", workflow)
-        self.assertNotIn("::warning::custom_components/ not found", workflow)
+        self.assertNotIn('"content_in_root"', hacs)
         self.assertIn(
-            "custom_components/ not found and hacs.json does not set content_in_root: true.",
+            'integration = Path("custom_components/humidity_intelligence")',
             workflow,
         )
+        self.assertIn('if "content_in_root" in hacs:', workflow)
+        self.assertIn('if Path("manifest.json").exists():', workflow)
+        self.assertIn(
+            "python -m compileall -q custom_components/humidity_intelligence",
+            workflow,
+        )
+        self.assertNotIn("python -m compileall -q .", workflow)
+
+    def test_component_brand_assets_use_home_assistant_local_brand_layout(self) -> None:
+        integration = ROOT / "custom_components" / "humidity_intelligence"
+        repository_brand = ROOT / "brand"
+
+        self.assertTrue((integration / "brand" / "icon.png").is_file())
+        self.assertTrue((integration / "brand" / "logo.png").is_file())
+        self.assertFalse((integration / "icon.png").exists())
+        self.assertFalse((integration / "logo.png").exists())
+        self.assertEqual(
+            (repository_brand / "icon.png").read_bytes(),
+            (integration / "brand" / "icon.png").read_bytes(),
+        )
+        self.assertEqual(
+            (repository_brand / "logo.png").read_bytes(),
+            (integration / "brand" / "logo.png").read_bytes(),
+        )
+        tracked_component_files = subprocess.check_output(
+            [
+                "git",
+                "ls-files",
+                "-z",
+                "--",
+                "custom_components/humidity_intelligence",
+            ],
+            cwd=ROOT,
+        ).split(b"\0")
+        self.assertEqual(52, len([path for path in tracked_component_files if path]))
+
+        for workflow_name in ("hassfest.yaml", "release.yml", "validate.yml"):
+            workflow = (
+                ROOT / ".github" / "workflows" / workflow_name
+            ).read_text(encoding="utf-8")
+            self.assertIn('("brand/icon.png", "brand/logo.png")', workflow)
+            self.assertIn('("icon.png", "logo.png")', workflow)
+            self.assertIn("Missing local integration brand asset", workflow)
+            self.assertIn("Repository and integration brand assets differ", workflow)
+
+    def test_hassfest_validates_tracked_layout_without_staging(self) -> None:
+        workflow = (ROOT / ".github" / "workflows" / "hassfest.yaml").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("Verify tracked Hassfest layout and metadata", workflow)
+        self.assertIn(
+            'base = Path("custom_components/humidity_intelligence")',
+            workflow,
+        )
+        self.assertIn('if "content_in_root" in hacs:', workflow)
+        self.assertIn('if Path("manifest.json").exists():', workflow)
+        self.assertNotIn("Stage custom component layout", workflow)
+        self.assertNotIn("Normalize staged Hassfest metadata", workflow)
+        self.assertNotIn("rsync -a", workflow)
+        self.assertNotIn("manifest.pop", workflow)
+        self.assertNotIn(".write_text(", workflow)
+        self.assertIn("home-assistant/actions/hassfest@", workflow)
+
+    def test_release_requires_exact_conventional_component_layout(self) -> None:
+        workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn(
+            'integration = Path("custom_components/humidity_intelligence")',
+            workflow,
+        )
+        self.assertIn('if "content_in_root" in hacs:', workflow)
+        self.assertIn('if Path("manifest.json").exists():', workflow)
+        self.assertNotIn('glob("*/manifest.json")', workflow)
+
     def test_first_interaction_v3_is_pinned_and_uses_supported_input_names(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "first-interaction.yml").read_text(
             encoding="utf-8"

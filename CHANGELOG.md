@@ -8,7 +8,189 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
-No unreleased changes.
+- No unreleased changes.
+
+## 2.0.10 - 2026-08-10
+
+- Fixed a diagnostics privacy gap found during Stable-instance forward validation:
+  native diagnostics now report mapped runtime entities only as aggregate availability
+  counts, and `dump_diagnostics` no longer emits mapping keys. Entity-ID-shaped map
+  keys and mapped entity values are not retained in either sanitized support export.
+  The HI Support Bundle Inspector accepts the privacy-safe aggregate schema. This
+  changes diagnostics presentation only; control decisions, mappings, entities, and
+  outputs are unchanged.
+- Clarified the project-wide release boundary: HA Lab deploy, restart, playback, and
+  soak evidence is optional advisory context. A pass, failure, blocked run,
+  incomplete matrix/soak, or absence of Lab evidence is not a promotion, PR, tag,
+  GitHub Release, HACS publication, or Stable-release blocker. Canonical validation,
+  review, CI, version governance, and explicit maintainer gates remain unchanged.
+- Advanced the implementation identity to `2.0.10-beta.7`. Backend-authored reason
+  copy now reads as natural, complete household sentences while preserving one
+  `hi.reason.v1` role and truth per line. Cause and action remain separate; every
+  retained action is independently scoped so bounded compaction cannot leave an
+  orphaned conclusion. Humidifier demand wording names the adjusted profile demand
+  start and recovery-off thresholds without misreporting them as the displayed target
+  floor, and observed Home Assistant output state retains the physical-moisture
+  limitation. The schema, code vocabulary/meanings, argument semantics, technical
+  reason state, lane ordering, thresholds, gates, service dispatch, and entity
+  semantics are unchanged; bounded presentation line grouping may split differently.
+- The beta.7 candidate supersedes beta.5's deliberate second humidifier row: V2
+  Mobile, V2 Tablet, and
+  both canonical gallery templates now present ventilation and humidifier chips in
+  one horizontally scrollable Current Air Control row. `On` and `Requested` are cyan;
+  `Idle`, `Retrying`, `Stopping`, and `Isolated` are amber; `Fault` and `Degraded` are
+  red; and `Unknown` is grey. Existing Manual cards require
+  a fresh export and full YAML
+  replacement. A packaged Python update requires a full Home Assistant restart; no
+  config-entry, registry, stored-data, service, threshold, or lane migration is
+  required. Beta.6's invalidated cadence transfers no validation or soak credit.
+- Advanced the implementation identity to `2.0.10-beta.6` with backend-owned
+  reason language harmonisation after live
+  review found that the inherited AQ-plus-humidifier explanation still read as
+  joined diagnostic records. AQ observation and selected action remain adjacent
+  but retain separate `observed`/`why` and `selected`/`action` contract lines:
+  `Downstairs IAQ is 34, at or below the response point of 60.` followed by
+  `For Downstairs, HI selected 66% for ...`. Concurrent humidifier truth now
+  continues naturally with `Separately, Downstairs needs humidification ...`,
+  while every split line remains independently scoped by its resolved level. The
+  retained pair preserves thresholds and reconciliation truth, and an observed-on
+  claim keeps its physical-output limitation. Retry, isolation,
+  unavailable, and fault copy replaces internal terms such as `bounded retry`,
+  `output mismatch`, and `service calls are suppressed` with calm direct language.
+  The `hi.reason.v1` schema, line codes, roles, scopes, truth values, arguments,
+  maximum bounds, technical reason state, lane selection, dispatch, and entity
+  semantics are unchanged. Presentation ordering is intentionally hardened: AQ levels
+  are explicitly ordered Downstairs
+  then Upstairs even if input details arrive reversed. Long multibyte friendly-output
+  summaries fall back to a generic count, and the existing stable retention priorities
+  compact any remaining UTF-8-heavy explanation before the 4 KiB contract boundary,
+  preserving retained-line semantics and original order instead of dropping
+  `display_reason`. Existing V2 and Manual cards consume the revised backend
+  attribute automatically; no card replacement, frontend-cache clear, configuration
+  migration, or entity migration is required. A packaged Python update requires the
+  normal Home Assistant restart. The committed beta.5 identity and its evidence must
+  not be overwritten or transferred. Beta.6 is a fresh local identity; push,
+  deployment, playback, and soak remain separate gates.
+- Advanced the implementation identity to `2.0.10-beta.5` and tightened the V2
+  Current Air Control chip strip for mobile readability. Humidity
+  Danger chips now stop after the resolved alert type, room, and zone; measurements
+  and thresholds remain intact in backend alert telemetry and the plain-language
+  explanation. Other alert contexts are not shortened.
+  Humidifier chips now read `Downstairs Humidifier` or `Upstairs Humidifier`, and the
+  Home Assistant-observed `output_on` state is presented as `On`. When Zone 1 or Zone
+  2 and a humidifier lane are active together, humidifier telemetry moves to a second
+  row so the independent control families remain visually distinct. V2
+  Mobile, V2 Tablet, and canonical gallery cards stay aligned. Existing pasted Manual
+  cards must be refreshed/exported and re-copied to receive this presentation-only
+  change. There is no Python runtime, entity/config migration, lane-order, or
+  output-behaviour change; a future versioned HACS package should still follow the
+  normal full-restart installation path.
+- Advanced the implementation identity to `2.0.10-beta.4` and completed the
+  backend-owned alert-lane wording catalogue. Zone and air-quality headlines now
+  explicitly say `response lane selected`; alert headlines use `High humidity alert
+  lane selected`, `Mould alert lane selected`, or `Condensation alert lane selected`,
+  with the first explanation sentence stating the selected Danger or Risk alert.
+  Visible mould prose translates internal ordinal levels into Normal, Watch, Risk,
+  or Danger ranges while bounded numeric values remain available in structured
+  `display_reason` arguments for deterministic traceability and future localisation.
+  Friendly room/zone/output names remain resolved, sanitized labels with generic
+  fallbacks, and raw entity IDs remain prohibited. This is presentation-only: lane
+  priority, thresholds, output selection, and service dispatch are unchanged. Entity
+  identity, state, schema, and structured truth semantics are unchanged; backend
+  presentation text changes intentionally. Card YAML, configuration, and stored data
+  are unchanged. The humidity profile label is retained only as a private presentation
+  fact from the exact profile used to calculate that alert threshold, so no public
+  alert-telemetry key is added and the label cannot drift from its threshold. A full
+  Home Assistant restart is required to load beta.4 Python;
+  no card replacement, frontend-cache refresh, or migration is required.
+- Moved the exact 52-file installable integration payload into the conventional
+  `custom_components/humidity_intelligence/` layout and removed HACS
+  `content_in_root`. HACS, Hassfest, release checks, tests, scripts, and documentation
+  now validate the tracked package directly instead of constructing a temporary CI
+  package. The existing component icon and logo now live under the supported local
+  `brand/` subdirectory, as a byte-identical install mirror of the repository brand
+  source, so HACS and Home Assistant can discover them without increasing the package
+  count. The integration installation root is unchanged, although those two asset
+  paths move. This brand-only correction adds no restart or frontend-cache requirement;
+  a full Home Assistant restart remains required for the cumulative beta.3 code update.
+  No config, entity, or stored-data migration is required.
+- Made every material humidifier explanation independently recognizable as
+  `Humidifier response — {resolved label}: ...`. Demand thresholds, Home Assistant
+  dispatch evidence, observed output state, retry/fault/isolation truth, and the
+  physical-moisture caveat remain distinct; long configured labels split into two
+  self-contained bounded lines. Known unavailable service/entity evidence now states
+  that no request was sent, and inactive isolation remains visible exactly once on
+  gate and CO paths. This changes backend presentation text only, requires no
+  generated/Manual-card replacement or frontend cache refresh, and does not change
+  control, entity state, configuration, or deterministic lane ordering.
+- Added the versioned backend-owned `hi.reason.v1` presentation contract as the
+  `display_reason` attribute on the existing Air Control Reason entity. The existing
+  state, `full_reason`, truncation behavior, and `humidifier_status` remain backward
+  compatible; invalid presentation data is omitted without interrupting control.
+- Added plain-language backend presentation for normal, disabled, manual, pause,
+  time/presence
+  gates, unavailable presence, unavailable telemetry, zones, air quality, mapped and
+  degraded alerts, CO emergency, output isolation, and humidifier reconciliation.
+  Ventilation copy reports selected output intent because current fan writers do not
+  expose dispatch or observed-state confirmation; humidifier copy retains its stronger
+  requested/observed/physical-output distinctions.
+- Replaced the V2 Mobile, Tablet, and canonical gallery reason composers with one
+  strict `hi.reason.v1` consumer. The reason area now renders only the escaped
+  backend headline and ordered line text, always keeps calm neutral explanations
+  visible, and atomically falls back to escaped `full_reason`, state, or `Reason
+  unavailable.` for absent, malformed, or future contracts. The 60-pixel scrolling
+  viewport remains; V1 Mobile is unchanged.
+- Classified unavailable-only presence evidence as degraded `presence_unavailable`
+  presentation without changing the existing fail-closed gate effect. One present
+  source still allows control, and CO emergency continues to bypass gates.
+- Advanced the implementation identity to `2.0.10-beta.3`. Beta.1 and beta.2 evidence
+  remain historical evidence for their exact commits; the incomplete beta.2 soak was
+  superseded rather than failed. Beta.3 requires renewed package-layout,
+  reason-contract, runtime-invariance, generated-UI, privacy, and HA Lab evidence
+  before promotion.
+- Converted the legacy `create_dashboard` service into an admin-gated,
+  compatibility-only guidance action. It now fails safely before mapping, rendering,
+  Lovelace imports, notifications, or filesystem writes and directs users through
+  `refresh_ui`, `view_cards`, and Home Assistant's Manual-card workflow. New setup no
+  longer offers automatic dashboard creation; older stored selections remain inert
+  without migration.
+- Removed dashboard ownership and unsupported dashboard-delete behavior from
+  `purge_files` and config-entry removal. HI-generated exports are explicitly
+  Manual-card fragments, not complete dashboard documents; Home Assistant dashboards
+  are retained and remain user-managed. A full Home Assistant restart is required to
+  load the changed Python service behavior.
+- Separated humidifier demand from command dispatch and Home Assistant-observed
+  output state. The existing humidifier-active helpers now mean effective demand
+  after normal runtime gates and before humidifier-output isolation; they no longer
+  imply that a device is physically producing moisture.
+- Added deterministic per-output reconciliation for configured `humidifier`, `fan`,
+  and `switch` outputs. Demand-active/output-off mismatches receive one immediate
+  command and at most two delayed retries, with confirmation windows, bounded
+  backoff, fault latching, recovery on later observed-state changes, and no blind
+  turn-on while an output is missing, unknown, or unavailable.
+- Added configured humidifier outputs as evaluation sources so output state changes
+  request prompt coalesced reevaluation. The normal engine interval remains the
+  periodic safety net after missed events, restart, reload, or availability recovery.
+- Aggregated shared humidifier outputs before dispatch so two lanes produce at most
+  one non-conflicting output write per cycle and one recovering lane cannot turn off
+  an output still demanded by the other. Cross-family or active cross-entry output
+  ownership is suppressed and reported as degraded.
+- Added sanitized runtime, native-diagnostics, diagnostics-sensor, self-check, and
+  release-check reconciliation truth: desired/observed categories, last command
+  intent/result/time, attempt state, mismatch age, fault category, and bounded
+  history without configured output entity IDs. These surfaces can prove HI demand,
+  dispatch intent, and Home Assistant-observed state; they cannot prove physical
+  moisture production.
+- Updated generated V2 Mobile and Tablet chips/reason text plus the canonical gallery
+  YAML examples to distinguish Requested, On, Idle, Isolated, Retrying,
+  Stopping, Unknown, Degraded, and Fault states. V1 Mobile is unchanged. Existing
+  pasted Manual cards must be re-exported and re-copied to receive the new display
+  contract.
+- Extended the backward-compatible `v205_release_check` service contract through
+  the v2.0.10 beta/rc/stable line without renaming the service. The branch now
+  carries explicit `2.0.10-beta.3` manifest identity for renewed HA Lab beta validation.
+  No config/options schema, stored-data migration, or entity creation is part of
+  this unreleased implementation slice.
 
 ## 2.0.9 - 2026-07-28
 
@@ -271,6 +453,13 @@ No unreleased changes.
 
 ## 2.0.4
 
+- Promoted integration metadata to stable `2.0.4`.
+- Added alert-to-zone binding for humidity, mould, and condensation alerts so the originating room resolves to its configured zone boost level.
+- Added mould risk and condensation risk alert trigger types alongside the existing danger triggers.
+- Enforced deterministic priority across CO emergency, humidity danger, mould danger, mould risk, condensation danger, condensation risk, Zone 1, Zone 2, AQ, and normal lanes.
+- Added deterministic multi-alert conflict reporting in the reason panel and debug logs.
+- Added the `auto_refresh_ui_on_startup` option, enabled by default, to refresh HI UI mapping shortly after Home Assistant startup without blocking startup.
+- Removed the HACS URL from frontend dependency flow output while retaining HACS detection.
 - Fixed alert flash color payloads so internally triggered visual alerts send RGB lists accepted by Home Assistant service validation.
 - Added user-friendly headers to V2 card YAML exports with Manual-card paste instructions, `dump_cards` refresh guidance, and frontend dependency reminders.
 - Fixed alert flash payloads so optional visual-indicator power entities are omitted when unset, avoiding schema errors and repeated debug logs.
@@ -299,6 +488,7 @@ No unreleased changes.
 - Fixed alert boost hold behavior so selected alert zone outputs are not returned to auto while the alert lane is active.
 - Changed alert conflict handling to keep the current actionable alert boost until that originating alert clears, unless a higher-priority alert appears.
 - Changed unmapped/degraded alert handling so unsafe alert candidates are reported in the reason text while automation continues to the next eligible priority.
+- Added degraded-mode handling when an alert sensor, room, zone, or output mapping is incomplete.
 - Fixed built-in humidity, mould, and condensation alert candidates so they enter the alert lane, resolve to the mapped zone boost level, and populate `HI Active Alert Context` even when no matching explicit alert row is configured.
 - Fixed V2 alert chip detection so generated cards recognise real alert switch entity IDs and the active alert context companion chip.
 - Changed Humidity Danger alerts to use the active target profile high-risk threshold instead of any saved static humidity threshold.
@@ -316,6 +506,44 @@ No unreleased changes.
 
 ## 2.0.3
 
-- Previous documented release.
+- Promoted integration metadata to stable `2.0.3`.
+- Documented minimum Home Assistant version `2026.4.3`.
+- Added direct repository links for `card-mod`, `button-card`, `mod-card`, and `apexcharts-card` to frontend dependency status output.
+- Added a post-configuration Frontend Dependencies options step so dependency checks remain accessible after initial setup.
+- Reordered the options menu for setup-flow clarity: Frontend Dependencies, Sensors, then Global Gates.
+- Refreshed README frontend dependency guidance with a HACS-first installation path and acknowledgements.
+- Updated the top badges so HACS reads `Custom Integration` and Home Assistant compatibility is visible directly.
+
+## 2.0.2
+
+- Corrected humidity badge semantics to target-relative `below_target`, `in_target`, `above_target`, and `high_risk` states.
+- Surfaced the active target season/profile in the UI target display.
+- Updated condensation and mould risk evaluation to use season-aware deterministic thresholds.
+- Expanded humidifier telemetry reasons with lane scope, trigger condition, measured values versus thresholds, and recovery logic.
+- Added runtime debug logging for the active target profile, seasonal adjustments, humidity badge classification, and humidifier trigger/stop events.
+
+## 2.0.1
+
+- Fixed Fahrenheit telemetry normalization by converting internal temperature calculations to Celsius before averages, spreads, deltas, and thresholds.
+- Fixed IAQ/AQ aggregation so `unknown`, `unavailable`, and non-numeric states are excluded and the aggregate is unknown only when no valid values remain.
+- Added aggregate exclusion debug logging with explicit `unknown`, `unavailable`, `non_numeric`, and `unit_mismatch` reasons.
+- Added zone-mapping duplicate warnings in setup/options and a duplicate-diagnostics sensor state.
+- Added `alert_only_mode` for monitoring and alerts without output-control lanes.
+- Improved generated-UI placeholder pruning so unconfigured optional outputs and controls, including alert-only controls, are hidden.
+- Fixed alert-only card rendering by pruning invalid leftover `conditional` blocks after entity pruning.
+- Updated Current Air Control reason behavior so alert-only mode reports monitoring/alert context separately from output-control wording.
+- Made `alert_only_mode` option changes trigger UI card refresh/export regeneration and a notification.
+- Expanded options editing so previously skipped lanes and alerts can be revisited and added later.
+- Expanded post-configuration lane management so humidifier and AQ lanes can be restored after removal, with explicit telemetry add/update/remove logging.
+- Made alert target lights optional across config, options, services, and runtime; alerts remain active without flash entities.
+- Hardened service input validation for filenames, URL paths, layouts, and bounded flash parameters, and expanded diagnostics redaction for sensitive attributes.
+
+### Legacy migration notes
+
+- `alert_only_mode` is available under Global Gates in setup and options. Disable it to restore normal control entities and lane behavior.
+- `HI Zone Mapping Duplicates` (`hi_<entry_id>_zone_mapping_duplicates`) exposes duplicate zone-mapping status and details.
+- New computed sensors are `HI Active Target Season` (`hi_<entry_id>_target_season`) and `HI House Humidity State` (`hi_<entry_id>_house_humidity_state`).
+- Generated V2 cards prune unresolved optional control/output entities instead of leaving stale references.
+- Manual-card dashboards should use the latest exported YAML after changing `alert_only_mode` so the UI and reason panel match the selected mode.
 
 </details>

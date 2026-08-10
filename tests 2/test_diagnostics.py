@@ -13,6 +13,7 @@ from types import SimpleNamespace
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+INTEGRATION_ROOT = ROOT / "custom_components" / "humidity_intelligence"
 PKG = "hi_diag_testpkg"
 
 
@@ -100,7 +101,7 @@ def _install_package_scaffold() -> None:
 
     for sub in ("helpers",):
         mod = types.ModuleType(f"{PKG}.{sub}")
-        mod.__path__ = [str(ROOT / sub)]
+        mod.__path__ = [str(INTEGRATION_ROOT / sub)]
         sys.modules[f"{PKG}.{sub}"] = mod
 
 
@@ -116,15 +117,15 @@ def _load_module(name: str, path: pathlib.Path):
 def _load_diagnostics_module():
     _install_homeassistant_stubs()
     _install_package_scaffold()
-    _load_module(f"{PKG}.const", ROOT / "const.py")
-    level_labels_path = ROOT / "helpers" / "level_labels.py"
+    _load_module(f"{PKG}.const", INTEGRATION_ROOT / "const.py")
+    level_labels_path = INTEGRATION_ROOT / "helpers" / "level_labels.py"
     if level_labels_path.exists():
         _load_module(f"{PKG}.helpers.level_labels", level_labels_path)
-    _load_module(f"{PKG}.helpers.frontend_dependencies", ROOT / "helpers" / "frontend_dependencies.py")
-    _load_module(f"{PKG}.helpers.setup_assist", ROOT / "helpers" / "setup_assist.py")
-    _load_module(f"{PKG}.helpers.seasonal", ROOT / "helpers" / "seasonal.py")
-    _load_module(f"{PKG}.helpers.zone_validation", ROOT / "helpers" / "zone_validation.py")
-    return _load_module(f"{PKG}.diagnostics", ROOT / "diagnostics.py")
+    _load_module(f"{PKG}.helpers.frontend_dependencies", INTEGRATION_ROOT / "helpers" / "frontend_dependencies.py")
+    _load_module(f"{PKG}.helpers.setup_assist", INTEGRATION_ROOT / "helpers" / "setup_assist.py")
+    _load_module(f"{PKG}.helpers.seasonal", INTEGRATION_ROOT / "helpers" / "seasonal.py")
+    _load_module(f"{PKG}.helpers.zone_validation", INTEGRATION_ROOT / "helpers" / "zone_validation.py")
+    return _load_module(f"{PKG}.diagnostics", INTEGRATION_ROOT / "diagnostics.py")
 
 
 class _FakeState:
@@ -252,6 +253,24 @@ def _sample_hass():
         "runtime_reason": "Humidity danger in Kitchen.",
         "runtime_reason_full": None,
         "runtime_reason_truncated": False,
+        "runtime_display_reason": {
+            "schema": "hi.reason.v1",
+            "locale": "en",
+            "family": "alert",
+            "variant": "humidity_danger",
+            "attention": "critical",
+            "truncated": False,
+            "headline": "High humidity alert lane selected",
+            "lines": [
+                {
+                    "role": "why",
+                    "scope": "safety",
+                    "code": "alert.humidity_danger_selected",
+                    "truth": "selected",
+                    "text": "A configured humidity danger alert is selected.",
+                }
+            ],
+        },
         "alert_telemetry": [
             {
                 "trigger_type": "humidity_danger",
@@ -288,6 +307,16 @@ def test_native_diagnostics_payload_contains_support_sections():
     assert payload["configuration"]["selected_entity_summary"]["telemetry"]["count"] == 1
     assert payload["configuration"]["enabled_feature_areas"]["zone_control"] is True
     assert payload["runtime"]["active_lane"] == "alert"
+    assert payload["runtime"]["current_state"]["display_reason"] == {
+        "status": "valid",
+        "schema": "hi.reason.v1",
+        "family": "alert",
+        "variant": "humidity_danger",
+        "attention": "critical",
+        "truncated": False,
+        "line_count": 1,
+    }
+    assert "headline" not in payload["runtime"]["current_state"]["display_reason"]
     assert payload["runtime"]["gate_states"]["presence_gate"]["entity_status"]["by_status"]["unknown"] == 1
     assert payload["runtime"]["output_states"]["fan_outputs"]["by_status"]["unavailable"] == 1
     assert payload["frontend"]["dependency_status"]
@@ -308,7 +337,7 @@ def test_entity_status_summary_treats_blank_state_as_unknown():
 
 
 def test_manifest_declares_diagnostics_component_for_native_support():
-    manifest = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads((INTEGRATION_ROOT / "manifest.json").read_text(encoding="utf-8"))
     declared = set(manifest.get("dependencies", [])) | set(
         manifest.get("after_dependencies", [])
     )
@@ -371,10 +400,134 @@ def test_native_diagnostics_uses_sanitized_counts_status_not_raw_private_ids():
     assert unavailable["by_status"]["unavailable"] == 1
 
     mapped = payload["runtime"]["mapped_runtime_entities"]
-    assert mapped["air_control_mode"]["status"] == "available"
-    assert mapped["air_control_reason"]["status"] == "available"
-    assert mapped["zone_output"]["status"] == "unavailable"
+    assert mapped["count"] == 3
+    assert mapped["by_status"] == {
+        "available": 2,
+        "missing": 0,
+        "unknown": 0,
+        "unavailable": 1,
+    }
     assert "humidity danger in kitchen" not in json.dumps(mapped, sort_keys=True).lower()
+
+
+def test_native_diagnostics_never_emits_entity_id_shaped_mapping_keys():
+    diagnostics = _load_diagnostics_module()
+    hass = _sample_hass()
+    hass.data["humidity_intelligence"]["entry123"]["entity_map"] = {
+        "sensor.private_source": "sensor.air_control_mode",
+        "fan.private_output": "fan.kitchen_extract",
+        "runtime_mode": "sensor.air_control_mode",
+    }
+
+    payload = asyncio.run(
+        diagnostics.async_get_config_entry_diagnostics(hass, _sample_entry())
+    )
+    rendered = json.dumps(payload, sort_keys=True)
+    mapped = payload["runtime"]["mapped_runtime_entities"]
+
+    assert mapped == {
+        "count": 3,
+        "by_status": {
+            "available": 2,
+            "missing": 0,
+            "unknown": 0,
+            "unavailable": 1,
+        },
+    }
+    assert "sensor.private_source" not in rendered
+    assert "fan.private_output" not in rendered
+
+
+def test_native_diagnostics_reports_humidifier_reconciliation_without_output_ids():
+    diagnostics = _load_diagnostics_module()
+    hass = _sample_hass()
+    hass.data["humidity_intelligence"]["entry123"]["humidifier_reconciliation"] = {
+        "schema": 1,
+        "summary": {
+            "requested_lanes": 1,
+            "degraded_lanes": 0,
+            "unknown_lanes": 0,
+            "matched_outputs": 0,
+            "retrying_outputs": 1,
+            "faulted_outputs": 0,
+            "degraded_outputs": 0,
+            "unknown_outputs": 0,
+            "isolated_outputs": 0,
+            "ownership_conflicts": 0,
+        },
+        "outputs": {
+            "output_1": {
+                "domain": "humidifier",
+                "owners": ["level1"],
+                "configured_owners": ["level1"],
+                "desired": "on",
+                "observed": "off",
+                "platform_action": "not_exposed",
+                "reconciliation": "retrying",
+                "dispatch_result": "dispatched_unconfirmed",
+                "last_command_intent": "turn_on",
+                "last_dispatch_utc": "2026-07-30T12:00:00+00:00",
+                "attempts": 2,
+                "maximum_attempts": 3,
+                "mismatch_age_seconds": 45,
+                "failure_category": "confirmation_pending",
+                "fault_latched": False,
+                "ownership_conflict": None,
+                "history": [
+                    {
+                        "event": "dispatched_unconfirmed",
+                        "desired": "on",
+                        "observed": "off",
+                        "attempts": 2,
+                    }
+                ],
+            },
+            "humidifier.private_bedroom": {
+                "desired": "on",
+                "observed": "off",
+            },
+        },
+    }
+
+    payload = asyncio.run(
+        diagnostics.async_get_config_entry_diagnostics(hass, _sample_entry())
+    )
+    rendered = json.dumps(payload, sort_keys=True)
+    reconciliation = payload["runtime"]["humidifier_reconciliation"]
+
+    assert reconciliation["summary"]["retrying_outputs"] == 1
+    assert reconciliation["outputs"]["output_1"]["attempts"] == 2
+    assert "physical moisture production" in reconciliation["truth_boundary"]
+    assert "humidifier.private_bedroom" not in rendered
+    assert payload["diagnostics_summary"]["humidifier_reconciliation"] == reconciliation
+
+
+def test_native_diagnostics_warns_when_enabled_humidifier_truth_is_not_available():
+    diagnostics = _load_diagnostics_module()
+    entry = _sample_entry()
+    entry.data = copy.deepcopy(entry.data)
+    entry.data["humidifiers"] = {
+        "level1": {
+            "enabled": True,
+            "outputs": ["switch.private_humidifier"],
+            "band_adjust": 0,
+        }
+    }
+    hass = _sample_hass()
+    runtime = hass.data["humidity_intelligence"][entry.entry_id]
+    runtime["config"] = entry.data
+    runtime.pop("humidifier_reconciliation", None)
+
+    payload = asyncio.run(
+        diagnostics.async_get_config_entry_diagnostics(hass, entry)
+    )
+    reconciliation = payload["runtime"]["humidifier_reconciliation"]
+
+    assert reconciliation["status"] == "not_available"
+    assert any(
+        "runtime demand/output reconciliation truth is not available yet" in warning
+        for warning in payload["diagnostics_summary"]["warnings"]
+    )
 
 
 def test_native_diagnostics_sanitizes_duplicate_zone_mapping_evidence():

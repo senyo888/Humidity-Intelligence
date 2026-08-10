@@ -86,6 +86,10 @@ Humidity Intelligence is a deterministic Home Assistant environmental control en
 
 - HA Lab may be used as Operational Beta Validation Infrastructure for beta deploys, post-deploy read-only checks, diagnostics review, and generated-card/entity-map sanity evidence.
 - HA Lab evidence is advisory process evidence only. It is not release authority, runtime authority, stable Home Assistant authority, or a substitute for Bella, Aetherwing, AetherCore, and maintainer gates.
+- HA Lab evidence is optional and non-blocking. A pass, failure, blocked run, incomplete
+  playback matrix, missing soak, or absence of HA Lab evidence may inform risk notes,
+  but must never be treated as a promotion, merge, tag, GitHub Release, HACS
+  publication, or Stable-release gate.
 - HA Lab work must preserve source identity, exact version, target boundary, mutation classification, rollback evidence, and public/private documentation separation.
 - HA Lab validation must not authorize autonomous Home Assistant mutation, restarts, reloads, helper changes, dashboard mutation, output writes, stable runtime access, tags, releases, or PR merges.
 - Public docs and PRs may summarize HA Lab status in sanitized terms, but local reports, credentials, target URLs, private entity IDs, and machine-specific details must remain local-only.
@@ -93,6 +97,7 @@ Humidity Intelligence is a deterministic Home Assistant environmental control en
 ## Documentation and Release Expectations
 
 - Keep `README.md`, `manifest.json`, `hacs.json`, docs, release notes, UI examples, and runtime behavior aligned.
+- Keep the current candidate and current Stable release summaries expanded in the README `Release Notes` section. When a newer release takes either position, move the displaced summary into the collapsible `Previous Releases` container; retain that container as the canonical older-release structure. `CHANGELOG.md` remains the complete detailed release and legacy-migration history.
 - Keep the Wiki UI Gallery as a browseable mirror/index only; repository `ui-gallery/` remains canonical for reviewed YAML, preview assets, and contribution rules.
 - Update related docs when implementation behavior changes.
 - Treat completed milestones as completed. Do not leave shipped v2.0.5 functionality in planned, pending, or proposal-only roadmap buckets.

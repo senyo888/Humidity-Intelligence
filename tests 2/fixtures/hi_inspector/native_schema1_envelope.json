@@ -1,7 +1,7 @@
 {
   "custom_components": {
     "humidity_intelligence": {
-      "version": "2.0.9"
+      "version": "2.0.10"
     }
   },
   "data": {
@@ -50,7 +50,7 @@
       "diagnostics_schema": 1,
       "domain": "humidity_intelligence",
       "home_assistant_version": "2026.5.2",
-      "integration_version": "2.0.9",
+      "integration_version": "2.0.10",
       "native_home_assistant_diagnostics": true,
       "runtime_control_changed_by_diagnostics": false
     },
@@ -61,6 +61,15 @@
     "runtime": {
       "active_lane": "alert",
       "current_state": {
+        "display_reason": {
+          "attention": "critical",
+          "family": "alert",
+          "line_count": 1,
+          "schema": "hi.reason.v1",
+          "status": "valid",
+          "truncated": false,
+          "variant": "humidity_danger"
+        },
         "reason_available": true,
         "reason_truncated": false,
         "runtime_mode": "alert",
@@ -91,18 +100,13 @@
         }
       },
       "mapped_runtime_entities": {
-        "air_control_mode": {
-          "configured": true,
-          "status": "available"
+        "by_status": {
+          "available": 2,
+          "missing": 0,
+          "unavailable": 1,
+          "unknown": 0
         },
-        "air_control_reason": {
-          "configured": true,
-          "status": "available"
-        },
-        "zone_output": {
-          "configured": true,
-          "status": "unavailable"
-        }
+        "count": 3
       },
       "output_states": {
         "fan_outputs": {

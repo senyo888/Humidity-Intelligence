@@ -432,7 +432,7 @@ function validateNativeSummaryShapes(payload) {
     runtime.active_lane !== currentState.runtime_mode ||
     !isRecord(runtime.gate_states) ||
     !isRecord(runtime.output_states) ||
-    !isRecord(runtime.mapped_runtime_entities) ||
+    !isValidMappedRuntimeEntities(runtime.mapped_runtime_entities) ||
     !isValidStatusSummary(
       runtime.unavailable_or_unknown_entities,
       UNAVAILABLE_BUCKETS,
@@ -489,12 +489,7 @@ function validateNativeSummaryShapes(payload) {
     return false;
   }
 
-  return Object.values(runtime.mapped_runtime_entities).every(
-    (row) =>
-      isRecord(row) &&
-      typeof row.configured === "boolean" &&
-      STATUS_BUCKETS.includes(row.status),
-  );
+  return true;
 }
 
 function adaptDump(payload) {
@@ -575,6 +570,17 @@ function isValidStatusSummary(value, buckets) {
   return (
     buckets.reduce((total, bucket) => total + value.by_status[bucket], 0) ===
     value.count
+  );
+}
+
+function isValidMappedRuntimeEntities(value) {
+  if (isValidStatusSummary(value, STATUS_BUCKETS)) return true;
+  if (!isRecord(value)) return false;
+  return Object.values(value).every(
+    (row) =>
+      isRecord(row) &&
+      typeof row.configured === "boolean" &&
+      STATUS_BUCKETS.includes(row.status),
   );
 }
 
@@ -747,19 +753,25 @@ function notReportedOutputs() {
 }
 
 function mappedStatusSummary(value) {
-  const rows = Object.values(asRecord(value)).filter(isRecord);
-  const counts = {
-    available: 0,
-    missing: 0,
-    unknown: 0,
-    unavailable: 0,
+  if (!isValidStatusSummary(value, STATUS_BUCKETS)) {
+    const rows = Object.values(asRecord(value)).filter(isRecord);
+    const counts = {
+      available: 0,
+      missing: 0,
+      unknown: 0,
+      unavailable: 0,
+      other: 0,
+    };
+    for (const row of rows) {
+      if (STATUS_BUCKETS.includes(row.status)) counts[row.status] += 1;
+      else counts.other += 1;
+    }
+    return { total: rows.length, ...counts };
+  }
+  return {
+    ...statusSummary(value, STATUS_BUCKETS),
     other: 0,
   };
-  for (const row of rows) {
-    if (STATUS_BUCKETS.includes(row.status)) counts[row.status] += 1;
-    else counts.other += 1;
-  }
-  return { total: rows.length, ...counts };
 }
 
 function statusSummary(value, buckets) {

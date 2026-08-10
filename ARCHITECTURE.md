@@ -42,6 +42,29 @@ surface degraded context, and continue explainably.
 
 Humidifier lanes remain independent from ventilation lane resolution.
 
+Humidifier control has separate truth layers:
+
+- effective lane demand after runtime gates and before humidifier-output isolation
+- command intent and dispatch result
+- Home Assistant-observed output state
+- optional platform action when the entity domain exposes it
+- isolated, retrying, degraded, unknown, or fault-latched reconciliation state
+
+The existing humidifier-active helper entities represent effective demand only.
+They do not prove command completion, an `on` output, or physical moisture
+production. Configured humidifier outputs are observed directly and are aggregated
+before writes; when both humidifier lanes share an output, demand is OR-owned and the
+engine emits at most one non-conflicting command for that output per evaluation.
+
+Output state-change events request coalesced evaluation and the configured engine
+interval remains the periodic reconciliation safety net. Reconciliation is bounded:
+one immediate dispatch, two delayed retries, then a visible fault latch until demand
+changes or observed output truth recovers. Missing, unknown, unavailable, unsupported,
+isolated, cross-family-owned, or active cross-entry-owned outputs suppress blind
+turn-on behavior. A generic Home Assistant `on` state is only observed output truth;
+even an optional humidifier action attribute is platform-reported evidence, not proof
+of physical moisture production.
+
 ## Season-Aware Targets
 
 Humidity danger and comfort interpretation are profile-relative. Runtime thresholds
@@ -72,6 +95,51 @@ alter lane decisions. Red control-row styling is reserved for selected alert or 
 runtime truth; environmental risk readings may still show risk colors in telemetry
 chips without implying a selected command lane.
 
+The existing Current Air Control Reason entity may expose the additive
+`display_reason` attribute using the exact `hi.reason.v1` schema. That object is the
+backend-owned V2 reason-presentation authority and is built only after authoritative
+lane, gate, timer, helper, reconciliation, and output-selection work. Its presenter is
+pure, bounded to 4 KiB, and failure-isolated: invalid or failed presentation is
+omitted while the existing technical state, `full_reason`, truncation behavior, and
+`humidifier_status` remain available as the compatibility fallback.
+
+The exact top-level object contains only required fields `schema`, `locale`, `family`,
+`variant`, `attention`, `truncated`, `headline`, and `lines`. `schema` is
+`hi.reason.v1`; `locale` is `en`; attention is `neutral`, `active`, `hold`,
+`degraded`, `critical`, or `unknown`. Each ordered line contains required `role`,
+`scope`, `code`, `truth`, and `text`, plus optional `args`. Roles are `why`, `action`,
+`next`, and `notice`; scopes are `system`, `safety`, `ventilation`, and `humidifier`;
+truth values are `selected`, `blocked`, `requested`, `observed`, `unavailable`,
+`unmapped`, `not_confirmed`, and `failed`.
+
+The contract targets six lines and permits no more than eight. Headline text is
+bounded to 120 characters and each line to 200; family, variant, and argument-key
+tokens are at most 64 characters, dotted line codes are at most 96, each line permits
+six JSON-scalar arguments, and string argument values are at most 64 characters. The
+serialized object is limited to 4 KiB. Normalized text rejects control characters,
+the markup delimiters `<`, `>`, and backtick, and raw entity IDs. One line represents
+one role and one truth; cause and
+action remain separate, and every retained line must be semantically complete if
+bounded compaction removes its neighbours.
+
+Schema-1 cards render final backend-authored headline and line text. They may validate
+schema support, escape text, and fall back atomically, but must not reconstruct prose
+from codes/arguments or add independent Stage, risk, timer, isolation, or Engine
+explanations. Ventilation output wording must remain selection truth unless dispatch
+and observation are separately proven. Humidifier wording may use its stronger
+reconciliation evidence while preserving the physical-moisture caveat.
+
+The title-case card chip `Requested` means effective backend humidification demand;
+it does not prove a service call, output state, or physical moisture. It must not be
+conflated with line truth `requested`, which means the backend recorded handoff to
+Home Assistant without an immediate exception. Neither namespace proves physical
+moisture production.
+
+Unavailable-only presence evidence is presented as degraded
+`presence_unavailable`, not confirmed absence. The v2.0.10 contract preserves the
+existing fail-closed gate effect and CO bypass; changing presence unknown-policy is a
+separate runtime decision.
+
 ## Safe Degradation
 
 Unknown, unavailable, incomplete, or unmapped inputs must degrade safely and
@@ -94,25 +162,26 @@ Contextless background automation/script calls are intentionally rejected. Suppo
 external use originates from an authenticated admin UI or API session; any future
 automated trusted route requires separate design approval.
 
-First-run dashboard creation may use a trusted internal setup helper only after the
-user explicitly selects dashboard creation in config flow. First-run card export,
-option-triggered regeneration, and release-check test exports use a separate trusted
-internal card exporter so admin-gating the public `dump_cards` and `view_cards`
-handlers does not break integration-owned continuity. Startup refresh remains
-cache-only and does not claim a filesystem export. Neither helper is exposed as a
-contextless service bypass. The config entry records a dashboard identifier only
-after registration succeeds. Dashboard creation authorization is separate from later
-dashboard visibility.
+`create_dashboard` is retained as an admin-gated compatibility service but is a
+guidance-only fail-safe: after authorization it raises deterministic `refresh_ui`,
+`view_cards`, and Manual-card instructions before mapping, rendering, filesystem
+access, or Lovelace imports. First-run card export, option-triggered regeneration, and
+release-check test exports use the trusted internal card exporter so admin-gating the
+public `dump_cards` and `view_cards` handlers does not break integration-owned
+continuity. Startup refresh remains cache-only and does not claim a filesystem export.
+New setup does not offer dashboard creation. Legacy `create_dashboard` selections and
+`ui_dashboard_id` values are inert compatibility data and require no migration.
 
 Runtime-owned visual alerts call a separate trusted internal flashing helper after
 the deterministic engine has selected an alert lane. The public `flash_lights`
 service is admin-gated and is not the engine's control path; it cannot create,
 reorder, or override a lane decision.
 
-Generated-artifact purge must validate its full fixed target set before mutation,
-show the exact existing file and configured dashboard targets in a completed blocking
-notification before deletion, reject paths outside the direct owned basename set and
-non-regular filesystem objects, and report partial failures truthfully.
+Generated-artifact purge must validate its full fixed file target set before mutation,
+show the exact existing files in a completed blocking notification before deletion,
+reject paths outside the direct owned basename set and non-regular filesystem objects,
+and report partial failures truthfully. Home Assistant dashboards are user-managed and
+must never be inferred as HI-owned, previewed, or deleted from legacy stored IDs.
 
 Caller-selectable diagnostics and release-check report basenames must match
 `humidity_intelligence_*.json` and are written only inside the owned
@@ -127,7 +196,7 @@ destination. Entry-scoped purge owns no export report. Only an unscoped all-entr
 purge may remove the exact default diagnostics and fixed self-check exports;
 release-check, custom, and legacy config-root reports remain retained.
 
-Generated card YAML is written only inside
+Generated Manual-card YAML fragments are written only inside
 `<config>/humidity_intelligence/ui/`. Directory verification, creation, temporary
 writes, atomic replacement, and cleanup are descriptor-relative and no-follow,
 reject symlink and non-regular targets, revalidate directory/file identity, and fail
@@ -139,12 +208,12 @@ Adding a second entry re-exports every loaded entry with qualified names; removi
 back to one entry re-exports the remaining entry with unqualified names. Superseded
 owned-UI names are retained non-destructively, are no longer refreshed by HI, and
 remain externally readable until an exact purge. Config-entry removal owns only the
-removed entry's exact default/release-test UI exports and registered dashboard; it
-does not own reports, custom card exports, or legacy root files. When removal returns
+removed entry's exact default/release-test UI exports; it does not own Home Assistant
+dashboards, reports, custom card exports, or legacy root files. When removal returns
 a multi-entry installation to one entry, the remaining entry's qualified files stay
-retained while fresh unqualified exports are written.
-Registered Lovelace dashboard YAML remains separately owned at
-`<config>/dashboards/<url_path>.yaml`.
+retained while fresh unqualified exports are written. Card exports are not complete
+dashboard documents and must not be written to `<config>/dashboards/`; dashboard
+creation, registration, editing, and deletion stay within Home Assistant's UI.
 
 Dynamic state or attribute text rendered through generated-card HTML must be escaped
 at the HTML sink. The V1 Mobile presentation remains available but deprecated through
@@ -158,7 +227,18 @@ versions.
 
 Avoid blocking filesystem, network, or slow I/O work in async Home Assistant paths.
 Keep service schemas explicit and error messages actionable. Keep `hacs.json` limited
-to HACS-supported keys and keep integration metadata in `manifest.json`.
+to HACS-supported keys and keep integration metadata in
+`custom_components/humidity_intelligence/manifest.json`.
+
+The installable integration package is tracked under
+`custom_components/humidity_intelligence/`, which is the conventional HACS integration
+layout. HACS must install that package only; repository documentation, tests, scripts,
+site files, legacy material, and `ui-gallery/` remain repository surfaces rather than
+Home Assistant runtime payload. Custom-integration branding is packaged only as
+`custom_components/humidity_intelligence/brand/icon.png` and `brand/logo.png` inside
+that component. The repository-root `brand/` pair is the authoring source; the
+component pair is its byte-identical release/install mirror, not a second authoring
+location.
 
 ## Documentation And Release Boundaries
 
@@ -170,3 +250,10 @@ Release truth must remain in tracked repository files, release notes, and Home
 Assistant metadata. Private maintenance evidence and ignored local planning surfaces
 may support review, while release approval, runtime behavior, and tracked validation
 stay with the canonical repository surfaces.
+
+HA Lab evidence is optional advisory operational evidence. Its presence, absence,
+failure, blocked status, incomplete scenario coverage, or soak state may be recorded
+as risk context, but none of those states is a promotion or release veto. Promotion,
+tagging, GitHub Release publication, HACS publication, and Stable approval are decided
+only by the canonical tracked validation, review, version-governance, CI, and explicit
+maintainer gates documented for the release scope.

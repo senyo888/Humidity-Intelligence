@@ -32,10 +32,11 @@ PUBLISHED_V208_BANNER_SHA256 = (
 )
 MAIN_MANIFEST_BADGE_SOURCE = (
     "raw.githubusercontent.com%2Fsenyo888%2FHumidity-Intelligence%2Fmain"
-    "%2Fmanifest.json"
+    "%2Fcustom_components%2Fhumidity_intelligence%2Fmanifest.json"
 )
 MAIN_MANIFEST_LINK = (
-    "https://github.com/senyo888/Humidity-Intelligence/blob/main/manifest.json"
+    "https://github.com/senyo888/Humidity-Intelligence/blob/main/"
+    "custom_components/humidity_intelligence/manifest.json"
 )
 
 

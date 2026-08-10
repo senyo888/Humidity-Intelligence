@@ -38,6 +38,24 @@
         "reason": "Synthetic fixture",
         "status": "not_inspectable"
       },
+      "humidifier_reconciliation": {
+        "outputs": {},
+        "schema": 1,
+        "status": "not_available",
+        "summary": {
+          "degraded_lanes": 0,
+          "degraded_outputs": 0,
+          "faulted_outputs": 0,
+          "isolated_outputs": 0,
+          "matched_outputs": 0,
+          "ownership_conflicts": 0,
+          "requested_lanes": 0,
+          "retrying_outputs": 0,
+          "unknown_lanes": 0,
+          "unknown_outputs": 0
+        },
+        "truth_boundary": "Observed output state and optional platform action are Home Assistant evidence only; they do not prove physical moisture production."
+      },
       "humidity_drift_7d": {
         "available": false,
         "dependency_entity": "sensor.house_humidity_mean_7d",
@@ -112,7 +130,8 @@
       "visual_alert_count": 1,
       "warnings": [
         "16 configured/mapped entity references are missing, unknown, or unavailable.",
-        "HI House Humidity Drift 7d is unavailable because required statistics dependency sensor.house_humidity_mean_7d is missing."
+        "HI House Humidity Drift 7d is unavailable because required statistics dependency sensor.house_humidity_mean_7d is missing.",
+        "Humidifier lanes are enabled, but runtime demand/output reconciliation truth is not available yet."
       ],
       "zone_mapping_count": 2,
       "zone_mapping_duplicates": {
@@ -121,13 +140,7 @@
       }
     },
     "entity_map_summary": {
-      "mapped_entity_count": 4,
-      "mapped_keys": [
-        "air_control_mode",
-        "air_control_reason",
-        "fan_output",
-        "optional_output"
-      ]
+      "mapped_entity_count": 4
     },
     "state_summary": {
       "by_status": {

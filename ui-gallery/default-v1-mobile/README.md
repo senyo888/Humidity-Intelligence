@@ -1,11 +1,12 @@
 # Default V1 Mobile (Deprecated)
 
 - Status: deprecated in v2.0.9; retained through the v2.0.9 line
-- Replacement: V2 Mobile (`ui/cards/v2_mobile.yaml`)
+- Replacement: V2 Mobile
+  (`custom_components/humidity_intelligence/ui/cards/v2_mobile.yaml`)
 - Style: legacy-compatible mobile layout with comfort band and humidity constellation
 - Optimised for: phones and users keeping a V1-style dashboard presentation
 - Author: @senyo888
-- Source template: `ui/cards/v1_mobile.yaml`
+- Source template: `custom_components/humidity_intelligence/ui/cards/v1_mobile.yaml`
 - Required custom cards: `card-mod`, `button-card`, `mod-card`, `apexcharts-card`
 
 [![Default V1 Mobile preview](preview.png)](preview.png)
