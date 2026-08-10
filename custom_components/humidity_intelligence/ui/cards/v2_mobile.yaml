@@ -1866,6 +1866,7 @@ card:
               - "-webkit-backdrop-filter": blur(12px)
             grid:
               - grid-template-areas: '"gauge" "n"'
+              - grid-template-columns: 1fr
               - grid-template-rows: 86px min-content
               - row-gap: 0
             name:

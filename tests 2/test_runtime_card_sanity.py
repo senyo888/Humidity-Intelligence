@@ -3571,6 +3571,10 @@ def test_default_public_card_surfaces_use_passive_stability_badge_instead_of_pau
             missing_stability_markers.append(
                 f"{path.relative_to(ROOT)}: Stability position differs from the proven centred layout"
             )
+        if "- grid-template-columns: 1fr" not in stability_block:
+            missing_stability_markers.append(
+                f"{path.relative_to(ROOT)}: Stability gauge lacks its explicit full-width grid column"
+            )
         for marker in ("- align-self: stretch", "- justify-self: stretch"):
             if marker in stability_block:
                 missing_stability_markers.append(
