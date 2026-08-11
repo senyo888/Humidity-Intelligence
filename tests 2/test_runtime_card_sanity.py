@@ -4040,6 +4040,11 @@ def test_v2011_public_release_surfaces_track_post_merge_prepublication_state():
     assert "v2.0.11 release source is now on `main`" in normalized_changelog
     assert "exact-package identity and restart validation" in normalized_changelog
     assert (
+        "independent or maintainer adjudication of PR `#109`'s missing "
+        "approving review"
+        in normalized_changelog
+    )
+    assert (
         "The release source is now on `main` after PR `#109`"
         in normalized_governance
     )

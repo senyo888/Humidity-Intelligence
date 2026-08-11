@@ -18,7 +18,8 @@ This project follows a practical changelog format for Home Assistant and HACS us
   compatibility range through v2.0.11 beta/rc/stable versions. This is release
   preparation only: the v2.0.11 release source is now on `main`, but it must not be
   tagged or published until exact-package identity and restart validation, generated
-  release-check review, fresh Mobile and Tablet export validation, Bella verification,
+  release-check review, fresh Mobile and Tablet export validation, independent or
+  maintainer adjudication of PR `#109`'s missing approving review, Bella verification,
   AetherCore governance verification, release-sanity validation, and maintainer README
   approval are complete. v2.0.10 remains the published Stable release until the
   v2.0.11 tag, GitHub Release, and HACS publication are complete.
