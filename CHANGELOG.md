@@ -12,6 +12,13 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 [![Latest Release](https://img.shields.io/github/v/release/senyo888/Humidity-Intelligence?display_name=tag&sort=semver)](https://github.com/senyo888/Humidity-Intelligence/releases) [![Project Site](https://img.shields.io/badge/Project%20Site-GitHub%20Pages-5aa8d6)](https://senyo888.github.io/humidity-intelligence/) [![License](https://img.shields.io/github/license/senyo888/Humidity-Intelligence)](LICENSE) [![Sponsor](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/senyo888) [![Star Humidity Intelligence](https://img.shields.io/badge/Star%20%2F%20Support-Humidity%20Intelligence-2ea44f?logo=github&logoColor=white)](https://github.com/senyo888/humidity-intelligence)
 
+- Added a `senyo888-patch-1`-only deterministic package workflow for the separately
+  governed HI Lab Controller. It builds from exact tracked Git blobs, emits a strict
+  file/hash manifest, reproduces the package before upload, retains the immutable
+  Actions artifact for seven days, and attaches GitHub provenance to the manifest.
+  This adds no Humidity Intelligence runtime, entity, service, dashboard, HACS,
+  version, installation, deployment, rollback, tag, release, or Stable behavior.
+
 - Prepared **Poetic Justice**, stable maintenance identity `2.0.11`, for the bounded
   post-v2.0.10
   Stability badge correction and extended the existing `v205_release_check`

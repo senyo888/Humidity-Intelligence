@@ -119,6 +119,9 @@ class WorkflowConfigurationTests(unittest.TestCase):
         )
 
         self.assertIn(
+            'python "tests 2/test_controller_package.py"', workflow
+        )
+        self.assertIn(
             'node --test "tests 2/test_reason_card_renderer.mjs"', workflow
         )
         self.assertIn(

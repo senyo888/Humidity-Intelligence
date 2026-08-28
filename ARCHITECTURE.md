@@ -240,6 +240,14 @@ that component. The repository-root `brand/` pair is the authoring source; the
 component pair is its byte-identical release/install mirror, not a second authoring
 location.
 
+The branch-bound controller package workflow is an external validation-artifact lane,
+not a second HI installation or release path. It may reproduce the exact tracked
+component from `senyo888-patch-1` with a strict manifest and short retention, but it
+cannot publish a GitHub Release, change HACS availability, install or deploy HI, define
+rollback, or transfer HI runtime and release authority to the external controller.
+The public repository, manifest, tag, GitHub Release, HACS package, and explicit
+maintainer gates retain their existing roles.
+
 ## Documentation And Release Boundaries
 
 When architecture, runtime behavior, security posture, release flow, contributor

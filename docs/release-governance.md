@@ -30,6 +30,13 @@ GitHub CI, the required review gates, and explicit maintainer approval. Local
 operational evidence does not replace or become part of the tracked public
 correctness contract.
 
+The short-lived deterministic package produced by
+`.github/workflows/controller-package.yml` is a separately bounded external-validation
+artifact. Its presence, digest, or attestation does not create a tag, GitHub Release,
+HACS publication, install, deployment, rollback, Stable state, or release approval.
+See [Deterministic controller package artifact](controller-package-artifact.md) for
+its exact source, retention, content, provenance, and rollback boundaries.
+
 ## v2.0.10 Publication And v2.0.11 Maintenance Path
 
 The v2.0.10 tag and non-prerelease GitHub Release were published on 2026-08-10 from
