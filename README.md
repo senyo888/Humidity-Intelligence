@@ -57,10 +57,11 @@ It gives you:
 - native Home Assistant diagnostics for support and triage
 - services for dashboard export, self-check, diagnostics, pause/resume, and release validation
 
-Current development manifest version: **v2.0.12-beta.1**. This candidate corrects the
+Current development manifest version: **v2.0.12-beta.2**. This candidate corrects the
 configured time gate to use Home Assistant local time, makes timer countdown updates
-lifecycle-safe, and extends the existing release-check contract through v2.0.12. It is
-not a published release. The current published Stable GitHub Release and tag are
+lifecycle-safe, aligns setup assistance with Home Assistant 2026.9 child-device Area
+inheritance, and extends the existing release-check contract through v2.0.12. It is not
+a published release. The current published Stable GitHub Release and tag are
 **v2.0.11**, published on 11 August 2026. Humidity Intelligence is included in the
 HACS default repository and is available directly in HACS; HACS still installs only a
 published GitHub Release version.
@@ -444,9 +445,10 @@ must be reviewable from tracked repository files.
 
 ## Current Release Highlights
 
-- the `2.0.12-beta.1` maintenance candidate uses Home Assistant local time for the
+- the `2.0.12-beta.2` maintenance candidate uses Home Assistant local time for the
   configured time gate and gives HI timer entities lifecycle-owned, at-most-once-per-
-  minute countdown updates without changing their IDs or `active`/`idle` states
+  minute countdown updates without changing their IDs or `active`/`idle` states; it
+  also aligns setup assistance with Home Assistant 2026.9 child-device Area inheritance
 - the published `2.0.11` Stable release restores the established centred, passive
   Stability preview badge and six-second breathing treatment without calculating a
   score in the card or changing control behaviour
@@ -1212,7 +1214,7 @@ CO emergency pressure. Details are in
 
 ![Humidity Intelligence v2.0.12 release header celebrating repository-level HACS inclusion](assets/release_banner/v2.0.12_release.png)
 
-- carries development manifest identity `2.0.12-beta.1`; this is release preparation,
+- carries development manifest identity `2.0.12-beta.2`; this is release preparation,
   not a published GitHub Release or an HACS-offered v2.0.12 package
 - celebrates completed inclusion of Humidity Intelligence in the HACS default
   integration repository; the button opens the repository in HACS and the user still

@@ -10,9 +10,9 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ![Humidity Intelligence v2.0.12 release header celebrating repository-level HACS inclusion](assets/release_banner/v2.0.12_release.png)
 
-- Advanced development identity to `2.0.12-beta.1` for the bounded maintenance
-  candidate. This candidate is not a published GitHub Release or an HACS-offered
-  v2.0.12 package.
+- Advanced development identity to `2.0.12-beta.2` so the Home Assistant 2026.9
+  alignment remains distinct from the earlier beta.1 testing bytes. This candidate
+  is not a published GitHub Release or an HACS-offered v2.0.12 package.
 - Recorded completed inclusion in the HACS default integration repository, added the
   official My Home Assistant repository button, and replaced normal first-install
   custom-repository instructions with the default-store search and download path.
@@ -36,6 +36,11 @@ This project follows a practical changelog format for Home Assistant and HACS us
 - Kept native diagnostics schema `1`, redaction, aggregate mapped-entity privacy, and
   Inspector compatibility unchanged. The installed integration version continues to
   come from `manifest.json` after the updated package is loaded.
+- Aligned setup assistance with Home Assistant 2026.9 child-device Area inheritance:
+  it now uses the supported Area Registry lookup and inherits a parent device's Area
+  when the child has no Area of its own. Missing, broken, nested, cyclic, or incomplete
+  parent metadata produces no inherited Area suggestion, and manual HI mapping remains
+  authoritative.
 - Added the v2.0.12 release header and aligned README, Pages source, release/user
   checklists, support diagnostics guidance, and issue forms with current HACS and
   v2.0.11 publication truth. Generated-card, gallery-card, and Stability bytes

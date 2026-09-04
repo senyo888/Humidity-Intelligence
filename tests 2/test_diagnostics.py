@@ -49,6 +49,13 @@ def _install_homeassistant_stubs() -> None:
         def async_get(self, key):
             return self._entries.get(key)
 
+    class _AreaRegistry:
+        def __init__(self, entries):
+            self._entries = dict(entries)
+
+        def async_get_area(self, key):
+            return self._entries.get(key)
+
     def async_redact_data(data, to_redact):
         redact = {str(item).lower() for item in to_redact}
 
@@ -70,7 +77,7 @@ def _install_homeassistant_stubs() -> None:
     const.__version__ = "2026.5.2"
     const.UnitOfTemperature = UnitOfTemperature
     lovelace_const.LOVELACE_DATA = "lovelace"
-    area_registry.async_get = lambda hass: _Registry(getattr(hass, "areas", {}))
+    area_registry.async_get = lambda hass: _AreaRegistry(getattr(hass, "areas", {}))
     device_registry.async_get = lambda hass: _Registry(getattr(hass, "devices", {}))
     entity_registry.async_get = lambda hass: _Registry(getattr(hass, "entities", {}))
     label_registry.async_get = lambda hass: _Registry(getattr(hass, "labels", {}))
@@ -303,7 +310,7 @@ def test_native_diagnostics_payload_contains_support_sections():
     )
 
     assert payload["integration"]["domain"] == "humidity_intelligence"
-    assert payload["integration"]["integration_version"] == "2.0.12-beta.1"
+    assert payload["integration"]["integration_version"] == "2.0.12-beta.2"
     assert payload["integration"]["diagnostics_schema"] == 1
     assert payload["integration"]["home_assistant_version"] == "2026.5.2"
     assert payload["configuration"]["selected_entity_summary"]["telemetry"]["count"] == 1
