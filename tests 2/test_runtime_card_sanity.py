@@ -3991,13 +3991,14 @@ def test_readme_uses_manifest_version_badge_not_static_ha_compatibility_badge():
     assert "Home%20Assistant-2026.4.3%2B" not in readme_source
 
 
-def test_readme_keeps_candidate_and_published_stable_before_previous_releases():
+def test_readme_keeps_current_and_previous_stable_before_previous_releases():
     readme_source = (ROOT / "README.md").read_text()
     release_notes = readme_source.split("## Release Notes", 1)[1]
     visible_notes, previous_releases = release_notes.split("<details>", 1)
 
-    assert "### v2.0.11 — Poetic Justice (Maintenance candidate; not published)" in visible_notes
-    assert "### v2.0.10 (Published Stable)" in visible_notes
+    assert "### v2.0.11 — Poetic Justice (Current Published Stable)" in visible_notes
+    assert "### v2.0.10 (Previous Published Stable)" in visible_notes
+    assert "was published on 11 August 2026" in visible_notes
     assert "was published on 2026-08-10" in visible_notes
     assert "### v2.0.9" not in visible_notes
     assert "### v2.0.8" not in visible_notes
@@ -4015,9 +4016,15 @@ def test_readme_keeps_candidate_and_published_stable_before_previous_releases():
         b"\x89PNG\r\n\x1a\n"
     )
     assert "<summary>Previous Releases</summary>" in previous_releases
+    assert (
+        "https://my.home-assistant.io/redirect/hacs_repository/"
+        "?owner=senyo888&repository=humidity-intelligence&category=integration"
+        in readme_source
+    )
+    assert "it does not install automatically" in readme_source
 
 
-def test_v2011_public_release_surfaces_track_post_merge_prepublication_state():
+def test_v2011_public_release_surfaces_track_published_stable_and_hacs_truth():
     readme_source = (ROOT / "README.md").read_text()
     release_notes = readme_source.split("## Release Notes", 1)[1]
     visible_notes = release_notes.split("<details>", 1)[0]
@@ -4028,41 +4035,17 @@ def test_v2011_public_release_surfaces_track_post_merge_prepublication_state():
     normalized_changelog = " ".join(changelog_source.split())
     normalized_governance = " ".join(release_governance.split())
 
-    assert "v2.0.11 release source is now on `main`" in normalized_readme
-    assert "must not be tagged or published until exact-package" in normalized_readme
-    assert "generated release-check review" in normalized_readme
-    assert "Bella verification" in normalized_readme
-    assert "AetherCore governance verification" in normalized_readme
-    assert "release-sanity validation" in normalized_readme
-    assert "maintainer README approval" in normalized_readme
-    assert "its release source is now on `main`" in normalized_visible_notes
-    assert "promotion to `main`" not in normalized_visible_notes
-    assert "v2.0.11 release source is now on `main`" in normalized_changelog
-    assert "exact-package identity and restart validation" in normalized_changelog
-    assert (
-        "independent or maintainer adjudication of PR `#109`'s missing "
-        "approving review"
-        in normalized_changelog
-    )
-    assert (
-        "The release source is now on `main` after PR `#109`"
-        in normalized_governance
-    )
-    assert "GitHub Release draft is release preparation only" in normalized_governance
-    assert "merged without a recorded approving review" in normalized_governance
-    assert (
-        "review-gate exception also requires explicit independent or maintainer "
-        "adjudication before tag or publication"
-        in normalized_governance
-    )
-    assert (
-        "Bella verification, AetherCore governance verification, release-sanity "
-        "validation, and maintainer README approval remain hard pre-tag gates"
-        in normalized_governance
-    )
-    assert "until the separate v2.0.11 promotion" not in normalized_readme
-    assert "v2.0.11 promotion, tag, GitHub Release" not in normalized_changelog
-    assert "before `develop` to `main` promotion" not in normalized_governance
+    assert "Current integration manifest version: **v2.0.11**" in normalized_readme
+    assert "current Published Stable GitHub Release and tag" in normalized_readme
+    assert "included in the HACS default integration repository" in normalized_readme
+    assert "current published Stable release" in normalized_visible_notes
+    assert "0dd3e68ab9f35608641dc64efc4b2c4bfacb06ce" in normalized_visible_notes
+    assert "## 2.0.11 - 2026-08-11" in changelog_source
+    assert "Published **Poetic Justice**, stable identity `2.0.11`" in normalized_changelog
+    assert "Published Stable is `2.0.11`" in normalized_governance
+    assert "## v2.0.11 Publication Record" in release_governance
+    assert "v2.0.11 release source is now on `main`" not in normalized_readme
+    assert "GitHub Release draft is release preparation only" not in normalized_governance
 
 
 def test_dump_cards_without_layout_exports_all_cached_layouts():

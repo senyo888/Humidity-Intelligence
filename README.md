@@ -8,7 +8,7 @@
 
 [![Latest Release](https://img.shields.io/github/v/release/senyo888/Humidity-Intelligence?display_name=tag&sort=semver)](https://github.com/senyo888/Humidity-Intelligence/releases)
 [![Project Site](https://img.shields.io/badge/Project%20Site-GitHub%20Pages-5aa8d6)](https://senyo888.github.io/humidity-intelligence/)
-[![HACS](https://img.shields.io/badge/HACS-Custom%20Integration-orange)](https://hacs.xyz)
+[![HACS — Available in HACS](https://img.shields.io/badge/HACS-Available%20in%20HACS-41BDF5?logo=home-assistant&logoColor=white)](https://my.home-assistant.io/redirect/hacs_repository/?owner=senyo888&repository=humidity-intelligence&category=integration)
 [![Manifest Version](https://img.shields.io/badge/dynamic/json?label=Manifest%20Version&query=%24.version&url=https%3A%2F%2Fraw.githubusercontent.com%2Fsenyo888%2FHumidity-Intelligence%2Fmain%2Fcustom_components%2Fhumidity_intelligence%2Fmanifest.json&color=blue)](https://github.com/senyo888/Humidity-Intelligence/blob/main/custom_components/humidity_intelligence/manifest.json)
 [![License](https://img.shields.io/github/license/senyo888/Humidity-Intelligence)](LICENSE)
 [![Sponsor](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/senyo888)
@@ -53,17 +53,14 @@ It gives you:
 - season-aware humidity targets
 - deterministic lane priority
 - safe degraded behavior when inputs are missing
-- generated Lovelace dashboards backed by runtime truth
+- exported Lovelace Manual-card YAML backed by runtime truth
 - native Home Assistant diagnostics for support and triage
 - services for dashboard export, self-check, diagnostics, pause/resume, and release validation
 
-Current maintenance-candidate manifest version: **v2.0.11**. The v2.0.11 release
-source is now on `main`, but it must not be tagged or published until exact-package
-identity and restart validation, generated release-check review, fresh Mobile and
-Tablet export validation, Bella verification, AetherCore governance verification,
-release-sanity validation, and maintainer README approval are complete. The published
-Stable GitHub Release and tag remain **v2.0.10** until the v2.0.11 tag, GitHub Release,
-and HACS availability are complete. Check HACS for installed-package availability.
+Current integration manifest version: **v2.0.11**. It is the current Published Stable
+GitHub Release and tag, published on 11 August 2026. Humidity Intelligence is included
+in the HACS default integration repository and is available directly in HACS; HACS
+installs published GitHub Release versions.
 
 Optional HA Lab evidence is advisory and does not block promotion, tagging, or
 publication.
@@ -308,7 +305,7 @@ The architectural preference is calm regulation over automation chaos:
 - CO emergency and alert hierarchy before comfort correction
 - humidifier lanes kept independent from ventilation resolution
 - global gates and overrides visible when they suppress control
-- generated dashboards aligned with backend truth only
+- exported Manual-card YAML aligned with backend truth only
 - safe degraded behavior before blind output writes
 
 The result should feel steady in a domestic environment: readable, conservative, and accountable when conditions change.
@@ -444,10 +441,10 @@ must be reviewable from tracked repository files.
 
 ## Current Release Highlights
 
-- the `2.0.11` maintenance candidate restores the established centred, passive
+- the published `2.0.11` Stable release restores the established centred, passive
   Stability preview badge and six-second breathing treatment without calculating a
   score in the card or changing control behaviour
-- the published `2.0.10` Stable release adds deterministic humidifier-output
+- the previous published `2.0.10` Stable release adds deterministic humidifier-output
   reconciliation and backend-authored `hi.reason.v1` explanations while preserving
   one selected ventilation lane, the existing lane order, thresholds, configuration,
   stored data, and entity identity
@@ -455,9 +452,9 @@ must be reviewable from tracked repository files.
   humidifier chips in one horizontally scrollable Current Air Control row;
   `On` and `Requested` are cyan; `Idle`, `Retrying`, `Stopping`, and `Isolated` are
   amber; `Fault` and `Degraded` are red; and `Unknown` is grey
-- the v2.0.10 GitHub Release and tag were published from exact `main` commit
-  `02b0f17291c7996aca793a8807a5830ede768013`; GitHub Releases and HACS remain the
-  authoritative publication and installed-package records
+- Humidity Intelligence is included in the HACS default integration repository; the
+  official My Home Assistant button below opens this repository in HACS, while GitHub
+  Releases and the installed Home Assistant package remain the version records
 - the browser-local
   [HI Support Bundle Inspector](https://senyo888.github.io/humidity-intelligence/inspector/)
   provides an optional inspect-before-sharing preflight: diagnostics content stays
@@ -507,7 +504,7 @@ must be reviewable from tracked repository files.
 - local issue-triage private report writing is confined through the private atomic
   writer, keeping public issue/support flows separate from local report output
 - the tracked secret scan now fails closed when no tracked files are selected
-- `v205_release_check` preserves its service name; the stable release source
+- `v205_release_check` preserves its service name; the published package
   extends its generated-card, humidifier-reconciliation, and release-validation
   contract through the v2.0.11 beta/rc/stable line
 - Home Assistant Area/Label setup assistance can suggest defaults from registry
@@ -556,19 +553,23 @@ option changes. `refresh_ui` updates HI's live card cache;
 
 Requires Home Assistant **2026.5.1** or newer.
 
+[![Open your Home Assistant instance and open Humidity Intelligence inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=senyo888&repository=humidity-intelligence&category=integration)
+
+The button opens Humidity Intelligence in HACS; it does not install automatically.
+Select **Download** in HACS, then continue with the restart and integration setup
+steps below.
+
 The repository uses the conventional HACS integration layout under
 `custom_components/humidity_intelligence/`. HACS installs that package directory only;
 repository documentation, tests, scripts, site files, legacy material, and UI Gallery
 examples are not included in the Home Assistant integration payload.
 
-1. Add custom repository:
-   `https://github.com/senyo888/Humidity-Intelligence`
-   Category: Integration
-2. Install **Humidity Intelligence**
-3. Restart Home Assistant
-4. Go to Settings -> Devices & Services -> Add Integration
-5. Search for **Humidity Intelligence**
-6. Begin configuration
+1. Open HACS in Home Assistant.
+2. Search for **Humidity Intelligence**, filtering by **Integration** if needed.
+3. Open the repository entry and select **Download**.
+4. Restart Home Assistant.
+5. Go to **Settings -> Devices & services -> Add integration**.
+6. Search for **Humidity Intelligence** and complete setup.
 
 ### Option B - Manual package upgrade
 
@@ -1199,19 +1200,17 @@ CO emergency pressure. Details are in
 
 ## Release Notes
 
-### v2.0.11 — Poetic Justice (Maintenance candidate; not published)
+### v2.0.11 — Poetic Justice (Current Published Stable)
 
 ![Humidity Intelligence v2.0.11 Poetic Justice release banner](assets/release_banner/v2.0.11_release.png)
 
 [![Latest Release](https://img.shields.io/github/v/release/senyo888/Humidity-Intelligence?display_name=tag&sort=semver)](https://github.com/senyo888/Humidity-Intelligence/releases) [![Project Site](https://img.shields.io/badge/Project%20Site-GitHub%20Pages-5aa8d6)](https://senyo888.github.io/humidity-intelligence/) [![License](https://img.shields.io/github/license/senyo888/Humidity-Intelligence)](LICENSE) [![Sponsor](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/senyo888) [![Star Humidity Intelligence](https://img.shields.io/badge/Star%20%2F%20Support-Humidity%20Intelligence-2ea44f?logo=github&logoColor=white)](https://github.com/senyo888/humidity-intelligence)
 
-- carries stable maintenance-candidate manifest identity `2.0.11`; its release source
-  is now on `main`, but it must not be tagged or published until exact-package identity
-  and restart validation, generated release-check review, fresh Mobile and Tablet
-  export validation, Bella verification, AetherCore governance verification,
-  release-sanity validation, and maintainer README approval are complete; published
-  Stable remains v2.0.10 until the v2.0.11 tag, GitHub Release, and HACS availability
-  are complete
+- was published on 11 August 2026 as a non-prerelease GitHub Release and immutable tag
+  from exact commit `0dd3e68ab9f35608641dc64efc4b2c4bfacb06ce`; it is the
+  current published Stable release
+- is now available through the existing HACS default integration listing; the later
+  HACS inclusion milestone does not alter the published v2.0.11 package bytes or tag
 - restores the established centred Stability Score preview across generated V2
   Mobile, V2 Tablet, and both canonical gallery cards by keeping the name's
   button-card grid area as the quoted string `'n'`
@@ -1233,7 +1232,7 @@ CO emergency pressure. Details are in
 - requires no config-entry, entity-registry, stored-data, threshold, lane-order,
   service-name, or dashboard-registration migration
 
-### v2.0.10 (Published Stable)
+### v2.0.10 (Previous Published Stable)
 
 ![Humidity Intelligence v2.0.10 release banner](assets/release_banner/v2.0.10_release.png)
 
@@ -1278,9 +1277,10 @@ CO emergency pressure. Details are in
   the installed beta.7 package; neither evidence class proves that the later stable
   package bytes were installed on that instance
 
-<!-- Canonical release-note structure: keep the current release source and current Published Stable
-summaries expanded above, then move displaced older summaries into this container as
-new releases are added. CHANGELOG.md remains the complete detailed history. -->
+<!-- Canonical release-note structure: keep the current Published Stable and immediately
+preceding Published Stable summaries expanded above. Move displaced older summaries
+into this container as new releases are added. CHANGELOG.md remains the complete
+detailed history. -->
 <details>
 <summary>Previous Releases</summary>
 

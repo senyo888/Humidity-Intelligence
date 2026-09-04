@@ -13,7 +13,7 @@ authority unless their sanitized value is promoted into tracked documentation.
 
 Humidity Intelligence is a deterministic Home Assistant environmental control engine.
 It resolves one selected ventilation lane per evaluation cycle and exposes the reason
-through Home Assistant entities, diagnostics, and generated dashboards.
+through Home Assistant entities, diagnostics, and exported Manual-card YAML.
 
 Runtime behavior is owned by tracked integration code, tracked tests, tracked service
 schemas, tracked generated-card templates, and release documentation. Ignored local

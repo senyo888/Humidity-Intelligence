@@ -8,10 +8,6 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
-![Humidity Intelligence v2.0.11 Poetic Justice release banner](assets/release_banner/v2.0.11_release.png)
-
-[![Latest Release](https://img.shields.io/github/v/release/senyo888/Humidity-Intelligence?display_name=tag&sort=semver)](https://github.com/senyo888/Humidity-Intelligence/releases) [![Project Site](https://img.shields.io/badge/Project%20Site-GitHub%20Pages-5aa8d6)](https://senyo888.github.io/humidity-intelligence/) [![License](https://img.shields.io/github/license/senyo888/Humidity-Intelligence)](LICENSE) [![Sponsor](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/senyo888) [![Star Humidity Intelligence](https://img.shields.io/badge/Star%20%2F%20Support-Humidity%20Intelligence-2ea44f?logo=github&logoColor=white)](https://github.com/senyo888/humidity-intelligence)
-
 - Added a `senyo888-patch-1`-only deterministic package workflow for the separately
   governed HI Lab Controller. It builds from exact tracked Git blobs, emits a strict
   file/hash manifest, reproduces the package before upload, retains the immutable
@@ -19,17 +15,19 @@ This project follows a practical changelog format for Home Assistant and HACS us
   This adds no Humidity Intelligence runtime, entity, service, dashboard, HACS,
   version, installation, deployment, rollback, tag, release, or Stable behavior.
 
-- Prepared **Poetic Justice**, stable maintenance identity `2.0.11`, for the bounded
-  post-v2.0.10
-  Stability badge correction and extended the existing `v205_release_check`
-  compatibility range through v2.0.11 beta/rc/stable versions. This is release
-  preparation only: the v2.0.11 release source is now on `main`, but it must not be
-  tagged or published until exact-package identity and restart validation, generated
-  release-check review, fresh Mobile and Tablet export validation, independent or
-  maintainer adjudication of PR `#109`'s missing approving review, Bella verification,
-  AetherCore governance verification, release-sanity validation, and maintainer README
-  approval are complete. v2.0.10 remains the published Stable release until the
-  v2.0.11 tag, GitHub Release, and HACS publication are complete.
+## 2.0.11 - 2026-08-11
+
+![Humidity Intelligence v2.0.11 Poetic Justice release banner](assets/release_banner/v2.0.11_release.png)
+
+[![Latest Release](https://img.shields.io/github/v/release/senyo888/Humidity-Intelligence?display_name=tag&sort=semver)](https://github.com/senyo888/Humidity-Intelligence/releases) [![Project Site](https://img.shields.io/badge/Project%20Site-GitHub%20Pages-5aa8d6)](https://senyo888.github.io/humidity-intelligence/) [![License](https://img.shields.io/github/license/senyo888/Humidity-Intelligence)](LICENSE) [![Sponsor](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/senyo888) [![Star Humidity Intelligence](https://img.shields.io/badge/Star%20%2F%20Support-Humidity%20Intelligence-2ea44f?logo=github&logoColor=white)](https://github.com/senyo888/humidity-intelligence)
+
+- Published **Poetic Justice**, stable identity `2.0.11`, on 11 August 2026 as a
+  non-prerelease GitHub Release and immutable tag from exact commit
+  `0dd3e68ab9f35608641dc64efc4b2c4bfacb06ce`. The release contains the bounded
+  post-v2.0.10 Stability badge correction and extends the existing
+  `v205_release_check` range through v2.0.11 beta/rc/stable. Humidity Intelligence was
+  subsequently included in the HACS default integration repository; that distribution
+  milestone does not rewrite the v2.0.11 tag or package bytes.
 - Restored the established Stability preview badge treatment in generated V2 cards:
   the name's `grid-area` is now the quoted string `'n'`, preventing Home Assistant's
   YAML parser from coercing it to Boolean `false` and creating an implicit second

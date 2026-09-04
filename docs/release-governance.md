@@ -20,11 +20,10 @@ must remain aligned with the
 `custom_components/humidity_intelligence/manifest.json` version contained in the
 published GitHub Release/tag.
 
-Published Stable is `2.0.10`, released on 2026-08-10 from exact `main` commit
-`02b0f17291c7996aca793a8807a5830ede768013`. The current maintenance candidate uses
-stable `2.0.11` metadata on the governed release-preparation lane. A branch or merge
-containing that metadata is not by itself a publication. Public release status comes
-from GitHub Releases and HACS, while
+Published Stable is `2.0.11`, released on 2026-08-11 from exact commit
+`0dd3e68ab9f35608641dc64efc4b2c4bfacb06ce`. Humidity Intelligence was subsequently
+included in the HACS default integration repository. Public release status comes from
+GitHub Releases and the version offered through HACS, while
 release readiness must be established through public-safe validation summaries,
 GitHub CI, the required review gates, and explicit maintainer approval. Local
 operational evidence does not replace or become part of the tracked public
@@ -37,29 +36,13 @@ HACS publication, install, deployment, rollback, Stable state, or release approv
 See [Deterministic controller package artifact](controller-package-artifact.md) for
 its exact source, retention, content, provenance, and rollback boundaries.
 
-## v2.0.10 Publication And v2.0.11 Maintenance Path
+## v2.0.11 Publication Record
 
-The v2.0.10 tag and non-prerelease GitHub Release were published on 2026-08-10 from
-exact `main` commit `02b0f17291c7996aca793a8807a5830ede768013`. Post-release fixes
-must use a new version and must not rewrite, retag, or silently replace that immutable
-release.
-
-The v2.0.11 **Poetic Justice** maintenance candidate is bounded to the generated-card
-Stability preview correction, its fail-closed incomplete-diagnostics behavior,
-regression coverage, and the existing release-check service's version compatibility.
-It changes no lane,
-output, entity ID/state, configuration, stored data, or service name. The release
-source is now on `main` after PR `#109`. The existing GitHub Release draft is release
-preparation only and is not publication. Before tag or publication, exact packaged
-v2.0.11 validation still requires identity confirmation and a full Home Assistant
-restart after installation, review of the generated `v205_release_check` report,
-fresh Manual-card export/replacement, and review of the rendered V2 Mobile and Tablet
-surfaces. PR `#109` merged without a recorded approving review, so that review-gate
-exception also requires explicit independent or maintainer adjudication before
-tag or publication. Bella verification, AetherCore governance verification,
-release-sanity validation, and maintainer README approval remain hard pre-tag gates.
-Unsaved Manual-card playback is useful presentation evidence but is not exact
-installed-package activation evidence.
+The v2.0.11 **Poetic Justice** tag and non-prerelease GitHub Release were published on
+2026-08-11 from exact commit `0dd3e68ab9f35608641dc64efc4b2c4bfacb06ce`.
+Post-release fixes must use a new version and must not rewrite, retag, or silently
+replace that immutable release. HACS default-repository inclusion completed later and
+does not alter the release tag or package bytes.
 
 The former v2.0.8 candidate moved through `senyo888-patch-1`, `develop`, and `main`
 before publication. Stable metadata on a staging or review branch was not release
@@ -205,10 +188,11 @@ record:
 
 ## README Release-Note Structure
 
-The README keeps the current release source and current Published Stable summaries expanded.
-When a newer release takes either position, move the displaced summary into the
-collapsible `Previous Releases` container. Retain that container as the canonical
-older-release structure so successive releases follow the same visible chronology.
+The README keeps the current Published Stable and immediately preceding Published
+Stable summaries expanded when no newer candidate is present. Move displaced older
+summaries into the collapsible `Previous Releases` container. Retain that container as
+the canonical older-release structure so successive releases follow the same visible
+chronology.
 
 `CHANGELOG.md` owns the complete detailed release and legacy-migration history. The
 README container may keep concise displaced summaries and must retain a direct link to
