@@ -10,7 +10,7 @@ import pathlib
 import sys
 import tempfile
 import types
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 from types import MethodType, SimpleNamespace
 
@@ -131,6 +131,7 @@ def _install_homeassistant_stubs(*, include_unit_ratio: bool = True) -> None:
     entity_helper = types.ModuleType("homeassistant.helpers.entity")
     entity_registry = types.ModuleType("homeassistant.helpers.entity_registry")
     util = types.ModuleType("homeassistant.util")
+    util_dt = types.ModuleType("homeassistant.util.dt")
     voluptuous = types.ModuleType("voluptuous")
 
     class HomeAssistant:
@@ -275,6 +276,9 @@ def _install_homeassistant_stubs(*, include_unit_ratio: bool = True) -> None:
     def async_track_time_interval(*args, **kwargs):
         return lambda: None
 
+    def async_track_point_in_utc_time(*args, **kwargs):
+        return lambda: None
+
     def async_redact_data(data, to_redact):
         redact = {str(item).lower() for item in to_redact}
 
@@ -312,6 +316,7 @@ def _install_homeassistant_stubs(*, include_unit_ratio: bool = True) -> None:
     config_validation.string = str
     event.async_track_state_change_event = async_track_state_change_event
     event.async_track_time_interval = async_track_time_interval
+    event.async_track_point_in_utc_time = async_track_point_in_utc_time
     device_registry.DeviceInfo = DeviceInfo
     entity_helper.Entity = Entity
     entity_helper.async_generate_entity_id = async_generate_entity_id
@@ -321,6 +326,9 @@ def _install_homeassistant_stubs(*, include_unit_ratio: bool = True) -> None:
     issue_registry.async_delete_issue = lambda *_args, **_kwargs: None
     helpers.issue_registry = issue_registry
     util.slugify = lambda value: str(value).lower().replace(" ", "_")
+    util_dt.now = lambda: datetime.now().astimezone()
+    util_dt.utcnow = lambda: datetime.now(timezone.utc)
+    util.dt = util_dt
     voluptuous.Schema = Schema
     voluptuous.Optional = _SchemaKey
     voluptuous.Required = _SchemaKey
@@ -351,6 +359,7 @@ def _install_homeassistant_stubs(*, include_unit_ratio: bool = True) -> None:
     sys.modules["homeassistant.helpers.entity"] = entity_helper
     sys.modules["homeassistant.helpers.entity_registry"] = entity_registry
     sys.modules["homeassistant.util"] = util
+    sys.modules["homeassistant.util.dt"] = util_dt
     sys.modules["voluptuous"] = voluptuous
 
 

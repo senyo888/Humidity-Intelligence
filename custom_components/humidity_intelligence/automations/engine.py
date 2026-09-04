@@ -12,6 +12,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.event import async_track_state_change_event, async_track_time_interval
+from homeassistant.util import dt as dt_util
 
 from ..const import (
     ALERT_THRESHOLD_BOUNDS,
@@ -513,7 +514,7 @@ class HIAutomationEngine:
 
     def _gate_evaluation(self) -> _GateStatus:
         if self.time_gate.get("enabled"):
-            now = datetime.now().time()
+            now = dt_util.now().time()
             start = _parse_time(self.time_gate.get("start"))
             end = _parse_time(self.time_gate.get("end"))
             if start and end:
