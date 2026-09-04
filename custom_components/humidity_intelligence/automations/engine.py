@@ -234,7 +234,26 @@ class HIAutomationEngine:
         self._notify_other_humidifier_engines()
 
     async def _handle_change(self, event) -> None:
+        if self._is_pause_timer_countdown_update(event):
+            return
         await self.async_request_evaluate()
+
+    def _is_pause_timer_countdown_update(self, event) -> bool:
+        """Return whether an event only refreshes the active pause countdown."""
+        event_data = getattr(event, "data", {}) or {}
+        entity_id = event_data.get("entity_id")
+        if not entity_id:
+            return False
+        data = self.hass.data.get(DOMAIN, {}).get(self.entry.entry_id, {})
+        pause_timer = data.get("hi_timers", {}).get("air_control_pause")
+        if entity_id != getattr(pause_timer, "entity_id", None):
+            return False
+        old_state = event_data.get("old_state")
+        new_state = event_data.get("new_state")
+        return (
+            getattr(old_state, "state", None) == "active"
+            and getattr(new_state, "state", None) == "active"
+        )
 
     async def _periodic_check(self, now) -> None:
         await self.async_request_evaluate()
