@@ -8,6 +8,42 @@ This project follows a practical changelog format for Home Assistant and HACS us
 
 ## Unreleased
 
+![Humidity Intelligence v2.0.12 release header celebrating repository-level HACS inclusion](assets/release_banner/v2.0.12_release.png)
+
+- Advanced development identity to `2.0.12-beta.1` for the bounded maintenance
+  candidate. This candidate is not a published GitHub Release or an HACS-offered
+  v2.0.12 package.
+- Recorded completed inclusion in the HACS default integration repository, added the
+  official My Home Assistant repository button, and replaced normal first-install
+  custom-repository instructions with the default-store search and download path.
+  Historical V1-to-V2 repository-type migration guidance remains available for users
+  who need it.
+- Corrected the configured time gate to use Home Assistant local time instead of the
+  host or container wall clock. Same-day, inclusive boundary, overnight, spring-
+  forward, and both autumn-fold cases are covered without changing lane order, CO
+  priority, output ownership, or gate actions.
+- Replaced `HITimerSensor` raw sleeper tasks with lifecycle-owned Home Assistant
+  one-shot callbacks, aware UTC duration arithmetic, generation invalidation, exact
+  expiry, and bounded `remaining` publication no more than once per minute. Timer
+  unique IDs, entity IDs, `active`/`idle` states, and reset-to-idle restart behavior
+  remain unchanged.
+- Prevented pause-timer `active` to `active` countdown-only state events from starting
+  a full engine cycle, while retaining immediate evaluation for primary-state changes.
+- Extended the backward-compatible `v205_release_check` manifest range and result
+  wording through v2.0.12 beta/rc/stable. The service name, schema, admin gate, owned
+  report path, runtime/device-read-only side effects, and physical-output limitation
+  remain unchanged.
+- Kept native diagnostics schema `1`, redaction, aggregate mapped-entity privacy, and
+  Inspector compatibility unchanged. The installed integration version continues to
+  come from `manifest.json` after the updated package is loaded.
+- Added the v2.0.12 release header and aligned README, Pages source, release/user
+  checklists, support diagnostics guidance, and issue forms with current HACS and
+  v2.0.11 publication truth. Generated-card, gallery-card, and Stability bytes
+  remain unchanged.
+- A full Home Assistant restart is required after installing changed Python and
+  service code. No config-entry, entity-registry, stored-data, threshold, lane-order,
+  service-name, or dashboard migration is required, and v2.0.12 requires no Manual-
+  card re-export.
 - Added a `senyo888-patch-1`-only deterministic package workflow for the separately
   governed HI Lab Controller. It builds from exact tracked Git blobs, emits a strict
   file/hash manifest, reproduces the package before upload, retains the immutable

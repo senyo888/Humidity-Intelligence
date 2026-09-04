@@ -59,6 +59,20 @@ names, Area names, Label names, entity maps, and state dumps. Selected mapping a
 local-name evidence is generally reduced, but user-configured display and level labels may remain.
 Review the complete file before uploading it to a public issue.
 
+## v2.0.12 Diagnostics And Release Check
+
+The v2.0.12 maintenance candidate keeps native diagnostics schema `1`, existing
+redaction, aggregate mapped-entity availability, and browser-local Inspector
+compatibility unchanged. Native diagnostics read the installed HI version from the
+package manifest after Home Assistant loads it; use that value to confirm the expected
+package is active after a full restart.
+
+The historical `v205_release_check` service name is unchanged. Its accepted manifest
+range and result wording now cover v2.0.5-v2.0.12 beta/rc/stable. The service remains
+admin-only and runtime/device read-only, writes under
+`<config>/humidity_intelligence/exports/`, and cannot prove physical moisture output.
+Treat its entity-bearing report as local/private until reviewed or sanitized.
+
 ## Humidifier Demand/Output Troubleshooting
 
 The humidifier-active helper and V2 `Requested` chip mean HI currently has effective

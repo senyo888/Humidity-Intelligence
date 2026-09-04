@@ -5,9 +5,9 @@ testing and validation branches.
 
 ## Canonical Version Model
 
-- `2.0.11-beta.1`: testing build.
-- `2.0.11-rc.1`: release-candidate build.
-- `2.0.11`: stable version label. On `senyo888-patch-1`, `develop`, or `main`,
+- `2.0.12-beta.1`: testing build.
+- `2.0.12-rc.1`: release-candidate build.
+- `2.0.12`: stable version label. On `senyo888-patch-1`, `develop`, or `main`,
   stable metadata may be staged or promoted through the governed release path.
   Published release status comes from release tags, GitHub release publication, and
   maintainer approval.
@@ -22,8 +22,10 @@ published GitHub Release/tag.
 
 Published Stable is `2.0.11`, released on 2026-08-11 from exact commit
 `0dd3e68ab9f35608641dc64efc4b2c4bfacb06ce`. Humidity Intelligence was subsequently
-included in the HACS default integration repository. Public release status comes from
-GitHub Releases and the version offered through HACS, while
+included in the HACS default integration repository. The current development candidate
+uses `2.0.12-beta.1` metadata on the governed release-preparation lane. A branch or
+merge containing that metadata is not by itself a publication. Public release status
+comes from GitHub Releases and the version offered through HACS, while
 release readiness must be established through public-safe validation summaries,
 GitHub CI, the required review gates, and explicit maintainer approval. Local
 operational evidence does not replace or become part of the tracked public
@@ -36,13 +38,24 @@ HACS publication, install, deployment, rollback, Stable state, or release approv
 See [Deterministic controller package artifact](controller-package-artifact.md) for
 its exact source, retention, content, provenance, and rollback boundaries.
 
-## v2.0.11 Publication Record
+## v2.0.11 Publication And v2.0.12 Maintenance Path
 
 The v2.0.11 **Poetic Justice** tag and non-prerelease GitHub Release were published on
 2026-08-11 from exact commit `0dd3e68ab9f35608641dc64efc4b2c4bfacb06ce`.
 Post-release fixes must use a new version and must not rewrite, retag, or silently
 replace that immutable release. HACS default-repository inclusion completed later and
 does not alter the release tag or package bytes.
+
+The v2.0.12 maintenance candidate is bounded to HACS/release-documentation coherence,
+Home Assistant-local time-gate evaluation, lifecycle-safe timer countdown publication,
+and the existing `v205_release_check` service's accepted manifest range. It changes
+timer `remaining` publication cadence and the release-check compatibility claim, while
+preserving entity IDs, primary `active`/`idle` states, service name/schema/admin gate,
+lane order, outputs, configuration, stored data, native diagnostics schema, and
+generated-card bytes. A full Home Assistant restart is required after package
+installation. No Manual-card re-export or stored-data/config/entity/dashboard migration
+is required. Before tag or publication, the exact package still requires the hard
+gates below plus the v2.0.12 checklist.
 
 The former v2.0.8 candidate moved through `senyo888-patch-1`, `develop`, and `main`
 before publication. Stable metadata on a staging or review branch was not release
@@ -188,11 +201,11 @@ record:
 
 ## README Release-Note Structure
 
-The README keeps the current Published Stable and immediately preceding Published
-Stable summaries expanded when no newer candidate is present. Move displaced older
-summaries into the collapsible `Previous Releases` container. Retain that container as
-the canonical older-release structure so successive releases follow the same visible
-chronology.
+The README keeps the current candidate, current Published Stable, and immediately
+preceding Published Stable summaries expanded. When a newer release displaces one of
+those three positions, move the older summary into the collapsible `Previous Releases`
+container. Retain that container as the canonical older-release structure so
+successive releases follow the same visible chronology.
 
 `CHANGELOG.md` owns the complete detailed release and legacy-migration history. The
 README container may keep concise displaced summaries and must retain a direct link to
@@ -231,6 +244,40 @@ block promotion, tagging, GitHub Release or HACS publication, or Stable approval
 If any gate is missing for the version being prepared, the release state is `not ready`,
 even when the manifest version already carries a stable number on `senyo888-patch-1`,
 `develop`, or `main`.
+
+## v2.0.12 Release Checklist
+
+Use this checklist for the exact v2.0.12 candidate. Keep local validation, Home
+Assistant activation, promotion, tag, GitHub Release, HACS availability observation,
+and post-release observation as separate evidence states.
+
+- [ ] Exact branch, commit, tree, manifest version, component file count, and package
+  hash are recorded.
+- [ ] `v205_release_check` accepts v2.0.12 beta/rc/stable and still rejects v2.0.13;
+  the generated report for the installed candidate is reviewed.
+- [ ] Native diagnostics report the expected installed version and schema `1`, and
+  redaction plus aggregate mapped-entity privacy tests pass.
+- [ ] Home Assistant local time differs deliberately from the host/container clock;
+  same-day, inclusive boundary, overnight, spring-forward, and both autumn-fold cases
+  pass.
+- [ ] Timer start, replacement, cancel, exact expiry, removal, platform unload,
+  config-entry/options reload, restart-to-idle, generation invalidation, maximum
+  60-second publication cadence, and no-late-write behavior pass.
+- [ ] Pause-timer `active` to `active` countdown events cause no full engine evaluation;
+  `active` to `idle` still evaluates immediately.
+- [ ] CO emergency precedence, canonical lane order, humidifier independence, output
+  ownership, unavailable/degraded handling, and privacy boundaries pass.
+- [ ] Generated-card, gallery-card, and Stability source bytes match the protected
+  baseline exactly; Manual-card re-export status is `not required`.
+- [ ] Full tracked tests, compile/import checks, HACS Action, Hassfest, package layout,
+  branding, version governance, docs/link checks, and public secret/privacy scans pass.
+- [ ] README, CHANGELOG, Pages source, service descriptions, support diagnostics
+  guidance, issue forms, and Wiki status are aligned; Content Harmony completed from
+  a clean trusted plugin source.
+- [ ] Runtime impact, entity/service contract changes, no-migration result, full-restart
+  requirement, rollback package, and observation plan are explicit.
+- [ ] Bella, Aetherwing, AetherCore, release-sanity, and final maintainer README/release
+  approval gates are complete for the exact final head.
 
 ## Enforcement
 

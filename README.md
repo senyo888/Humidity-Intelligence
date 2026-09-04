@@ -57,10 +57,13 @@ It gives you:
 - native Home Assistant diagnostics for support and triage
 - services for dashboard export, self-check, diagnostics, pause/resume, and release validation
 
-Current integration manifest version: **v2.0.11**. It is the current Published Stable
-GitHub Release and tag, published on 11 August 2026. Humidity Intelligence is included
-in the HACS default integration repository and is available directly in HACS; HACS
-installs published GitHub Release versions.
+Current development manifest version: **v2.0.12-beta.1**. This candidate corrects the
+configured time gate to use Home Assistant local time, makes timer countdown updates
+lifecycle-safe, and extends the existing release-check contract through v2.0.12. It is
+not a published release. The current published Stable GitHub Release and tag are
+**v2.0.11**, published on 11 August 2026. Humidity Intelligence is included in the
+HACS default repository and is available directly in HACS; HACS still installs only a
+published GitHub Release version.
 
 Optional HA Lab evidence is advisory and does not block promotion, tagging, or
 publication.
@@ -441,6 +444,9 @@ must be reviewable from tracked repository files.
 
 ## Current Release Highlights
 
+- the `2.0.12-beta.1` maintenance candidate uses Home Assistant local time for the
+  configured time gate and gives HI timer entities lifecycle-owned, at-most-once-per-
+  minute countdown updates without changing their IDs or `active`/`idle` states
 - the published `2.0.11` Stable release restores the established centred, passive
   Stability preview badge and six-second breathing treatment without calculating a
   score in the card or changing control behaviour
@@ -504,9 +510,9 @@ must be reviewable from tracked repository files.
 - local issue-triage private report writing is confined through the private atomic
   writer, keeping public issue/support flows separate from local report output
 - the tracked secret scan now fails closed when no tracked files are selected
-- `v205_release_check` preserves its service name; the published package
+- `v205_release_check` preserves its service name; the v2.0.12 candidate
   extends its generated-card, humidifier-reconciliation, and release-validation
-  contract through the v2.0.11 beta/rc/stable line
+  contract through the v2.0.12 beta/rc/stable line
 - Home Assistant Area/Label setup assistance can suggest defaults from registry
   metadata, but saved HI telemetry, zone, AQ, humidifier, and alert mappings remain
   the only runtime truth
@@ -518,16 +524,18 @@ must be reviewable from tracked repository files.
   semantics, migration shape, and UI truth stay aligned with the existing backend
   model
 
-Upgrade note:
+v2.0.12 candidate update note:
 
 After installing a new HI version through HACS or replacing its files:
 
 1. Restart Home Assistant. A full restart loads the updated HI package and services.
-2. If you use generated Current Air Control, V2 control-row, or output-detail cards,
-   run `humidity_intelligence.dump_cards`.
-3. Open the dashboard in Home Assistant and replace the complete YAML of each existing
-   HI Manual card with the new export.
-4. Refresh the browser if the old layout or colours are still cached.
+2. Confirm native diagnostics report the expected HI version and schema `1`.
+3. Run `humidity_intelligence.v205_release_check` and review the generated report.
+4. Check an ordinary configured time-gate window and a timer start/cancel cycle.
+
+No Manual-card re-export is required for v2.0.12 because generated-card bytes are
+unchanged. If your installed version differs from the expected HACS version, resolve
+that package mismatch before treating runtime or diagnostics evidence as current.
 
 The exported YAML belongs inside a Manual card. Keep registered and YAML-mode
 dashboard files as they are; add a Manual card or replace the complete YAML inside an
@@ -996,7 +1004,7 @@ Notes:
   remaining entry is re-exported with unqualified names; its superseded qualified
   files stay externally readable until an exact previewed purge.
 - `v205_release_check` is the backward-compatible validation service name. It accepts
-  the v2.0.5-v2.0.11 beta/rc/stable line and is runtime/device
+  the v2.0.5-v2.0.12 beta/rc/stable line and is runtime/device
   read-only: it writes its validation report, and `write_test_exports: true`
   additionally writes card-export test files.
 - `dump_diagnostics` and native diagnostics are support surfaces; support exports are
@@ -1037,7 +1045,7 @@ Common service groups:
 | `flash_lights` | admin-only test of configured visual alert behavior; runtime alerts use the trusted engine path |
 | `pause_control` / `resume_control` | admin-only pause or resume for one supplied entry or all entries |
 | `self_check` | admin-only fixed export of mapping, generated-card entity, telemetry, drift-helper, and frontend-dependency checks |
-| `v205_release_check` | admin-only runtime-safe v2.0.5-v2.0.11 generated-card, humidifier-reconciliation, and release-validation support checks |
+| `v205_release_check` | admin-only runtime-safe v2.0.5-v2.0.12 generated-card, humidifier-reconciliation, and release-validation support checks |
 | `create_local_backup` | admin-only creation of a package-local HI snapshot for advanced validation |
 | `list_saved_versions` | admin-only, read-only inspection of package-local HI snapshot metadata |
 | `dump_diagnostics` | admin-only export of fuller local diagnostics for maintainer/debug workflows |
@@ -1200,6 +1208,39 @@ CO emergency pressure. Details are in
 
 ## Release Notes
 
+### v2.0.12 (Maintenance candidate; not published)
+
+![Humidity Intelligence v2.0.12 release header celebrating repository-level HACS inclusion](assets/release_banner/v2.0.12_release.png)
+
+- carries development manifest identity `2.0.12-beta.1`; this is release preparation,
+  not a published GitHub Release or an HACS-offered v2.0.12 package
+- celebrates completed inclusion of Humidity Intelligence in the HACS default
+  integration repository; the button opens the repository in HACS and the user still
+  selects **Download**
+- evaluates configured time-gate wall-clock windows using Home Assistant local time,
+  including same-day, overnight, spring-forward, and both autumn-fold cases, without
+  changing the existing inclusive window boundaries
+- replaces unowned timer sleepers with lifecycle-owned Home Assistant callbacks,
+  aware UTC duration arithmetic, invalidation guards, exact expiry, and at-most-once-
+  per-minute `remaining` updates; entity IDs and primary `active`/`idle` states remain
+  unchanged
+- suppresses only pause-timer `active` to `active` countdown events from full engine
+  evaluation while preserving immediate evaluation when the pause state changes
+- extends the backward-compatible `v205_release_check` accepted manifest range and
+  report wording through v2.0.12 beta/rc/stable; its name, schema, admin requirement,
+  report path, and runtime/device-read-only side effects remain unchanged
+- preserves native diagnostics schema `1`, redaction, aggregate mapping privacy, and
+  Inspector compatibility; after restart, native diagnostics report the installed
+  manifest version dynamically
+- preserves CO-first canonical lane order, output ownership, humidifier independence,
+  configuration, stored data, generated-card bytes, and Stability behavior
+- requires a full Home Assistant restart after package installation; it requires no
+  config-entry, entity-registry, stored-data, threshold, lane-order, service-name, or
+  dashboard migration, and no Manual-card re-export is required
+- remains blocked from tag and publication until exact-package validation, required
+  reviews, release sanity, Content Harmony closeout, and final maintainer README and
+  release approval are complete
+
 ### v2.0.11 — Poetic Justice (Current Published Stable)
 
 ![Humidity Intelligence v2.0.11 Poetic Justice release banner](assets/release_banner/v2.0.11_release.png)
@@ -1277,10 +1318,10 @@ CO emergency pressure. Details are in
   the installed beta.7 package; neither evidence class proves that the later stable
   package bytes were installed on that instance
 
-<!-- Canonical release-note structure: keep the current Published Stable and immediately
-preceding Published Stable summaries expanded above. Move displaced older summaries
-into this container as new releases are added. CHANGELOG.md remains the complete
-detailed history. -->
+<!-- Canonical release-note structure: keep the current candidate, current Published
+Stable, and immediately preceding Published Stable summaries expanded above. Move
+displaced older summaries into this container as new releases are added. CHANGELOG.md
+remains the complete detailed history. -->
 <details>
 <summary>Previous Releases</summary>
 

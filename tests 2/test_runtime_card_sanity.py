@@ -4000,11 +4000,12 @@ def test_readme_uses_manifest_version_badge_not_static_ha_compatibility_badge():
     assert "Home%20Assistant-2026.4.3%2B" not in readme_source
 
 
-def test_readme_keeps_current_and_previous_stable_before_previous_releases():
+def test_readme_keeps_three_current_release_summaries_before_previous_releases():
     readme_source = (ROOT / "README.md").read_text()
     release_notes = readme_source.split("## Release Notes", 1)[1]
     visible_notes, previous_releases = release_notes.split("<details>", 1)
 
+    assert "### v2.0.12 (Maintenance candidate; not published)" in visible_notes
     assert "### v2.0.11 — Poetic Justice (Current Published Stable)" in visible_notes
     assert "### v2.0.10 (Previous Published Stable)" in visible_notes
     assert "was published on 11 August 2026" in visible_notes
@@ -4024,7 +4025,11 @@ def test_readme_keeps_current_and_previous_stable_before_previous_releases():
     assert (ROOT / "assets" / "release_banner" / "v2.0.11_release.png").read_bytes()[:8] == (
         b"\x89PNG\r\n\x1a\n"
     )
+    assert (ROOT / "assets" / "release_banner" / "v2.0.12_release.png").read_bytes()[:8] == (
+        b"\x89PNG\r\n\x1a\n"
+    )
     assert "<summary>Previous Releases</summary>" in previous_releases
+    assert "current candidate, current Published" in visible_notes
     assert (
         "https://my.home-assistant.io/redirect/hacs_repository/"
         "?owner=senyo888&repository=humidity-intelligence&category=integration"
@@ -4033,7 +4038,7 @@ def test_readme_keeps_current_and_previous_stable_before_previous_releases():
     assert "it does not install automatically" in readme_source
 
 
-def test_v2011_public_release_surfaces_track_published_stable_and_hacs_truth():
+def test_v2012_public_release_surfaces_track_candidate_and_v2011_stable_truth():
     readme_source = (ROOT / "README.md").read_text()
     release_notes = readme_source.split("## Release Notes", 1)[1]
     visible_notes = release_notes.split("<details>", 1)[0]
@@ -4044,15 +4049,18 @@ def test_v2011_public_release_surfaces_track_published_stable_and_hacs_truth():
     normalized_changelog = " ".join(changelog_source.split())
     normalized_governance = " ".join(release_governance.split())
 
-    assert "Current integration manifest version: **v2.0.11**" in normalized_readme
-    assert "current Published Stable GitHub Release and tag" in normalized_readme
-    assert "included in the HACS default integration repository" in normalized_readme
-    assert "current published Stable release" in normalized_visible_notes
+    assert "Current development manifest version: **v2.0.12-beta.1**" in normalized_readme
+    assert "It is not a published release" in normalized_readme
+    assert "current published Stable GitHub Release and tag are **v2.0.11**" in normalized_readme
+    assert "included in the HACS default repository" in normalized_readme
+    assert "carries development manifest identity `2.0.12-beta.1`" in normalized_visible_notes
+    assert "not a published GitHub Release or an HACS-offered v2.0.12 package" in normalized_visible_notes
     assert "0dd3e68ab9f35608641dc64efc4b2c4bfacb06ce" in normalized_visible_notes
     assert "## 2.0.11 - 2026-08-11" in changelog_source
-    assert "Published **Poetic Justice**, stable identity `2.0.11`" in normalized_changelog
+    assert "Advanced development identity to `2.0.12-beta.1`" in normalized_changelog
     assert "Published Stable is `2.0.11`" in normalized_governance
-    assert "## v2.0.11 Publication Record" in release_governance
+    assert "## v2.0.12 Release Checklist" in release_governance
+    assert "No Manual-card re-export" in normalized_governance
     assert "v2.0.11 release source is now on `main`" not in normalized_readme
     assert "GitHub Release draft is release preparation only" not in normalized_governance
 
@@ -4354,6 +4362,9 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
         "2.0.11-beta.1",
         "2.0.11-rc.1",
         "2.0.11",
+        "2.0.12-beta.1",
+        "2.0.12-rc.1",
+        "2.0.12",
     ):
         future_report = services_mod._build_v205_release_check_entry_report(
             hass,
@@ -4370,7 +4381,7 @@ def test_v205_release_check_report_verifies_export_contract_and_ui_visibility():
         hass,
         entry,
         runtime_data,
-        manifest_version="2.0.12-beta.1",
+        manifest_version="2.0.13-beta.1",
         frontend_dependencies={"status": "not_inspectable"},
     )
     out_of_range_checks = {
@@ -5837,12 +5848,12 @@ def test_v205_release_check_service_is_documented_and_registered():
     assert "handle_v205_release_check" in services_source
     assert "SERVICE_V205_RELEASE_CHECK" in services_source.split("async_unregister_services", 1)[1]
     assert "v205_release_check:" in services_yaml
-    assert "v2.0.5-v2.0.11" in services_yaml
-    assert "v2.0.5-v2.0.11" in readme_source
+    assert "v2.0.5-v2.0.12" in services_yaml
+    assert "v2.0.5-v2.0.12" in readme_source
     assert "write_test_exports" in services_yaml
     assert "humidity_intelligence.v205_release_check" in readme_source
     assert "humidity_intelligence_v205_release_check.json" in readme_source
-    assert manifest["version"] == "2.0.11"
+    assert manifest["version"] == "2.0.12-beta.1"
 
 
 def test_owned_ui_path_discovery_and_legacy_cleanup_guidance_is_explicit():
